@@ -4,8 +4,8 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Page 1</title>
-        <link rel="stylesheet" href="/global.css" />
-        <link rel="stylesheet" href="/page1.css" />
+        <link rel="stylesheet" href="/static/css/global.css" />
+        <link rel="stylesheet" href="/static/css/page1.css" />
     </head>
     <body>
         <div class="container">
@@ -13,7 +13,7 @@
             <div class="line">
                 <span>{{.Text}}</span>
                 {{ if .AudioURL }}
-                    <button onclick="playAudio('{{.AudioURL}}')">Play</button>
+                <button onclick="playAudio('{{.AudioURL}}')">Play</button>
                 {{ end }}
             </div>
             {{ else }}
@@ -34,9 +34,16 @@
                 // Create and play the new audio
                 currentAudio = new Audio(url);
                 currentAudio.play();
+                document
+                    .querySelectorAll("button")
+                    .forEach((btn) =>
+                        btn.setAttribute("data-playing", "false"),
+                    );
+                currentButton.setAttribute("data-playing", "true");
 
                 // Set up event listener for when audio finishes
                 currentAudio.onended = function () {
+                    currentButton.setAttribute("data-playing", "false");
                     // Find the next button after the current one
                     const buttons = document.querySelectorAll("button");
                     const currentButton = Array.from(buttons).find((button) =>

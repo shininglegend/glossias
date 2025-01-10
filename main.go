@@ -1,32 +1,46 @@
 package main
 
 import (
-	"fmt"
 	"log/slog"
 	"logos-stories/internal/logging"
 	"logos-stories/internal/stories"
 	"net/http"
 	"os"
+	"time"
+
+	"github.com/gorilla/mux"
 )
 
 func main() {
-	// logging
-	logger := slog.New(os.Stdout, &logging.Options{})
+	logger := slog.New(logging.New(os.Stdout, &logging.Options{
+		Level: slog.LevelDebug,
+	}))
 
-	// Define routes
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Hello, World!")
-	})
-	http.HandleFunc("/page1", stories.ServePage1)
+	r := mux.NewRouter()
 
-	// Serve static files
-	fs := http.FileServer(http.Dir("static"))
-	http.Handle("/static/", http.StripPrefix("/static/", fs))
+	// Initialize handlers
+	storiesHandler := stories.NewHandler(logger)
+	storiesHandler.RegisterRoutes(r)
 
-	// Start server
-	fmt.Println("Server running on http://localhost:8080")
-	err := http.ListenAndServe(":8080", nil)
-	if err != nil {
-		logger.Error("Failed to start server", "error", err)
+	// Setup middleware if needed
+	r.Use( /* your middleware */ )
+
+	// Setup static file serving
+	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
+		http.FileServer(http.Dir("static"))))
+		// http://localhost:8080/static/stories/stories_audio/hb_9b/hb_9b-01.mp3
+		//http://localhost:8080/static/stories/stories_audio/hb_9b-01.mp3
+
+	srv := &http.Server{
+		Handler:      r,
+		Addr:         ":8080",
+		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  15 * time.Second,
+	}
+
+	logger.Info("starting server", "addr", srv.Addr)
+	if err := srv.ListenAndServe(); err != nil {
+		logger.Error("server error", "error", err)
+		os.Exit(1)
 	}
 }

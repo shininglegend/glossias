@@ -1,0 +1,38 @@
+/* logos-stories/src/templates/global.css */
+:root {
+    --primary: #3b82f6;
+    --primary-hover: #2563eb;
+    --background: #f8fafc;
+    --text: #1e293b;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+        Ubuntu, Cantarell, sans-serif;
+    background-color: var(--background);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.container {
+    width: 100%;
+    max-width: 768px; /* md breakpoint */
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+/* Responsive breakpoints */
+@media (max-width: 640px) {
+    .container {
+        padding: 0.5rem;
+    }
+}

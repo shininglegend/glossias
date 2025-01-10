@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Main",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      // Changed from ${fileDirname} to explicit main.go path
+      "program": "${workspaceFolder}/main.go"
+    }
+  ]
+}

@@ -64,7 +64,6 @@ func (h *Logger) Handle(ctx context.Context, r slog.Record) error {
 	}
 	buf = h.appendAttr(buf, slog.String(slog.MessageKey, r.Message), 0)
 	indentLevel := 0
-	// TODO: output the Attrs and groups from WithAttrs and WithGroup.
 	r.Attrs(func(a slog.Attr) bool {
 		buf = h.appendAttr(buf, a, indentLevel)
 		return true

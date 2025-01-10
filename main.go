@@ -18,18 +18,17 @@ func main() {
 
 	r := mux.NewRouter()
 
-	// Initialize handlers
-	storiesHandler := stories.NewHandler(logger)
-	storiesHandler.RegisterRoutes(r)
-
 	// Setup middleware if needed
-	r.Use( /* your middleware */ )
+	r.Use(loggingMiddleware(logger))
 
+	// Initialize handlers
 	// Setup static file serving
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
 		http.FileServer(http.Dir("static"))))
-		// http://localhost:8080/static/stories/stories_audio/hb_9b/hb_9b-01.mp3
-		//http://localhost:8080/static/stories/stories_audio/hb_9b-01.mp3
+		
+	// Other handlers
+	storiesHandler := stories.NewHandler(logger)
+	storiesHandler.RegisterRoutes(r)
 
 	srv := &http.Server{
 		Handler:      r,
@@ -42,5 +41,18 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil {
 		logger.Error("server error", "error", err)
 		os.Exit(1)
+	}
+}
+
+func loggingMiddleware(logger *slog.Logger) mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			next.ServeHTTP(w, r)
+			logger.Info("request completed",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"duration", time.Since(start))
+		})
 	}
 }

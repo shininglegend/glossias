@@ -18,38 +18,46 @@
 
 .line span {
     flex: 1;
-    margin-right: 1rem;
+}
+
+.story-text {
+    font-size: 2rem;
+    font-family: "SBL Hebrew", "Helvetica Neue", Helvetica, sans-serif;
+    color: var(--text);
 }
 
 button {
     background-color: var(--primary);
     color: white;
     border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 0.375rem;
+    padding: 0.5rem;
+    border-radius: 50%; /* Make button circular */
     cursor: pointer;
     transition: all 0.2s ease;
-    min-width: 80px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 button:hover {
     background-color: var(--primary-hover);
+    transform: scale(1.05);
 }
 
-/* Style for currently playing button */
+button .material-icons {
+    font-size: 24px;
+}
+
+/* Remove previous ::before pseudo-elements */
 button[data-playing="true"] {
-    background-color: #22c55e; /* green */
-    position: relative;
-    padding-left: 1.5rem;
+    background-color: #22c55e;
 }
 
-button[data-playing="true"]::before {
-    content: "▶";
-    position: absolute;
-    left: 0.5rem;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 0.75rem;
+/* Update play/pause icon via JS */
+button[data-playing="true"] .material-icons {
+    content: "pause";
 }
 
 /* Responsive adjustments */
@@ -91,16 +99,4 @@ button[data-playing="true"] {
 button:focus {
     outline: 2px solid var(--primary);
     outline-offset: 2px;
-}
-
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-    :root {
-        --background: #1e293b;
-        --text: #f8fafc;
-    }
-
-    .line {
-        background-color: #334155;
-    }
 }

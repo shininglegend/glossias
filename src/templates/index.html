@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Logos Stories</title>
+        <link rel="stylesheet" href="/static/css/global.css" />
+        <link rel="stylesheet" href="/static/css/index.css" />
+    </head>
+    <body>
+        <header>
+            <h1>Logos Stories</h1>
+            <p>Select a story to begin reading</p>
+            <hr />
+        </header>
+        <main class="container">
+            <div class="stories-list">
+                {{range .Stories}}
+                <div class="story-item">
+                    <h2>{{.Title}}</h2>
+                    <a href="/stories/{{.ID}}/page1">Start Reading</a>
+                </div>
+                {{end}}
+            </div>
+        </main>
+    </body>
+</html>

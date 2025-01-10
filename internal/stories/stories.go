@@ -2,11 +2,11 @@
 package stories
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -25,7 +25,9 @@ type Line struct {
 }
 
 type PageData struct {
-	Lines []Line
+	StoryID    string
+	StoryTitle string
+	Lines      []Line
 }
 
 func NewHandler(logger *slog.Logger) *Handler {
@@ -35,97 +37,87 @@ func NewHandler(logger *slog.Logger) *Handler {
 }
 
 // RegisterRoutes registers all story-related routes
-func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/page1", h.ServePage1).Methods("GET")
-	// Add more routes as needed
+func (h *Handler) RegisterRoutes(mux *mux.Router) {
+	mux.HandleFunc("/stories/{id}/page1", h.ServePage1).Methods("GET").Name("page1")
+	mux.HandleFunc("/", h.ServeIndex).Methods("GET")
 }
 
-// Read from html file
-func (h *Handler) ServePage1(w http.ResponseWriter, r *http.Request) {
-	// Get the story id from the URL
-	storyID := r.URL.Query().Get("id")
-	if storyID == "" {
-		h.log.Info("Missing or invalid story ID", "story_id", storyID)
-		http.Error(w, fmt.Sprintf("Missing or invalid story ID. Got: '%v'", storyID), http.StatusBadRequest)
-		return
-	}
+// stories.go
+// Add these new types to the existing file
+type Story struct {
+	ID    string
+	Title string
+}
 
-	lines := []Line{}
-	// Load the audio files from the folder
-	audioDir, err := os.ReadDir(fmt.Sprintf(storiesDir+"stories_audio/%v", storyID))
+type IndexData struct {
+	Stories []Story
+}
+
+// Add this new method
+func (h *Handler) ServeIndex(w http.ResponseWriter, r *http.Request) {
+	// Get all story files
+	files, err := os.ReadDir(storiesDir + "stories_text")
 	if err != nil {
-		if err == os.ErrNotExist {
-			h.log.Info("Story not found", "story_id", storyID)
-			http.Error(w, fmt.Sprintf("Story with ID '%v' not found", storyID), http.StatusNotFound)
-			return
-		}
-		h.log.Error("Failed to read audio files", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		h.log.Error("Failed to read stories directory", "error", err)
+		http.Error(w, "Failed to read stories", http.StatusInternalServerError)
 		return
-	}
-	// Load the text file
-	textBytes, err := os.ReadFile(fmt.Sprintf(storiesDir+"stories_text/%v.txt", storyID))
-	if err != nil {
-		h.log.Error("Failed to read text file", "error", err)
-		http.Error(w, fmt.Sprintf("Failed to read text file for story with ID '%v'", storyID), http.StatusInternalServerError)
-		return
-	}
-	// Split the content by newlines, preserving empty lines
-	textLines := strings.Split(string(textBytes), "\n")
-
-	// Clean up any carriage returns and trailing/leading whitespace
-	for i, line := range textLines {
-		textLines[i] = strings.TrimSpace(strings.ReplaceAll(line, "\r", ""))
 	}
 
-	// Split by newlines, should equal audio line count (excluding blanks)
-	if len(audioDir) > len(textLines) {
-		h.log.Error("Mismatch between audio and text files", "audio_count", len(audioDir), "text_count", len(textLines))
-		http.Error(w, "Mismatch between audio and text files", http.StatusInternalServerError)
-		return
-	}
-	for i, line := range textLines {
-		// Remove the markers for the words and indicators.
-		if strings.TrimSpace(line) == "" {
-			lines = append(lines, Line{
-				Text:     "",
-				AudioURL: nil,
-			})
+	stories := make([]Story, 0, len(files))
+	// Process each file
+	for _, file := range files {
+		if filepath.Ext(file.Name()) != ".txt" {
 			continue
 		}
-		// For other files, the | marks special words. In this case, we remove it.
-		plainLine := strings.ReplaceAll(line, "|", "")
-		var audioFile *string
-		// Ignore the audio file if it doesn't exist.
-		if i < len(audioDir) {
-			// Get the file path
-			temp := fmt.Sprintf(storiesDir+"stories_audio/"+storyID+"/%s", audioDir[i].Name())
-			audioFile = &temp
+
+		// Extract ID from filename (remove .txt extension)
+		id := strings.TrimSuffix(file.Name(), ".txt")
+
+		// Read the file to get the title (first line)
+		content, err := os.ReadFile(filepath.Join(storiesDir, "stories_text", file.Name()))
+		if err != nil {
+			h.log.Error("Failed to read story file", "error", err, "file", file.Name())
+			continue
 		}
-		lines = append(lines, Line{
-			Text:     plainLine,
-			AudioURL: audioFile,
+
+		// Get first line as title
+		lines := strings.Split(string(content), "\n")
+		if len(lines) == 0 {
+			h.log.Error("Empty story file", "file", file.Name())
+			continue
+		}
+
+		title := strings.TrimSpace(lines[0])
+
+		stories = append(stories, Story{
+			ID:    id,
+			Title: title,
 		})
 	}
-	// Add the text to the template.
-	data := PageData{
-		Lines: lines,
-	}
 
-	// Get the absolute path to the template file
-	templatePath, err := filepath.Abs("src/templates/page1.html")
+	// Sort stories by ID for consistent presentation
+	sort.Slice(stories, func(i, j int) bool {
+		return stories[i].ID < stories[j].ID
+	})
+
+	// Get template path
+	templatePath, err := filepath.Abs("src/templates/index.html")
 	if err != nil {
 		h.log.Error("Failed to find template", "error", err)
 		http.Error(w, "Failed to find template", http.StatusInternalServerError)
 		return
 	}
 
-	// Parse and execute the template
+	// Parse and execute template
 	tmpl, err := template.ParseFiles(templatePath)
 	if err != nil {
 		h.log.Error("Failed to parse template", "error", err)
 		http.Error(w, "Failed to parse template", http.StatusInternalServerError)
 		return
+	}
+
+	data := IndexData{
+		Stories: stories,
 	}
 
 	err = tmpl.Execute(w, data)
@@ -134,5 +126,4 @@ func (h *Handler) ServePage1(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to execute template", http.StatusInternalServerError)
 		return
 	}
-	// Serve the page
 }

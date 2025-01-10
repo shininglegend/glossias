@@ -1,26 +1,60 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Page 1</title>
-    <link rel="stylesheet" href="/global.css">
-    <link rel="stylesheet" href="/page1.css">
-</head>
-<body>
-    <div class="container">
-        {{range .Lines}}
-        <div class="line">
-            <span>{{.Text}}</span>
-            <button onclick="playAudio('{{.AudioURL}}')">Play</button>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Page 1</title>
+        <link rel="stylesheet" href="/global.css" />
+        <link rel="stylesheet" href="/page1.css" />
+    </head>
+    <body>
+        <div class="container">
+            {{range .Lines}}
+            <div class="line">
+                <span>{{.Text}}</span>
+                {{ if .AudioURL }}
+                    <button onclick="playAudio('{{.AudioURL}}')">Play</button>
+                {{ end }}
+            </div>
+            {{ else }}
+            <p>No Lines to be read</p>
+            {{end}}
         </div>
-        {{end}}
-    </div>
 
-    <script>
-        function playAudio(url) {
-            new Audio(url).play();
-        }
-    </script>
-</body>
+        <script>
+            let currentAudio = null;
+
+            function playAudio(url) {
+                // If there's already audio playing, stop it
+                if (currentAudio) {
+                    currentAudio.pause();
+                    currentAudio.currentTime = 0;
+                }
+
+                // Create and play the new audio
+                currentAudio = new Audio(url);
+                currentAudio.play();
+
+                // Set up event listener for when audio finishes
+                currentAudio.onended = function () {
+                    // Find the next button after the current one
+                    const buttons = document.querySelectorAll("button");
+                    const currentButton = Array.from(buttons).find((button) =>
+                        button.getAttribute("onclick").includes(url),
+                    );
+                    const currentIndex =
+                        Array.from(buttons).indexOf(currentButton);
+
+                    // If there's a next button, trigger its click
+                    if (currentIndex < buttons.length - 1) {
+                        const nextButton = buttons[currentIndex + 1];
+                        const nextUrl = nextButton
+                            .getAttribute("onclick")
+                            .match(/'([^']+)'/)[1];
+                        playAudio(nextUrl);
+                    }
+                };
+            }
+        </script>
+    </body>
 </html>

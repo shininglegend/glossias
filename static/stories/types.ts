@@ -9,6 +9,7 @@ interface StoryMetadata {
     id: string;
     name: string;
   };
+  grammarPoint: string;
   lastRevision: string; // ISO-8601 timestamp
 }
 

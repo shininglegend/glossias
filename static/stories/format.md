@@ -16,6 +16,7 @@ Contains essential information about the story:
 - `dayLetter`: Single letter for day (e.g., "b")
 - `title`: Multi-language map of story titles
 - `author`: Author information (id and name)
+- `grammarPoint`: What the grammar point is. Will be displayed as "This story's grammar point is: [grammar point], find x examples in the text."
 - `lastRevision`: ISO-8601 timestamp of last update
 
 ### Content Section
@@ -59,6 +60,7 @@ Each footnote contains:
       "id": "auth123",
       "name": "John Smith"
     },
+    "grammarPoint": "Veqatal verbs. See 9a in the workbook.",
     "lastRevision": "2024-01-17T12:00:00Z"
   },
   "content": {

@@ -13,7 +13,8 @@ import (
 
 func main() {
 	logger := slog.New(logging.New(os.Stdout, &logging.Options{
-		Level: slog.LevelDebug,
+		Level:     slog.LevelDebug,
+		UseColors: true,
 	}))
 
 	r := mux.NewRouter()
@@ -25,7 +26,14 @@ func main() {
 	// Setup static file serving
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
 		http.FileServer(http.Dir("static"))))
-		
+
+	// Error handler
+	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		logger.Warn("404", "path", r.URL.Path, "ip", r.RemoteAddr)
+		// Load from 404.html
+		http.ServeFile(w, r, "static/html/404.html")
+	})
+
 	// Other handlers
 	storiesHandler := stories.NewHandler(logger)
 	storiesHandler.RegisterRoutes(r)

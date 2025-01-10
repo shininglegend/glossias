@@ -15,6 +15,15 @@ import (
 // Check implementation
 var _ slog.Handler = (*Logger)(nil)
 
+const (
+	// ANSI color codes
+	colorRed    = "\033[31m"
+	colorGreen  = "\033[32m"
+	colorYellow = "\033[33m"
+	colorBlue   = "\033[34m"
+	colorReset  = "\033[0m"
+)
+
 type Logger struct {
 	opts Options
 	goas []groupOrAttrs
@@ -28,6 +37,8 @@ type Options struct {
 	// Levels with lower levels are discarded.
 	// If nil, the Handler uses [slog.LevelInfo].
 	Level slog.Leveler
+	// Control color output
+	UseColors bool
 }
 
 // groupOrAttrs holds either a group name or a list of slog.Attrs.
@@ -53,6 +64,12 @@ func (h *Logger) Enabled(_ context.Context, level slog.Level) bool {
 
 func (h *Logger) Handle(ctx context.Context, r slog.Record) error {
 	buf := make([]byte, 0, 1024)
+
+	// Add color prefix based on level
+	if h.opts.UseColors {
+		buf = append(buf, h.levelColor(r.Level)...)
+	}
+
 	if !r.Time.IsZero() {
 		buf = h.appendAttr(buf, slog.Time(slog.TimeKey, r.Time), 0)
 	}
@@ -68,7 +85,14 @@ func (h *Logger) Handle(ctx context.Context, r slog.Record) error {
 		buf = h.appendAttr(buf, a, indentLevel)
 		return true
 	})
+
+	// Reset color before divider
+	if h.opts.UseColors {
+		buf = append(buf, colorReset...)
+	}
+
 	buf = append(buf, "---\n"...)
+
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	_, err := h.out.Write(buf)
@@ -132,4 +156,25 @@ func (h *Logger) WithAttrs(attrs []slog.Attr) slog.Handler {
 		return h
 	}
 	return h.withGroupOrAttrs(groupOrAttrs{attrs: attrs})
+}
+
+// Colors
+// Modify the Handle method to add color handling
+func (h *Logger) levelColor(level slog.Level) string {
+	if !h.opts.UseColors {
+		return ""
+	}
+
+	switch level {
+	case slog.LevelError:
+		return colorRed
+	case slog.LevelWarn:
+		return colorYellow
+	case slog.LevelInfo:
+		return colorGreen
+	case slog.LevelDebug:
+		return colorBlue
+	default:
+		return ""
+	}
 }

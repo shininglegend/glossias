@@ -1,44 +1,39 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Logos Stories: {{ .StoryTitle }}</title>
-        <link rel="stylesheet" href="/static/css/global.css" />
-        <link rel="stylesheet" href="/static/css/page1.css" />
-        <!-- Add Material Icons -->
-        <link
-            href="https://fonts.googleapis.com/icon?family=Material+Icons"
-            rel="stylesheet"
-        />
-    </head>
-    <body>
-        <header>
-            <h1>{{ .StoryTitle }}</h1>
-            <h2>Step 1: Listen to the entire story.</h2>
-            <p>
-                Click the first play button to listen to the story.
-                It will play from that point onward. <hr>
-                Click any play button to restart the story from that point.
-            </p>
-        </header>
-        <div class="container">
-            {{range .Lines}}
-            <div class="line">
-                <span class="story-text">{{.Text}}</span>
-                {{ if .AudioURL }}
-                <button onclick="playAudio('{{.AudioURL}}')">
-                    <span class="material-icons">play_arrow</span>
-                </button>
-                {{ end }}
-            </div>
-            {{ else }}
-            <p>This story has no text associated with it yet.</p>
-            {{end}}
+{{template "base" .}} {{define "head"}}
+<link rel="stylesheet" href="/static/css/page1.css" />
+{{end}} {{define "content"}}
+<div class="container mt-5">
+    <header class="text-center mb-4">
+        <h1>{{ .StoryTitle }}</h1>
+        <h2>Step 1: Listen to the entire story.</h2>
+        <p>
+            Click the first play button to listen to the story. It will play
+            from that point onward.
+        </p>
+        <hr />
+        <p>Click any play button to restart the story from that point.</p>
+    </header>
+
+    <div class="story-content">
+        {{range .Lines}}
+        <div class="line">
+            <span class="story-text">{{.Text}}</span>
+            {{ if .AudioURL }}
+            <button
+                class="btn btn-outline-primary"
+                onclick="playAudio('{{.AudioURL}}')"
+            >
+                <span class="material-icons">play_arrow</span>
+            </button>
+            {{ end }}
         </div>
-        <!-- Add a hidden tag with the story ID for later use -->
-        <input type="hidden" id="storyID" value="{{ .StoryID }}" />
-        <!-- Adjust the audio playing -->
-        <script src="/static/js/audioPlayer.js"></script>
-    </body>
-</html>
+        {{ else }}
+        <p class="text-center">
+            This story has no text associated with it yet.
+        </p>
+        {{end}}
+    </div>
+    <input type="hidden" id="storyID" value="{{ .StoryID }}" />
+</div>
+{{end}} {{define "scripts"}}
+<script src="/static/js/audioPlayer.js"></script>
+{{end}}

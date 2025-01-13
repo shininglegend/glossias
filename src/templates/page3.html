@@ -4,10 +4,11 @@
 <div class="container mt-5">
     <header class="text-center mb-4">
         <h1>{{ .StoryTitle }}</h1>
-        <h2>Step 2: Find the vocab words.</h2>
+        <h2>Step 3: Find the grammar points.</h2>
         <p>
-            Click the first play button to listen to the story. Once the line is complete, the vocab words will appear in the text. 
-            Select the one that matches the missing word in the sentence.
+            The grammar point for this story is: <strong>{{ .GrammarPoint }}</strong>.
+            There are {{ .GrammarPointsCount }} grammar points in this story. Find them all. 
+            If a grammar point has multiple words, selecting any of the words will count as a correct answer.
         </p>
     </header>
 
@@ -15,14 +16,6 @@
         {{range .Lines}}
         <div class="line">
             <span class="story-text">{{.Text}}</span>
-            {{ if .AudioURL }}
-            <button
-                class="btn btn-outline-primary"
-                onclick="playAudio('{{.AudioURL}}')"
-            >
-                <span class="material-icons">play_arrow</span>
-            </button>
-            {{ end }}
         </div>
         {{ else }}
         <p class="text-center">

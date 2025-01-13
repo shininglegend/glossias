@@ -1,7 +1,9 @@
 package main
 
 import (
+	"embed"
 	"log/slog"
+	"logos-stories/internal/admin"
 	"logos-stories/internal/logging"
 	"logos-stories/internal/stories"
 	"net/http"
@@ -10,6 +12,10 @@ import (
 
 	"github.com/gorilla/mux"
 )
+
+// Embed the templates
+//go:embed src/templates/*
+var templateFS embed.FS
 
 func main() {
 	logger := slog.New(logging.New(os.Stdout, &logging.Options{
@@ -25,7 +31,7 @@ func main() {
 	// Initialize handlers
 	// Setup static file serving
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
-		http.FileServer(http.Dir("static"))))
+		http.FileServer(http.Dir("static")))).Methods("GET")
 
 	// Error handler
 	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -35,7 +41,10 @@ func main() {
 	})
 
 	// Other handlers
-	storiesHandler := stories.NewHandler(logger)
+	adminHandler := admin.NewHandler(logger, templateFS)
+	adminHandler.RegisterRoutes(r)
+
+	storiesHandler := stories.NewHandler(logger, templateFS)
 	storiesHandler.RegisterRoutes(r)
 
 	srv := &http.Server{

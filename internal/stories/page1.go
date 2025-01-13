@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
-	"text/template"
 
 	"github.com/gorilla/mux"
 )
@@ -87,26 +85,9 @@ func (h *Handler) ServePage1(w http.ResponseWriter, r *http.Request) {
 	data.StoryTitle = storyTitle
 	data.Lines = lines
 
-	// Get the absolute path to the template file
-	templatePath, err := filepath.Abs("src/templates/page1.html")
-	if err != nil {
-		h.log.Error("Failed to find template", "error", err)
-		http.Error(w, "Failed to find template", http.StatusInternalServerError)
-		return
-	}
-
-	// Parse and execute the template
-	tmpl, err := template.ParseFiles(templatePath)
-	if err != nil {
-		h.log.Error("Failed to parse template", "error", err)
-		http.Error(w, "Failed to parse template", http.StatusInternalServerError)
-		return
-	}
-	// Execute and serve the page
-	err = tmpl.Execute(w, data)
-	if err != nil {
-		h.log.Error("Failed to execute template", "error", err)
-		http.Error(w, "Failed to execute template", http.StatusInternalServerError)
+	if err := h.templates.Render(w, "page1.html", data); err != nil {
+		h.log.Error("Failed to render template", "error", err)
+		http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		return
 	}
 }

@@ -2,13 +2,14 @@
 package stories
 
 import (
+	"embed"
 	"log/slog"
+	"logos-stories/internal/pkg/templates"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-	"text/template"
 
 	"github.com/gorilla/mux"
 )
@@ -16,7 +17,8 @@ import (
 const storiesDir = "static/stories/"
 
 type Handler struct {
-	log *slog.Logger
+	log       *slog.Logger
+	templates *templates.TemplateEngine
 }
 
 type Line struct {
@@ -30,16 +32,17 @@ type PageData struct {
 	Lines      []Line
 }
 
-func NewHandler(logger *slog.Logger) *Handler {
+func NewHandler(logger *slog.Logger, templateFS embed.FS) *Handler {
 	return &Handler{
-		log: logger,
+		templates: templates.New(templateFS),
+		log:       logger,
 	}
 }
 
 // RegisterRoutes registers all story-related routes
 func (h *Handler) RegisterRoutes(mux *mux.Router) {
 	mux.HandleFunc("/stories/{id}/page1", h.ServePage1).Methods("GET").Name("page1")
-	mux.HandleFunc("/", h.ServeIndex).Methods("GET")
+	mux.HandleFunc("/stories", h.ServeIndex).Methods("GET")
 }
 
 // stories.go
@@ -100,30 +103,18 @@ func (h *Handler) ServeIndex(w http.ResponseWriter, r *http.Request) {
 		return stories[i].ID < stories[j].ID
 	})
 
-	// Get template path
-	templatePath, err := filepath.Abs("src/templates/index.html")
-	if err != nil {
-		h.log.Error("Failed to find template", "error", err)
-		http.Error(w, "Failed to find template", http.StatusInternalServerError)
-		return
-	}
-
-	// Parse and execute template
-	tmpl, err := template.ParseFiles(templatePath)
-	if err != nil {
-		h.log.Error("Failed to parse template", "error", err)
-		http.Error(w, "Failed to parse template", http.StatusInternalServerError)
-		return
-	}
-
 	data := IndexData{
 		Stories: stories,
 	}
 
-	err = tmpl.Execute(w, data)
-	if err != nil {
-		h.log.Error("Failed to execute template", "error", err)
-		http.Error(w, "Failed to execute template", http.StatusInternalServerError)
+	if err := h.templates.Render(w, "index.html", data); err != nil {
+		h.log.Error("Failed to render template", "error", err)
+		http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		return
 	}
+}
+
+// Implement the GetTitle interface
+func (p PageData) GetTitle() string {
+	return p.StoryTitle
 }

@@ -11,12 +11,13 @@ Each story file contains two main sections:
 
 ### Metadata Section
 Contains essential information about the story:
-- `storyId`: Unique identifier (e.g., "9b")
+- `storyId`: Unique identifier (e.g., 1)
 - `weekNumber`: Numerical week (e.g., 9)
 - `dayLetter`: Single letter for day (e.g., "b")
 - `title`: Multi-language map of story titles
 - `author`: Author information (id and name)
 - `grammarPoint`: What the grammar point is. Will be displayed as "This story's grammar point is: [grammar point], find x examples in the text."
+- `description`: Optional description of the story. Contains a language code and the text of the description.
 - `lastRevision`: ISO-8601 timestamp of last update
 
 ### Content Section

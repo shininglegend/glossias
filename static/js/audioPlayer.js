@@ -34,8 +34,11 @@ function playAudio(url) {
     if (currentIndex < buttons.length - 1) {
       const nextButton = buttons[currentIndex + 1];
       const nextUrl = nextButton.getAttribute("onclick").match(/'([^']+)'/)[1];
-      console.log("nextUrl", nextUrl);
       playAudio(nextUrl);
+    } else {
+      // Last audio completed
+      allAudioCompleted = true;
+      showNextPageButton();
     }
   };
 }
@@ -49,5 +52,24 @@ function updateButtonState(url, isPlaying) {
     targetButton.setAttribute("data-playing", isPlaying.toString());
     const icon = targetButton.querySelector(".material-icons");
     icon.textContent = isPlaying ? "pause" : "play_arrow";
+  }
+}
+
+function showNextPageButton() {
+  const container = document.querySelector(".container");
+  const existingButton = document.getElementById("nextPageButton");
+
+  if (!existingButton && allAudioCompleted) {
+    const nextButton = document.createElement("div");
+    nextButton.id = "nextPageButton";
+    nextButton.className = "next-button";
+    const storyId = document.getElementById("storyID").value;
+    nextButton.innerHTML = `
+            <a href="/stories/${storyId}/page2" class="button-link">
+                Continue to Vocab Practice
+                <span class="material-icons">arrow_forward</span>
+            </a>
+        `;
+    container.appendChild(nextButton);
   }
 }

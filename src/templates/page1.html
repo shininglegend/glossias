@@ -40,5 +40,26 @@
         <input type="hidden" id="storyID" value="{{ .StoryID }}" />
         <!-- Adjust the audio playing -->
         <script src="/static/js/audioPlayer.js"></script>
+        <!-- TODO: Allow them to go to the next page when complete -->
+        <style>
+            .next-button {
+                margin-top: 2rem;
+                text-align: center;
+            }
+            .button-link {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.5rem;
+                padding: 1rem 2rem;
+                background-color: #4CAF50;
+                color: white;
+                text-decoration: none;
+                border-radius: 4px;
+                transition: background-color 0.3s;
+            }
+            .button-link:hover {
+                background-color: #45a049;
+            }
+        </style>
     </body>
 </html>

@@ -1,11 +1,17 @@
 package main
 
 import (
+	"log"
 	"log/slog"
+	"logos-stories/internal/admin"
 	"logos-stories/internal/logging"
+	"logos-stories/internal/pkg/database"
+	"logos-stories/internal/pkg/models"
+	"logos-stories/internal/pkg/templates"
 	"logos-stories/internal/stories"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -16,6 +22,19 @@ func main() {
 		Level:     slog.LevelDebug,
 		UseColors: true,
 	}))
+
+	// Initialize template engine
+	templateEngine := templates.New("src/templates")
+
+	// Initialize database
+	dbPath := filepath.Join("data", "stories.db")
+	db, err := database.InitDB(dbPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+	// Set the DB for the models package
+	models.SetDB(db)
 
 	r := mux.NewRouter()
 
@@ -35,7 +54,10 @@ func main() {
 	})
 
 	// Other handlers
-	storiesHandler := stories.NewHandler(logger)
+	adminHandler := admin.NewHandler(logger, templateEngine)
+	adminHandler.RegisterRoutes(r)
+
+	storiesHandler := stories.NewHandler(logger, templateEngine)
 	storiesHandler.RegisterRoutes(r)
 
 	srv := &http.Server{

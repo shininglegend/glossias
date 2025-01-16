@@ -1,5 +1,5 @@
 interface StoryMetadata {
-  storyId: string;
+  storyId: number;
   weekNumber: number;
   dayLetter: string;
   title: {
@@ -10,6 +10,10 @@ interface StoryMetadata {
     name: string;
   };
   grammarPoint: string;
+  description: {
+    language: string; // ISO 639-1 language code
+    text: string;
+  };
   lastRevision: string; // ISO-8601 timestamp
 }
 

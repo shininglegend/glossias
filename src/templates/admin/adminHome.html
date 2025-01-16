@@ -1,0 +1,40 @@
+<!-- logos-stories/src/templates/admin/adminHome.html -->
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Admin Dashboard - Logos Stories</title>
+    </head>
+    <body>
+        <header>
+            <h1>Admin Dashboard</h1>
+            <nav>
+                <a href="/admin/stories/add">Add New Story</a>
+            </nav>
+        </header>
+
+        <main>
+            <section>
+                <h2>Stories</h2>
+                {{if .Stories}}
+                <ul>
+                    {{range .Stories}}
+                    <li>
+                        <a href="/admin/stories/edit/{{.Metadata.StoryID}}">
+                            {{if index .Metadata.Title "en"}} {{index
+                            .Metadata.Title "en"}} {{else}} Story
+                            #{{.Metadata.StoryID}} {{end}} (Week
+                            {{.Metadata.WeekNumber}}, Day
+                            {{.Metadata.DayLetter}})
+                        </a>
+                    </li>
+                    {{end}}
+                </ul>
+                {{else}}
+                <p>No stories found.</p>
+                {{end}}
+            </section>
+        </main>
+    </body>
+</html>

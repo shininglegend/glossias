@@ -3,11 +3,10 @@ package stories
 
 import (
 	"log/slog"
+	"logos-stories/internal/pkg/models"
+	"logos-stories/internal/pkg/templates"
 	"net/http"
-	"os"
 	"path/filepath"
-	"sort"
-	"strings"
 	"text/template"
 
 	"github.com/gorilla/mux"
@@ -17,6 +16,7 @@ const storiesDir = "static/stories/"
 
 type Handler struct {
 	log *slog.Logger
+	te  *templates.TemplateEngine
 }
 
 type Line struct {
@@ -30,9 +30,10 @@ type PageData struct {
 	Lines      []Line
 }
 
-func NewHandler(logger *slog.Logger) *Handler {
+func NewHandler(logger *slog.Logger, te *templates.TemplateEngine) *Handler {
 	return &Handler{
 		log: logger,
+		te:  te,
 	}
 }
 
@@ -45,7 +46,7 @@ func (h *Handler) RegisterRoutes(mux *mux.Router) {
 // stories.go
 // Add these new types to the existing file
 type Story struct {
-	ID    string
+	ID    int
 	Title string
 }
 
@@ -53,52 +54,23 @@ type IndexData struct {
 	Stories []Story
 }
 
-// Add this new method
 func (h *Handler) ServeIndex(w http.ResponseWriter, r *http.Request) {
-	// Get all story files
-	files, err := os.ReadDir(storiesDir + "stories_text")
+	// Get stories from database
+	dbStories, err := models.GetAllStories("") // TODO: Add language from request, if given
 	if err != nil {
-		h.log.Error("Failed to read stories directory", "error", err)
-		http.Error(w, "Failed to read stories", http.StatusInternalServerError)
+		h.log.Error("Failed to fetch stories from database", "error", err)
+		http.Error(w, "Failed to fetch stories", http.StatusInternalServerError)
 		return
 	}
 
-	stories := make([]Story, 0, len(files))
-	// Process each file
-	for _, file := range files {
-		if filepath.Ext(file.Name()) != ".txt" {
-			continue
-		}
-
-		// Extract ID from filename (remove .txt extension)
-		id := strings.TrimSuffix(file.Name(), ".txt")
-
-		// Read the file to get the title (first line)
-		content, err := os.ReadFile(filepath.Join(storiesDir, "stories_text", file.Name()))
-		if err != nil {
-			h.log.Error("Failed to read story file", "error", err, "file", file.Name())
-			continue
-		}
-
-		// Get first line as title
-		lines := strings.Split(string(content), "\n")
-		if len(lines) == 0 {
-			h.log.Error("Empty story file", "file", file.Name())
-			continue
-		}
-
-		title := strings.TrimSpace(lines[0])
-
+	// Convert database stories to template format
+	stories := make([]Story, 0, len(dbStories))
+	for _, dbStory := range dbStories {
 		stories = append(stories, Story{
-			ID:    id,
-			Title: title,
+			ID:    dbStory.Metadata.StoryID,
+			Title: dbStory.Metadata.Title["en"], // Using English title
 		})
 	}
-
-	// Sort stories by ID for consistent presentation
-	sort.Slice(stories, func(i, j int) bool {
-		return stories[i].ID < stories[j].ID
-	})
 
 	// Get template path
 	templatePath, err := filepath.Abs("src/templates/index.html")

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"html/template"
 	"log"
 	"log/slog"
 	"logos-stories/internal/admin"
@@ -25,6 +27,10 @@ func main() {
 
 	// Initialize template engine
 	templateEngine := templates.New("src/templates")
+	templateEngine.AddFunc("json", func(v interface{}) template.JS {
+		b, _ := json.Marshal(v)
+		return template.JS(string(b))
+	})
 
 	// Initialize database
 	dbPath := filepath.Join("data", "stories.db")

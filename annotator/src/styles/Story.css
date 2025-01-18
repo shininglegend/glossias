@@ -1,0 +1,57 @@
+/* src/styles/Story.css */
+.story-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.story-line {
+    display: grid;
+    grid-template-columns: 2rem 1fr;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.line-number {
+    color: #666;
+    text-align: right;
+}
+
+.line-text {
+    padding: 0.25rem 0;
+}
+
+/* Footnotes */
+.footnotes-section {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #ddd;
+}
+
+.footnotes-section h3 {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+}
+
+.footnote {
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+
+.footnote-line {
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 0.5rem;
+}
+
+.footnote-text {
+    margin-bottom: 0.5rem;
+}
+
+.footnote-refs {
+    font-size: 0.9rem;
+    color: #666;
+    font-style: italic;
+}

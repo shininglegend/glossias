@@ -12,14 +12,16 @@ import (
 )
 
 type Handler struct {
-	log *slog.Logger
-	te  *templates.TemplateEngine
+	log            *slog.Logger
+	te             *templates.TemplateEngine
+	allowedOrigins []string
 }
 
 func NewHandler(log *slog.Logger, te *templates.TemplateEngine) *Handler {
 	return &Handler{
-		log: log,
-		te:  te,
+		log:            log,
+		te:             te,
+		allowedOrigins: []string{"http://localhost:3000"}, // Dev
 	}
 }
 
@@ -28,8 +30,27 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	stories := r.PathPrefix("/stories").Subrouter()
 
 	stories.HandleFunc("/add", h.addStoryHandler).Methods("GET", "POST")
-	stories.HandleFunc("/edit/{id}", h.editStoryHandler).Methods("GET", "PUT")
+	stories.HandleFunc("/{id:[0-9]+}", h.editStoryHandler).Methods("GET", "PUT")
+	stories.HandleFunc("/{id:[0-9]+}/metadata", h.metadataHandler).Methods("GET", "PUT")
+	// The annotations handler responds with JSON to GET requests for react components
+	stories.HandleFunc("/{id:[0-9]+}/annotate", h.annotationsHandler).
+		Methods("GET", "PUT", "DELETE", "OPTIONS")
 	stories.HandleFunc("/delete/{id}", h.deleteStoryHandler).Methods("GET", "DELETE")
+}
+
+// [+] Add CORS middleware helper
+func (h *Handler) setCORSHeaders(w http.ResponseWriter, r *http.Request) {
+	origin := r.Header.Get("Origin")
+	// Allow configured origins or all in development
+	for _, allowed := range h.allowedOrigins {
+		if origin == allowed {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			break
+		}
+	}
+	w.Header().Set("Access-Control-Allow-Methods", "GET, PUT, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Access-Control-Max-Age", "3600")
 }
 
 func (h *Handler) deleteStoryHandler(w http.ResponseWriter, _ *http.Request) {

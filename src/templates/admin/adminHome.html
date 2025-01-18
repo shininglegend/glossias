@@ -5,36 +5,76 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Admin Dashboard - Logos Stories</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link
+            href="https://fonts.googleapis.com/icon?family=Material+Icons"
+            rel="stylesheet"
+        />
     </head>
-    <body>
-        <header>
-            <h1>Admin Dashboard</h1>
-            <nav>
-                <a href="/admin/stories/add">Add New Story</a>
-            </nav>
-        </header>
+    <body class="bg-gray-50 min-h-screen">
+        <div class="max-w-4xl mx-auto p-6">
+            <header class="text-center mb-8">
+                <h1 class="text-4xl font-bold text-gray-800 mb-4">
+                    Admin Dashboard
+                </h1>
+                <nav class="mb-6">
+                    <a
+                        href="/admin/stories/add"
+                        class="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors gap-2"
+                    >
+                        <span class="material-icons">add</span>
+                        Add New Story
+                    </a>
+                </nav>
+                <hr class="border-gray-200" />
+            </header>
 
-        <main>
-            <section>
-                <h2>Stories</h2>
-                {{if .Stories}}
-                <ul>
-                    {{range .Stories}}
-                    <li>
-                        <a href="/admin/stories/edit/{{.Metadata.StoryID}}">
-                            {{if index .Metadata.Title "en"}} {{index
-                            .Metadata.Title "en"}} {{else}} Story
-                            #{{.Metadata.StoryID}} {{end}} (Week
-                            {{.Metadata.WeekNumber}}, Day
-                            {{.Metadata.DayLetter}})
+            <main>
+                <section class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-2xl font-semibold text-gray-700 mb-4">
+                        Stories
+                    </h2>
+                    {{if .Stories}}
+                    <ul class="space-y-3">
+                        {{range .Stories}}
+                        <li class="group">
+                            <a
+                                href="/admin/stories/{{.Metadata.StoryID}}"
+                                class="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:shadow-md transition-all"
+                            >
+                                <div>
+                                    <span class="text-lg text-gray-800">
+                                        {{if index .Metadata.Title "en"}}
+                                        {{index .Metadata.Title "en"}} {{else}}
+                                        Story #{{.Metadata.StoryID}} {{end}}
+                                    </span>
+                                    <span class="ml-3 text-sm text-gray-500">
+                                        Week
+                                        {{.Metadata.WeekNumber}}{{.Metadata.DayLetter}}
+                                    </span>
+                                </div>
+                                <span
+                                    class="material-icons text-gray-400 group-hover:text-blue-500"
+                                >
+                                    edit
+                                </span>
+                            </a>
+                        </li>
+                        {{end}}
+                    </ul>
+                    {{else}}
+                    <p class="text-center text-gray-500 py-8">
+                        No stories found.
+                        <a
+                            href="/admin/stories/add"
+                            class="text-blue-600 hover:text-blue-800 underline"
+                        >
+                            Add one now
                         </a>
-                    </li>
+                    </p>
                     {{end}}
-                </ul>
-                {{else}}
-                <p>No stories found.</p>
-                {{end}}
-            </section>
-        </main>
+                </section>
+            </main>
+        </div>
     </body>
 </html>

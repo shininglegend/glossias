@@ -86,7 +86,11 @@ func getStoryLines(storyID int) ([]StoryLine, error) {
 
 	var lines []StoryLine
 	for rows.Next() {
-		var line StoryLine
+		line := StoryLine{
+			Vocabulary: []VocabularyItem{}, // Init with empty arrays
+			Grammar:    []GrammarItem{},
+			Footnotes:  []Footnote{},
+		}
 		var audioFile sql.NullString
 		if err := rows.Scan(&line.LineNumber, &line.Text, &audioFile); err != nil {
 			return nil, err
@@ -213,6 +217,33 @@ func getFootnoteReferences(footnoteID int) ([]string, error) {
 	return references, nil
 }
 
+// GetLineAnnotations retrieves all annotations for a specific line
+func GetLineAnnotations(storyID int, lineNumber int) (*StoryLine, error) {
+	line := &StoryLine{
+		LineNumber: lineNumber,
+		Vocabulary: []VocabularyItem{}, // init as empty arrays
+		Grammar:    []GrammarItem{},
+		Footnotes:  []Footnote{},
+	}
+
+	// Get vocabulary items
+	if err := getVocabularyItems(storyID, lineNumber, line); err != nil {
+		return nil, err
+	}
+
+	// Get grammar items
+	if err := getGrammarItems(storyID, lineNumber, line); err != nil {
+		return nil, err
+	}
+
+	// Get footnotes
+	if err := getFootnotes(storyID, lineNumber, line); err != nil {
+		return nil, err
+	}
+
+	return line, nil
+}
+
 // Helper function to execute transaction with error handling
 func withTransaction(fn func(*sql.Tx) error) error {
 	tx, err := db.Begin()
@@ -239,12 +270,11 @@ func withTransaction(fn func(*sql.Tx) error) error {
 }
 
 func GetAllStories(language string) ([]Story, error) {
-	// TODO: Update to filter by language
 	rows, err := db.Query(`
-        SELECT DISTINCT s.story_id, st.title
+        SELECT DISTINCT s.story_id, s.week_number, s.day_letter, st.title
         FROM stories s
         JOIN story_titles st ON s.story_id = st.story_id
-        ORDER BY s.story_id`)
+        ORDER BY s.week_number, s.day_letter`)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +284,13 @@ func GetAllStories(language string) ([]Story, error) {
 	for rows.Next() {
 		var story Story
 		var title string
-		if err := rows.Scan(&story.Metadata.StoryID, &title); err != nil {
+		// [+] Added week_number and day_letter to scan
+		if err := rows.Scan(
+			&story.Metadata.StoryID,
+			&story.Metadata.WeekNumber,
+			&story.Metadata.DayLetter,
+			&title,
+		); err != nil {
 			return nil, err
 		}
 		story.Metadata.Title = map[string]string{"en": title}

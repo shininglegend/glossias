@@ -36,7 +36,7 @@ type StoryMetadata struct {
 	Author       Author            `json:"author"`
 	GrammarPoint string            `json:"grammarPoint"`
 	Description  Description       `json:"description"`
-	LastRevision time.Time         `json:"lastRevision"` // Changed from string for efficient time handling
+	LastRevision time.Time         `json:"lastRevision,omitempty"`
 }
 
 type Author struct {

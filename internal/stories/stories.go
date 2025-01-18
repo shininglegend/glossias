@@ -46,8 +46,10 @@ func (h *Handler) RegisterRoutes(mux *mux.Router) {
 // stories.go
 // Add these new types to the existing file
 type Story struct {
-	ID    int
-	Title string
+	ID         int
+	Title      string
+	WeekNumber int
+	DayLetter  string
 }
 
 type IndexData struct {
@@ -67,8 +69,10 @@ func (h *Handler) ServeIndex(w http.ResponseWriter, r *http.Request) {
 	stories := make([]Story, 0, len(dbStories))
 	for _, dbStory := range dbStories {
 		stories = append(stories, Story{
-			ID:    dbStory.Metadata.StoryID,
-			Title: dbStory.Metadata.Title["en"], // Using English title
+			ID:         dbStory.Metadata.StoryID,
+			Title:      dbStory.Metadata.Title["en"], // Using English title
+			WeekNumber: dbStory.Metadata.WeekNumber,
+			DayLetter:  dbStory.Metadata.DayLetter,
 		})
 	}
 

@@ -1,0 +1,146 @@
+<!-- logos-stories/src/templates/admin/metadataStory.html -->
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Edit Story Metadata - Logos Stories</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-gray-50 min-h-screen">
+        <div class="max-w-4xl mx-auto p-6">
+            <nav class="bg-white shadow-sm mb-6 rounded-lg p-4 flex justify-between items-center">
+                <h1 class="text-2xl font-bold text-gray-800">Edit Story Metadata</h1>
+                <div class="space-x-4">
+                    <a href="/admin/stories/{{.Metadata.StoryID}}"
+                       class="text-blue-600 hover:text-blue-800">Edit Text</a>
+                    <a href="/admin/stories/{{.Metadata.StoryID}}/annotate"
+                       class="text-blue-600 hover:text-blue-800">Grammar & Vocabulary</a>
+                </div>
+            </nav>
+
+            <form id="metadataForm" class="bg-white shadow-md rounded-lg p-6 space-y-6">
+                <div>
+                    <label for="titleEn" class="block text-sm font-medium text-gray-700 mb-2">
+                        English Title
+                    </label>
+                    <input type="text"
+                           id="titleEn"
+                           name="title[en]"
+                           value="{{index .Metadata.Title "en"}}"
+                           required
+                           class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    />
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="weekNumber" class="block text-sm font-medium text-gray-700 mb-2">
+                            Week Number
+                        </label>
+                        <input type="number"
+                               id="weekNumber"
+                               name="weekNumber"
+                               value="{{.Metadata.WeekNumber}}"
+                               required
+                               min="1"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        />
+                    </div>
+                    <div>
+                        <label for="dayLetter" class="block text-sm font-medium text-gray-700 mb-2">
+                            Day Letter
+                        </label>
+                        <input type="text"
+                               id="dayLetter"
+                               name="dayLetter"
+                               value="{{.Metadata.DayLetter}}"
+                               required
+                               pattern="[a-e]"
+                               maxlength="1"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        />
+                    </div>
+                </div>
+
+                <div>
+                    <label for="authorName" class="block text-sm font-medium text-gray-700 mb-2">
+                        Author Name
+                    </label>
+                    <input type="text"
+                           id="authorName"
+                           name="authorName"
+                           value="{{.Metadata.Author.Name}}"
+                           required
+                           class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    />
+                </div>
+
+                <div>
+                    <label for="description" class="block text-sm font-medium text-gray-700 mb-2">
+                        Description
+                    </label>
+                    <textarea id="description"
+                              name="description"
+                              rows="4"
+                              class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    >{{.Metadata.Description.Text}}</textarea>
+                </div>
+
+                <div class="flex justify-end">
+                    <button type="submit"
+                            class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                        Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const form = document.getElementById('metadataForm');
+                const storyId = {{.Metadata.StoryID}};
+
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+
+                    const metadata = {
+                        storyID: storyId,
+                        weekNumber: parseInt(document.getElementById('weekNumber').value),
+                        dayLetter: document.getElementById('dayLetter').value,
+                        title: {
+                            en: document.getElementById('titleEn').value
+                        },
+                        author: {
+                            id: "{{.Metadata.Author.ID}}", // Preserve existing ID
+                            name: document.getElementById('authorName').value
+                        },
+                        description: {
+                            language: "{{.Metadata.Description.Language}}", // Preserve language
+                            text: document.getElementById('description').value
+                        },
+                        lastRevision: new Date().toISOString()
+                    };
+
+                    try {
+                        const response = await fetch(`/admin/stories/${storyId}/metadata`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify(metadata)
+                        });
+
+                        if (!response.ok) throw new Error('Failed to save changes');
+
+                        alert('Metadata saved successfully');
+                    } catch (error) {
+                        console.error('Error saving metadata:', error);
+                        alert('Failed to save metadata. Please try again.');
+                    }
+                });
+            });
+        </script>
+    </body>
+</html>

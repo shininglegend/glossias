@@ -151,7 +151,8 @@ func saveLine(tx *sql.Tx, storyID int, line *StoryLine) error {
 }
 
 func deleteStoryComponents(tx *sql.Tx, storyID int) error {
-	tables := []string{"footnote_references", "footnotes", "vocabulary_items",
+	// TODO: Delete the footnote references, lol
+	tables := []string{"footnotes", "vocabulary_items", //"footnote_references",
 		"grammar_items", "story_lines", "story_titles", "story_descriptions"}
 
 	for _, table := range tables {
@@ -163,7 +164,7 @@ func deleteStoryComponents(tx *sql.Tx, storyID int) error {
 }
 
 func storyExists(id int) (bool, error) {
-	var exists int // Changed from bool to int for SQLite
-	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM stories WHERE story_id = ?) AS exists", id).Scan(&exists)
-	return exists == 1, err
+	var exists bool
+	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM stories WHERE story_id = ?)", id).Scan(&exists)
+	return exists, err
 }

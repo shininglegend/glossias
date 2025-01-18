@@ -18,6 +18,8 @@
                 {{range .Stories}}
                 <div class="story-item">
                     <h2>{{.Title}}</h2>
+                    <!-- [+] Added week and day information -->
+                    <p>Week {{.WeekNumber}}{{.DayLetter}}</p>
                     <a href="/stories/{{.ID}}/page1">Start Reading</a>
                 </div>
                 {{end}}

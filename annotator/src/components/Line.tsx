@@ -46,9 +46,10 @@ export default function Line({ line, onSelect }: Props) {
 
     const range = sel.getRangeAt(0);
     const rect = range.getBoundingClientRect();
+
     setMenu({
-      x: rect.left + window.scrollX,
-      y: rect.bottom + window.scrollY + 5,
+      x: rect.left,
+      y: rect.bottom + 5,
     });
     setSelection({ start, end, text }); // Save selection info
   };

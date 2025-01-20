@@ -33,7 +33,8 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	stories.HandleFunc("/{id:[0-9]+}", h.editStoryHandler).Methods("GET", "PUT")
 	stories.HandleFunc("/{id:[0-9]+}/metadata", h.metadataHandler).Methods("GET", "PUT")
 	// The annotations handler responds with JSON to GET requests for react components
-	stories.HandleFunc("/{id:[0-9]+}/annotate", h.annotationsHandler).
+	stories.HandleFunc("/{id:[0-9]+}/annotate", h.handleGetEditPage).Methods("GET")
+	stories.HandleFunc("/api/{id:[0-9]+}", h.annotationsHandler).
 		Methods("GET", "PUT", "DELETE", "OPTIONS")
 	stories.HandleFunc("/delete/{id}", h.deleteStoryHandler).Methods("GET", "DELETE")
 }

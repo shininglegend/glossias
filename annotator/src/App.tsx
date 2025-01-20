@@ -4,9 +4,16 @@ import "./styles/AnnotatedText.css";
 import "./styles/Story.css";
 
 function App() {
+  const storyId = parseInt(
+    document.getElementById("root")?.getAttribute("data-story-id") || "0",
+  );
+
+  if (!storyId) {
+    return <div>Invalid story ID</div>;
+  }
   return (
     <div className="App">
-      <Story storyId={1} />
+      <Story storyId={storyId} />
     </div>
   );
 }

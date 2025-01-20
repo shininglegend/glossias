@@ -24,15 +24,15 @@ func (h *Handler) annotationsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set JSON content type by default for all responses
-	w.Header().Set("Content-Type", "application/json")
-
 	vars := mux.Vars(r)
 	storyID, err := strconv.Atoi(vars["id"])
 	if err != nil {
 		writeJSONError(w, "Invalid story ID", http.StatusBadRequest)
 		return
 	}
+
+	// Set JSON content type by default for all responses
+	w.Header().Set("Content-Type", "application/json")
 
 	switch r.Method {
 	case http.MethodGet:
@@ -44,6 +44,26 @@ func (h *Handler) annotationsHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func (h *Handler) handleGetEditPage(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	storyID, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		writeJSONError(w, "Invalid story ID", http.StatusBadRequest)
+		return
+	}
+	story, err := models.GetStoryData(storyID)
+	if err != nil {
+		if err == models.ErrNotFound {
+			writeJSONError(w, "Story not found", http.StatusNotFound)
+			return
+		}
+		h.log.Error("Failed to fetch story data", "error", err)
+		writeJSONError(w, "Failed to fetch story data", http.StatusInternalServerError)
+		return
+	}
+	h.te.Render(w, "admin/annotateStory.html", story)
 }
 
 func (h *Handler) handleGetStoryContent(w http.ResponseWriter, storyID int) {

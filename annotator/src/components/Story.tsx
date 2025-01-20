@@ -8,7 +8,6 @@ import {
   ApiResponse,
   ApiError,
 } from "../types/api.ts";
-import { ANNOTATIONS_ENDPOINT } from "../config.tsx";
 
 export default function Story({ storyId }: { storyId: number }) {
   const [lines, setLines] = useState<StoryLine[]>([]);
@@ -18,7 +17,7 @@ export default function Story({ storyId }: { storyId: number }) {
   useEffect(() => {
     const fetchStory = async () => {
       try {
-        const response = await fetch(ANNOTATIONS_ENDPOINT(storyId));
+        const response = await fetch("/admin/stories/api/" + storyId);
         if (!response.ok) throw new Error("Failed to fetch story");
         const data = await response.json();
         setLines(data.content.lines);
@@ -49,7 +48,7 @@ export default function Story({ storyId }: { storyId: number }) {
     );
 
     try {
-      const response = await fetch(ANNOTATIONS_ENDPOINT(storyId), {
+      const response = await fetch("/admin/stories/api/" + storyId, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(request),
@@ -61,7 +60,7 @@ export default function Story({ storyId }: { storyId: number }) {
       }
 
       // Refresh data
-      const refreshed = await fetch(ANNOTATIONS_ENDPOINT(storyId));
+      const refreshed = await fetch("/admin/stories/api/" + storyId);
       const data = (await refreshed.json()) as ApiResponse;
       setLines(data.content.lines);
     } catch (err) {
@@ -79,6 +78,7 @@ export default function Story({ storyId }: { storyId: number }) {
         <Line key={line.lineNumber} line={line} onSelect={handleAnnotation} />
       ))}
       {/* [+] Add footnotes section */}
+      <hr />
       <div className="footnotes-section">
         <h3>Footnotes</h3>
         {lines.map((line) =>

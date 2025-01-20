@@ -1,6 +1,6 @@
 // src/components/AnnotatedText.tsx
 import React, { useMemo } from "react";
-import { VocabItem, GrammarItem } from "../types";
+import { VocabularyItem as VocabItem, GrammarItem } from "../types";
 
 export interface Props {
   text: string;

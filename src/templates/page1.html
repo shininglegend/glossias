@@ -25,7 +25,7 @@
         <div class="container">
             {{range .Lines}}
             <div class="line">
-                <span class="story-text">{{.Text}}</span>
+                <span class="story-text">{{range $l := .Text }}{{ $l }}{{ end }}</span>
                 {{ if .AudioURL }}
                 <button onclick="playAudio('{{.AudioURL}}')">
                     <span class="material-icons">play_arrow</span>

@@ -5,9 +5,7 @@ import (
 	"logos-stories/internal/pkg/models"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
-	"text/template"
 
 	"github.com/gorilla/mux"
 )
@@ -64,7 +62,7 @@ func (h *Handler) ServePage1(w http.ResponseWriter, r *http.Request) {
 		}
 
 		lines = append(lines, Line{
-			Text:     dbLine.Text,
+			Text:     []string{dbLine.Text},
 			AudioURL: audioFile,
 		})
 	}
@@ -75,26 +73,10 @@ func (h *Handler) ServePage1(w http.ResponseWriter, r *http.Request) {
 		Lines:      lines,
 	}
 
-	// Get template path
-	templatePath, err := filepath.Abs("src/templates/page1.html")
+	err = h.te.Render(w, "page1.html", data)
 	if err != nil {
-		h.log.Error("Failed to find template", "error", err)
-		http.Error(w, "Failed to find template", http.StatusInternalServerError)
-		return
-	}
-
-	// Parse and execute template
-	tmpl, err := template.ParseFiles(templatePath)
-	if err != nil {
-		h.log.Error("Failed to parse template", "error", err)
-		http.Error(w, "Failed to parse template", http.StatusInternalServerError)
-		return
-	}
-
-	err = tmpl.Execute(w, data)
-	if err != nil {
-		h.log.Error("Failed to execute template", "error", err)
-		http.Error(w, "Failed to execute template", http.StatusInternalServerError)
+		h.log.Error("Failed to render page", "error", err)
+		http.Error(w, "Failed to render page", http.StatusInternalServerError)
 		return
 	}
 }

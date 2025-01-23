@@ -20,8 +20,9 @@ type Handler struct {
 }
 
 type Line struct {
-	Text     string
+	Text     []string // Array of the line's text. May only have one item
 	AudioURL *string
+	HasVocab bool
 }
 
 type PageData struct {
@@ -40,6 +41,9 @@ func NewHandler(logger *slog.Logger, te *templates.TemplateEngine) *Handler {
 // RegisterRoutes registers all story-related routes
 func (h *Handler) RegisterRoutes(mux *mux.Router) {
 	mux.HandleFunc("/stories/{id}/page1", h.ServePage1).Methods("GET").Name("page1")
+	mux.HandleFunc("/stories/{id}/page2", h.ServePage2).Methods("GET").Name("page2")
+	mux.HandleFunc("/api/stories/{id}/check-vocab", h.CheckVocabAnswers).Methods("POST")
+
 	mux.HandleFunc("/", h.ServeIndex).Methods("GET")
 }
 

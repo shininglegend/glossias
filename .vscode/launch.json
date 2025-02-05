@@ -2,12 +2,20 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch Main",
+      "name": "Go: Main",
       "type": "go",
       "request": "launch",
       "mode": "auto",
       // Changed from ${fileDirname} to explicit main.go path
       "program": "${workspaceFolder}/main.go"
+    },
+    {
+      "name": "Python: Main",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.py",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "justMyCode": true
     }
   ]
 }

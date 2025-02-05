@@ -70,15 +70,18 @@ func (h *Handler) ServePage2(w http.ResponseWriter, r *http.Request) {
 		series := []string{}
 		runes := []rune(line.Text)
 		lastEnd := 0
-		// Sort the vocab words by position
+		// Sort the vocab words
 		slices.SortFunc(line.Vocabulary, sortVocab)
 
 		for j := 0; j < len(line.Vocabulary); j++ {
 			vocab := line.Vocabulary[j]
 			vocabBank = append(vocabBank, vocab.LexicalForm)
 			start := vocab.Position[0]
-			// Add the text before the vocab word
-			series = append(series, string(runes[lastEnd:start]))
+			// Only add non-empty segments
+			if start > lastEnd {
+				// Add the text before the vocab word
+				series = append(series, string(runes[lastEnd:start]))
+			}
 			lastEnd = vocab.Position[1]
 		}
 		if lastEnd < len(runes) {
@@ -109,7 +112,7 @@ func (h *Handler) ServePage2(w http.ResponseWriter, r *http.Request) {
 		VocabBank:  vocabBank,
 	}
 
-	if err := h.te.Render(w, "page2.html", data); err != nil {
+	if err := h.te.Render(w, "page2_go.html", data); err != nil {
 		h.log.Error("Failed to render page", "error", err)
 		http.Error(w, "Failed to render page", http.StatusInternalServerError)
 	}
@@ -146,7 +149,10 @@ func (h *Handler) CheckVocabAnswers(w http.ResponseWriter, r *http.Request) {
 
 func sortVocab(a, b models.VocabularyItem) int {
 	if a.Position[0] < b.Position[0] {
-		return 1
+		return -1 // Changed: return -1 for "less than"
 	}
-	return 0
+	if a.Position[0] > b.Position[0] {
+		return 1 // Added: return 1 for "greater than"
+	}
+	return 0 // Added: return 0 for "equal"
 }

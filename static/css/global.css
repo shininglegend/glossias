@@ -86,6 +86,7 @@ body {
     max-width: 768px; /* md breakpoint */
     margin: 0 auto;
     padding: 1rem;
+    align-items: center;
 }
 
 /* Responsive breakpoints */

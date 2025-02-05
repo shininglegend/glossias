@@ -6,50 +6,59 @@
         <title>Vocabulary Practice - {{ .StoryTitle }}</title>
         <link rel="stylesheet" href="/static/css/global.css" />
         <link rel="stylesheet" href="/static/css/page2.css" />
+        <!-- Add Material Icons -->
+        <link
+            href="https://fonts.googleapis.com/icon?family=Material+Icons"
+            rel="stylesheet"
+        />
     </head>
     <body>
-        <header>
+        <header class="mb-8">
             <h1>{{ .StoryTitle }}</h1>
-            <h2>Step 2: Vocabulary Practice</h2>
-            <p>Fill in the blanks with the correct vocabulary words:</p>
+            <h2 class="text-2xl mb-4">Step 2: Vocabulary Practice</h2>
+            <p class="text-gray-700">
+                Fill in the blanks with the correct vocabulary words:
+            </p>
         </header>
-
-        <div class="word-bank">
-            <h3>Available Words:</h3>
-            <div class="vocab-words">
-                {{range .VocabBank}}
-                <div class="vocab-word" draggable="true">{{.}}</div>
-                {{end}}
-            </div>
-        </div>
 
         <div class="container">
             {{range $line := .Lines }}
-            <div class="line {{if $line.HasVocab}} 1 {{end}}">
+            <div class="line {{if $line.HasVocab}}has-vocab{{end}}">
                 <div class="story-text" dir="rtl">
                     {{range $index, $text := .Text}}
-                    <span>{{$text}}</span>{{if $line.HasVocab}}<span
-                        class="blank"
-                    ></span
-                    >{{end}} {{end}} {{ if .AudioURL }}
-                    <button onclick="playAudio('{{.AudioURL}}')">
+                    <span>{{$text}}</span>
+                    {{if $line.HasVocab}}
+                    <!-- Replace blank with select dropdown -->
+                    <select class="vocab-select">
+                        <option value="">Choose...</option>
+                        {{range $.VocabBank}}
+                        <option value="{{.}}">{{.}}</option>
+                        {{end}}
+                    </select>
+                    {{end}} {{end}} {{ if .AudioURL }}
+                    <button
+                        onclick="playAudio('{{.AudioURL}}')"
+                        class="audio-button"
+                        data-playing="false"
+                    >
                         <span class="material-icons">play_arrow</span>
                     </button>
                     {{ end }}
                 </div>
             </div>
             {{end}}
+            <input type="hidden" id="storyID" value="{{ .StoryID }}" />
         </div>
-
-        <button id="checkAnswers" class="check-button" disabled>
-            Check Answers
-        </button>
-
-        <input type="hidden" id="storyID" value="{{ .StoryID }}" />
+        <!-- Add check answers button -->
+        <div class="text-center mt-8">
+            <button id="checkAnswers" class="button-link" disabled>
+                Check Answers
+            </button>
+        </div>
 
         <script src="/static/js/vocabPractice.js"></script>
         <!-- Adjust the audio playing -->
-        <script src="/static/js/audioPlayer.js"></script>
+        <script src="/static/js/audioPlayer2.js"></script>
         <style>
             .next-button {
                 margin-top: 2rem;

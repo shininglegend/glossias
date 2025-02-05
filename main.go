@@ -88,6 +88,7 @@ func loggingMiddleware(logger *slog.Logger) mux.MiddlewareFunc {
 			logger.Info("request completed",
 				"method", r.Method,
 				"path", r.URL.Path,
+				"requester", r.RemoteAddr,
 				"duration", time.Since(start))
 		})
 	}

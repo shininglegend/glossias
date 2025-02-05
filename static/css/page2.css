@@ -1,25 +1,36 @@
 /* logos-stories/static/css/page2.css */
-.word-bank {
-    background: #f3f4f6;
-    padding: 1rem;
-    margin-bottom: 2rem;
-    border-radius: 0.5rem;
-    font-size: 2rem;
-}
 
-.vocab-words {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+.vocab-select {
+    display: inline-block;
+    width: 120px;
+    padding: 0.5rem;
+    font-size: 1.5rem;
     font-family: "SBL Hebrew", "Helvetica Neue", Helvetica, sans-serif;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.25rem;
+    background-color: white;
+    cursor: pointer;
+    margin: 0 0.5rem;
 }
 
-.vocab-word {
-    background: white;
-    padding: 0.5rem 1rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.25rem;
-    cursor: move;
+.vocab-select:focus {
+    outline: 2px solid var(--primary);
+    border-color: var(--primary);
+}
+
+.vocab-select.correct {
+    border-color: #22c55e;
+    background-color: #f0fdf4;
+}
+
+.vocab-select.incorrect {
+    border-color: #ef4444;
+    background-color: #fef2f2;
+}
+
+.vocab-select:disabled {
+    opacity: 0.75;
+    cursor: not-allowed;
 }
 
 .blank.filled {
@@ -30,26 +41,43 @@
 
 .check-button {
     margin-top: 2rem;
-    padding: 0.75rem 1.5rem;
-    background-color: #3b82f6;
+    padding: 1rem 2rem;
+    background-color: var(--primary);
     color: white;
     border: none;
-    border-radius: 0.375rem;
+    border-radius: 0.5rem;
     cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 500;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.check-button:hover:not(:disabled) {
+    background-color: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .check-button:disabled {
     background-color: #9ca3af;
     cursor: not-allowed;
+    opacity: 0.75;
 }
 
 /* Update the layout styles */
 .line {
     margin: 1rem 0;
-    padding: 1rem;
+    padding: 1.25rem;
     background-color: white;
-    border-radius: 0.5rem;
+    border-radius: 0.75rem;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+    border: 1px solid #e2e8f0;
+}
+
+.line:hover {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
 }
 
 .story-text {
@@ -72,4 +100,90 @@
     margin: 0 -1rem;
 }
 
-/* Rest of the existing CSS remains the same */
+/* Button */
+button {
+    background-color: var(--primary);
+    color: white;
+    border: none;
+    padding: 0.5rem;
+    border-radius: 50%; /* Make button circular */
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+button:hover {
+    background-color: var(--primary-hover);
+    transform: scale(1.05);
+}
+
+button .material-icons {
+    font-size: 24px;
+}
+
+/* Remove previous ::before pseudo-elements */
+button[data-playing="true"] {
+    background-color: #22c55e;
+}
+
+/* Update play/pause icon via JS */
+button[data-playing="true"] .material-icons {
+    content: "pause";
+}
+
+/* Add animation for playing state */
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+button[data-playing="true"] {
+    animation: pulse 2s infinite;
+}
+
+/* Improved accessibility */
+button:focus {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.audio-button {
+    background-color: var(--primary);
+    color: white;
+    border: none;
+    padding: 0.5rem;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.audio-button:hover {
+    background-color: var(--primary-hover);
+    transform: scale(1.05);
+}
+
+.audio-button[data-playing="true"] {
+    background-color: #22c55e;
+    animation: pulse 2s infinite;
+}
+
+.audio-button .material-icons {
+    font-size: 24px;
+    transition: all 0.2s ease;
+}

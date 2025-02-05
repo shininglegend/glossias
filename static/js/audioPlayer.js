@@ -1,8 +1,11 @@
 let currentAudio = null;
 
 function playAudio(url) {
-  console.log("playAudio", url);
-  if (currentAudio && currentAudio.src.endsWith(url)) {
+  // Normalize URL by removing escape chars and ensuring single forward slashes
+  const normalizedUrl = url.replace(/\\/g, "/").replace(/\/+/g, "/");
+  console.log("playAudio", normalizedUrl);
+
+  if (currentAudio && currentAudio.src.endsWith(normalizedUrl)) {
     if (currentAudio.paused) {
       currentAudio.play();
       updateButtonState(url, true);
@@ -17,9 +20,10 @@ function playAudio(url) {
     currentAudio.pause();
     currentAudio.currentTime = 0;
     updateButtonState(currentAudio.src, false);
+    return;
   }
 
-  currentAudio = new Audio(url);
+  currentAudio = new Audio(normalizedUrl);
   currentAudio.play();
   updateButtonState(url, true);
 

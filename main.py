@@ -1,7 +1,7 @@
 # main.py
 from flask import Flask
 from stories.routes import configure_routes
-import logging
+import logging, os
 
 def create_app():
     app = Flask(__name__,
@@ -31,5 +31,9 @@ def create_app():
     return app
 
 if __name__ == '__main__':
+    port = os.getenv('PORT')
+    if not port:
+        print("PORT environment variable not set. Exiting.")
+        exit()
     app = create_app()
     app.run(port=8081, debug=True)

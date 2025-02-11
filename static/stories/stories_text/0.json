@@ -1,0 +1,52 @@
+{
+  "metadata": {
+    "lastRevision": "2025-01-15T19:34:52Z",
+    "storyId": 0,
+    "weekNumber": 0,
+    "dayLetter": "a",
+    "title": {
+      "en": "A traveller travels"
+    },
+    "author": {
+      "id": "7802feb5",
+      "name": "Ai"
+    },
+    "grammarPoint": "",
+    "description": {
+      "language": "en",
+      "text": ""
+    }
+  },
+  "content": {
+    "lines": [
+      {
+        "lineNumber": 1,
+        "text": "The traveler walked along the dusty road",
+        "vocabulary": [],
+        "grammar": [],
+        "footnotes": []
+      },
+      {
+        "lineNumber": 2,
+        "text": "He wondered about his destination",
+        "vocabulary": [],
+        "grammar": [],
+        "footnotes": []
+      },
+      {
+        "lineNumber": 3,
+        "text": "Walking slowly, he saw a sign ahead",
+        "vocabulary": [],
+        "grammar": [],
+        "footnotes": []
+      },
+      {
+        "lineNumber": 4,
+        "text": "The sign pointed toward Jerusalem.",
+        "vocabulary": [],
+        "grammar": [],
+        "footnotes": []
+      }
+    ]
+  }
+}

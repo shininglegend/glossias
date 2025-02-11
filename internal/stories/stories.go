@@ -42,7 +42,7 @@ func NewHandler(logger *slog.Logger, te *templates.TemplateEngine) *Handler {
 func (h *Handler) RegisterRoutes(mux *mux.Router) {
 	mux.HandleFunc("/stories/{id}/page1", h.ServePage1).Methods("GET").Name("page1")
 	mux.HandleFunc("/stories/{id}/page2", h.ServePage2).Methods("GET").Name("page2")
-	mux.HandleFunc("/api/stories/{id}/check-vocab", h.CheckVocabAnswers).Methods("POST")
+	mux.HandleFunc("/stories/{id}/check-vocab", h.CheckVocabAnswers).Methods("POST")
 
 	mux.HandleFunc("/", h.ServeIndex).Methods("GET")
 }

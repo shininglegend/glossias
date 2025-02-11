@@ -28,6 +28,11 @@ go.work.sum
 # When adding additional entries, add them below.
 # debug files
 __debug_bin*
+
+# Continue
+.continue*
+.ropeproject
+
 # Python gitignore
 .venv/
 *.pyc

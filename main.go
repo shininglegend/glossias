@@ -66,9 +66,16 @@ func main() {
 	storiesHandler := stories.NewHandler(logger, templateEngine)
 	storiesHandler.RegisterRoutes(r)
 
+	// Select correct port and start the server
+	port := os.Getenv("PORT")
+	if port == "" {
+		logger.Error("PORT environment variable not set")
+		os.Exit(1)
+	}
+
 	srv := &http.Server{
 		Handler:      r,
-		Addr:         ":8080",
+		Addr:         ":" + port,
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}

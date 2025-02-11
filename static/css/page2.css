@@ -39,7 +39,7 @@
     background: #eff6ff;
 }
 
-.check-button {
+/* .check-button {
     margin-top: 2rem;
     padding: 1rem 2rem;
     background-color: var(--primary);
@@ -53,7 +53,7 @@
 }
 
 .check-button:hover:not(:disabled) {
-    background-color: var(--primary-hover);
+    background-color: greenyellow;
     transform: translateY(-1px);
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
@@ -62,7 +62,7 @@
     background-color: #9ca3af;
     cursor: not-allowed;
     opacity: 0.75;
-}
+} */
 
 /* Update the layout styles */
 .line {
@@ -101,7 +101,7 @@
 }
 
 /* Button */
-button {
+.audiobutton {
     background-color: var(--primary);
     color: white;
     border: none;
@@ -116,12 +116,12 @@ button {
     justify-content: center;
 }
 
-button:hover {
+.audiobutton:hover {
     background-color: var(--primary-hover);
     transform: scale(1.05);
 }
 
-button .material-icons {
+.audiobutton .material-icons {
     font-size: 24px;
 }
 
@@ -153,7 +153,7 @@ button[data-playing="true"] {
 }
 
 /* Improved accessibility */
-button:focus {
+.audiobutton:focus {
     outline: 2px solid var(--primary);
     outline-offset: 2px;
 }
@@ -186,4 +186,23 @@ button:focus {
 .audio-button .material-icons {
     font-size: 24px;
     transition: all 0.2s ease;
+}
+
+.next-button {
+    margin-top: 2rem;
+    text-align: center;
+}
+.button-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 2rem;
+    background-color: #4caf50;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+}
+.button-link:hover {
+    background-color: #45a049;
 }

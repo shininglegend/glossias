@@ -9,20 +9,28 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function checkAllSelectsFilled() {
     const allFilled = Array.from(selects).every(
-      (select) => select.value !== "",
+      select => select.value !== ""
     );
     checkButton.disabled = !allFilled;
+    checkButton.classList.toggle('btn-primary', allFilled);
   }
 
   checkButton.addEventListener("click", submitAnswers);
 });
 
 // Submit answers for checking
+// vocabPractice.js
 function submitAnswers() {
   const selects = document.querySelectorAll(".vocab-select");
+
+  // Verify all selects are filled before submitting
+  if (!Array.from(selects).every(select => select.value !== "")) {
+    return;
+  }
+
   const answers = Array.from(selects).map((select) => ({
-    word: select.value,
-    answer: select.value,
+    lineNumber: parseInt(select.getAttribute("data-line")),
+    answers: [select.value]
   }));
 
   fetch(`/stories/${document.getElementById("storyID").value}/check-vocab`, {

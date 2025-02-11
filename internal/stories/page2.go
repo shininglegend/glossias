@@ -20,10 +20,10 @@ type Page2Data struct {
 	VocabBank  []string
 }
 
-// Add these new types
+// Add these new types// page2.go
 type VocabAnswer struct {
-	Word   string `json:"word"`
-	Answer string `json:"answer"`
+	LineNumber int      `json:"lineNumber"`
+	Answers    []string `json:"answers"`
 }
 
 type CheckVocabRequest struct {
@@ -78,10 +78,11 @@ func (h *Handler) ServePage2(w http.ResponseWriter, r *http.Request) {
 			vocabBank = append(vocabBank, vocab.LexicalForm)
 			start := vocab.Position[0]
 			// Only add non-empty segments
-			if start > lastEnd {
+			if start >= lastEnd {
 				// Add the text before the vocab word
 				series = append(series, string(runes[lastEnd:start]))
 			}
+			series = append(series, "%")
 			lastEnd = vocab.Position[1]
 		}
 		if lastEnd < len(runes) {
@@ -102,6 +103,7 @@ func (h *Handler) ServePage2(w http.ResponseWriter, r *http.Request) {
 			HasVocab: hasVocab,
 		}
 	}
+
 	// Sort the vocab bank
 	slices.Sort(vocabBank)
 
@@ -130,17 +132,51 @@ func (h *Handler) CheckVocabAnswers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check each answer
+	// Get story ID from URL
+	id, err := strconv.Atoi(mux.Vars(r)["id"])
+	if err != nil {
+		http.Error(w, "Invalid story ID", http.StatusBadRequest)
+		return
+	}
+
+	// Get story from database to check against
+	story, err := models.GetStoryData(id)
+	if err != nil {
+		http.Error(w, "Failed to fetch story", http.StatusInternalServerError)
+		return
+	}
+
 	resp := CheckVocabResponse{
 		Answers: make([]struct {
 			Correct bool   `json:"correct"`
 			Word    string `json:"word"`
-		}, len(req.Answers)),
+		}, 0),
 	}
 
-	for i, answer := range req.Answers {
-		resp.Answers[i].Correct = answer.Word == answer.Answer
-		resp.Answers[i].Word = answer.Word
+	// Check each line's answers against database
+	for _, answer := range req.Answers {
+		if answer.LineNumber < 0 || answer.LineNumber >= len(story.Content.Lines) {
+			h.log.Warn("Invalid line number", "line number", answer.LineNumber)
+			continue // Skip invalid line numbers
+		}
+		line := story.Content.Lines[answer.LineNumber]
+		correctAnswers := make(map[string]bool)
+		for _, vocab := range line.Vocabulary {
+			correctAnswers[vocab.LexicalForm] = true
+		}
+
+		// Check each answer for this line
+		for _, ans := range answer.Answers {
+			isCorrect := correctAnswers[ans]
+			resp.Answers = append(resp.Answers, struct {
+				Correct bool   `json:"correct"`
+				Word    string `json:"word"`
+			}{
+				Correct: isCorrect,
+				Word:    ans,
+			})
+		}
+		h.log.Debug("Checked line", "line number", answer.LineNumber, "correct answers", correctAnswers)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

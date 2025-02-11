@@ -3,7 +3,14 @@
 A web application for displaying stories with synchronized text and audio.
 
 ## Installation & Setup
+1. Run steps 1-3 of `Go`  
+2. Run steps 1-3 of `Python`
+3. Run steps 1-2 of `nginx`
+#### Future runs
+1. Start Nginx `./start-dev.sh`
+2. Start VS code debugging by selecting `Go + Python`
 
+### Part 1: Go
 1. Install Go (1.21 or later) from [golang.org](https://golang.org)
 2. Clone this repository:
    ```bash
@@ -14,11 +21,28 @@ A web application for displaying stories with synchronized text and audio.
    ```bash
    go mod tidy
    ```
-4. Run the application:
-   ```bash
-   go run .
-   ```
-5. Access the application at `http://localhost:8080`
+
+### Part 2: Python
+1. Install Python (3.11 or later)
+2. Create and activate a venv in the root project directory
+3. Install dependancies
+```bash
+pip install -r requirements.txt
+```
+
+### Part 3: Nginx
+1. Install nginx
+2. Make the dev executable
+```bash
+chmod +x start-dev.sh
+```
+
+### To stop:
+1. Stop nginx
+```bash
+nginx -s stop
+```
+
 
 ## Adding Content
 

@@ -12,4 +12,4 @@ currently being supported with security updates.
 
 ## Reporting a Vulnerability
 
-Report Vulnerabilities by opening a git issue with the bug tag. Sensitive vunerabilities may be emailed. If you don't have my email, you probably shouldn't be seeing this, so open a git issue :)
+Report Vulnerabilities by emailing [security@glossias.org](mailto:security@glossias.org)

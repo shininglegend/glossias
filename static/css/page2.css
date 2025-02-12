@@ -206,3 +206,11 @@ button[data-playing="true"] {
 .button-link:hover {
     background-color: #45a049;
 }
+
+.score {
+    font-size: 2rem;
+    font-weight: bold;
+    border-radius: 4px;
+    background: var(--info);
+    color: white;
+}

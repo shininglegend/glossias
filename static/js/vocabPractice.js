@@ -65,6 +65,7 @@ function showResults(results) {
   if (!resultContainer) {
     resultContainer = document.createElement("div");
     resultContainer.id = "resultContainer";
+    resultContainer.classList.add("alert", "alert-info", "text-center");
     document.querySelector(".container").appendChild(resultContainer);
   }
 

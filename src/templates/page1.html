@@ -27,7 +27,11 @@
             <div class="line">
                 <span class="story-text">{{range $l := .Text }}{{ $l }}{{ end }}</span>
                 {{ if .AudioURL }}
-                <button onclick="playAudio('{{.AudioURL}}')">
+                <button 
+                    data-url="{{.AudioURL}}"
+                    class="audio-button"
+                    data-playing="false"   
+                >
                     <span class="material-icons">play_arrow</span>
                 </button>
                 {{ end }}
@@ -39,7 +43,7 @@
         <!-- Add a hidden tag with the story ID for later use -->
         <input type="hidden" id="storyID" value="{{ .StoryID }}" />
         <!-- Adjust the audio playing -->
-        <script src="/static/js/audioPlayer.js"></script>
+        <script type="module" src="/static/js/audioPlayer.js"></script>
         <style>
             .next-button {
                 margin-top: 2rem;

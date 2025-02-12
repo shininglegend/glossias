@@ -6,23 +6,34 @@ let currentAudio = null;
 let allAudioCompleted = false;
 let numAudioCompleted = 0;
 
+// Add event listeners
+document.addEventListener('DOMContentLoaded', () => {
+  const audioButtons = document.querySelectorAll('.audio-button');
+  audioButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const url = getUrlFromButton(button);
+      if (url) playAudio(url);
+    });
+  });
+});
+
 // Normalize URL to ensure consistent path format
-function normalizeUrl(url) {
-  // Decode URL-encoded characters (like %20 for spaces)
-  const decoded = decodeURIComponent(url);
+// function normalizeUrl(url) {
+//   // Decode URL-encoded characters (like %20 for spaces)
+//   const decoded = decodeURIComponent(url);
   
-  // Replace backslashes with forward slashes and normalize multiple slashes
-  return decoded.replace(/\\/g, "/").replace(/\/+/g, "/");
-}
+//   // Replace backslashes with forward slashes and normalize multiple slashes
+//   return decoded.replace(/\\/g, "/").replace(/\/+/g, "/");
+// }
 
-// Extract URL from button's onclick attribute - handles escaped URLs
-function getUrlFromButton(button) {
-  const onclick = button.getAttribute("onclick");
-  const match = onclick?.match(/playAudio\('([^']+)'\)/);
-  return match ? match[1] : null;
-}
+// // Extract URL from button's onclick attribute - handles escaped URLs
+// function getUrlFromButton(button) {
+//   const onclick = button.getAttribute("onclick");
+//   const match = onclick?.match(/playAudio\('([^']+)'\)/);
+//   return match ? match[1] : null;
+// }
 
-function playAudio(url) {
+export function playAudio(url) {
   const normalizedUrl = normalizeUrl(url);
   console.log("playAudio", normalizedUrl);
 
@@ -94,27 +105,27 @@ function startNewAudio(normalizedUrl, originalUrl) {
   };
 }
 
-function updateButtonState(url, isPlaying) {
-  const buttons = document.querySelectorAll("button");
-  url = normalizeUrl(url);
+// function updateButtonState(url, isPlaying) {
+//   const buttons = document.querySelectorAll("button");
+//   url = normalizeUrl(url);
 
-  // Use Array.from and explicit null check
-  const targetButton = Array.from(buttons).find(button => {
-    const buttonUrl = getUrlFromButton(button);
-    return buttonUrl && url.endsWith(normalizeUrl(buttonUrl));
-  });
+//   // Use Array.from and explicit null check
+//   const targetButton = Array.from(buttons).find(button => {
+//     const buttonUrl = getUrlFromButton(button);
+//     return buttonUrl && url.endsWith(normalizeUrl(buttonUrl));
+//   });
 
-  if (!targetButton) {
-    console.warn("Button not found for URL:", url);
-    return;
-  }
+//   if (!targetButton) {
+//     console.warn("Button not found for URL:", url);
+//     return;
+//   }
 
-  targetButton.setAttribute("data-playing", isPlaying.toString());
-  const icon = targetButton.querySelector(".material-icons");
-  if (icon) {
-    icon.textContent = isPlaying ? "pause" : "play_arrow";
-  }
-}
+//   targetButton.setAttribute("data-playing", isPlaying.toString());
+//   const icon = targetButton.querySelector(".material-icons");
+//   if (icon) {
+//     icon.textContent = isPlaying ? "pause" : "play_arrow";
+//   }
+// }
 
 function showNextPageButton() {
   const container = document.querySelector(".container");
@@ -124,7 +135,7 @@ function showNextPageButton() {
   if (!(numAudioCompleted >= buttons.length - 1)) {
     console.log(`Completed only ${numAudioCompleted} out of ${buttons.length - 1}.`);
     // Show a browser warning instead of showing the button, but allow bypassing
-    shouldContinue = confirm("It doesn't look like you listened to all audio. Do you want to continue?");
+    const shouldContinue = confirm("It doesn't look like you listened to all audio. Do you want to continue?");
     if (!shouldContinue) {
       return;
     }

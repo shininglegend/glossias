@@ -41,7 +41,7 @@
                         {{ end }}
                         {{ if $line.AudioURL }}
                             <button
-                                onclick="playAudio('{{$line.AudioURL}}')"
+                                data-url="{{.AudioURL}}"
                                 class="audio-button"
                                 data-playing="false"
                             >
@@ -62,6 +62,6 @@
 
         <script src="/static/js/vocabPractice.js"></script>
         <!-- Adjust the audio playing -->
-        <script src="/static/js/audioPlayer2.js"></script>
+        <script type="module" src="/static/js/audioPlayer2.js"></script>
     </body>
 </html>

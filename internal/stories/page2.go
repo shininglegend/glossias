@@ -98,9 +98,9 @@ func (h *Handler) ServePage2(w http.ResponseWriter, r *http.Request) {
 		}
 
 		lines[i] = Line{
-			Text:     series,
-			AudioURL: audioFile,
-			HasVocab: hasVocab,
+			Text:              series,
+			AudioURL:          audioFile,
+			HasVocabOrGrammar: hasVocab,
 		}
 	}
 

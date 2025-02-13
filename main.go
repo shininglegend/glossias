@@ -53,7 +53,7 @@ func main() {
 		http.FileServer(http.Dir("static"))))
 
 	// Robots.txt
-	r.HandleFunc("robots.txt", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "static/robots.txt")
 	})
 

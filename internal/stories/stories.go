@@ -22,7 +22,7 @@ type Handler struct {
 type Line struct {
 	Text     []string // Array of the line's text. May only have one item
 	AudioURL *string
-	HasVocab bool
+	HasVocabOrGrammar bool
 }
 
 type PageData struct {

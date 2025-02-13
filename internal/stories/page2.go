@@ -98,9 +98,9 @@ func (h *Handler) ServePage2(w http.ResponseWriter, r *http.Request) {
 		}
 
 		lines[i] = Line{
-			Text:     series,
-			AudioURL: audioFile,
-			HasVocab: hasVocab,
+			Text:              series,
+			AudioURL:          audioFile,
+			HasVocabOrGrammar: hasVocab,
 		}
 	}
 
@@ -178,6 +178,9 @@ func (h *Handler) CheckVocabAnswers(w http.ResponseWriter, r *http.Request) {
 		}
 		h.log.Debug("Checked line", "line number", answer.LineNumber, "correct answers", correctAnswers)
 	}
+	// Log the number of correct answers with the IP to the database and console
+	h.log.Debug("Submission", "IP:", r.RemoteAddr, "Number of correct answers", len(resp.Answers))
+	// TODO: Save to database
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)

@@ -8,25 +8,8 @@
       "mode": "auto",
       "program": "${workspaceFolder}/main.go",
       "env": {
-        "PORT": "3000"
+        "PORT": "8080"
       }
-    },
-    {
-      "name": "Python: Main",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${workspaceFolder}/main.py",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "justMyCode": true,
-      "env": {
-        "PORT": "8000"
-      }
-    }
-  ],
-  "compounds": [
-    {
-      "name": "Go + Python",
-      "configurations": ["Go: Main", "Python: Main"]
     }
   ]
 }

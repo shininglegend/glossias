@@ -5,6 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Logos Stories: {{ .StoryTitle }}</title>
         <link rel="stylesheet" href="/static/css/global.css" />
+        <link rel="stylesheet" href="/static/css/stories.css" />
         <link rel="stylesheet" href="/static/css/page1.css" />
         <!-- Add Material Icons -->
         <link
@@ -27,10 +28,10 @@
             <div class="line">
                 <span class="story-text">{{range $l := .Text }}{{ $l }}{{ end }}</span>
                 {{ if .AudioURL }}
-                <button 
+                <button
                     data-url="{{.AudioURL}}"
                     class="audio-button"
-                    data-playing="false"   
+                    data-playing="false"
                 >
                     <span class="material-icons">play_arrow</span>
                 </button>

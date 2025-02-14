@@ -26,6 +26,9 @@ EditStoryMetadata(storyID int, metadata StoryMetadata) error
 AddLineAnnotations(storyID, lineNumber int, line StoryLine) error
 ClearStoryAnnotations(storyID int) error
 
+Delete Operations:
+Delete(storyID int) error // Removes story and all associated data
+
 Error Types:
 ErrNotFound, ErrInvalidStoryID, ErrInvalidLineNumber, ErrMissingStoryID,
 ErrInvalidWeekNumber, ErrMissingDayLetter, ErrTitleTooShort, ErrMissingAuthorID

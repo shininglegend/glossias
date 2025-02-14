@@ -4,57 +4,30 @@ A web application for displaying stories with synchronized text and audio.
 
 ## Installation & Setup
 1. Run steps 1-3 of `Go`  
-2. Run steps 1-3 of `Python`
-3. Run steps 1-2 of `nginx`
-#### Future runs
-1. Start Nginx `./start-dev.sh`
-2. Start VS code debugging by selecting `Go + Python`
 
 ### Part 1: Go
 1. Install Go (1.21 or later) from [golang.org](https://golang.org)
 2. Clone this repository:
    ```bash
-   git clone https://github.com/yourusername/logos-stories
+   git clone https://github.com/shininglegend/logos-stories
    cd logos-stories
    ```
 3. Install dependencies:
    ```bash
    go mod tidy
    ```
-
-### Part 2: Python
-1. Install Python (3.11 or later)
-2. Create and activate a venv in the root project directory
-3. Install dependancies
-```bash
-pip install -r requirements.txt
-```
-
-### Part 3: Nginx
-1. Install nginx
-2. Make the dev executable
-```bash
-chmod +x start-dev.sh
-```
+4. ```bash
+   go run main.go
+   ```
 
 ### To stop:
-1. Stop nginx
-```bash
-nginx -s stop
-```
+1. Ctrl-c
 
 
 ## Adding Content
 
-### Text Files
-Place text files in `static/stories/stories_text/` with the following format:
-- Filename: `[language_code]_[number][letter].txt` (e.g., `gr_0a.txt`, `hb_9b.txt`)
-- First line: Story title
-- Subsequent lines: Story text
-- Use one `|` before and after to mark the vocab words. (ex: `γινωσω και |εγω|`).
-- Use  `||` before and after to mark the grammar points. (ex: `||γινωσω εγω|| και`)
-- Words will be split at a space character.
-- Empty lines are preserved
+### Stories
+Add stories via the admin interface at `/admin`.
 
 ### Audio Files
 Place audio files in `static/stories/stories_audio/[story_id]/` where:
@@ -72,7 +45,7 @@ Place audio files in `static/stories/stories_audio/[story_id]/` where:
 
 ### Development
 - Code written by Titus Murphy unless otherwise noted.
-- AI assistance provided by Claude.ai and GitHub Copilot and documented in AiUsage.md.
+- AI assistance provided by claude.ai, GitHub Copilot, and Ollama using multiple models. Documentation is in AiUsage.md.
 
 ### Academic Context
 This project was developed under the oversight of Dr. Derrick Tate for academic credit at Sattler College.

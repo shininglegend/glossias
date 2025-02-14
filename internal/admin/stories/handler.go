@@ -54,10 +54,6 @@ func (h *Handler) setCORSHeaders(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Max-Age", "3600")
 }
 
-func (h *Handler) deleteStoryHandler(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
 func (h *Handler) addStoryHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		// Render the add story form

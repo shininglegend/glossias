@@ -10,6 +10,7 @@
             href="https://fonts.googleapis.com/icon?family=Material+Icons"
             rel="stylesheet"
         />
+        <script src="/static/js/admin/delete.js" defer></script>
     </head>
     <body class="bg-gray-50 min-h-screen">
         <div class="max-w-4xl mx-auto p-6">
@@ -37,29 +38,32 @@
                     {{if .Stories}}
                     <ul class="space-y-3">
                         {{range .Stories}}
-                        <li class="group">
-                            <a
-                                href="/admin/stories/{{.Metadata.StoryID}}"
-                                class="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:shadow-md transition-all"
-                            >
-                                <div>
-                                    <span class="text-lg text-gray-800">
-                                        {{if index .Metadata.Title "en"}}
-                                        {{index .Metadata.Title "en"}} {{else}}
-                                        Story #{{.Metadata.StoryID}} {{end}}
-                                    </span>
-                                    <span class="ml-3 text-sm text-gray-500">
-                                        Week
-                                        {{.Metadata.WeekNumber}}{{.Metadata.DayLetter}}
-                                    </span>
+                            <li class="group" data-story-id="{{.Metadata.StoryID}}" data-story-title="{{index .Metadata.Title "en"}}">
+                                <div class="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:shadow-md transition-all">
+                                    <a href="/admin/stories/{{.Metadata.StoryID}}" class="flex-grow">
+                                        <div>
+                                            <span class="text-lg text-gray-800">
+                                                {{if index .Metadata.Title "en"}}
+                                                {{index .Metadata.Title "en"}} {{else}}
+                                                Story #{{.Metadata.StoryID}} {{end}}
+                                            </span>
+                                            <span class="ml-3 text-sm text-gray-500">
+                                                Week {{.Metadata.WeekNumber}}{{.Metadata.DayLetter}}
+                                            </span>
+                                        </div>
+                                    </a>
+                                    <div class="flex gap-2">
+                                        <a href="/admin/stories/{{.Metadata.StoryID}}"
+                                        class="material-icons text-gray-400 hover:text-blue-500 cursor-pointer">
+                                            edit
+                                        </a>
+                                        <span onclick="showDeleteModal({{.Metadata.StoryID}}, '{{index .Metadata.Title "en"}}')"
+                                            class="material-icons text-gray-400 hover:text-red-500 cursor-pointer">
+                                            delete
+                                        </span>
+                                    </div>
                                 </div>
-                                <span
-                                    class="material-icons text-gray-400 group-hover:text-blue-500"
-                                >
-                                    edit
-                                </span>
-                            </a>
-                        </li>
+                            </li>
                         {{end}}
                     </ul>
                     {{else}}
@@ -75,6 +79,36 @@
                     {{end}}
                 </section>
             </main>
+        </div>
+        <div
+            id="deleteModal"
+            class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center"
+        >
+            <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                <h3 class="text-xl font-semibold text-gray-900 mb-4">
+                    Confirm Deletion
+                </h3>
+                <p class="text-gray-600 mb-6">
+                    Are you sure you want to delete "<span
+                        id="deleteStoryTitle"
+                    ></span
+                    >"? This action cannot be undone.
+                </p>
+                <div class="flex justify-end gap-4">
+                    <button
+                        onclick="closeDeleteModal()"
+                        class="px-4 py-2 text-gray-600 hover:text-gray-800 rounded"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onclick="confirmDelete()"
+                        class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                    >
+                        Delete
+                    </button>
+                </div>
+            </div>
         </div>
     </body>
 </html>

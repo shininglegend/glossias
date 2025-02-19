@@ -1,9 +1,9 @@
-// logos-stories/internal/admin/stories/metadata.go
+// glossias/internal/admin/stories/metadata.go
 package stories
 
 import (
 	"encoding/json"
-	"logos-stories/internal/pkg/models"
+	"glossias/internal/pkg/models"
 	"net/http"
 	"strconv"
 

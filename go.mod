@@ -1,4 +1,4 @@
-module logos-stories
+module glossias
 
 go 1.23
 

@@ -1,4 +1,4 @@
-// logos-stories/internal/pkg/models/edit.go
+// glossias/internal/pkg/models/edit.go
 package models
 
 import (

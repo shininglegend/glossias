@@ -1,4 +1,4 @@
-// logos-stories/internal/pkg/models/delete.go
+// glossias/internal/pkg/models/delete.go
 package models
 
 import "database/sql"

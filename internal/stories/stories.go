@@ -3,8 +3,8 @@ package stories
 
 import (
 	"log/slog"
-	"logos-stories/internal/pkg/models"
-	"logos-stories/internal/pkg/templates"
+	"glossias/internal/pkg/models"
+	"glossias/internal/pkg/templates"
 	"net/http"
 	"path/filepath"
 	"text/template"

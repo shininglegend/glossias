@@ -1,10 +1,10 @@
-// logos-stories/internal/admin/handler.go
+// glossias/internal/admin/handler.go
 package stories
 
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"logos-stories/internal/pkg/models"
+	"glossias/internal/pkg/models"
 	"net/http"
 	"strings"
 	"time"

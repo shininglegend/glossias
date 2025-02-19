@@ -1,10 +1,10 @@
-// logos-stories/internal/stories/page2.go
+// glossias/internal/stories/page2.go
 package stories
 
 import (
 	"encoding/json"
 	"fmt"
-	"logos-stories/internal/pkg/models"
+	"glossias/internal/pkg/models"
 	"net/http"
 	"os"
 	"slices"

@@ -1,4 +1,4 @@
--- logos-stories/internal/pkg/database/schema.sql
+-- glossias/internal/pkg/database/schema.sql
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS stories (

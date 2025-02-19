@@ -9,8 +9,8 @@ A web application for displaying stories with synchronized text and audio.
 1. Install Go (1.21 or later) from [golang.org](https://golang.org)
 2. Clone this repository:
    ```bash
-   git clone https://github.com/shininglegend/logos-stories
-   cd logos-stories
+   git clone https://github.com/shininglegend/glossias
+   cd glossias
    ```
 3. Install dependencies:
    ```bash

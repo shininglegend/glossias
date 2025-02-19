@@ -1,4 +1,4 @@
-// logos-stories/static/js/admin/annotate.js
+// glossias/static/js/admin/annotate.js
 const AnnotationManager = {
   selectedText: "",
   selectionStart: 0,
@@ -50,7 +50,6 @@ const AnnotationManager = {
     menu.style.top = `${y}px`;
   },
 
-  // logos-stories/static/js/admin/annotate.js
   // Update the addVocabularyItem method
   async addVocabularyItem() {
     if (!this.selectedText || !this.currentLine) return;

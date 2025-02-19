@@ -1,4 +1,4 @@
-// logos-stories/internal/pkg/database/db.go
+// glossias/internal/pkg/database/db.go
 package database
 
 import (
@@ -18,6 +18,11 @@ func InitDB(dbPath string) (*sql.DB, error) {
 	needsInit := false
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		needsInit = true
+	}
+
+	// If we need the new database, make it
+	if needsInit {
+		// TODO: Make the database file or spoof it
 	}
 
 	// Open database connection

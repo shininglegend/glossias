@@ -33,6 +33,6 @@ Error Types:
 ErrNotFound, ErrInvalidStoryID, ErrInvalidLineNumber, ErrMissingStoryID,
 ErrInvalidWeekNumber, ErrMissingDayLetter, ErrTitleTooShort, ErrMissingAuthorID
 
-Database: Uses SQLite, requires InitDB() or SetDB() before use
+Database: Uses PostgreSQL, or a mock thereof
 Transaction wrapper: withTransaction(func(*sql.Tx) error) error
 */

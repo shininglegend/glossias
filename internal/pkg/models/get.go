@@ -4,18 +4,18 @@ package models
 import (
 	"database/sql"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/lib/pq"
 )
 
 func GetStoryData(id int) (*Story, error) {
 	story := NewStory()
 
 	// Get main story data
-	err := db.QueryRow(`
+	err := store.DB().QueryRow(`
         SELECT s.week_number, s.day_letter, s.grammar_point,
                s.last_revision, s.author_id, s.author_name
         FROM stories s
-        WHERE s.story_id = ?`, id).Scan(
+        WHERE s.story_id = $1`, id).Scan(
 		&story.Metadata.WeekNumber,
 		&story.Metadata.DayLetter,
 		&story.Metadata.GrammarPoint,
@@ -33,10 +33,10 @@ func GetStoryData(id int) (*Story, error) {
 	story.Metadata.StoryID = id
 
 	// Get titles
-	rows, err := db.Query(`
+	rows, err := store.DB().Query(`
         SELECT language_code, title
         FROM story_titles
-        WHERE story_id = ?`, id)
+        WHERE story_id = $1`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -51,10 +51,10 @@ func GetStoryData(id int) (*Story, error) {
 	}
 
 	// Get description
-	err = db.QueryRow(`
+	err = store.DB().QueryRow(`
         SELECT language_code, description_text
         FROM story_descriptions
-        WHERE story_id = ?
+        WHERE story_id = $1
         LIMIT 1`, id).Scan(
 		&story.Metadata.Description.Language,
 		&story.Metadata.Description.Text,
@@ -74,10 +74,10 @@ func GetStoryData(id int) (*Story, error) {
 }
 
 func getStoryLines(storyID int) ([]StoryLine, error) {
-	rows, err := db.Query(`
+	rows, err := store.DB().Query(`
         SELECT line_number, text, audio_file
         FROM story_lines
-        WHERE story_id = ?
+        WHERE story_id = $1
         ORDER BY line_number`, storyID)
 	if err != nil {
 		return nil, err
@@ -122,10 +122,10 @@ func getStoryLines(storyID int) ([]StoryLine, error) {
 
 // Helper functions to get line components
 func getVocabularyItems(storyID, lineNumber int, line *StoryLine) error {
-	rows, err := db.Query(`
+	rows, err := store.DB().Query(`
         SELECT word, lexical_form, position_start, position_end
         FROM vocabulary_items
-        WHERE story_id = ? AND line_number = ?`,
+        WHERE story_id = $1 AND line_number = $2`,
 		storyID, lineNumber)
 	if err != nil {
 		return err
@@ -145,10 +145,10 @@ func getVocabularyItems(storyID, lineNumber int, line *StoryLine) error {
 // story_data.go (continued)
 
 func getGrammarItems(storyID, lineNumber int, line *StoryLine) error {
-	rows, err := db.Query(`
+	rows, err := store.DB().Query(`
         SELECT text, position_start, position_end
         FROM grammar_items
-        WHERE story_id = ? AND line_number = ?`,
+        WHERE story_id = $1 AND line_number = $2`,
 		storyID, lineNumber)
 	if err != nil {
 		return err
@@ -167,10 +167,10 @@ func getGrammarItems(storyID, lineNumber int, line *StoryLine) error {
 
 func getFootnotes(storyID, lineNumber int, line *StoryLine) error {
 	// Get footnotes
-	rows, err := db.Query(`
+	rows, err := store.DB().Query(`
         SELECT f.id, f.footnote_text
         FROM footnotes f
-        WHERE f.story_id = ? AND f.line_number = ?`,
+        WHERE f.story_id = $1 AND f.line_number = $2`,
 		storyID, lineNumber)
 	if err != nil {
 		return err
@@ -196,10 +196,10 @@ func getFootnotes(storyID, lineNumber int, line *StoryLine) error {
 }
 
 func getFootnoteReferences(footnoteID int) ([]string, error) {
-	rows, err := db.Query(`
+	rows, err := store.DB().Query(`
         SELECT reference
         FROM footnote_references
-        WHERE footnote_id = ?`,
+        WHERE footnote_id = $1`,
 		footnoteID)
 	if err != nil {
 		return nil, err
@@ -246,7 +246,7 @@ func GetLineAnnotations(storyID int, lineNumber int) (*StoryLine, error) {
 
 // Helper function to execute transaction with error handling
 func withTransaction(fn func(*sql.Tx) error) error {
-	tx, err := db.Begin()
+	tx, err := store.DB().Begin()
 	if err != nil {
 		return err
 	}
@@ -270,7 +270,7 @@ func withTransaction(fn func(*sql.Tx) error) error {
 }
 
 func GetAllStories(language string) ([]Story, error) {
-	rows, err := db.Query(`
+	rows, err := store.DB().Query(`
         SELECT DISTINCT s.story_id, s.week_number, s.day_letter, st.title
         FROM stories s
         JOIN story_titles st ON s.story_id = st.story_id

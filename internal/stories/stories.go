@@ -2,9 +2,9 @@
 package stories
 
 import (
-	"log/slog"
 	"glossias/internal/pkg/models"
 	"glossias/internal/pkg/templates"
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"text/template"
@@ -20,8 +20,8 @@ type Handler struct {
 }
 
 type Line struct {
-	Text     []string // Array of the line's text. May only have one item
-	AudioURL *string
+	Text              []string // Array of the line's text. May only have one item
+	AudioURL          *string
 	HasVocabOrGrammar bool
 }
 
@@ -62,8 +62,14 @@ type IndexData struct {
 }
 
 func (h *Handler) ServeIndex(w http.ResponseWriter, r *http.Request) {
+	// If they gave a language param, use it
+	if r.URL.Query().Get("lang") != "" {
+		h.log.Info("Language parameter provided", "language", r.URL.Query().Get("lang"))
+	} else {
+		h.log.Info("No language parameter provided")
+	}
 	// Get stories from database
-	dbStories, err := models.GetAllStories("") // TODO: Add language from request, if given
+	dbStories, err := models.GetAllStories(r.URL.Query().Get("lang")) // TODO: Add language from request, if given
 	if err != nil {
 		h.log.Error("Failed to fetch stories from database", "error", err)
 		http.Error(w, "Failed to fetch stories", http.StatusInternalServerError)

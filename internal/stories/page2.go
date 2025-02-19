@@ -104,8 +104,9 @@ func (h *Handler) ServePage2(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Sort the vocab bank
+	// Sort and de-dupe the vocab bank
 	slices.Sort(vocabBank)
+	vocabBank = slices.Compact(vocabBank)
 
 	data := Page2Data{
 		StoryID:    strconv.Itoa(id),

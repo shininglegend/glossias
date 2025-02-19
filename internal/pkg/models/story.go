@@ -1,10 +1,12 @@
 package models
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
+	"glossias/internal/pkg/database"
 	"time"
+
+	_ "github.com/lib/pq"
 )
 
 const (
@@ -21,7 +23,7 @@ var (
 	ErrNotFound          = errors.New("story not found")
 )
 
-var db *sql.DB
+var store database.Store
 
 type Story struct {
 	Metadata StoryMetadata `json:"metadata"`
@@ -79,18 +81,8 @@ type Footnote struct {
 	References []string `json:"references,omitempty"` // Optional field
 }
 
-// InitDB initializes the database connection
-func InitDB(dataSourceName string) error {
-	var err error
-	db, err = sql.Open("mysql", dataSourceName)
-	if err != nil {
-		return err
-	}
-	return db.Ping()
-}
-
-func SetDB(database *sql.DB) {
-	db = database
+func SetDB(s database.Store) {
+	store = s
 }
 
 // ToJSON serializes a Story to JSON bytes

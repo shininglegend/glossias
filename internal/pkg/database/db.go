@@ -4,7 +4,9 @@ package database
 import (
 	"database/sql"
 	"embed"
+	"fmt"
 	"os"
+	"path/filepath"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -22,7 +24,14 @@ func InitDB(dbPath string) (*sql.DB, error) {
 
 	// If we need the new database, make it
 	if needsInit {
-		// TODO: Make the database file or spoof it
+		// Create directory path if it doesn't exist
+		if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
+			return nil, fmt.Errorf("creating database directory: %w", err)
+		}
+		// Create empty database file
+		if _, err := os.Create(dbPath); err != nil {
+			return nil, fmt.Errorf("creating database file: %w", err)
+		}
 	}
 
 	// Open database connection

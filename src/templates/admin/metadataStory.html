@@ -98,7 +98,12 @@
                               class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                     >{{.Metadata.Description.Text}}</textarea>
                 </div>
-
+                <!-- Info box with the language -->
+                <div>
+                    <div class="bg-gray-100 p-4 rounded-md mb-2">
+                        <h3 class="text-lg font-medium text-gray-800">Language</h3>
+                        <p>{{.Metadata.Description.Language}}</p>
+                </div>
                 <div class="flex justify-end">
                     <button type="submit"
                             class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">

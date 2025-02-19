@@ -8,7 +8,8 @@
       "mode": "auto",
       "program": "${workspaceFolder}/main.go",
       "env": {
-        "PORT": "8080"
+        "PORT": "8080"//,
+        //"DATABASE_URL":"postgres://jvcte@localhost:5432/glossias?sslmode=disable"
       }
     }
   ]

@@ -98,5 +98,5 @@ func (h *Handler) addStoryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Redirect to success page or story list
-	http.Redirect(w, r, "/admin/stories", http.StatusSeeOther)
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }

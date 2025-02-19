@@ -34,7 +34,7 @@ func Delete(storyID int) error {
 		}
 
 		// Finally delete the story itself
-		if _, err := tx.Exec(`DELETE FROM stories WHERE story_id = ?`, storyID); err != nil {
+		if _, err := tx.Exec(`DELETE FROM stories WHERE story_id = $1`, storyID); err != nil {
 			return err
 		}
 
@@ -45,16 +45,17 @@ func Delete(storyID int) error {
 // deleteFootnoteData removes footnotes and their references
 func deleteFootnoteData(tx *sql.Tx, storyID int) error {
 	// Due to CASCADE, we only need to delete footnotes
-	_, err := tx.Exec(`DELETE FROM footnotes WHERE story_id = ?`, storyID)
+	_, err := tx.Exec(`DELETE FROM footnotes WHERE story_id = $1`, storyID)
 	return err
 }
 
 // deleteAnnotations removes vocabulary and grammar items
 func deleteAnnotations(tx *sql.Tx, storyID int) error {
-	for _, query := range []string{
-		`DELETE FROM vocabulary_items WHERE story_id = ?`,
-		`DELETE FROM grammar_items WHERE story_id = ?`,
-	} {
+	queries := []string{
+		`DELETE FROM vocabulary_items WHERE story_id = $1`,
+		`DELETE FROM grammar_items WHERE story_id = $1`,
+	}
+	for _, query := range queries {
 		if _, err := tx.Exec(query, storyID); err != nil {
 			return err
 		}
@@ -64,16 +65,17 @@ func deleteAnnotations(tx *sql.Tx, storyID int) error {
 
 // deleteStoryContent removes the story lines
 func deleteStoryContent(tx *sql.Tx, storyID int) error {
-	_, err := tx.Exec(`DELETE FROM story_lines WHERE story_id = ?`, storyID)
+	_, err := tx.Exec(`DELETE FROM story_lines WHERE story_id = $1`, storyID)
 	return err
 }
 
 // deleteMetadata removes titles and descriptions
 func deleteMetadata(tx *sql.Tx, storyID int) error {
-	for _, query := range []string{
-		`DELETE FROM story_titles WHERE story_id = ?`,
-		`DELETE FROM story_descriptions WHERE story_id = ?`,
-	} {
+	queries := []string{
+		`DELETE FROM story_titles WHERE story_id = $1`,
+		`DELETE FROM story_descriptions WHERE story_id = $1`,
+	}
+	for _, query := range queries {
 		if _, err := tx.Exec(query, storyID); err != nil {
 			return err
 		}

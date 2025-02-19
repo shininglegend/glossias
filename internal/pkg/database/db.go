@@ -26,11 +26,11 @@ func InitDB(dbPath string) (*sql.DB, error) {
 	if needsInit {
 		// Create directory path if it doesn't exist
 		if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
-			return nil, fmt.Errorf("creating database directory: %w", err)
+			return nil, fmt.Errorf("err creating database directory: %w", err)
 		}
 		// Create empty database file
 		if _, err := os.Create(dbPath); err != nil {
-			return nil, fmt.Errorf("creating database file: %w", err)
+			return nil, fmt.Errorf("err creating database file: %w", err)
 		}
 	}
 

@@ -1,13 +1,13 @@
-// logos-stories/internal/admin/admin.go
+// glossias/internal/admin/admin.go
 package admin
 
 import (
 	"log/slog"
 	"net/http"
 
-	"logos-stories/internal/admin/stories"
-	"logos-stories/internal/pkg/models"
-	"logos-stories/internal/pkg/templates"
+	"glossias/internal/admin/stories"
+	"glossias/internal/pkg/models"
+	"glossias/internal/pkg/templates"
 
 	"github.com/gorilla/mux"
 )

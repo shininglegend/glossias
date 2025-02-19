@@ -2,7 +2,7 @@ package stories
 
 import (
 	"fmt"
-	"logos-stories/internal/pkg/models"
+	"glossias/internal/pkg/models"
 	"net/http"
 	"os"
 	"slices"

@@ -1,10 +1,12 @@
-// logos-stories/internal/pkg/database/db.go
+// glossias/internal/pkg/database/db.go
 package database
 
 import (
 	"database/sql"
 	"embed"
+	"fmt"
 	"os"
+	"path/filepath"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -18,6 +20,18 @@ func InitDB(dbPath string) (*sql.DB, error) {
 	needsInit := false
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		needsInit = true
+	}
+
+	// If we need the new database, make it
+	if needsInit {
+		// Create directory path if it doesn't exist
+		if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
+			return nil, fmt.Errorf("err creating database directory: %w", err)
+		}
+		// Create empty database file
+		if _, err := os.Create(dbPath); err != nil {
+			return nil, fmt.Errorf("err creating database file: %w", err)
+		}
 	}
 
 	// Open database connection

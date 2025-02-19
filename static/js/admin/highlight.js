@@ -1,4 +1,4 @@
-// logos-stories/static/js/admin/highlight.js
+// glossias/static/js/admin/highlight.js
 class TextHighlighter {
   constructor() {
     this.tooltipElement = this.createTooltip();

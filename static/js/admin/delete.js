@@ -1,4 +1,4 @@
-// logos-stories/static/js/admin/delete.js
+// glossias/static/js/admin/delete.js
 let currentStoryId = null;
 
 function showDeleteModal(storyId, storyTitle) {

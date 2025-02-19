@@ -1,10 +1,10 @@
-// logos-stories/internal/admin/stories/remove_stories.go
+// glossias/internal/admin/stories/remove_stories.go
 package stories
 
 import (
 	"encoding/json"
 	"fmt"
-	"logos-stories/internal/pkg/models"
+	"glossias/internal/pkg/models"
 	"net/http"
 	"os"
 	"path/filepath"

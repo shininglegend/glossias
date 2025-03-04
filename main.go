@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"glossias/internal/admin"
 	"glossias/internal/logging"
+	"glossias/internal/pkg/auth"
 	"glossias/internal/pkg/database"
 	"glossias/internal/pkg/models"
 	"glossias/internal/pkg/templates"
@@ -48,6 +49,13 @@ func main() {
 	// Setup middleware if needed
 	r.Use(loggingMiddleware(logger))
 
+	// Initialize Clerk middleware
+	clerkMiddleware, err := auth.NewClerkMiddleware()
+	if err != nil {
+		logger.Error("Failed to initialize Clerk", "error", err)
+		os.Exit(1)
+	}
+
 	// Initialize handlers
 	// Setup static file serving
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
@@ -67,7 +75,9 @@ func main() {
 
 	// Other handlers
 	adminHandler := admin.NewHandler(logger, templateEngine)
-	adminHandler.RegisterRoutes(r)
+	adminRouter := r.PathPrefix("/admin").Subrouter()
+	adminRouter.Use(clerkMiddleware.RequireAuth)
+	adminHandler.RegisterRoutes(adminRouter)
 
 	storiesHandler := stories.NewHandler(logger, templateEngine)
 	storiesHandler.RegisterRoutes(r)

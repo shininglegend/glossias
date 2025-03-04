@@ -9,7 +9,7 @@ import (
 // MockDB implements the DB interface for testing
 type MockDB struct {
 	mu   sync.RWMutex
-	data map[string][]interface{} // Basic in-memory storage
+	data map[string][]any // Basic in-memory storage
 	tx   *MockTx
 }
 
@@ -24,12 +24,12 @@ type MockResult struct {
 
 type MockRows struct {
 	closed bool
-	rows   [][]interface{}
+	rows   [][]any
 	curr   int
 }
 
 type MockRow struct {
-	data []interface{}
+	data []any
 }
 
 func (r MockResult) LastInsertId() (int64, error) { return r.lastID, nil }
@@ -38,11 +38,11 @@ func (r MockResult) RowsAffected() (int64, error) { return r.rowsAff, nil }
 // NewMockDB creates a new mock database
 func NewMockDB() *MockDB {
 	return &MockDB{
-		data: make(map[string][]interface{}),
+		data: make(map[string][]any),
 	}
 }
 
-func (m *MockDB) Exec(query string, args ...interface{}) (sql.Result, error) {
+func (m *MockDB) Exec(query string, args ...any) (sql.Result, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -80,7 +80,7 @@ func (m *MockRows) Next() bool {
 	return true
 }
 
-func (m *MockRows) Scan(dest ...interface{}) error {
+func (m *MockRows) Scan(dest ...any) error {
 	return sql.ErrNoRows
 }
 
@@ -88,14 +88,14 @@ func (m *MockRows) Columns() ([]string, error) {
 	return []string{}, nil
 }
 
-func (m *MockRow) Scan(dest ...interface{}) error {
+func (m *MockRow) Scan(dest ...any) error {
 	return sql.ErrNoRows
 }
 
-func (m *MockDB) Query(query string, args ...interface{}) (Rows, error) {
+func (m *MockDB) Query(query string, args ...any) (Rows, error) {
 	return &MockRows{}, nil
 }
 
-func (m *MockDB) QueryRow(query string, args ...interface{}) Row {
+func (m *MockDB) QueryRow(query string, args ...any) Row {
 	return &MockRow{}
 }

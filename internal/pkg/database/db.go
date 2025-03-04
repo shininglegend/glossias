@@ -82,7 +82,7 @@ func (s *mockStore) Close() error {
 	return s.db.Close()
 }
 
-func (db *realDB) Query(query string, args ...interface{}) (Rows, error) {
+func (db *realDB) Query(query string, args ...any) (Rows, error) {
 	rows, err := db.DB.Query(query, args...)
 	if err != nil {
 		return nil, err
@@ -90,6 +90,6 @@ func (db *realDB) Query(query string, args ...interface{}) (Rows, error) {
 	return &RealRows{rows}, nil
 }
 
-func (db *realDB) QueryRow(query string, args ...interface{}) Row {
+func (db *realDB) QueryRow(query string, args ...any) Row {
 	return &RealRow{db.DB.QueryRow(query, args...)}
 }

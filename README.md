@@ -3,20 +3,23 @@
 A web application for displaying stories with synchronized text and audio.
 
 ## Installation & Setup
-1. Run steps 1-3 of `Go`  
+1. Run steps 1-3 of `Go`
 
-### Part 1: Go
+### Installing Go & Postgres
+*Note: Steps 2-3 may be skipped/delayed for testing, but will result in many broken features.*
 1. Install Go (1.21 or later) from [golang.org](https://golang.org)
-2. Clone this repository:
+2. Install and start up postgresql from [postgresql.org](https://www.postgresql.org/download/)
+3. Add a `DATABASE_URL` to your environment with your [postgres username, password, port, etc](https://www.prisma.io/docs/orm/overview/databases/postgresql#connection-url)
+4. Clone this repository:
    ```bash
    git clone https://github.com/shininglegend/glossias
    cd glossias
    ```
-3. Install dependencies:
+5. Install dependencies:
    ```bash
    go mod tidy
    ```
-4. ```bash
+6. ```bash
    go run main.go
    ```
 

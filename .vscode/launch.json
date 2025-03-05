@@ -8,9 +8,32 @@
       "mode": "auto",
       "program": "${workspaceFolder}/main.go",
       "env": {
-        "PORT": "8080"//,
-        //"DATABASE_URL":"postgres://jvcte@localhost:5432/glossias?sslmode=disable"
+        "PORT": "8080"
       }
+    },
+    {
+      "name": "Next.js: debug server-side",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "cd frontend && npm run dev",
+    },
+    {
+      "name": "Next.js: debug client-side",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3000"
+    }
+  ],
+  // Compound configuration to launch both Go and Next.js debuggers simultaneously
+  "compounds": [
+    {
+      "name": "Full Stack: Go + Next.js",
+      "configurations": [
+        "Go: Main",
+        "Next.js: debug server-side",
+        "Next.js: debug client-side"
+      ],
+      "stopAll": true
     }
   ]
 }

@@ -1,0 +1,5 @@
+/* Import existing styles */
+@import '../../static/css/global.css';
+@import '../../static/css/index.css';
+
+/* Additional page-specific styles can go here */

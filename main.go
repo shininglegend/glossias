@@ -18,6 +18,7 @@ import (
 
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
+	"github.com/rs/cors"
 )
 
 func main() {
@@ -45,10 +46,29 @@ func main() {
 
 	r := mux.NewRouter()
 
-	// Setup middleware if needed
+	// Setup middleware
 	r.Use(loggingMiddleware(logger))
 
-	// Initialize handlers
+	// Setup CORS
+	corsMiddleware := cors.New(cors.Options{
+		AllowedOrigins: []string{"http://localhost:3000"}, // Next.js development server
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"Content-Type", "Authorization"},
+		Debug:          true,
+	})
+	r.Use(corsMiddleware.Handler)
+
+	// API Routes for Next.js
+	api := r.PathPrefix("/api").Subrouter()
+	api.HandleFunc("/stories", func(w http.ResponseWriter, r *http.Request) {
+		stories, err := models.GetAllStories("")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(stories)
+	}).Methods("GET")
+
 	// Setup static file serving
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
 		http.FileServer(http.Dir("static"))))
@@ -65,7 +85,7 @@ func main() {
 		http.ServeFile(w, r, "static/html/404.html")
 	})
 
-	// Other handlers
+	// Initialize and register existing handlers
 	adminHandler := admin.NewHandler(logger, templateEngine)
 	adminHandler.RegisterRoutes(r)
 

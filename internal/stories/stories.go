@@ -45,7 +45,7 @@ func (h *Handler) RegisterRoutes(mux *mux.Router) {
 	mux.HandleFunc("/stories/{id}/page3", h.ServePage3).Methods("GET").Name("page3")
 	mux.HandleFunc("/stories/{id}/check-vocab", h.CheckVocabAnswers).Methods("POST")
 
-	mux.HandleFunc("/", h.ServeIndex).Methods("GET")
+	// mux.HandleFunc("/", h.ServeIndex).Methods("GET")
 }
 
 // stories.go

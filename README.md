@@ -44,7 +44,7 @@ Place audio files in `static/stories/stories_audio/[story_id]/` where:
 
 
 ### Development
-- Code written by Titus Murphy unless otherwise noted.
+- Code written by Titus unless otherwise noted.
 - AI assistance provided by claude.ai, GitHub Copilot, and Ollama using multiple models. Documentation is in AiUsage.md.
 
 ### Academic Context

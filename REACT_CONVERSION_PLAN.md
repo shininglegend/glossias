@@ -15,20 +15,23 @@ Converting the existing Go web application with server-side templates to a React
 - Same SQLite database
 - Static assets served through React
 
-## Phase 1: Backend API Conversion
+## Phase 1: Add API Routes (Parallel to Templates)
 
-### 1.1 Strip Template Dependencies
-- Remove template engine initialization from `main.go`
-- Remove template engine from handler constructors
-- Update imports to remove template dependencies
+### 1.1 Add API Routes Alongside Existing Routes
+Create new API handlers without touching existing template handlers:
+- Add `/api/stories` (GET) - Return JSON array of stories
+- Add `/api/stories/{id}/page1` (GET) - Return JSON page data
+- Add `/api/stories/{id}/page2` (GET) - Return JSON page data  
+- Add `/api/stories/{id}/page3` (GET) - Return JSON page data
+- Add `/api/stories/{id}/check-vocab` (POST) - Accept/return JSON
 
-### 1.2 Convert Handlers to JSON API Endpoints
-Transform existing routes:
-- `/` → `/api/stories` (GET) - Return JSON array of stories
-- `/stories/{id}/page1` → `/api/stories/{id}/page1` (GET) - Return JSON page data
-- `/stories/{id}/page2` → `/api/stories/{id}/page2` (GET) - Return JSON page data  
-- `/stories/{id}/page3` → `/api/stories/{id}/page3` (GET) - Return JSON page data
-- `/stories/{id}/check-vocab` → `/api/stories/{id}/check-vocab` (POST) - Accept/return JSON
+**Testing**: Each API endpoint can be tested independently with curl/Postman
+
+### 1.2 Create API-Specific Handlers
+Copy existing handlers to new API versions in `internal/api/` package:
+- `api/stories.go` - JSON versions of story handlers
+- `api/responses.go` - Common response structures
+- Keep existing template handlers untouched
 
 ### 1.3 Add CORS Middleware
 ```go
@@ -60,15 +63,17 @@ type APIResponse struct {
 }
 ```
 
-## Phase 2: React Frontend Setup
+## Phase 2: React Frontend Development (Independent)
 
-### 2.1 Initialize React App
+### 2.1 Initialize React App with Mock Data
 ```bash
 cd logos-stories
 npx create-react-app frontend
 cd frontend
 npm install axios react-router-dom
 ```
+
+**Testing**: Use mock data files to develop components independently of backend
 
 ### 2.2 Project Structure
 ```
@@ -87,11 +92,13 @@ frontend/
 └── public/
 ```
 
-### 2.3 Core Components
-- **StoryList**: Display all available stories (replaces index template)
-- **StoryPage1/2/3**: Story reading interfaces (replaces page templates)
-- **VocabChecker**: Vocabulary quiz component
-- **API Service**: Centralized API calls to Go backend
+### 2.3 Core Components with Mock Data First
+- **StoryList**: Build with mock JSON data, test independently
+- **StoryPage1/2/3**: Build with mock story data, test UI/UX
+- **VocabChecker**: Build with mock vocab data, test interactions
+- **API Service**: Start with mock responses, switch to real API later
+
+**Testing**: Each component testable in isolation with mock data
 
 ### 2.4 Routing Setup
 ```jsx
@@ -111,70 +118,87 @@ function App() {
 }
 ```
 
-### 2.5 API Integration
+### 2.5 API Integration with Feature Flag
 ```javascript
 // services/api.js
 import axios from 'axios';
+import mockData from './mockData';
 
+const USE_MOCK = process.env.REACT_APP_USE_MOCK === 'true';
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8080/api';
 
 export const api = {
-  getStories: () => axios.get(`${API_BASE}/stories`),
-  getStoryPage: (id, page) => axios.get(`${API_BASE}/stories/${id}/page${page}`),
-  checkVocab: (id, answers) => axios.post(`${API_BASE}/stories/${id}/check-vocab`, answers)
+  getStories: () => USE_MOCK ? Promise.resolve({data: mockData.stories}) : axios.get(`${API_BASE}/stories`),
+  getStoryPage: (id, page) => USE_MOCK ? Promise.resolve({data: mockData.pages[id][page]}) : axios.get(`${API_BASE}/stories/${id}/page${page}`),
+  checkVocab: (id, answers) => USE_MOCK ? Promise.resolve({data: mockData.vocabResults}) : axios.post(`${API_BASE}/stories/${id}/check-vocab`, answers)
 };
 ```
 
-## Phase 3: Static Asset Migration
+**Testing**: Switch between mock and real API with environment variable
 
-### 3.1 Move Assets
-- Copy `/static/stories/` to `/frontend/public/stories/`
-- Copy other static assets to `/frontend/public/`
-- Update audio file paths in React components
+## Phase 3: Gradual Page Migration
 
-### 3.2 Build Integration
-- Configure React build to output to Go-servable directory
-- Update Go to serve React build files for non-API routes
+### 3.1 Single Page Migration
+Start with one page (e.g., story list):
+- Add feature flag to Go handlers: `?react=true` query parameter
+- Serve React build for flagged requests
+- Keep template version as default
+- Copy only required assets to React public folder
 
-## Phase 4: Deployment Configuration
+**Testing**: Compare template vs React versions side-by-side
 
-### 4.1 Production Build
-```bash
-# Build React app
-cd frontend && npm run build
+### 3.2 Asset Duplication Strategy
+- Serve assets from both `/static/` and `/frontend/public/`
+- Use relative paths in React that work with either location
+- Gradual migration of individual asset folders
 
-# Serve React build from Go
-# Update main.go to serve build files for SPA routing
-```
+**Testing**: Verify assets load from both locations
 
-### 4.2 Go Server Updates
+## Phase 4: Feature Flag Integration
+
+### 4.1 Route-Level Feature Flags
+Add feature flags to existing routes:
 ```go
-// Serve React build files
-r.PathPrefix("/").Handler(http.FileServer(http.Dir("frontend/build/")))
-
-// Handle SPA routing - serve index.html for non-API routes
-r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-    if !strings.HasPrefix(r.URL.Path, "/api/") {
+func (h *Handler) ServeIndex(w http.ResponseWriter, r *http.Request) {
+    if r.URL.Query().Get("react") == "true" {
         http.ServeFile(w, r, "frontend/build/index.html")
         return
     }
-    http.Error(w, "Not Found", http.StatusNotFound)
-})
+    // Existing template logic
+}
 ```
 
-## Implementation Order
-1. Phase 1: Convert Go handlers to API endpoints
-2. Phase 2: Build React frontend with API integration
-3. Phase 3: Migrate static assets and test integration
-4. Phase 4: Configure production build and deployment
+**Testing**: A/B test template vs React on same routes
 
-## Testing Strategy
-- Test API endpoints with curl/Postman before React integration
-- Develop React components with mock data first
-- Integration testing with both servers running
-- End-to-end testing of complete user flows
+### 4.2 Gradual Migration Strategy
+- Enable React for specific story IDs first
+- Use user preferences or admin flags
+- Monitor performance and user feedback
+- Roll back individual features if needed
 
-## Rollback Plan
-- Keep original templates and handlers in separate branch
-- Feature flag to switch between template and API modes
-- Database schema remains unchanged for easy rollback
+**Testing**: Incremental rollout with immediate rollback capability
+
+## Implementation Order (Incremental & Testable)
+1. **Phase 1**: Add API routes parallel to templates - test each endpoint
+2. **Phase 2**: Build React with mocks - test components independently  
+3. **Phase 3**: Single page migration with feature flags - A/B test
+4. **Phase 4**: Gradual rollout with monitoring - incremental deployment
+
+## Testing Strategy (Per Phase)
+- **Phase 1**: curl/Postman test each API endpoint independently
+- **Phase 2**: Jest/React Testing Library with mock data
+- **Phase 3**: Compare template vs React with `?react=true` flag
+- **Phase 4**: Monitor real users, immediate rollback capability
+
+## Rollback Plan (Always Available)
+- Original templates always available (no removal until Phase 4 complete)
+- Feature flags allow instant rollback per route/user
+- API and template handlers coexist safely
+- Database unchanged - zero migration risk
+- Static assets served from both locations during transition
+
+## Modularity Benefits
+- Each API endpoint developed and tested independently
+- React components built with mocks, no backend dependency
+- Feature flags enable granular testing and rollout
+- No big-bang deployment - gradual, reversible migration

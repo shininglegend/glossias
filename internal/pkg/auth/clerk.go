@@ -2,11 +2,13 @@
 package auth
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"os"
 	"strings"
 
-	"github.com/clerkinc/clerk-sdk-go"
+	"github.com/clerk/clerk-sdk-go/v2"
 )
 
 type ClerkMiddleware struct {
@@ -14,11 +16,13 @@ type ClerkMiddleware struct {
 }
 
 func NewClerkMiddleware() (*ClerkMiddleware, error) {
-	client, err := clerk.NewClient(os.Getenv("CLERK_SECRET_KEY"))
-	if err != nil {
-		return nil, err
+	key := os.Getenv("CLERK_SECRET_KEY")
+	if key == "" {
+		return nil, errors.New("CLERK_SECRET_KEY is not set")
 	}
-	return &ClerkMiddleware{client: client}, nil
+
+	clerk.SetKey(key)
+	return &ClerkMiddleware{client: clerk.Client{}}, nil
 }
 
 func (cm *ClerkMiddleware) RequireAuth(next http.Handler) http.Handler {
@@ -31,16 +35,13 @@ func (cm *ClerkMiddleware) RequireAuth(next http.Handler) http.Handler {
 		}
 
 		token := strings.TrimPrefix(authHeader, "Bearer ")
-
-		// Verify the session
-		sess, err := cm.client.Sessions().Verify(token)
-		if err != nil {
-			http.Error(w, "Invalid session", http.StatusUnauthorized)
+		if token == "" {
+			http.Error(w, "Invalid token format", http.StatusUnauthorized)
 			return
 		}
 
-		// Add session to context
-		ctx := clerk.WithSession(r.Context(), sess)
+		// Add token to context for downstream handlers
+		ctx := context.WithValue(r.Context(), "clerk_token", token)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

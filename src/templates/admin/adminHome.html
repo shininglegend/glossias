@@ -11,6 +11,13 @@
             rel="stylesheet"
         />
         <script src="/static/js/admin/delete.js" defer></script>
+        <script src="https://clerk.browser.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"></script>
+        <script>
+            const clerk = window.Clerk({
+                publishableKey: '{{.ClerkPublishableKey}}'
+            });
+            await clerk.load();
+        </script>
     </head>
     <body class="bg-gray-50 min-h-screen">
         <div class="max-w-4xl mx-auto p-6">
@@ -39,7 +46,7 @@
                     <ul class="space-y-3">
                         {{range .Stories}}
                             <li class="group" data-story-id="{{.Metadata.StoryID}}" data-story-title="{{index .Metadata.Title "en"}}">
-                                <div class="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:shadow-md transition-all">
+                                <div class="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:shadow-md transition-all"></div>
                                     <a href="/admin/stories/{{.Metadata.StoryID}}" class="flex-grow">
                                         <div>
                                             <span class="text-lg text-gray-800">

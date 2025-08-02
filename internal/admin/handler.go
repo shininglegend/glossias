@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"glossias/internal/admin/stories"
+	"glossias/internal/pkg/auth"
 	"glossias/internal/pkg/models"
 	"glossias/internal/pkg/templates"
 
@@ -17,63 +18,39 @@ type Handler struct {
 	log     *slog.Logger
 	stories *stories.Handler
 	te      *templates.TemplateEngine
-	client  clerk.Client // Add Clerk client
 }
 
 func NewHandler(log *slog.Logger, te *templates.TemplateEngine) *Handler {
-	client, _ := clerk.NewClient(os.Getenv("CLERK_SECRET_KEY"))
-	if client == nil {
+	key := os.Getenv("CLERK_SECRET_KEY")
+	if key == "" {
 		if os.Getenv("DATABASE_URL") == "" {
 			log.Warn("Testing mode: Clerk is disabled.")
 		} else {
 			panic("CLERK_SECRET_KEY environment variable not set")
 		}
 	}
+
 	return &Handler{
 		log:     log,
 		te:      te,
 		stories: stories.NewHandler(log, te),
-		client:  client,
 	}
-}
-
-func (h *Handler) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		sess := clerk.SessionFromContext(r.Context())
-		if sess == nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		// Get user claims
-		claims, err := h.client.Sessions().GetClaims(sess.ID)
-		if err != nil {
-			h.log.Error("Failed to get claims", "error", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-
-		// Check if user has admin role
-		if !hasAdminRole(claims) {
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			return
-		}
-
-		next(w, r)
-	}
-}
-
-func hasAdminRole(claims map[string]interface{}) bool {
-	// Implement your role checking logic here
-	// Example: roles, ok := claims["roles"].([]interface{})
-	return true // Temporary
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
 	// Create admin subrouter
 	admin := r.PathPrefix("/admin").Subrouter()
 
-	// Admin-specific middleware
+	// Initialize Clerk middleware
+	clerkMiddleware, err := auth.NewClerkMiddleware()
+	if err != nil {
+		h.log.Error("Failed to initialize Clerk middleware", "error", err)
+		panic(err)
+	}
+
+	// Apply Clerk authentication to all admin routes
+	admin.Use(clerkMiddleware.RequireAuth)
+	// Apply admin-specific middleware
 	admin.Use(h.adminAuthMiddleware)
 
 	admin.HandleFunc("", h.homeHandler).Methods("GET")
@@ -84,9 +61,45 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 
 func (h *Handler) adminAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Admin authentication logic here
+		// Get token from context
+		token, ok := r.Context().Value("clerk_token").(string)
+		if !ok || token == "" {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Get claims from context
+		claims, ok := r.Context().Value("clerk_claims").(map[string]interface{})
+		if !ok {
+			http.Error(w, "Invalid claims", http.StatusUnauthorized)
+			return
+		}
+
+		// Check if user has admin role
+		if !hasAdminRole(claims) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
 		next.ServeHTTP(w, r)
 	})
+}
+
+func hasAdminRole(claims map[string]interface{}) bool {
+	// Get roles from claims
+	roles, ok := claims["roles"].([]interface{})
+	if !ok {
+		return false
+	}
+
+	// Check if user has admin role
+	for _, role := range roles {
+		if roleStr, ok := role.(string); ok && roleStr == "admin" {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Added new handler

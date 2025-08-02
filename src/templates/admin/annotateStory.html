@@ -14,6 +14,13 @@
             <title>Edit Story - Logos Stories</title>
             <script src="https://cdn.tailwindcss.com"></script>
             <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+            <script src="https://clerk.browser.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"></script>
+            <script>
+                const clerk = window.Clerk({
+                    publishableKey: '{{.ClerkPublishableKey}}'
+                });
+                await clerk.load();
+            </script>
         </head>
         <body class="bg-gray-50 min-h-screen">
             <div class="max-w-6xl mx-auto p-6">

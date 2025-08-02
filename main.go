@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"glossias/internal/admin"
+	"glossias/internal/apis"
 	"glossias/internal/logging"
 	"glossias/internal/pkg/database"
 	"glossias/internal/pkg/models"
@@ -64,6 +65,12 @@ func main() {
 		// Load from 404.html
 		http.ServeFile(w, r, "static/html/404.html")
 	})
+
+	// API handlers with CORS middleware
+	apiHandler := apis.NewHandler(logger)
+	apiRouter := r.PathPrefix("/api").Subrouter()
+	apiRouter.Use(apis.CORSMiddleware())
+	apiHandler.RegisterRoutes(r)
 
 	// Other handlers
 	adminHandler := admin.NewHandler(logger, templateEngine)

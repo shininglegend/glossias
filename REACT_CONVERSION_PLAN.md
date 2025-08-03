@@ -15,13 +15,13 @@ Converting the existing Go web application with server-side templates to a React
 - Same SQLite database
 - Static assets served through React
 
-## Phase 1: Add API Routes (Parallel to Templates)
+## ~~Phase 1: Add API Routes (Parallel to Templates)~~ Done.
 
 ### 1.1 Add API Routes Alongside Existing Routes
 Create new API handlers without touching existing template handlers:
 - Add `/api/stories` (GET) - Return JSON array of stories
 - Add `/api/stories/{id}/page1` (GET) - Return JSON page data
-- Add `/api/stories/{id}/page2` (GET) - Return JSON page data  
+- Add `/api/stories/{id}/page2` (GET) - Return JSON page data
 - Add `/api/stories/{id}/page3` (GET) - Return JSON page data
 - Add `/api/stories/{id}/check-vocab` (POST) - Accept/return JSON
 
@@ -41,12 +41,12 @@ func corsMiddleware() mux.MiddlewareFunc {
             w.Header().Set("Access-Control-Allow-Origin", "*")
             w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
             w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-            
+
             if r.Method == "OPTIONS" {
                 w.WriteHeader(http.StatusOK)
                 return
             }
-            
+
             next.ServeHTTP(w, r)
         })
     }
@@ -68,7 +68,7 @@ type APIResponse struct {
 ### 2.1 Initialize React App with Mock Data
 ```bash
 cd logos-stories
-npx create-react-app frontend
+npx create-react-router@latest frontend
 cd frontend
 npm install axios react-router-dom
 ```
@@ -80,14 +80,15 @@ npm install axios react-router-dom
 frontend/
 ├── src/
 │   ├── components/
-│   │   ├── StoryList.js
-│   │   ├── StoryPage1.js
-│   │   ├── StoryPage2.js
-│   │   ├── StoryPage3.js
-│   │   └── VocabChecker.js
+│   │   ├── StoryPages/
+│   │   │   ├── Page1.jsx
+│   │   │   ├── Page2.jsx
+│   │   │   └── Page3.jsx
+│   │   ├── StoryList.jsx
+│   │   └── VocabChecker.jsx
 │   ├── services/
-│   │   └── api.js
-│   ├── App.js
+│   │   └── api.jsx
+│   ├── App.jsx
 │   └── index.js
 └── public/
 ```
@@ -180,7 +181,7 @@ func (h *Handler) ServeIndex(w http.ResponseWriter, r *http.Request) {
 
 ## Implementation Order (Incremental & Testable)
 1. **Phase 1**: Add API routes parallel to templates - test each endpoint
-2. **Phase 2**: Build React with mocks - test components independently  
+2. **Phase 2**: Build React with mocks - test components independently
 3. **Phase 3**: Single page migration with feature flags - A/B test
 4. **Phase 4**: Gradual rollout with monitoring - incremental deployment
 

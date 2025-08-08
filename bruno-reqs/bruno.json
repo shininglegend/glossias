@@ -2,6 +2,7 @@
   "version": "1",
   "name": "glossias",
   "type": "collection",
+  "defaultEnvironment": "dev",
   "ignore": [
     "node_modules",
     ".git"

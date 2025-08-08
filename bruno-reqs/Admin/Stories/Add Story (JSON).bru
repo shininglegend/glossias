@@ -1,0 +1,28 @@
+meta {
+  name: Add Story (JSON)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseURL}}/admin/stories/add
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "titleEn": "A New Story",
+    "languageCode": "en",
+    "authorName": "Admin",
+    "weekNumber": 1,
+    "dayLetter": "A",
+    "descriptionText": "desc",
+    "storyText": "First line\nSecond line"
+  }
+}
+
+settings {
+  encodeUrl: true
+}
+

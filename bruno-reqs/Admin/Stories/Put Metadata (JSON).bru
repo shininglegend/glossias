@@ -1,0 +1,26 @@
+meta {
+  name: Put Metadata (JSON)
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseURL}}/admin/stories/{{adminStoryId}}/metadata
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "WeekNumber": 1,
+    "DayLetter": "A",
+    "Title": {"en": "New Title"},
+    "Author": {"ID": "abcd1234", "Name": "John Doe"},
+    "Description": {"Language": "en", "Text": "desc"}
+  }
+}
+
+settings {
+  encodeUrl: true
+}
+

@@ -1,0 +1,27 @@
+meta {
+  name: Put Annotation
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseURL}}/admin/stories/api/{{adminStoryId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "lineNumber": 1,
+    "vocabulary": {
+      "word": "form",
+      "lexicalForm": "forma",
+      "position": [0, 4]
+    }
+  }
+}
+
+settings {
+  encodeUrl: true
+}
+

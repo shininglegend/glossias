@@ -1,0 +1,16 @@
+meta {
+  name: Delete Story (DELETE)
+  type: http
+  seq: 6
+}
+
+delete {
+  url: {{baseURL}}/admin/stories/delete/{{adminStoryId}}
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}
+

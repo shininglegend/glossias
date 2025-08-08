@@ -2,11 +2,13 @@
 package stories
 
 import (
+    "encoding/json"
 	"log/slog"
 	"glossias/internal/pkg/models"
 	"glossias/internal/pkg/templates"
 	"net/http"
 	"strconv"
+    "strings"
 
 	"github.com/gorilla/mux"
 )
@@ -21,7 +23,8 @@ func NewHandler(log *slog.Logger, te *templates.TemplateEngine) *Handler {
 	return &Handler{
 		log:            log,
 		te:             te,
-		allowedOrigins: []string{"http://localhost:3000"}, // Dev
+        // [UNUSED NOTE] Admin HTML pages migrated to React. CORS kept for API calls.
+        allowedOrigins: []string{"http://localhost:3000", "http://localhost:5173"}, // Dev
 	}
 }
 
@@ -29,14 +32,14 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	// Stories subrouter
 	stories := r.PathPrefix("/stories").Subrouter()
 
-	stories.HandleFunc("/add", h.addStoryHandler).Methods("GET", "POST")
-	stories.HandleFunc("/{id:[0-9]+}", h.editStoryHandler).Methods("GET", "PUT")
-	stories.HandleFunc("/{id:[0-9]+}/metadata", h.metadataHandler).Methods("GET", "PUT")
-	// The annotations handler responds with JSON to GET requests for react components
-	stories.HandleFunc("/{id:[0-9]+}/annotate", h.handleGetEditPage).Methods("GET")
+    stories.HandleFunc("/add", h.addStoryHandler).Methods("GET", "POST", "OPTIONS")
+    stories.HandleFunc("/{id:[0-9]+}", h.editStoryHandler).Methods("GET", "PUT", "OPTIONS")
+    stories.HandleFunc("/{id:[0-9]+}/metadata", h.metadataHandler).Methods("GET", "PUT", "OPTIONS")
+    // [UNUSED] HTML page was served here; now handled by React route /admin/stories/:id/annotate
+    stories.HandleFunc("/{id:[0-9]+}/annotate", h.handleGetEditPage).Methods("GET")
 	stories.HandleFunc("/api/{id:[0-9]+}", h.annotationsHandler).
 		Methods("GET", "PUT", "DELETE", "OPTIONS")
-	stories.HandleFunc("/delete/{id}", h.deleteStoryHandler).Methods("GET", "DELETE")
+    stories.HandleFunc("/delete/{id}", h.deleteStoryHandler).Methods("GET", "DELETE", "OPTIONS")
 }
 
 // [+] Add CORS middleware helper
@@ -55,32 +58,43 @@ func (h *Handler) setCORSHeaders(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) addStoryHandler(w http.ResponseWriter, r *http.Request) {
+    h.setCORSHeaders(w, r)
+    if r.Method == http.MethodOptions {
+        w.WriteHeader(http.StatusOK)
+        return
+    }
 	if r.Method == "GET" {
-		// Render the add story form
+        // [UNUSED] Rendered HTML; React SPA now handles UI
 		h.renderAddStoryForm(w, r)
 		return
 	}
 
-	// Parse form
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Failed to parse form", http.StatusBadRequest)
-		return
-	}
-
-	weekNum, err := strconv.Atoi(r.FormValue("weekNumber"))
-	if err != nil {
-		http.Error(w, "Invalid week number", http.StatusBadRequest)
-		return
-	}
-	// Create request object
-	req := AddStoryRequest{
-		TitleEn:      r.FormValue("titleEn"),
-		LanguageCode: r.FormValue("languageCode"),
-		AuthorName:   r.FormValue("authorName"),
-		WeekNumber:   weekNum, // You'll need to implement parseInt
-		DayLetter:    r.FormValue("dayLetter"),
-		StoryText:    r.FormValue("storyText"),
-	}
+    // Parse JSON or form for backward compatibility
+    var req AddStoryRequest
+    if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+        if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+            http.Error(w, "Invalid JSON", http.StatusBadRequest)
+            return
+        }
+    } else {
+        if err := r.ParseForm(); err != nil {
+            http.Error(w, "Failed to parse form", http.StatusBadRequest)
+            return
+        }
+        weekNum, err := strconv.Atoi(r.FormValue("weekNumber"))
+        if err != nil {
+            http.Error(w, "Invalid week number", http.StatusBadRequest)
+            return
+        }
+        req = AddStoryRequest{
+            TitleEn:      r.FormValue("titleEn"),
+            LanguageCode: r.FormValue("languageCode"),
+            AuthorName:   r.FormValue("authorName"),
+            WeekNumber:   weekNum,
+            DayLetter:    r.FormValue("dayLetter"),
+            StoryText:    r.FormValue("storyText"),
+        }
+    }
 
 	// Process the story
 	story, err := h.processAddStory(req)
@@ -97,6 +111,10 @@ func (h *Handler) addStoryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Redirect to success page or story list
-	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+    // Respond JSON for SPA
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]any{
+        "success": true,
+        "storyId": story.Metadata.StoryID,
+    })
 }

@@ -32,6 +32,21 @@ Start the development server with HMR:
 npm run dev
 ```
 
+### Admin Annotator
+
+- The annotator UI from `annotator/` has been migrated into this app under `app/components/Annotator/*`.
+- SPA route: `/admin/stories/:id/annotate` renders the annotator and talks to existing admin endpoints:
+  - `GET /admin/stories/api/:id`
+  - `PUT /admin/stories/api/:id`
+  - `DELETE /admin/stories/api/:id`
+
+Templated admin routes still served by Go (not migrated):
+- `/admin` (home)
+- `/admin/stories/add` (GET/POST)
+- `/admin/stories/{id}` (GET non-JSON)/PUT
+- `/admin/stories/{id}/metadata` (GET/PUT)
+- `/admin/stories/delete/{id}` (GET/DELETE)
+
 Your application will be available at `http://localhost:5173`.
 
 ## Building for Production

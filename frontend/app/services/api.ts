@@ -29,6 +29,10 @@ export interface Page3Data extends PageData {
   grammar_point: string;
 }
 
+export interface Page4Data extends PageData {
+  translation: string;
+}
+
 export interface APIResponse<T = any> {
   success: boolean;
   data?: T;
@@ -81,6 +85,10 @@ class ApiService {
 
   async getStoryPage3(id: string): Promise<APIResponse<Page3Data>> {
     return this.fetchAPI<Page3Data>(`/stories/${id}/page3`);
+  }
+
+  async getStoryPage4(id: string): Promise<APIResponse<Page4Data>> {
+    return this.fetchAPI<Page4Data>(`/stories/${id}/page4`);
   }
 
   async checkVocab(id: string, answers: any[]): Promise<APIResponse<any>> {

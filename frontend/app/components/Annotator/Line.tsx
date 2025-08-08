@@ -1,21 +1,9 @@
 // [moved from annotator/src/components/Line.tsx]
 import React, { useState, useEffect, useCallback } from "react";
 import AnnotatedText from "./AnnotatedText";
-
-interface VocabularyItem {
-  lexicalForm: string;
-}
-
-interface GrammarItem {
-  text: string;
-}
-
-interface StoryLine {
-  lineNumber: number;
-  text: string;
-  vocabulary: VocabularyItem[];
-  grammar: GrammarItem[];
-}
+import AnnotationMenu from "./AnnotationMenu";
+import AnnotationModal from "./AnnotationModal";
+import type { StoryLine } from "../../types/api";
 
 interface Props {
   line: StoryLine;
@@ -78,20 +66,22 @@ export default function Line({ line, onSelect }: Props) {
       <span className="line-number">{line.lineNumber}</span>
       <AnnotatedText text={line.text} vocabulary={line.vocabulary} grammar={line.grammar} onSelect={handleSelect} />
       {menu && (
-        <div className="annotation-menu" style={{ position: "fixed", left: menu.x, top: menu.y }}>
-          <button onClick={() => handleAnnotate("vocab")}>Add Vocabulary</button>
-          <button onClick={() => handleAnnotate("grammar")}>Add Grammar Note</button>
-          <button onClick={() => handleAnnotate("footnote")}>Add Footnote</button>
-        </div>
+        <AnnotationMenu
+          x={menu.x}
+          y={menu.y}
+          onVocab={() => handleAnnotate("vocab")}
+          onGrammar={() => handleAnnotate("grammar")}
+          onFootnote={() => handleAnnotate("footnote")}
+          className="annotation-menu"
+        />
       )}
       {modal && (
-        <div className="modal">
-          <h3>Add {modal.type}</h3>
-          <p>Selected text: {modal.text}</p>
-          {/* Use the shared modal in real UI; simplified here to minimize dependencies */}
-          <button onClick={() => handleSave({})}>Save</button>
-          <button onClick={() => setModal(null)}>Cancel</button>
-        </div>
+        <AnnotationModal
+          type={modal.type}
+          selectedText={modal.text}
+          onSave={handleSave}
+          onClose={() => setModal(null)}
+        />
       )}
     </div>
   );

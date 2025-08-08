@@ -1,9 +1,10 @@
 import { Form, redirect } from "react-router";
+import { getAdminBase } from "../config";
 
 export async function action({ request }: { request: Request }) {
   const formData = await request.formData();
   const payload = Object.fromEntries(formData.entries());
-  const res = await fetch(`/admin/stories/add`, {
+  const res = await fetch(`${getAdminBase()}/admin/stories/add`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

@@ -1,6 +1,7 @@
 // [moved from annotator/src/components/Story.tsx]
 import React, { useEffect, useState } from "react";
 import Line from "./Line";
+import { getAdminBase } from "../../config";
 import { createAnnotationRequest, type AnnotationType, type ApiError, type ApiResponse, type StoryLine } from "../../types/api";
 
 export default function Story({ storyId }: { storyId: number }) {
@@ -11,7 +12,7 @@ export default function Story({ storyId }: { storyId: number }) {
   useEffect(() => {
     const fetchStory = async () => {
       try {
-        const response = await fetch(`/admin/stories/api/${storyId}`);
+        const response = await fetch(`${getAdminBase()}/admin/stories/api/${storyId}`);
         if (!response.ok) throw new Error("Failed to fetch story");
         const data: ApiResponse = await response.json();
         setLines(data.content.lines);
@@ -35,7 +36,7 @@ export default function Story({ storyId }: { storyId: number }) {
     const request = createAnnotationRequest(lineNumber, type, text, start, end, data);
 
     try {
-      const response = await fetch(`/admin/stories/api/${storyId}`, {
+      const response = await fetch(`${getAdminBase()}/admin/stories/api/${storyId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(request),
@@ -46,7 +47,7 @@ export default function Story({ storyId }: { storyId: number }) {
         throw new Error(err.error);
       }
 
-      const refreshed = await fetch(`/admin/stories/api/${storyId}`);
+      const refreshed = await fetch(`${getAdminBase()}/admin/stories/api/${storyId}`);
       const data: ApiResponse = await refreshed.json();
       setLines(data.content.lines);
     } catch (err) {

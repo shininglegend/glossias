@@ -1,4 +1,5 @@
 import { useLoaderData, Link } from "react-router";
+import { getApiBase, getAdminBase } from "../config";
 
 type StoryListItem = {
   id: number;
@@ -8,7 +9,7 @@ type StoryListItem = {
 };
 
 export async function loader() {
-  const res = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:8080/api"}/stories`);
+  const res = await fetch(`${getApiBase()}/stories`);
   const json = await res.json();
   return json.data.stories as StoryListItem[];
 }

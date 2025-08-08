@@ -1,9 +1,10 @@
 import { useLoaderData, Form, redirect, useParams, Link } from "react-router";
+import { getAdminBase } from "../config";
 
 type Story = any;
 
 export async function loader({ params }: { params: { id: string } }) {
-  const res = await fetch(`http://localhost:8080/admin/stories/${params.id}`, {
+  const res = await fetch(`${getAdminBase()}/admin/stories/${params.id}`, {
     headers: { Accept: "application/json" },
   });
   if (!res.ok) throw new Error("Failed to load story");
@@ -20,7 +21,7 @@ export async function action({
 }) {
   const formData = await request.formData();
   const payload = Object.fromEntries(formData.entries());
-  const res = await fetch(`http://localhost:8080/admin/stories/${params.id}`, {
+  const res = await fetch(`${getAdminBase()}/admin/stories/${params.id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

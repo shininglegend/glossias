@@ -1,6 +1,7 @@
 // API service for connecting to backend endpoints
+import { getApiBase } from "../config";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
+const API_BASE = getApiBase();
 
 export interface Story {
   id: number;

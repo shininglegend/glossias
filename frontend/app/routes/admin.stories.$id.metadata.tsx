@@ -1,9 +1,10 @@
 import { useLoaderData, Form, redirect, useParams } from "react-router";
+import { getAdminBase } from "../config";
 
 type Metadata = any;
 
 export async function loader({ params }: { params: { id: string } }) {
-  const res = await fetch(`/admin/stories/${params.id}/metadata`, { headers: { Accept: "application/json" } });
+  const res = await fetch(`${getAdminBase()}/admin/stories/${params.id}/metadata`, { headers: { Accept: "application/json" } });
   if (!res.ok) throw new Error("Failed to load metadata");
   const json = await res.json();
   return json.Story?.Metadata || json.metadata || json; // tolerate variants
@@ -12,7 +13,7 @@ export async function loader({ params }: { params: { id: string } }) {
 export async function action({ request, params }: { request: Request; params: { id: string } }) {
   const formData = await request.formData();
   const payload = Object.fromEntries(formData.entries());
-  const res = await fetch(`/admin/stories/${params.id}/metadata`, {
+  const res = await fetch(`${getAdminBase()}/admin/stories/${params.id}/metadata`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

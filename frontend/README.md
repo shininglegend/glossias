@@ -47,6 +47,12 @@ Templated admin routes still served by Go (not migrated):
 - `/admin/stories/{id}/metadata` (GET/PUT)
 - `/admin/stories/delete/{id}` (GET/DELETE)
 
+### Environment configuration
+
+- Create a `.env` file in this directory:
+  - `VITE_API_URL=http://localhost:8080/api`
+  - `VITE_ADMIN_URL=http://localhost:8080`
+
 Your application will be available at `http://localhost:5173`.
 
 ## Building for Production

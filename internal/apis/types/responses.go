@@ -1,4 +1,4 @@
-package apis
+package types
 
 import (
 	"glossias/internal/pkg/models"
@@ -15,7 +15,7 @@ type APIResponse struct {
 type Story struct {
 	ID         int    `json:"id"`
 	Title      string `json:"title"`
-	WeekNumber int    `json:"week_wumber"`
+	WeekNumber int    `json:"week_number"`
 	DayLetter  string `json:"day_letter"`
 }
 

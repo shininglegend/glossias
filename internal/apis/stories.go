@@ -28,12 +28,11 @@ func NewHandler(logger *slog.Logger) *Handler {
 
 // RegisterRoutes registers all API routes
 func (h *Handler) RegisterRoutes(mux *mux.Router) {
-	apiRouter := mux.PathPrefix("/api").Subrouter()
-	apiRouter.HandleFunc("/stories", h.GetStories).Methods("GET")
-	apiRouter.HandleFunc("/stories/{id}/page1", h.GetPage1).Methods("GET")
-	apiRouter.HandleFunc("/stories/{id}/page2", h.GetPage2).Methods("GET")
-	apiRouter.HandleFunc("/stories/{id}/page3", h.GetPage3).Methods("GET")
-	apiRouter.HandleFunc("/stories/{id}/check-vocab", h.CheckVocab).Methods("POST")
+	mux.HandleFunc("/stories", h.GetStories).Methods("GET", "OPTIONS")
+	mux.HandleFunc("/stories/{id}/page1", h.GetPage1).Methods("GET", "OPTIONS")
+	mux.HandleFunc("/stories/{id}/page2", h.GetPage2).Methods("GET", "OPTIONS")
+	mux.HandleFunc("/stories/{id}/page3", h.GetPage3).Methods("GET", "OPTIONS")
+	mux.HandleFunc("/stories/{id}/check-vocab", h.CheckVocab).Methods("POST", "OPTIONS")
 }
 
 // GetStories returns JSON array of all stories

@@ -70,7 +70,7 @@ func main() {
 	apiHandler := apis.NewHandler(logger)
 	apiRouter := r.PathPrefix("/api").Subrouter()
 	apiRouter.Use(apis.CORSMiddleware())
-	apiHandler.RegisterRoutes(r)
+	apiHandler.RegisterRoutes(apiRouter)
 
 	// Other handlers
 	adminHandler := admin.NewHandler(logger, templateEngine)

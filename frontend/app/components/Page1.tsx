@@ -9,7 +9,7 @@ export function Page1() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
-    null
+    null,
   );
 
   useEffect(() => {
@@ -101,9 +101,10 @@ export function Page1() {
         <h2>Step 1: Listen to the entire story.</h2>
         <p>
           Click the first play button to listen to the story. It will play from
-          that point onward. <hr />
-          Click any play button to restart the story from that point.
+          that point onward.
         </p>
+        <hr />
+        <p>Click any play button to restart the story from that point.</p>
       </header>
       <div className="container">
         {pageData.lines.length > 0 ? (

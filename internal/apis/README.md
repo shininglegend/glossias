@@ -150,3 +150,9 @@ Check vocabulary answers.
   "error": "Error message"
 }
 ```
+
+## CORS
+- Middleware adds permissive CORS for `*` origins.
+- Allowed methods: GET, POST, PUT, DELETE, OPTIONS
+- Allowed headers: Content-Type, Authorization
+

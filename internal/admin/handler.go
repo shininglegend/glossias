@@ -33,8 +33,8 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	// Admin-specific middleware
 	admin.Use(h.adminAuthMiddleware)
 
-    // [UNUSED] Admin home now handled by React route /admin
-    admin.HandleFunc("", h.homeHandler).Methods("GET")
+	// [UNUSED] Admin home now handled by React route /admin
+	admin.HandleFunc("", h.homeHandler).Methods("GET")
 
 	// Register all admin routes
 	h.stories.RegisterRoutes(admin)

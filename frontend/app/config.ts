@@ -13,6 +13,7 @@ export function getApiBase(): string {
 
 export function getAdminBase(): string {
   const explicit = requiredEnv("VITE_ADMIN_URL");
+  console.log(explicit)
   if (explicit) return explicit;
   // Derive admin base origin from API base URL if not explicitly set
   const apiBase = getApiBase();
@@ -20,8 +21,8 @@ export function getAdminBase(): string {
     const url = new URL(apiBase);
     return `${url.protocol}//${url.host}`;
   } catch {
-    throw new Error("VITE_ADMIN_URL not set and VITE_API_URL is not a valid URL");
+    throw new Error(
+      "VITE_ADMIN_URL not set and VITE_API_URL is not a valid URL"
+    );
   }
 }
-
-

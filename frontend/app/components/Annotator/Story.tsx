@@ -2,7 +2,13 @@
 import React, { useEffect, useState } from "react";
 import Line from "./Line";
 import { getAdminBase } from "../../config";
-import { createAnnotationRequest, type AnnotationType, type ApiError, type ApiResponse, type StoryLine } from "../../types/api";
+import {
+  createAnnotationRequest,
+  type AnnotationType,
+  type ApiError,
+  type ApiResponse,
+  type StoryLine,
+} from "../../types/api";
 
 export default function Story({ storyId }: { storyId: number }) {
   const [lines, setLines] = useState<StoryLine[]>([]);
@@ -31,23 +37,35 @@ export default function Story({ storyId }: { storyId: number }) {
     type: AnnotationType,
     start: number,
     end: number,
-    data?: { text?: string; lexicalForm?: string },
+    data?: { text?: string; lexicalForm?: string }
   ) => {
-    const request = createAnnotationRequest(lineNumber, type, text, start, end, data);
+    const request = createAnnotationRequest(
+      lineNumber,
+      type,
+      text,
+      start,
+      end,
+      data
+    );
 
     try {
-      const response = await fetch(`${getAdminBase()}/admin/stories/api/${storyId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(request),
-      });
+      const response = await fetch(
+        `${getAdminBase()}/admin/stories/api/${storyId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(request),
+        }
+      );
 
       if (!response.ok) {
         const err: ApiError = await response.json();
         throw new Error(err.error);
       }
 
-      const refreshed = await fetch(`${getAdminBase()}/admin/stories/api/${storyId}`);
+      const refreshed = await fetch(
+        `${getAdminBase()}/admin/stories/api/${storyId}`
+      );
       const data: ApiResponse = await refreshed.json();
       setLines(data.content.lines);
     } catch (err) {
@@ -73,14 +91,14 @@ export default function Story({ storyId }: { storyId: number }) {
               <div className="footnote-line">Line {line.lineNumber}</div>
               <div className="footnote-text">{footnote.text}</div>
               {footnote.references && footnote.references.length > 0 && (
-                <div className="footnote-refs">References: {footnote.references.join(", ")}</div>
+                <div className="footnote-refs">
+                  References: {footnote.references.join(", ")}
+                </div>
               )}
             </div>
-          )),
+          ))
         )}
       </div>
     </div>
   );
 }
-
-

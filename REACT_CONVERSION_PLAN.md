@@ -63,9 +63,9 @@ type APIResponse struct {
 }
 ```
 
-## Phase 2: React Frontend Development (Independent)
+## Phase 2: React Frontend Development
 
-### 2.1 Initialize React App with Mock Data
+### 2.1 Initialize React App
 ```bash
 cd logos-stories
 npx create-react-router@latest frontend
@@ -73,7 +73,7 @@ cd frontend
 npm install axios react-router-dom
 ```
 
-**Testing**: Use mock data files to develop components independently of backend
+**Testing**: Test against the real API endpoints from Phase 1
 
 ### 2.2 Project Structure
 ```
@@ -93,13 +93,13 @@ frontend/
 └── public/
 ```
 
-### 2.3 Core Components with Mock Data First
-- **StoryList**: Build with mock JSON data, test independently
-- **StoryPage1/2/3**: Build with mock story data, test UI/UX
-- **VocabChecker**: Build with mock vocab data, test interactions
-- **API Service**: Start with mock responses, switch to real API later
+### 2.3 Core Components
+- **StoryList**: Fetch and display stories from API
+- **StoryPage1/2/3**: Display story pages from API
+- **VocabChecker**: Handle vocabulary checking via API
+- **API Service**: Connect directly to backend API endpoints
 
-**Testing**: Each component testable in isolation with mock data
+**Testing**: Test components against real API endpoints
 
 ### 2.4 Routing Setup
 ```jsx
@@ -119,23 +119,21 @@ function App() {
 }
 ```
 
-### 2.5 API Integration with Feature Flag
+### 2.5 API Integration
 ```javascript
 // services/api.js
 import axios from 'axios';
-import mockData from './mockData';
 
-const USE_MOCK = process.env.REACT_APP_USE_MOCK === 'true';
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8080/api';
 
 export const api = {
-  getStories: () => USE_MOCK ? Promise.resolve({data: mockData.stories}) : axios.get(`${API_BASE}/stories`),
-  getStoryPage: (id, page) => USE_MOCK ? Promise.resolve({data: mockData.pages[id][page]}) : axios.get(`${API_BASE}/stories/${id}/page${page}`),
-  checkVocab: (id, answers) => USE_MOCK ? Promise.resolve({data: mockData.vocabResults}) : axios.post(`${API_BASE}/stories/${id}/check-vocab`, answers)
+  getStories: () => axios.get(`${API_BASE}/stories`),
+  getStoryPage: (id, page) => axios.get(`${API_BASE}/stories/${id}/page${page}`),
+  checkVocab: (id, answers) => axios.post(`${API_BASE}/stories/${id}/check-vocab`, answers)
 };
 ```
 
-**Testing**: Switch between mock and real API with environment variable
+**Testing**: Direct integration with backend API
 
 ## Phase 3: Gradual Page Migration
 
@@ -181,13 +179,13 @@ func (h *Handler) ServeIndex(w http.ResponseWriter, r *http.Request) {
 
 ## Implementation Order (Incremental & Testable)
 1. **Phase 1**: Add API routes parallel to templates - test each endpoint
-2. **Phase 2**: Build React with mocks - test components independently
+2. **Phase 2**: Build React using real API - test against backend
 3. **Phase 3**: Single page migration with feature flags - A/B test
 4. **Phase 4**: Gradual rollout with monitoring - incremental deployment
 
 ## Testing Strategy (Per Phase)
 - **Phase 1**: curl/Postman test each API endpoint independently
-- **Phase 2**: Jest/React Testing Library with mock data
+- **Phase 2**: Test React components against real API endpoints
 - **Phase 3**: Compare template vs React with `?react=true` flag
 - **Phase 4**: Monitor real users, immediate rollback capability
 
@@ -200,6 +198,6 @@ func (h *Handler) ServeIndex(w http.ResponseWriter, r *http.Request) {
 
 ## Modularity Benefits
 - Each API endpoint developed and tested independently
-- React components built with mocks, no backend dependency
+- React components tested against real API endpoints
 - Feature flags enable granular testing and rollout
 - No big-bang deployment - gradual, reversible migration

@@ -244,6 +244,139 @@ func GetLineAnnotations(storyID int, lineNumber int) (*StoryLine, error) {
 	return line, nil
 }
 
+// GetStoryAnnotations retrieves all annotations for a story grouped by line
+func GetStoryAnnotations(storyID int) (map[int]*StoryLine, error) {
+	// Verify story exists
+	exists, err := storyExists(storyID)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, ErrNotFound
+	}
+
+	lines := make(map[int]*StoryLine)
+
+	// Get all vocabulary items
+	rows, err := store.DB().Query(`
+		SELECT line_number, word, lexical_form, position_start, position_end
+		FROM vocabulary_items
+		WHERE story_id = $1
+		ORDER BY line_number, position_start`, storyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var lineNumber int
+		var vocab VocabularyItem
+		if err := rows.Scan(&lineNumber, &vocab.Word, &vocab.LexicalForm, &vocab.Position[0], &vocab.Position[1]); err != nil {
+			return nil, err
+		}
+
+		if lines[lineNumber] == nil {
+			lines[lineNumber] = &StoryLine{
+				LineNumber: lineNumber,
+				Vocabulary: []VocabularyItem{},
+				Grammar:    []GrammarItem{},
+				Footnotes:  []Footnote{},
+			}
+		}
+		lines[lineNumber].Vocabulary = append(lines[lineNumber].Vocabulary, vocab)
+	}
+
+	// Get all grammar items
+	rows, err = store.DB().Query(`
+		SELECT line_number, text, position_start, position_end
+		FROM grammar_items
+		WHERE story_id = $1
+		ORDER BY line_number, position_start`, storyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var lineNumber int
+		var grammar GrammarItem
+		if err := rows.Scan(&lineNumber, &grammar.Text, &grammar.Position[0], &grammar.Position[1]); err != nil {
+			return nil, err
+		}
+
+		if lines[lineNumber] == nil {
+			lines[lineNumber] = &StoryLine{
+				LineNumber: lineNumber,
+				Vocabulary: []VocabularyItem{},
+				Grammar:    []GrammarItem{},
+				Footnotes:  []Footnote{},
+			}
+		}
+		lines[lineNumber].Grammar = append(lines[lineNumber].Grammar, grammar)
+	}
+
+	// Get all footnotes
+	rows, err = store.DB().Query(`
+		SELECT f.line_number, f.id, f.footnote_text
+		FROM footnotes f
+		WHERE f.story_id = $1
+		ORDER BY f.line_number, f.id`, storyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var lineNumber int
+		var footnote Footnote
+		if err := rows.Scan(&lineNumber, &footnote.ID, &footnote.Text); err != nil {
+			return nil, err
+		}
+
+		// Get references for this footnote
+		refRows, err := store.DB().Query(`
+			SELECT reference FROM footnote_references WHERE footnote_id = $1`, footnote.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		for refRows.Next() {
+			var ref string
+			if err := refRows.Scan(&ref); err != nil {
+				refRows.Close()
+				return nil, err
+			}
+			footnote.References = append(footnote.References, ref)
+		}
+		refRows.Close()
+
+		if lines[lineNumber] == nil {
+			lines[lineNumber] = &StoryLine{
+				LineNumber: lineNumber,
+				Vocabulary: []VocabularyItem{},
+				Grammar:    []GrammarItem{},
+				Footnotes:  []Footnote{},
+			}
+		}
+		lines[lineNumber].Footnotes = append(lines[lineNumber].Footnotes, footnote)
+	}
+
+	return lines, nil
+}
+
+// GetLineText retrieves the text content of a specific line
+func GetLineText(storyID int, lineNumber int) (string, error) {
+	var text string
+	err := store.DB().QueryRow(`
+		SELECT text FROM story_lines
+		WHERE story_id = $1 AND line_number = $2`,
+		storyID, lineNumber).Scan(&text)
+	if err == sql.ErrNoRows {
+		return "", ErrInvalidLineNumber
+	}
+	return text, err
+}
+
 // Helper function to execute transaction with error handling
 func withTransaction(fn func(*sql.Tx) error) error {
 	tx, err := store.DB().Begin()

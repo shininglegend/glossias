@@ -37,5 +37,5 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	stories.HandleFunc("/{id:[0-9]+}", h.editStoryHandler).Methods("GET", "PUT", "DELETE", "OPTIONS")
 	stories.HandleFunc("/{id:[0-9]+}/metadata", h.metadataHandler).Methods("GET", "PUT", "OPTIONS")
 	stories.HandleFunc("/{id:[0-9]+}/annotations", h.annotationsHandler).
-		Methods("GET", "PUT", "DELETE", "OPTIONS")
+		Methods("GET", "POST", "PUT", "DELETE", "OPTIONS")
 }

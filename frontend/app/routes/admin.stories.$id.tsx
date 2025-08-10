@@ -1,60 +1,80 @@
-import { useLoaderData, Form, redirect, useParams, Link } from "react-router";
-import { getAdminBase } from "../config";
+import { useLoaderData, useParams, Link, useNavigation } from "react-router";
+import {
+  redirect,
+  type ActionFunctionArgs,
+  type LoaderFunctionArgs,
+} from "react-router";
+import type { Story } from "../types/admin";
+import { getStoryForEdit, updateStory } from "../services/adminApi";
+import StoryJSONEditor from "../components/Admin/StoryJSONEditor";
+import Button from "~/components/ui/Button";
 
-type Story = any;
-
-export async function loader({ params }: { params: { id: string } }) {
-  const res = await fetch(`${getAdminBase()}/admin/stories/${params.id}`, {
-    headers: { Accept: "application/json" },
-  });
-  if (!res.ok) throw new Error("Failed to load story");
-  const json = await res.json();
-  return json.Story || json.story || json; // depending on server response shape
+export async function loader({ params, request }: LoaderFunctionArgs) {
+  const id = Number(params.id);
+  const url = new URL(request.url);
+  const baseUrl = `${url.protocol}//${url.host}`;
+  const data = await getStoryForEdit(id, baseUrl);
+  const story: Story = (data as any).Story || (data as Story);
+  return { story };
 }
 
-export async function action({
-  request,
-  params,
-}: {
-  request: Request;
-  params: { id: string };
-}) {
+export async function action({ request, params }: ActionFunctionArgs) {
+  const id = Number(params.id);
   const formData = await request.formData();
-  const payload = Object.fromEntries(formData.entries());
-  const res = await fetch(`${getAdminBase()}/admin/stories/${params.id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error("Failed to save story");
+  const payload = JSON.parse(String(formData.get("story")) || "{}");
+  const url = new URL(request.url);
+  const baseUrl = `${url.protocol}//${url.host}`;
+  await updateStory(id, payload, baseUrl);
   return redirect(`/admin`);
 }
 
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mb-6">
+      <h2 className="text-lg font-semibold mb-2">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
 export default function EditStory() {
-  const story = useLoaderData() as Story;
+  const { story } = useLoaderData() as { story: Story };
   const { id } = useParams();
+  const nav = useNavigation();
+
   return (
     <main className="container mx-auto p-6">
       <h1 className="text-2xl font-bold mb-4">Edit Story #{id}</h1>
-      <div className="mb-4">
-        <Link to={`/admin/stories/${id}/annotate`} className="text-blue-600">
-          Grammar & Vocabulary
+      <div className="mb-4 flex gap-3">
+        <Link to={`/admin/stories/${id}/annotate`}>
+          <Button variant="outline" size="sm">
+            Annotate
+          </Button>
+        </Link>
+        <Link to={`/admin/stories/${id}/metadata`}>
+          <Button variant="outline" size="sm">
+            Metadata
+          </Button>
         </Link>
       </div>
-      <Form method="post">
-        <textarea
-          name="Content"
-          defaultValue={JSON.stringify(story, null, 2)}
-          className="border p-2 w-full"
-          rows={20}
+
+      <Section title="Raw JSON">
+        <StoryJSONEditor
+          value={story}
+          onSubmit={async (s) => {
+            await fetch(window.location.pathname, {
+              method: "POST",
+              body: new URLSearchParams([["story", JSON.stringify(s)]]),
+            });
+          }}
         />
-        <button
-          type="submit"
-          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded"
-        >
-          Save
-        </button>
-      </Form>
+      </Section>
     </main>
   );
 }

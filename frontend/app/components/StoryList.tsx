@@ -56,7 +56,7 @@ export function StoryList() {
             <div key={story.id} className="story-item">
               <h2>{story.title}</h2>
               <p>
-                Week {story.week_wumber}
+                Week {story.week_number}
                 {story.day_letter}
               </p>
               <Link to={`/stories/${story.id}/page1`}>Start Reading</Link>

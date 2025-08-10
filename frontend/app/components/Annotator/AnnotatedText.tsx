@@ -1,5 +1,6 @@
 // [moved from annotator/src/components/AnnotatedText.tsx]
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import type { VocabularyItem as VocabItem, GrammarItem } from "../../types/api";
 
 export interface Props {
@@ -16,11 +17,26 @@ interface Annotation {
   data: VocabItem | GrammarItem;
 }
 
-export default function AnnotatedText({ text, vocabulary, grammar, onSelect }: Props) {
+export default function AnnotatedText({
+  text,
+  vocabulary,
+  grammar,
+  onSelect,
+}: Props) {
   const segments = useMemo(() => {
     const annotations: Annotation[] = [
-      ...vocabulary.map((v) => ({ start: v.position[0], end: v.position[1], type: "vocab" as const, data: v })),
-      ...grammar.map((g) => ({ start: g.position[0], end: g.position[1], type: "grammar" as const, data: g })),
+      ...vocabulary.map((v) => ({
+        start: v.position[0],
+        end: v.position[1],
+        type: "vocab" as const,
+        data: v,
+      })),
+      ...grammar.map((g) => ({
+        start: g.position[0],
+        end: g.position[1],
+        type: "grammar" as const,
+        data: g,
+      })),
     ].sort((a, b) => a.start - b.start);
 
     return createTextSegments(text, annotations);
@@ -31,11 +47,16 @@ export default function AnnotatedText({ text, vocabulary, grammar, onSelect }: P
     if (!selection || !onSelect) return;
 
     const range = selection.getRangeAt(0);
-    const container = (range.commonAncestorContainer as HTMLElement).parentElement;
+    const container = (range.commonAncestorContainer as HTMLElement)
+      .parentElement;
     if (!container?.closest(".annotated-text")) return;
 
     const textNodes: Node[] = [];
-    const walker = document.createTreeWalker(container.closest(".annotated-text")!, NodeFilter.SHOW_TEXT, null);
+    const walker = document.createTreeWalker(
+      container.closest(".annotated-text")!,
+      NodeFilter.SHOW_TEXT,
+      null
+    );
     let node: Node | null;
     while ((node = walker.nextNode())) textNodes.push(node);
 
@@ -57,11 +78,12 @@ export default function AnnotatedText({ text, vocabulary, grammar, onSelect }: P
       if (!foundStart) currentPosition += nodeLength;
     }
 
-    if (absoluteStart !== absoluteEnd) onSelect(absoluteStart, absoluteEnd, selection.toString());
+    if (absoluteStart !== absoluteEnd)
+      onSelect(absoluteStart, absoluteEnd, selection.toString());
   };
 
   return (
-    <span className="annotated-text" onMouseUp={handleMouseUp}>
+    <span className="annotated-text leading-7" onMouseUp={handleMouseUp}>
       {segments.map((segment, i) => (
         <TextSegment key={i} segment={segment} />
       ))}
@@ -74,21 +96,83 @@ interface TextSegments {
   annotations: Annotation[];
 }
 
-function TextSegment({ segment: { text, annotations } }: { segment: TextSegments }) {
+function TextSegment({
+  segment: { text, annotations },
+}: {
+  segment: TextSegments;
+}) {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  const [hideTimeout, setHideTimeout] = useState<NodeJS.Timeout | null>(null);
+
   if (!annotations.length) return <>{text}</>;
 
-  const classes = annotations.map((a) => (a.type === "vocab" ? "vocab-highlight" : "grammar-highlight"));
-  const vocabAnnotations = annotations.filter((a) => a.type === "vocab");
-  const tooltip = vocabAnnotations.length > 0 ? vocabAnnotations.map((a) => (a.data as VocabItem).lexicalForm).join("\n") : undefined;
+  const classes = annotations.map((a) =>
+    a.type === "vocab" ? "vocab-highlight" : "grammar-highlight"
+  );
+
+  const tooltipParts: string[] = [];
+  annotations.forEach((a) => {
+    if (a.type === "vocab") {
+      const vocab = a.data as VocabItem;
+      tooltipParts.push(`${vocab.word} → ${vocab.lexicalForm}`);
+    } else if (a.type === "grammar") {
+      const grammar = a.data as GrammarItem;
+      tooltipParts.push(`Grammar: ${grammar.text}`);
+    }
+  });
+
+  const handleMouseEnter = (e: React.MouseEvent) => {
+    if (hideTimeout) {
+      clearTimeout(hideTimeout);
+      setHideTimeout(null);
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setTooltipPosition({
+      x: rect.left + rect.width / 2,
+      y: rect.top - 16,
+    });
+    setShowTooltip(true);
+  };
+
+  const handleMouseLeave = () => {
+    const timeout = setTimeout(() => setShowTooltip(false), 100);
+    setHideTimeout(timeout);
+  };
 
   return (
-    <span className={classes.join(" ")} title={tooltip} data-testid="annotated-segment">
+    <span
+      className={`${classes.join(" ")} relative`}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      data-testid="annotated-segment"
+    >
       {text}
+      {showTooltip &&
+        tooltipParts.length > 0 &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed z-50 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg pointer-events-none transform -translate-x-1/2 -translate-y-full"
+            style={{
+              left: tooltipPosition.x,
+              top: tooltipPosition.y,
+            }}
+          >
+            {tooltipParts.map((part, i) => (
+              <div key={i}>{part}</div>
+            ))}
+          </div>,
+          document.body
+        )}
     </span>
   );
 }
 
-function createTextSegments(text: string, annotations: Annotation[]): TextSegments[] {
+function createTextSegments(
+  text: string,
+  annotations: Annotation[]
+): TextSegments[] {
   const segments: TextSegments[] = [];
   let lastIndex = 0;
   let activeAnnotations: Annotation[] = [];
@@ -96,7 +180,10 @@ function createTextSegments(text: string, annotations: Annotation[]): TextSegmen
   const positions = getUniquePositions(annotations);
   positions.forEach((pos) => {
     if (pos > lastIndex) {
-      segments.push({ text: text.slice(lastIndex, pos), annotations: [...activeAnnotations] });
+      segments.push({
+        text: text.slice(lastIndex, pos),
+        annotations: [...activeAnnotations],
+      });
     }
     activeAnnotations = activeAnnotations.filter((a) => a.end > pos);
     const newAnnotations = annotations.filter((a) => a.start === pos);
@@ -104,7 +191,8 @@ function createTextSegments(text: string, annotations: Annotation[]): TextSegmen
     lastIndex = pos;
   });
 
-  if (lastIndex < text.length) segments.push({ text: text.slice(lastIndex), annotations: [] });
+  if (lastIndex < text.length)
+    segments.push({ text: text.slice(lastIndex), annotations: [] });
   return segments;
 }
 
@@ -116,5 +204,3 @@ function getUniquePositions(annotations: Annotation[]): number[] {
   });
   return Array.from(positions).sort((a, b) => a - b);
 }
-
-

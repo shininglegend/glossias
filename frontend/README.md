@@ -1,18 +1,4 @@
-# Welcome to React Router!
-
-A modern, production-ready template for building full-stack React applications using React Router.
-
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
-
-## Features
-
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
+# This directory contains the frontend for this project.
 
 ## Getting Started
 
@@ -36,11 +22,12 @@ npm run dev
 
 - The annotator UI from `annotator/` has been migrated into this app under `app/components/Annotator/*`.
 - SPA route: `/admin/stories/:id/annotate` renders the annotator and talks to existing admin endpoints:
-  - `GET /admin/stories/api/:id`
-  - `PUT /admin/stories/api/:id`
-  - `DELETE /admin/stories/api/:id`
+  - `GET /api/admin/stories/:id`
+  - `PUT /api/admin/stories/:id`
+  - `DELETE /api/admin/stories/:id`
 
 Templated admin routes still served by Go (not migrated):
+
 - `/admin` (home)
 - `/admin/stories/add` (GET/POST)
 - `/admin/stories/{id}` (GET non-JSON)/PUT
@@ -48,10 +35,6 @@ Templated admin routes still served by Go (not migrated):
 - `/admin/stories/delete/{id}` (GET/DELETE)
 
 ### Environment configuration
-
-- Create a `.env` file in this directory:
-  - `VITE_API_URL=http://localhost:8080/api`
-  - `VITE_ADMIN_URL=http://localhost:8080`
 
 Your application will be available at `http://localhost:5173`.
 

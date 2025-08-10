@@ -1,27 +1,29 @@
 // [moved from annotator/src/components/Story.tsx]
 import React, { useEffect, useState } from "react";
 import Line from "./Line";
-import { getAdminBase } from "../../config";
 import {
   createAnnotationRequest,
   type AnnotationType,
   type ApiError,
   type ApiResponse,
   type StoryLine,
+  type StoryMetadata,
 } from "../../types/api";
 
 export default function Story({ storyId }: { storyId: number }) {
   const [lines, setLines] = useState<StoryLine[]>([]);
+  const [metadata, setMetaData] = useState<StoryMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchStory = async () => {
       try {
-        const response = await fetch(`${getAdminBase()}/admin/stories/api/${storyId}`);
+        const response = await fetch(`/api/admin/stories/${storyId}`);
         if (!response.ok) throw new Error("Failed to fetch story");
         const data: ApiResponse = await response.json();
-        setLines(data.content.lines);
+        setLines(data.story.content.lines);
+        setMetaData(data.metadata);
         setLoading(false);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Unknown error");
@@ -50,7 +52,7 @@ export default function Story({ storyId }: { storyId: number }) {
 
     try {
       const response = await fetch(
-        `${getAdminBase()}/admin/stories/api/${storyId}`,
+        `/api/admin/stories/${storyId}/annotations`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -63,41 +65,47 @@ export default function Story({ storyId }: { storyId: number }) {
         throw new Error(err.error);
       }
 
-      const refreshed = await fetch(
-        `${getAdminBase()}/admin/stories/api/${storyId}`
-      );
+      const refreshed = await fetch(`/api/admin/stories/${storyId}`);
       const data: ApiResponse = await refreshed.json();
-      setLines(data.content.lines);
+      console.log(data);
+      setLines(data.story.content.lines);
+      setMetaData(data.metadata);
     } catch (err) {
       console.error(err);
       alert("Failed to save annotation");
     }
   };
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error}</div>;
+  if (loading) return <div className="text-sm text-slate-600">Loading…</div>;
+  if (error) return <div className="text-sm text-rose-700">Error: {error}</div>;
 
   return (
     <div className="story-container">
       {lines.map((line) => (
         <Line key={line.lineNumber} line={line} onSelect={handleAnnotation} />
       ))}
-      <hr />
-      <div className="footnotes-section">
-        <h3>Footnotes</h3>
-        {lines.map((line) =>
-          line.footnotes.map((footnote, index) => (
-            <div key={`${line.lineNumber}-${index}`} className="footnote">
-              <div className="footnote-line">Line {line.lineNumber}</div>
-              <div className="footnote-text">{footnote.text}</div>
-              {footnote.references && footnote.references.length > 0 && (
-                <div className="footnote-refs">
-                  References: {footnote.references.join(", ")}
+      <div className="mt-8 border-t pt-6">
+        <h3 className="text-lg font-semibold mb-3">Footnotes</h3>
+        <div className="grid gap-3">
+          {lines.flatMap((line) =>
+            line.footnotes.map((footnote, index) => (
+              <div
+                key={`${line.lineNumber}-${index}`}
+                className="rounded-md border border-slate-200 bg-white p-3 shadow-sm"
+              >
+                <div className="text-xs text-slate-500 mb-1">
+                  Line {line.lineNumber}
                 </div>
-              )}
-            </div>
-          ))
-        )}
+                <div className="text-sm">{footnote.text}</div>
+                {footnote.references && footnote.references.length > 0 && (
+                  <div className="mt-1 text-xs text-slate-500">
+                    References: {footnote.references.join(", ")}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

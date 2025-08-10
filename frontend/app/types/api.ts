@@ -2,6 +2,31 @@
 // API types for the Admin Annotator. Keep endpoints under /admin.
 
 export interface ApiResponse {
+  story: Story;
+  metadata: StoryMetadata;
+}
+
+export interface StoryMetadata {
+  storyId: number;
+  weekNumber: number;
+  dayLetter: string;
+  title?: string; // map[string]string
+  author: Author;
+  grammarPoint: string;
+  description: Description;
+}
+
+export interface Author {
+  id: string;
+  name: string;
+}
+
+export interface Description {
+  language: string;
+  text: string;
+}
+
+export interface Story {
   content: StoryContent;
 }
 
@@ -54,7 +79,7 @@ export const createAnnotationRequest = (
   text: string,
   start: number,
   end: number,
-  data?: { text?: string; lexicalForm?: string },
+  data?: { text?: string; lexicalForm?: string }
 ): AnnotationRequest => {
   const request: AnnotationRequest = {
     lineNumber,
@@ -87,5 +112,3 @@ export const createAnnotationRequest = (
 
   return request;
 };
-
-

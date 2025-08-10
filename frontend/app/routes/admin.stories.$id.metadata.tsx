@@ -1,39 +1,49 @@
-import { useLoaderData, Form, redirect, useParams } from "react-router";
-import { getAdminBase } from "../config";
+import { useLoaderData, useParams, useNavigation } from "react-router";
+import { type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
+import type { StoryMetadata } from "../types/admin";
+import { getMetadata, updateMetadata } from "../services/adminApi";
+import MetadataForm from "../components/Admin/MetadataForm";
+import Button from "~/components/ui/Button";
 
-type Metadata = any;
-
-export async function loader({ params }: { params: { id: string } }) {
-  const res = await fetch(`${getAdminBase()}/admin/stories/${params.id}/metadata`, { headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error("Failed to load metadata");
-  const json = await res.json();
-  return json.Story?.Metadata || json.metadata || json; // tolerate variants
+export async function loader({ params, request }: LoaderFunctionArgs) {
+  const id = Number(params.id);
+  const url = new URL(request.url);
+  const baseUrl = `${url.protocol}//${url.host}`;
+  const data = await getMetadata(id, baseUrl);
+  const meta = data.story.metadata as StoryMetadata;
+  return { metadata: meta };
 }
 
-export async function action({ request, params }: { request: Request; params: { id: string } }) {
-  const formData = await request.formData();
-  const payload = Object.fromEntries(formData.entries());
-  const res = await fetch(`${getAdminBase()}/admin/stories/${params.id}/metadata`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error("Failed to save metadata");
-  return null;
+export async function action({ request, params }: ActionFunctionArgs) {
+  const id = Number(params.id);
+  const meta: StoryMetadata = await request.json();
+  const url = new URL(request.url);
+  const baseUrl = `${url.protocol}//${url.host}`;
+  await updateMetadata(id, meta, baseUrl);
+  return { success: true } as const;
 }
 
 export default function EditMetadata() {
-  const metadata = useLoaderData() as Metadata;
+  const { metadata } = useLoaderData() as { metadata: StoryMetadata };
   const { id } = useParams();
+  const nav = useNavigation();
+  const saving = nav.state === "submitting";
   return (
     <main className="container mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">Edit Metadata #{id}</h1>
-      <Form method="post">
-        <textarea name="Metadata" defaultValue={JSON.stringify(metadata, null, 2)} className="border p-2 w-full" rows={16} />
-        <button type="submit" className="mt-4 px-4 py-2 bg-blue-600 text-white rounded">Save</button>
-      </Form>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Edit Metadata #{id}</h1>
+        {saving && <span className="text-sm text-slate-500">Saving…</span>}
+      </div>
+      <MetadataForm
+        value={metadata}
+        onSubmit={async (m) => {
+          await fetch(window.location.pathname, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(m),
+          });
+        }}
+      />
     </main>
   );
 }
-
-

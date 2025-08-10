@@ -1,5 +1,6 @@
 // [moved from annotator/src/components/AnnotationMenu.tsx]
 import React from "react";
+import Button from "~/components/ui/Button";
 
 interface Props {
   x: number;
@@ -10,7 +11,14 @@ interface Props {
   className?: string;
 }
 
-export default function AnnotationMenu({ x, y, onVocab, onGrammar, onFootnote, className = "" }: Props) {
+export default function AnnotationMenu({
+  x,
+  y,
+  onVocab,
+  onGrammar,
+  onFootnote,
+  className = "",
+}: Props) {
   const menuRef = React.useRef<HTMLDivElement>(null);
   const [adjustedPosition, setAdjustedPosition] = React.useState({ x, y });
 
@@ -34,13 +42,26 @@ export default function AnnotationMenu({ x, y, onVocab, onGrammar, onFootnote, c
     <div
       ref={menuRef}
       className={`annotation-menu ${className}`.trim()}
-      style={{ position: "fixed", left: adjustedPosition.x, top: adjustedPosition.y, zIndex: 1000, background: "white", boxShadow: "0 2px 10px rgba(0,0,0,0.1)", borderRadius: "4px", padding: "0.5rem" }}
+      style={{
+        position: "fixed",
+        left: adjustedPosition.x,
+        top: adjustedPosition.y,
+        zIndex: 1000,
+      }}
     >
-      <button onClick={onVocab}>Add Vocabulary</button>
-      <button onClick={onGrammar}>Add Grammar Note</button>
-      <button onClick={onFootnote}>Add Footnote</button>
+      <div className="rounded-md border border-slate-200 bg-white p-2 shadow-lg">
+        <div className="grid gap-2">
+          <Button size="sm" variant="ghost" onClick={onVocab}>
+            Add Vocabulary
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onGrammar}>
+            Add Grammar Note
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onFootnote}>
+            Add Footnote
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
-
-

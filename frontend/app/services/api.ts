@@ -1,12 +1,11 @@
 // API service for connecting to backend endpoints
-import { getApiBase } from "../config";
 
-const API_BASE = getApiBase();
+const API_BASE = "/api";
 
 export interface Story {
   id: number;
   title: string;
-  week_wumber: number; // Note: typo in API
+  week_number: number;
   day_letter: string;
 }
 
@@ -47,7 +46,7 @@ interface StoriesResponse {
 class ApiService {
   private async fetchAPI<T>(
     endpoint: string,
-    options?: RequestInit,
+    options?: RequestInit
   ): Promise<APIResponse<T>> {
     try {
       const response = await fetch(`${API_BASE}${endpoint}`, {

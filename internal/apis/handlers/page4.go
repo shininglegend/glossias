@@ -14,8 +14,6 @@ import (
 
 // GetPage4 returns JSON data for story page 4 (translation)
 func (h *Handler) GetPage4(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
 	storyID := mux.Vars(r)["id"]
 	id, err := strconv.Atoi(storyID)
 	if err != nil {

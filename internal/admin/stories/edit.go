@@ -14,9 +14,9 @@ import (
 
 // EditStoryResponse wraps the story data for the editor
 type EditStoryResponse struct {
-	Story   *models.Story
-	Success bool
-	Error   string
+	Story   *models.Story `json:"story"`
+	Success bool          `json:"success"`
+	Error   string        `json:"error,omitempty"`
 }
 
 func (h *Handler) editStoryHandler(w http.ResponseWriter, r *http.Request) {
@@ -32,6 +32,10 @@ func (h *Handler) editStoryHandler(w http.ResponseWriter, r *http.Request) {
 		h.handleGetStory(w, r, storyID)
 	case http.MethodPut:
 		h.handleUpdateStory(w, r, storyID)
+	case http.MethodPost:
+		h.addStoryHandler(w, r)
+	case http.MethodDelete:
+		h.deleteStoryHandler(w, r)
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -50,17 +54,6 @@ func (h *Handler) handleGetStory(w http.ResponseWriter, r *http.Request, storyID
 		return
 	}
 
-	// For regular GET requests, render the HTML template
-	if !strings.Contains(r.Header.Get("Accept"), "application/json") {
-		if err := h.te.Render(w, "admin/editStory.html", story); err != nil {
-			h.log.Error("Failed to render edit template", "error", err)
-			http.Error(w, "Failed to render page", http.StatusInternalServerError)
-		}
-		return
-	}
-
-	// For API requests, return JSON
-	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(EditStoryResponse{
 		Story:   story,
 		Success: true,
@@ -95,7 +88,7 @@ func (h *Handler) handleUpdateStory(w http.ResponseWriter, r *http.Request, stor
 	}
 
 	// Return success response
-	w.Header().Set("Content-Type", "application/json")
+
 	json.NewEncoder(w).Encode(EditStoryResponse{
 		Success: true,
 		Story:   &story,

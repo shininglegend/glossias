@@ -39,18 +39,6 @@ func (h *Handler) handleGetMetadata(w http.ResponseWriter, r *http.Request, stor
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-
-	// For regular GET requests, render the HTML template
-	if !isJSONRequest(r) {
-		if err := h.te.Render(w, "admin/metadataStory.html", story); err != nil {
-			h.log.Error("Failed to render metadata template", "error", err)
-			http.Error(w, "Failed to render page", http.StatusInternalServerError)
-		}
-		return
-	}
-
-	// For API requests, return JSON
-	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(EditStoryResponse{
 		Story:   story,
 		Success: true,
@@ -71,10 +59,5 @@ func (h *Handler) handleUpdateMetadata(w http.ResponseWriter, r *http.Request, s
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"success": true})
-}
-
-func isJSONRequest(r *http.Request) bool {
-	return r.Header.Get("Accept") == "application/json"
 }

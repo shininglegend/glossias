@@ -8,13 +8,13 @@ import (
 	"glossias/internal/pkg/database"
 	"glossias/internal/pkg/models"
 	"glossias/internal/pkg/templates"
-	"glossias/internal/stories"
 	"html/template"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -69,15 +69,27 @@ func main() {
 	// API handlers with CORS middleware
 	apiHandler := apis.NewHandler(logger)
 	apiRouter := r.PathPrefix("/api").Subrouter()
-	apiRouter.Use(apis.CORSMiddleware())
+	// apiRouter.Use(apis.CORSMiddleware())
+	apiRouter.Use(jsonMiddleware())
+	// Mount public story API under /api/*
 	apiHandler.RegisterRoutes(apiRouter)
 
-	// Other handlers
+	// Admin API mounted under /api/admin/*
 	adminHandler := admin.NewHandler(logger, templateEngine)
-	adminHandler.RegisterRoutes(r)
+	adminApiRouter := apiRouter.PathPrefix("/admin").Subrouter()
+	// apiRouter.Use(apis.CORSMiddleware())
+	adminHandler.RegisterRoutes(adminApiRouter)
 
-	storiesHandler := stories.NewHandler(logger, templateEngine)
-	storiesHandler.RegisterRoutes(r)
+	// Redirect all other requests to port 5173 for the frontend
+	r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// /api results shoudn't redirect
+		if strings.HasPrefix(r.URL.Path, "/api") {
+			http.NotFound(w, r)
+			return
+		}
+		http.Redirect(w, r, "http://localhost:5173"+r.URL.Path,
+			http.StatusMovedPermanently)
+	})
 
 	// Select correct port and start the server
 	port := os.Getenv("PORT")
@@ -103,13 +115,20 @@ func main() {
 func loggingMiddleware(logger *slog.Logger) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			start := time.Now()
 			next.ServeHTTP(w, r)
 			logger.Info("request completed",
 				"method", r.Method,
 				"path", r.URL.Path,
-				"requester", r.RemoteAddr,
-				"duration", time.Since(start))
+				"requester", r.RemoteAddr)
+		})
+	}
+}
+
+func jsonMiddleware() mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			next.ServeHTTP(w, r)
 		})
 	}
 }

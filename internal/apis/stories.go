@@ -1,8 +1,10 @@
 package apis
 
 import (
+	"encoding/json"
 	"glossias/internal/apis/handlers"
 	"log/slog"
+	"net/http"
 
 	"github.com/gorilla/mux"
 )
@@ -19,7 +21,13 @@ func NewHandler(logger *slog.Logger) *Handler {
 	}
 }
 
-// RegisterRoutes registers all API routes
+// RegisterRoutes registers all public story API routes under /api/stories
 func (h *Handler) RegisterRoutes(router *mux.Router) {
-	h.Handler.RegisterRoutes(router)
+	// Base is /api/stories
+	storiesRouter := router.PathPrefix("/stories").Subrouter()
+	h.Handler.RegisterRoutes(storiesRouter)
+	// Add a test hello route
+	router.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]string{"message": "Hello from the api!"})
+	})
 }

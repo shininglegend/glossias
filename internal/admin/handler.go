@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"glossias/internal/admin/stories"
-	"glossias/internal/pkg/models"
 	"glossias/internal/pkg/templates"
 
 	"github.com/gorilla/mux"
@@ -27,41 +26,17 @@ func NewHandler(log *slog.Logger, te *templates.TemplateEngine) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	// Create admin subrouter
-	admin := r.PathPrefix("/admin").Subrouter()
+	// Admin routes are now mounted by the caller under /api/admin
+	// Apply admin-specific middleware at this level
+	r.Use(h.adminAuthMiddleware)
 
-	// Admin-specific middleware
-	admin.Use(h.adminAuthMiddleware)
-
-	// [UNUSED] Admin home now handled by React route /admin
-	admin.HandleFunc("", h.homeHandler).Methods("GET")
-
-	// Register all admin routes
-	h.stories.RegisterRoutes(admin)
+	// Register all admin story routes beneath the provided base router
+	h.stories.RegisterRoutes(r)
 }
 
 func (h *Handler) adminAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Admin authentication logic here
+		// TODO: Admin authentication logic here
 		next.ServeHTTP(w, r)
 	})
-}
-
-// Added new handler
-func (h *Handler) homeHandler(w http.ResponseWriter, r *http.Request) {
-	stories, err := models.GetAllStories("")
-	if err != nil {
-		h.log.Error("Failed to fetch stories", "error", err)
-		http.Error(w, "Failed to fetch stories", http.StatusInternalServerError)
-		return
-	}
-
-	data := map[string]interface{}{
-		"Stories": stories,
-	}
-
-	if err := h.te.Render(w, "admin/adminHome.html", data); err != nil {
-		h.log.Error("Failed to render admin home", "error", err)
-		http.Error(w, "Failed to render admin home", http.StatusInternalServerError)
-	}
 }

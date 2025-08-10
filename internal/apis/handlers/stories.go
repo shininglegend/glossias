@@ -11,23 +11,27 @@ import (
 
 // RegisterRoutes registers all API routes with the given router
 func (h *Handler) RegisterRoutes(router *mux.Router) {
+	// Base is /api/stories
 	// Stories list endpoint
-	router.HandleFunc("/stories", h.GetStories).Methods("GET", "OPTIONS")
+	router.HandleFunc("", h.GetStories).Methods("GET", "OPTIONS")
+
+	// Basic hello test route
+	router.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]string{"message": "Hello from admin stories!"})
+	}).Methods("GET", "OPTIONS")
 
 	// Individual page endpoints
-	router.HandleFunc("/stories/{id}/page1", h.GetPage1).Methods("GET", "OPTIONS")
-	router.HandleFunc("/stories/{id}/page2", h.GetPage2).Methods("GET", "OPTIONS")
-	router.HandleFunc("/stories/{id}/page3", h.GetPage3).Methods("GET", "OPTIONS")
-	router.HandleFunc("/stories/{id}/page4", h.GetPage4).Methods("GET", "OPTIONS")
+	router.HandleFunc("/{id}/page1", h.GetPage1).Methods("GET", "OPTIONS")
+	router.HandleFunc("/{id}/page2", h.GetPage2).Methods("GET", "OPTIONS")
+	router.HandleFunc("/{id}/page3", h.GetPage3).Methods("GET", "OPTIONS")
+	router.HandleFunc("/{id}/page4", h.GetPage4).Methods("GET", "OPTIONS")
 
 	// Vocabulary checking endpoint
-	router.HandleFunc("/stories/{id}/check-vocab", h.CheckVocab).Methods("POST", "OPTIONS")
+	router.HandleFunc("/{id}/check-vocab", h.CheckVocab).Methods("POST", "OPTIONS")
 }
 
 // GetStories returns JSON array of all stories
 func (h *Handler) GetStories(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
 	// Get language parameter (optional)
 	lang := r.URL.Query().Get("lang")
 

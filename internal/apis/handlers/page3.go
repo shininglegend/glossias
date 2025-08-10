@@ -15,8 +15,6 @@ import (
 
 // GetPage3 returns JSON data for story page 3 (grammar)
 func (h *Handler) GetPage3(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
 	storyID := mux.Vars(r)["id"]
 	id, err := strconv.Atoi(storyID)
 	if err != nil {

@@ -183,7 +183,6 @@ func (h *Handler) CheckVocabAnswers(w http.ResponseWriter, r *http.Request) {
 	h.log.Debug("Submission", "IP:", r.RemoteAddr, "Number of correct answers", len(resp.Answers))
 	// TODO: Save to database
 
-	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
 

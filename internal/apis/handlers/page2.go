@@ -15,8 +15,6 @@ import (
 
 // GetPage2 returns JSON data for story page 2 (vocabulary)
 func (h *Handler) GetPage2(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
 	storyID := mux.Vars(r)["id"]
 	id, err := strconv.Atoi(storyID)
 	if err != nil {
@@ -110,7 +108,6 @@ func (h *Handler) processLinesForPage2(story models.Story, id int) ([]types.Line
 
 // CheckVocab handles vocabulary checking
 func (h *Handler) CheckVocab(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
 
 	var req types.CheckVocabRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

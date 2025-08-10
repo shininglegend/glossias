@@ -4,8 +4,10 @@ package stories
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"glossias/internal/pkg/models"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -25,6 +27,59 @@ type AddStoryRequest struct {
 	DayLetter       string `json:"dayLetter"`
 	DescriptionText string `json:"descriptionText"`
 	StoryText       string `json:"storyText"`
+}
+
+func (h *Handler) addStoryHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Parse JSON or form for backward compatibility
+	var req AddStoryRequest
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid JSON", http.StatusBadRequest)
+			return
+		}
+	} else {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Failed to parse form", http.StatusBadRequest)
+			return
+		}
+		weekNum, err := strconv.Atoi(r.FormValue("weekNumber"))
+		if err != nil {
+			http.Error(w, "Invalid week number", http.StatusBadRequest)
+			return
+		}
+		req = AddStoryRequest{
+			TitleEn:      r.FormValue("titleEn"),
+			LanguageCode: r.FormValue("languageCode"),
+			AuthorName:   r.FormValue("authorName"),
+			WeekNumber:   weekNum,
+			DayLetter:    r.FormValue("dayLetter"),
+			StoryText:    r.FormValue("storyText"),
+		}
+	}
+
+	// Process the story
+	story, err := h.processAddStory(req)
+	if err != nil {
+		h.log.Error("Failed to process story", "error", err)
+		http.Error(w, "Failed to process story", http.StatusInternalServerError)
+		return
+	}
+
+	// Save the story
+	if err := models.SaveNewStory(story); err != nil {
+		h.log.Error("Failed to save story", "error", err)
+		http.Error(w, "Failed to save story", http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"storyId": story.Metadata.StoryID,
+	})
 }
 
 func (h *Handler) processAddStory(req AddStoryRequest) (*models.Story, error) {
@@ -68,12 +123,4 @@ func (h *Handler) processAddStory(req AddStoryRequest) (*models.Story, error) {
 	}
 
 	return story, nil
-}
-
-func (h *Handler) renderAddStoryForm(w http.ResponseWriter, _ *http.Request) {
-	// Render the add story form
-	if err := h.te.Render(w, "admin/addStory.html", nil); err != nil {
-		h.log.Error("Failed to render add story form", "error", err)
-		http.Error(w, "Failed to render add story form", http.StatusInternalServerError)
-	}
 }

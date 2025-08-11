@@ -113,50 +113,22 @@ func AddLineAnnotations(storyID int, lineNumber int, line StoryLine) error {
 
 		// Insert vocabulary items
 		for _, v := range line.Vocabulary {
-			if _, err := tx.Exec(`
-                INSERT INTO vocabulary_items (
-                    story_id, line_number, word, lexical_form,
-                    position_start, position_end
-                ) VALUES ($1, $2, $3, $4, $5, $6)`,
-				storyID, lineNumber, v.Word, v.LexicalForm,
-				v.Position[0], v.Position[1]); err != nil {
+			if err := dedupVocabularyInsert(tx, storyID, lineNumber, v); err != nil {
 				return err
 			}
 		}
 
 		// Insert grammar items
 		for _, g := range line.Grammar {
-			if _, err := tx.Exec(`
-                INSERT INTO grammar_items (
-                    story_id, line_number, text,
-                    position_start, position_end
-                ) VALUES ($1, $2, $3, $4, $5)`,
-				storyID, lineNumber, g.Text,
-				g.Position[0], g.Position[1]); err != nil {
+			if err := dedupGrammarInsert(tx, storyID, lineNumber, g); err != nil {
 				return err
 			}
 		}
 
 		// Insert footnotes and their references
 		for _, f := range line.Footnotes {
-			var footnoteID int
-			err := tx.QueryRow(`
-                INSERT INTO footnotes (story_id, line_number, footnote_text)
-                VALUES ($1, $2, $3)
-                RETURNING id`,
-				storyID, lineNumber, f.Text).Scan(&footnoteID)
-			if err != nil {
+			if err := dedupFootnoteInsert(tx, storyID, lineNumber, f); err != nil {
 				return err
-			}
-
-			// Insert references for this footnote
-			for _, ref := range f.References {
-				if _, err := tx.Exec(`
-                    INSERT INTO footnote_references (footnote_id, reference)
-                    VALUES ($1, $2)`,
-					footnoteID, ref); err != nil {
-					return err
-				}
 			}
 		}
 

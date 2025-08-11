@@ -101,44 +101,22 @@ func saveLine(tx *sql.Tx, storyID int, line *StoryLine) error {
 
 	// Save vocabulary
 	for _, v := range line.Vocabulary {
-		if _, err := tx.Exec(`
-            INSERT INTO vocabulary_items (story_id, line_number, word, lexical_form, position_start, position_end)
-            VALUES ($1, $2, $3, $4, $5, $6)`,
-			storyID, line.LineNumber, v.Word, v.LexicalForm, v.Position[0], v.Position[1]); err != nil {
+		if err := dedupVocabularyInsert(tx, storyID, line.LineNumber, v); err != nil {
 			return err
 		}
 	}
 
 	// Save grammar items
 	for _, g := range line.Grammar {
-		if _, err := tx.Exec(`
-            INSERT INTO grammar_items (story_id, line_number, text, position_start, position_end)
-            VALUES ($1, $2, $3, $4, $5)`,
-			storyID, line.LineNumber, g.Text, g.Position[0], g.Position[1]); err != nil {
+		if err := dedupGrammarInsert(tx, storyID, line.LineNumber, g); err != nil {
 			return err
 		}
 	}
 
 	// Save footnotes
 	for _, f := range line.Footnotes {
-		var footnoteID int
-		err := tx.QueryRow(`
-            INSERT INTO footnotes (story_id, line_number, footnote_text)
-            VALUES ($1, $2, $3)
-            RETURNING id`,
-			storyID, line.LineNumber, f.Text).Scan(&footnoteID)
-		if err != nil {
+		if err := dedupFootnoteInsert(tx, storyID, line.LineNumber, f); err != nil {
 			return err
-		}
-
-		// Save footnote references
-		for _, ref := range f.References {
-			if _, err := tx.Exec(`
-                INSERT INTO footnote_references (footnote_id, reference)
-                VALUES ($1, $2)`,
-				footnoteID, ref); err != nil {
-				return err
-			}
 		}
 	}
 

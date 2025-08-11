@@ -30,7 +30,56 @@ Response:
 }
 ```
 
-### PUT `/api/admin/stories/{id}/annotations`
+### GET `/api/admin/stories/{id}/annotations`
+
+Returns all annotations for a story, optionally filtered by line number.
+
+Query parameters:
+- `line` (optional): Get annotations for specific line number
+
+Response (all annotations):
+
+```json
+{
+  "1": {
+    "lineNumber": 1,
+    "vocabulary": [
+      { "word": "form", "lexicalForm": "forma", "position": [5, 9] }
+    ],
+    "grammar": [
+      { "text": "בקר", "position": [10, 15] }
+    ],
+    "footnotes": [
+      { "id": 1, "text": "Note about this line", "references": ["ref1"] }
+    ]
+  },
+  "3": {
+    "lineNumber": 3,
+    "vocabulary": [],
+    "grammar": [],
+    "footnotes": []
+  }
+}
+```
+
+Response (specific line with `?line=1`):
+
+```json
+{
+  "lineNumber": 1,
+  "vocabulary": [
+    { "word": "form", "lexicalForm": "forma", "position": [5, 9] }
+  ],
+  "grammar": [
+    { "text": "בקר", "position": [10, 15] }
+  ],
+  "footnotes": [
+    { "id": 1, "text": "Note about this line", "references": ["ref1"] }
+  ]
+}
+```
+
+### POST `/api/admin/stories/{id}/annotations`
 
 Adds a single annotation to a line.
 
@@ -49,15 +98,57 @@ Response:
 { "success": true }
 ```
 
-### DELETE `/api/admin/stories/{id}/annotations`
+### PUT `/api/admin/stories/{id}/annotations`
 
-Clears all annotations for a story.
+Edits an existing annotation on a line. Requires both the annotation data and an identifier.
+
+Request examples:
+
+Edit vocabulary by position (requires vocabularyPosition):
+--DISABLED
+
+Edit vocabulary lexical form only (by word):
+```json
+{
+  "lineNumber": 3,
+  "vocabulary": { "word": "form", "lexicalForm": "updated_forma" }
+}
+```
+
+Edit grammar (requires grammarPosition):
+--DISABLED.
+
+Edit footnote (requires footnoteId):
+```json
+{
+  "lineNumber": 3,
+  "footnote": { "text": "Updated footnote text", "references": ["ref1"] },
+  "footnoteId": 42
+}
+```
 
 Response:
 
 ```json
 { "success": true }
 ```
+
+### DELETE `/api/admin/stories/{id}/annotations`
+
+Clears all annotations for a story, or optionally for a specific line.
+
+Query parameters:
+- `line` (optional): Delete annotations for specific line number only
+
+Response:
+
+```json
+{ "success": true }
+```
+
+Examples:
+- `DELETE /api/admin/stories/123/annotations` - Clears all annotations for story 123
+- `DELETE /api/admin/stories/123/annotations?line=5` - Clears annotations only for line 5
 
 ### GET `/api/admin/stories/{id}`
 
@@ -75,7 +166,7 @@ Response:
       "DayLetter": "A",
       "Title": { "en": "..." }
     },
-    "Content": { "Lines": [] }
+    "Content": { "Lines": [...] }
   }
 }
 ```
@@ -142,8 +233,6 @@ Creates a new story.
 }
 ```
 
-- Or `application/x-www-form-urlencoded` with equivalent fields.
-
 Response:
 
 ```json
@@ -152,7 +241,7 @@ Response:
 
 ### DELETE `/api/admin/stories/{id}`
 
-Deletes the story; logs deletion to `logs/deletions_YYYY-MM.log`.
+Deletes the story; logs deletion.
 
 Response:
 

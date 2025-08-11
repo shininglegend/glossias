@@ -3,9 +3,9 @@ package models
 import (
 	"encoding/json"
 	"errors"
-	"glossias/internal/pkg/database"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq"
 )
 
@@ -23,7 +23,7 @@ var (
 	ErrNotFound          = errors.New("story not found")
 )
 
-var store database.Store
+var pool *pgxpool.Pool
 
 type Story struct {
 	Metadata StoryMetadata `json:"metadata"`
@@ -81,8 +81,8 @@ type Footnote struct {
 	References []string `json:"references,omitempty"` // Optional field
 }
 
-func SetDB(s database.Store) {
-	store = s
+func SetDB(p *pgxpool.Pool) {
+	pool = p
 }
 
 // ToJSON serializes a Story to JSON bytes

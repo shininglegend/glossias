@@ -7,9 +7,9 @@ import (
 
 // DB represents our database operations interface
 type DB interface {
-	Exec(query string, args ...interface{}) (sql.Result, error)
-	Query(query string, args ...interface{}) (Rows, error)
-	QueryRow(query string, args ...interface{}) Row
+	Exec(query string, args ...any) (sql.Result, error)
+	Query(query string, args ...any) (Rows, error)
+	QueryRow(query string, args ...any) Row
 	Begin() (*sql.Tx, error)
 	Close() error
 	Ping() error
@@ -21,13 +21,19 @@ type Store interface {
 	Close() error
 }
 
+// PoolStore extends Store with pgxpool access
+type PoolStore interface {
+	Store
+	Pool() any // Returns *pgxpool.Pool
+}
+
 type Rows interface {
 	Close() error
 	Next() bool
-	Scan(dest ...interface{}) error
+	Scan(dest ...any) error
 	Columns() ([]string, error)
 }
 
 type Row interface {
-	Scan(dest ...interface{}) error
+	Scan(dest ...any) error
 }

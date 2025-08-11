@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.29.0
 
-package queries
+package db
 
 import (
 	"context"
@@ -48,14 +48,17 @@ type Querier interface {
 	GetFootnotes(ctx context.Context, arg GetFootnotesParams) ([]Footnote, error)
 	GetGrammarItems(ctx context.Context, arg GetGrammarItemsParams) ([]GrammarItem, error)
 	GetLineText(ctx context.Context, arg GetLineTextParams) (string, error)
+	// Core story operations
 	GetStory(ctx context.Context, storyID int32) (Story, error)
+	// Story descriptions
 	GetStoryDescription(ctx context.Context, arg GetStoryDescriptionParams) (string, error)
 	GetStoryFootnotesWithReferences(ctx context.Context, storyID pgtype.Int4) ([]GetStoryFootnotesWithReferencesRow, error)
 	GetStoryLine(ctx context.Context, arg GetStoryLineParams) (StoryLine, error)
+	// Story lines
 	GetStoryLines(ctx context.Context, storyID int32) ([]StoryLine, error)
 	GetStoryTitle(ctx context.Context, arg GetStoryTitleParams) (string, error)
+	// Story titles
 	GetStoryTitles(ctx context.Context, storyID int32) ([]StoryTitle, error)
-	GetStoryWithAllTitles(ctx context.Context, storyID int32) (Story, error)
 	GetStoryWithDescription(ctx context.Context, storyID int32) (GetStoryWithDescriptionRow, error)
 	GetVocabularyItems(ctx context.Context, arg GetVocabularyItemsParams) ([]VocabularyItem, error)
 	LineExists(ctx context.Context, arg LineExistsParams) (bool, error)

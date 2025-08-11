@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"glossias/internal/pkg/database/queries"
+	"glossias/internal/pkg/generated/db"
 	"glossias/internal/pkg/models"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -12,13 +12,13 @@ import (
 
 type Repository struct {
 	pool    *pgxpool.Pool
-	queries *queries.Queries
+	queries *db.Queries
 }
 
 func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{
 		pool:    pool,
-		queries: queries.New(pool),
+		queries: db.New(pool),
 	}
 }
 
@@ -61,7 +61,7 @@ func (r *Repository) GetStoryData(ctx context.Context, storyID int) (*models.Sto
 		}
 
 		// Get vocabulary for this line
-		vocab, err := r.queries.GetVocabularyItems(ctx, queries.GetVocabularyItemsParams{
+		vocab, err := r.queries.GetVocabularyItems(ctx, db.GetVocabularyItemsParams{
 			StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
 			LineNumber: pgtype.Int4{Int32: line.LineNumber, Valid: true},
 		})
@@ -80,7 +80,7 @@ func (r *Repository) GetStoryData(ctx context.Context, storyID int) (*models.Sto
 		storyLine.Vocabulary = vocabItems
 
 		// Get grammar for this line
-		grammar, err := r.queries.GetGrammarItems(ctx, queries.GetGrammarItemsParams{
+		grammar, err := r.queries.GetGrammarItems(ctx, db.GetGrammarItemsParams{
 			StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
 			LineNumber: pgtype.Int4{Int32: line.LineNumber, Valid: true},
 		})
@@ -98,7 +98,7 @@ func (r *Repository) GetStoryData(ctx context.Context, storyID int) (*models.Sto
 		storyLine.Grammar = grammarItems
 
 		// Get footnotes for this line
-		footnotes, err := r.queries.GetFootnotes(ctx, queries.GetFootnotesParams{
+		footnotes, err := r.queries.GetFootnotes(ctx, db.GetFootnotesParams{
 			StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
 			LineNumber: pgtype.Int4{Int32: line.LineNumber, Valid: true},
 		})
@@ -206,7 +206,7 @@ func (r *Repository) SaveNewStory(ctx context.Context, story *models.Story) erro
 		grammarPoint = pgtype.Text{String: story.Metadata.GrammarPoint, Valid: true}
 	}
 
-	result, err := qtx.CreateStory(ctx, queries.CreateStoryParams{
+	result, err := qtx.CreateStory(ctx, db.CreateStoryParams{
 		WeekNumber:   int32(story.Metadata.WeekNumber),
 		DayLetter:    story.Metadata.DayLetter,
 		GrammarPoint: grammarPoint,
@@ -222,7 +222,7 @@ func (r *Repository) SaveNewStory(ctx context.Context, story *models.Story) erro
 
 	// Save titles
 	for lang, title := range story.Metadata.Title {
-		err = qtx.UpsertStoryTitle(ctx, queries.UpsertStoryTitleParams{
+		err = qtx.UpsertStoryTitle(ctx, db.UpsertStoryTitleParams{
 			StoryID:      result.StoryID,
 			LanguageCode: lang,
 			Title:        title,
@@ -234,7 +234,7 @@ func (r *Repository) SaveNewStory(ctx context.Context, story *models.Story) erro
 
 	// Save description if present
 	if story.Metadata.Description.Text != "" {
-		err = qtx.UpsertStoryDescription(ctx, queries.UpsertStoryDescriptionParams{
+		err = qtx.UpsertStoryDescription(ctx, db.UpsertStoryDescriptionParams{
 			StoryID:         result.StoryID,
 			LanguageCode:    story.Metadata.Description.Language,
 			DescriptionText: story.Metadata.Description.Text,
@@ -251,7 +251,7 @@ func (r *Repository) SaveNewStory(ctx context.Context, story *models.Story) erro
 			audioFile = pgtype.Text{String: *line.AudioFile, Valid: true}
 		}
 
-		err = qtx.UpsertStoryLine(ctx, queries.UpsertStoryLineParams{
+		err = qtx.UpsertStoryLine(ctx, db.UpsertStoryLineParams{
 			StoryID:    result.StoryID,
 			LineNumber: int32(line.LineNumber),
 			Text:       line.Text,
@@ -263,7 +263,7 @@ func (r *Repository) SaveNewStory(ctx context.Context, story *models.Story) erro
 
 		// Save vocabulary items
 		for _, vocab := range line.Vocabulary {
-			_, err = qtx.CreateVocabularyItem(ctx, queries.CreateVocabularyItemParams{
+			_, err = qtx.CreateVocabularyItem(ctx, db.CreateVocabularyItemParams{
 				StoryID:       pgtype.Int4{Int32: result.StoryID, Valid: true},
 				LineNumber:    pgtype.Int4{Int32: int32(line.LineNumber), Valid: true},
 				Word:          vocab.Word,
@@ -278,7 +278,7 @@ func (r *Repository) SaveNewStory(ctx context.Context, story *models.Story) erro
 
 		// Save grammar items
 		for _, grammar := range line.Grammar {
-			_, err = qtx.CreateGrammarItem(ctx, queries.CreateGrammarItemParams{
+			_, err = qtx.CreateGrammarItem(ctx, db.CreateGrammarItemParams{
 				StoryID:       pgtype.Int4{Int32: result.StoryID, Valid: true},
 				LineNumber:    pgtype.Int4{Int32: int32(line.LineNumber), Valid: true},
 				Text:          grammar.Text,
@@ -292,7 +292,7 @@ func (r *Repository) SaveNewStory(ctx context.Context, story *models.Story) erro
 
 		// Save footnotes
 		for _, footnote := range line.Footnotes {
-			footnoteID, err := qtx.CreateFootnote(ctx, queries.CreateFootnoteParams{
+			footnoteID, err := qtx.CreateFootnote(ctx, db.CreateFootnoteParams{
 				StoryID:      pgtype.Int4{Int32: result.StoryID, Valid: true},
 				LineNumber:   pgtype.Int4{Int32: int32(line.LineNumber), Valid: true},
 				FootnoteText: footnote.Text,
@@ -303,7 +303,7 @@ func (r *Repository) SaveNewStory(ctx context.Context, story *models.Story) erro
 
 			// Save footnote references
 			for _, ref := range footnote.References {
-				err = qtx.CreateFootnoteReference(ctx, queries.CreateFootnoteReferenceParams{
+				err = qtx.CreateFootnoteReference(ctx, db.CreateFootnoteReferenceParams{
 					FootnoteID: footnoteID,
 					Reference:  ref,
 				})
@@ -331,7 +331,7 @@ func (r *Repository) EditStoryMetadata(ctx context.Context, storyID int, metadat
 		grammarPoint = pgtype.Text{String: metadata.GrammarPoint, Valid: true}
 	}
 
-	err = qtx.UpdateStory(ctx, queries.UpdateStoryParams{
+	err = qtx.UpdateStory(ctx, db.UpdateStoryParams{
 		StoryID:      int32(storyID),
 		WeekNumber:   int32(metadata.WeekNumber),
 		DayLetter:    metadata.DayLetter,
@@ -343,7 +343,7 @@ func (r *Repository) EditStoryMetadata(ctx context.Context, storyID int, metadat
 
 	// Update titles
 	for lang, title := range metadata.Title {
-		err = qtx.UpsertStoryTitle(ctx, queries.UpsertStoryTitleParams{
+		err = qtx.UpsertStoryTitle(ctx, db.UpsertStoryTitleParams{
 			StoryID:      int32(storyID),
 			LanguageCode: lang,
 			Title:        title,
@@ -363,7 +363,7 @@ func (r *Repository) Delete(ctx context.Context, storyID int) error {
 
 // GetLineText retrieves just the text for a specific line
 func (r *Repository) GetLineText(ctx context.Context, storyID, lineNumber int) (string, error) {
-	line, err := r.queries.GetStoryLine(ctx, queries.GetStoryLineParams{
+	line, err := r.queries.GetStoryLine(ctx, db.GetStoryLineParams{
 		StoryID:    int32(storyID),
 		LineNumber: int32(lineNumber),
 	})

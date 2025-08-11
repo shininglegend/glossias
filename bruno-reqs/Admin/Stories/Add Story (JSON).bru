@@ -1,11 +1,11 @@
 meta {
   name: Add Story (JSON)
   type: http
-  seq: 5
+  seq: 4
 }
 
 post {
-  url: {{baseURL}}/api/admin/stories/add
+  url: {{baseURL}}/api/admin/stories
   body: json
   auth: inherit
 }
@@ -25,4 +25,3 @@ body:json {
 settings {
   encodeUrl: true
 }
-

@@ -1,0 +1,29 @@
+meta {
+  name: Update Annotation
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseURL}}/api/admin/stories/{{adminStoryId}}/annotations
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "lineNumber": 1,
+    "vocabulary": {
+      "word": "יְהִי",
+      "lexicalForm": "היה",
+      "position": [
+        0,
+        4
+      ]
+    }
+  }
+}
+
+settings {
+  encodeUrl: true
+}

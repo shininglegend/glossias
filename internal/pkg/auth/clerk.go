@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/clerkinc/clerk-sdk-go"
+	"github.com/clerk/clerk-sdk-go/v2"
 )
 
 type ClerkMiddleware struct {

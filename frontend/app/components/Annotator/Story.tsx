@@ -54,7 +54,7 @@ export default function Story({ storyId }: { storyId: number }) {
       const response = await fetch(
         `/api/admin/stories/${storyId}/annotations`,
         {
-          method: "PUT",
+          method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(request),
         }
@@ -67,7 +67,6 @@ export default function Story({ storyId }: { storyId: number }) {
 
       const refreshed = await fetch(`/api/admin/stories/${storyId}`);
       const data: ApiResponse = await refreshed.json();
-      console.log(data);
       setLines(data.story.content.lines);
       setMetaData(data.metadata);
     } catch (err) {

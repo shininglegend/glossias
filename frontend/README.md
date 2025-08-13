@@ -26,14 +26,6 @@ npm run dev
   - `PUT /api/admin/stories/:id`
   - `DELETE /api/admin/stories/:id`
 
-Templated admin routes still served by Go (not migrated):
-
-- `/admin` (home)
-- `/admin/stories/add` (GET/POST)
-- `/admin/stories/{id}` (GET non-JSON)/PUT
-- `/admin/stories/{id}/metadata` (GET/PUT)
-- `/admin/stories/delete/{id}` (GET/DELETE)
-
 ### Environment configuration
 
 Your application will be available at `http://localhost:5173`.

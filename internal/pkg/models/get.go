@@ -7,32 +7,6 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// DB interface for database operations
-type DB interface {
-	QueryRow(query string, args ...interface{}) *sql.Row
-	Query(query string, args ...interface{}) (*sql.Rows, error)
-	Begin() (*sql.Tx, error)
-}
-
-// Store provides database access
-type Store struct {
-	db DB
-}
-
-func (s *Store) DB() DB {
-	return s.db
-}
-
-var store *Store
-
-func SetStore(s *Store) {
-	store = s
-}
-
-func NewStore(db DB) *Store {
-	return &Store{db: db}
-}
-
 func GetStoryData(id int) (*Story, error) {
 	story := NewStory()
 

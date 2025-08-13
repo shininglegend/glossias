@@ -13,7 +13,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -34,8 +33,9 @@ func main() {
 		return template.JS(string(b))
 	})
 
-	// Initialize database
-	dbPath := filepath.Join("data", "stories.db")
+	// Initialize database based on POSTGRES_DB environment variable
+	// USE_POOL=true uses pgxpool, USE_POOL=false uses database/sql, no DATABASE_URL uses mock
+	dbPath := "" // Not used for PostgreSQL
 	db, err := database.InitDB(dbPath)
 	if err != nil {
 		log.Fatal(err)

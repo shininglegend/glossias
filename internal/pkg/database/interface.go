@@ -21,12 +21,6 @@ type Store interface {
 	Close() error
 }
 
-// PoolStore extends Store with pgxpool access
-type PoolStore interface {
-	Store
-	Pool() any // Returns *pgxpool.Pool
-}
-
 type Rows interface {
 	Close() error
 	Next() bool

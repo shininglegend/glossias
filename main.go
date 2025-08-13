@@ -1,14 +1,11 @@
 package main
 
 import (
-	"encoding/json"
-	"glossias/internal/admin"
-	"glossias/internal/apis"
-	"glossias/internal/logging"
-	"glossias/internal/pkg/database"
-	"glossias/internal/pkg/models"
-	"glossias/internal/pkg/templates"
-	"html/template"
+	"glossias/src/admin"
+	"glossias/src/apis"
+	"glossias/src/logging"
+	"glossias/src/pkg/database"
+	"glossias/src/pkg/models"
 	"log"
 	"log/slog"
 	"net/http"
@@ -25,13 +22,6 @@ func main() {
 		Level:     slog.LevelDebug,
 		UseColors: true,
 	}))
-
-	// Initialize template engine
-	templateEngine := templates.New("src/templates")
-	templateEngine.AddFunc("json", func(v interface{}) template.JS {
-		b, _ := json.Marshal(v)
-		return template.JS(string(b))
-	})
 
 	// Initialize database based on POSTGRES_DB environment variable
 	// USE_POOL=true uses pgxpool, USE_POOL=false uses database/sql, no DATABASE_URL uses mock
@@ -75,7 +65,7 @@ func main() {
 	apiHandler.RegisterRoutes(apiRouter)
 
 	// Admin API mounted under /api/admin/*
-	adminHandler := admin.NewHandler(logger, templateEngine)
+	adminHandler := admin.NewHandler(logger)
 	adminApiRouter := apiRouter.PathPrefix("/admin").Subrouter()
 	// apiRouter.Use(apis.CORSMiddleware())
 	adminHandler.RegisterRoutes(adminApiRouter)

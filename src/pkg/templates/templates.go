@@ -1,4 +1,4 @@
-// internal/pkg/templates/templates.go
+// src/pkg/templates/templates.go
 package templates
 
 import (

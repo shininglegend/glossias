@@ -1,4 +1,4 @@
-// glossias/internal/pkg/models/delete.go
+// glossias/src/pkg/models/delete.go
 package models
 
 import "database/sql"

@@ -1,4 +1,4 @@
-// glossias/internal/admin/admin.go
+// glossias/src/admin/admin.go
 package admin
 
 import (

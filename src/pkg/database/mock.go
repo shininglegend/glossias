@@ -1,4 +1,4 @@
-// logos-stories/internal/pkg/database/mock.go
+// logos-stories/src/pkg/database/mock.go
 package database
 
 import (

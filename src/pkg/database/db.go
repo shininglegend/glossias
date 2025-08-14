@@ -1,4 +1,4 @@
-// logos-stories/internal/pkg/database/db.go
+// logos-stories/src/pkg/database/db.go
 package database
 
 import (

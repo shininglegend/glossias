@@ -1,4 +1,4 @@
-// glossias/internal/admin/stories/handler.go
+// glossias/src/admin/stories/handler.go
 package stories
 
 import (

@@ -1,4 +1,4 @@
-// glossias/internal/admin/stories/metadata.go
+// glossias/src/admin/stories/metadata.go
 package stories
 
 import (

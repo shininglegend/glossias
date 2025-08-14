@@ -1,4 +1,4 @@
-// glossias/internal/pkg/models/edit.go
+// glossias/src/pkg/models/edit.go
 package models
 
 import (

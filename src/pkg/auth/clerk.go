@@ -1,4 +1,4 @@
-// internal/pkg/auth/clerk.go
+// src/pkg/auth/clerk.go
 package auth
 
 // TODO!

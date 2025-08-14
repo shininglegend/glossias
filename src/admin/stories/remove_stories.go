@@ -1,4 +1,4 @@
-// glossias/internal/admin/stories/remove_stories.go
+// glossias/src/admin/stories/remove_stories.go
 package stories
 
 import (

@@ -1,4 +1,4 @@
-// glossias/internal/admin/stories/annotations.go
+// glossias/src/admin/stories/annotations.go
 package stories
 
 import (

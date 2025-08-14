@@ -1,4 +1,4 @@
-// glossias/internal/admin/stories/edit.go
+// glossias/src/admin/stories/edit.go
 package stories
 
 import (

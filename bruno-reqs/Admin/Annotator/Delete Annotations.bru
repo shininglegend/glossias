@@ -1,0 +1,15 @@
+meta {
+  name: Delete Annotations
+  type: http
+  seq: 2
+}
+
+delete {
+  url: {{baseURL}}/api/admin/stories/{{adminStoryId}}/annotations
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

@@ -1,0 +1,19 @@
+meta {
+  name: Get Line Annotations
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseURL}}/api/admin/stories/{{adminStoryId}}/annotations?line=1
+  body: none
+  auth: inherit
+}
+
+params:query {
+  line: 1
+}
+
+settings {
+  encodeUrl: true
+}

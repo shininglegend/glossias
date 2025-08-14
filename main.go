@@ -1,19 +1,15 @@
 package main
 
 import (
-	"encoding/json"
-	"glossias/internal/admin"
-	"glossias/internal/logging"
-	"glossias/internal/pkg/database"
-	"glossias/internal/pkg/models"
-	"glossias/internal/pkg/templates"
-	"glossias/internal/stories"
-	"html/template"
+	"glossias/src/admin"
+	"glossias/src/apis"
+	"glossias/src/logging"
+	"glossias/src/pkg/database"
+	"glossias/src/pkg/models"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -26,15 +22,9 @@ func main() {
 		UseColors: true,
 	}))
 
-	// Initialize template engine
-	templateEngine := templates.New("src/templates")
-	templateEngine.AddFunc("json", func(v interface{}) template.JS {
-		b, _ := json.Marshal(v)
-		return template.JS(string(b))
-	})
-
-	// Initialize database
-	dbPath := filepath.Join("data", "stories.db")
+	// Initialize database based on POSTGRES_DB environment variable
+	// USE_POOL=true uses pgxpool, USE_POOL=false uses database/sql, no DATABASE_URL uses mock
+	dbPath := "" // Not used for PostgreSQL
 	db, err := database.InitDB(dbPath)
 	if err != nil {
 		log.Fatal(err)
@@ -65,12 +55,23 @@ func main() {
 		http.ServeFile(w, r, "static/html/404.html")
 	})
 
-	// Other handlers
-	adminHandler := admin.NewHandler(logger, templateEngine)
-	adminHandler.RegisterRoutes(r)
+	// API handlers with CORS middleware
+	apiHandler := apis.NewHandler(logger)
+	apiRouter := r.PathPrefix("/api").Subrouter()
+	// apiRouter.Use(apis.CORSMiddleware())
+	apiRouter.Use(jsonMiddleware())
+	// Mount public story API under /api/*
+	apiHandler.RegisterRoutes(apiRouter)
 
-	storiesHandler := stories.NewHandler(logger, templateEngine)
-	storiesHandler.RegisterRoutes(r)
+	// Admin API mounted under /api/admin/*
+	adminHandler := admin.NewHandler(logger)
+	adminApiRouter := apiRouter.PathPrefix("/admin").Subrouter()
+	// apiRouter.Use(apis.CORSMiddleware())
+	adminHandler.RegisterRoutes(adminApiRouter)
+
+	r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	})
 
 	// Select correct port and start the server
 	port := os.Getenv("PORT")
@@ -96,13 +97,20 @@ func main() {
 func loggingMiddleware(logger *slog.Logger) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			start := time.Now()
 			next.ServeHTTP(w, r)
 			logger.Info("request completed",
 				"method", r.Method,
 				"path", r.URL.Path,
-				"requester", r.RemoteAddr,
-				"duration", time.Since(start))
+				"requester", r.RemoteAddr)
+		})
+	}
+}
+
+func jsonMiddleware() mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			next.ServeHTTP(w, r)
 		})
 	}
 }

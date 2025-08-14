@@ -1,0 +1,18 @@
+meta {
+  name: Get Story (JSON)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseURL}}/api/admin/stories/{{adminStoryId}}
+  headers: {
+    Accept: application/json
+  }
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}
+

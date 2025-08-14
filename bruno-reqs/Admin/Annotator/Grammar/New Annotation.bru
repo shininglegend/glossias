@@ -1,0 +1,28 @@
+meta {
+  name: New Annotation
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseURL}}/api/admin/stories/{{adminStoryId}}/annotations
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "lineNumber": 2,
+    "grammar": {
+      "text": "אִישׁ אֶל־הָעִיר",
+      "position": [
+        1,
+        4
+      ]
+    }
+  }
+}
+
+settings {
+  encodeUrl: true
+}

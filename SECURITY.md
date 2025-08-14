@@ -13,3 +13,4 @@ currently being supported with security updates.
 ## Reporting a Vulnerability
 
 Report Vulnerabilities by emailing [security@glossias.org](mailto:security@glossias.org)
+*Note: Email address is inactive. There is little security on this site as of yet. Please open an issue, or if it's confidential, you can contact me via my profile.*

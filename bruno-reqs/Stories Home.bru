@@ -1,0 +1,15 @@
+meta {
+  name: Stories Home
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseURL}}/api/stories
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

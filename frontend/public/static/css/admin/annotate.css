@@ -1,0 +1,45 @@
+.highlighted-text {
+    background-color: rgba(255, 255, 0, 0.3);
+    cursor: pointer;
+}
+.annotation-panel {
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+}
+.annotation-item {
+    position: relative;
+}
+.annotation-item:hover .delete-btn {
+    opacity: 1;
+}
+.delete-btn {
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+.vocab-highlight {
+    color: #ff6b00;
+    cursor: help;
+}
+
+.grammar-highlight {
+    text-decoration: underline wavy #4a5568;
+    text-underline-offset: 3px;
+    cursor: help;
+}
+
+/* Handle overlapping highlights */
+.vocab-highlight.grammar-highlight {
+    color: #ff6b00;
+    text-decoration: underline wavy #4a5568;
+}
+
+.tooltip {
+    position: absolute;
+    background: white;
+    border: 1px solid #ddd;
+    padding: 8px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    display: none;
+}

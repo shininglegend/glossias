@@ -1,0 +1,30 @@
+meta {
+  name: Put Story (JSON)
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseURL}}/api/admin/stories/{{adminStoryId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "Metadata": {
+      "StoryID": {{adminStoryId}},
+      "WeekNumber": 1,
+      "DayLetter": "A",
+      "Title": {"en": "Edited Title"},
+      "Author": {"ID": "abcd1234", "Name": "John Doe"},
+      "Description": {"Language": "en", "Text": "desc"}
+    },
+    "Content": {"Lines": [{"LineNumber": 1, "Text": "Line 1"}]}
+  }
+}
+
+settings {
+  encodeUrl: true
+}
+

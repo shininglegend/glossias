@@ -66,11 +66,6 @@ func main() {
 	// apiRouter.Use(apis.CORSMiddleware())
 	adminHandler.RegisterRoutes(adminApiRouter)
 
-	// SPA fallback - serve React Router app for all non-API routes
-	r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.NotFound(w, r)
-	})
-
 	// Select correct port and start the server
 	port := os.Getenv("PORT")
 	if port == "" {

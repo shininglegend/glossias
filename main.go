@@ -39,17 +39,20 @@ func main() {
 	r.Use(loggingMiddleware(logger))
 
 	// Initialize handlers
-	// Setup static file serving for React Router build
-	r.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/",
-		http.FileServer(http.Dir("frontend/build/client/assets"))))
-
-	// Serve other static files from React Router build
+	// Setup static file serving
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
 		http.FileServer(http.Dir("static"))))
 
 	// Robots.txt
 	r.HandleFunc("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "static/robots.txt")
+	})
+
+	// Error handler
+	r.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		logger.Warn("404", "path", r.URL.Path, "ip", r.RemoteAddr)
+		// Load from 404.html
+		http.ServeFile(w, r, "static/html/404.html")
 	})
 
 	// API handlers with CORS middleware
@@ -66,15 +69,8 @@ func main() {
 	// apiRouter.Use(apis.CORSMiddleware())
 	adminHandler.RegisterRoutes(adminApiRouter)
 
-	// SPA fallback - serve React Router app for all non-API routes
 	r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check if requesting an API route
-		if r.URL.Path != "/" && (r.URL.Path[:5] == "/api/" || len(r.URL.Path) >= 5 && r.URL.Path[:5] == "/api") {
-			http.NotFound(w, r)
-			return
-		}
-		// Serve React Router index.html for all other routes
-		http.ServeFile(w, r, "frontend/build/client/index.html")
+		http.NotFound(w, r)
 	})
 
 	// Select correct port and start the server

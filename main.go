@@ -68,13 +68,7 @@ func main() {
 
 	// SPA fallback - serve React Router app for all non-API routes
 	r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check if requesting an API route
-		if r.URL.Path != "/" && (r.URL.Path[:5] == "/api/" || len(r.URL.Path) >= 5 && r.URL.Path[:5] == "/api") {
-			http.NotFound(w, r)
-			return
-		}
-		// Serve React Router index.html for all other routes
-		http.ServeFile(w, r, "frontend/build/client/index.html")
+		http.NotFound(w, r)
 	})
 
 	// Select correct port and start the server

@@ -39,11 +39,7 @@ func main() {
 	r.Use(loggingMiddleware(logger))
 
 	// Initialize handlers
-	// Setup static file serving for React Router build
-	r.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/",
-		http.FileServer(http.Dir("frontend/build/client/assets"))))
-
-	// Serve other static files from React Router build
+	// Serve static files (robots.txt, etc) that aren't handled by the frontend service
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
 		http.FileServer(http.Dir("static"))))
 
@@ -52,10 +48,9 @@ func main() {
 		http.ServeFile(w, r, "static/robots.txt")
 	})
 
-	// API handlers with CORS middleware
+	// API handlers
 	apiHandler := apis.NewHandler(logger)
 	apiRouter := r.PathPrefix("/api").Subrouter()
-	// apiRouter.Use(apis.CORSMiddleware())
 	apiRouter.Use(jsonMiddleware())
 	// Mount public story API under /api/*
 	apiHandler.RegisterRoutes(apiRouter)
@@ -63,7 +58,6 @@ func main() {
 	// Admin API mounted under /api/admin/*
 	adminHandler := admin.NewHandler(logger)
 	adminApiRouter := apiRouter.PathPrefix("/admin").Subrouter()
-	// apiRouter.Use(apis.CORSMiddleware())
 	adminHandler.RegisterRoutes(adminApiRouter)
 
 	// Select correct port and start the server

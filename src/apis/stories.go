@@ -26,8 +26,9 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	// Base is /api/stories
 	storiesRouter := router.PathPrefix("/stories").Subrouter()
 	h.Handler.RegisterRoutes(storiesRouter)
-	// Add a test hello route
-	router.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]string{"message": "Hello from the api!"})
+	// Health check endpoint
+	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
 	})
 }

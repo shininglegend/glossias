@@ -1,33 +1,45 @@
-import { useLoaderData, useParams, useNavigation } from "react-router";
-import { type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
+import { useParams } from "react-router";
+import React from "react";
 import type { StoryMetadata } from "../types/admin";
 import { getMetadata, updateMetadata } from "../services/adminApi";
 import MetadataForm from "../components/Admin/MetadataForm";
 import Button from "~/components/ui/Button";
 
-export async function loader({ params, request }: LoaderFunctionArgs) {
-  const id = Number(params.id);
-  const url = new URL(request.url);
-  const baseUrl = `${url.protocol}//${url.host}`;
-  const data = await getMetadata(id, baseUrl);
-  const meta = data.story.metadata as StoryMetadata;
-  return { metadata: meta };
-}
-
-export async function action({ request, params }: ActionFunctionArgs) {
-  const id = Number(params.id);
-  const meta: StoryMetadata = await request.json();
-  const url = new URL(request.url);
-  const baseUrl = `${url.protocol}//${url.host}`;
-  await updateMetadata(id, meta, baseUrl);
-  return { success: true } as const;
-}
-
 export default function EditMetadata() {
-  const { metadata } = useLoaderData() as { metadata: StoryMetadata };
   const { id } = useParams();
-  const nav = useNavigation();
-  const saving = nav.state === "submitting";
+  const [metadata, setMetadata] = React.useState<StoryMetadata | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    async function fetchMetadata() {
+      try {
+        const data = await getMetadata(Number(id));
+        setMetadata(data.story.metadata as StoryMetadata);
+      } catch (error) {
+        console.error("Failed to fetch metadata:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchMetadata();
+  }, [id]);
+  if (loading) {
+    return (
+      <main className="container mx-auto p-6">
+        <div className="text-center py-8">Loading metadata...</div>
+      </main>
+    );
+  }
+
+  if (!metadata) {
+    return (
+      <main className="container mx-auto p-6">
+        <div className="text-center py-8">Failed to load metadata</div>
+      </main>
+    );
+  }
+
   return (
     <main className="container mx-auto p-6">
       <div className="mb-4 flex items-center justify-between">
@@ -37,11 +49,15 @@ export default function EditMetadata() {
       <MetadataForm
         value={metadata}
         onSubmit={async (m) => {
-          await fetch(window.location.pathname, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(m),
-          });
+          setSaving(true);
+          try {
+            await updateMetadata(Number(id), m);
+            setMetadata(m);
+          } catch (error) {
+            console.error("Failed to save metadata:", error);
+          } finally {
+            setSaving(false);
+          }
         }}
       />
     </main>

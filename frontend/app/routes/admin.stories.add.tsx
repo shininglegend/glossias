@@ -1,38 +1,42 @@
-import { Form, redirect, useNavigation } from "react-router";
-import { type ActionFunctionArgs } from "react-router";
+import { useNavigate } from "react-router";
 import { addStory } from "../services/adminApi";
 import Input from "~/components/ui/Input";
 import Textarea from "~/components/ui/Textarea";
 import Label from "~/components/ui/Label";
 import Button from "~/components/ui/Button";
-
-export async function action({ request }: ActionFunctionArgs) {
-  const formData = await request.formData();
-  const payload = Object.fromEntries(formData.entries());
-  const url = new URL(request.url);
-  const baseUrl = `${url.protocol}//${url.host}`;
-  await addStory(
-    {
-      titleEn: String(payload.titleEn),
-      languageCode: String(payload.languageCode),
-      authorName: String(payload.authorName),
-      weekNumber: Number(payload.weekNumber),
-      dayLetter: String(payload.dayLetter),
-      storyText: String(payload.storyText),
-      descriptionText: String(payload.descriptionText || ""),
-    },
-    baseUrl
-  );
-  return redirect("/admin");
-}
+import React from "react";
 
 export default function AddStory() {
-  const nav = useNavigation();
-  const submitting = nav.state === "submitting";
+  const navigate = useNavigate();
+  const [submitting, setSubmitting] = React.useState(false);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const formData = new FormData(e.currentTarget);
+      const payload = Object.fromEntries(formData.entries());
+      await addStory({
+        titleEn: String(payload.titleEn),
+        languageCode: String(payload.languageCode),
+        authorName: String(payload.authorName),
+        weekNumber: Number(payload.weekNumber),
+        dayLetter: String(payload.dayLetter),
+        storyText: String(payload.storyText),
+        descriptionText: String(payload.descriptionText || ""),
+      });
+      navigate("/admin");
+    } catch (error) {
+      console.error("Failed to add story:", error);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <main className="container mx-auto p-6">
       <h1 className="text-2xl font-bold mb-4">Add Story</h1>
-      <Form method="post" className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="titleEn">Title (en)</Label>
@@ -106,7 +110,7 @@ export default function AddStory() {
         <Button type="submit" disabled={submitting}>
           {submitting ? "Saving…" : "Save"}
         </Button>
-      </Form>
+      </form>
     </main>
   );
 }

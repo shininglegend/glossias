@@ -1,32 +1,9 @@
-import { useLoaderData, useParams, Link, useNavigation } from "react-router";
-import {
-  redirect,
-  type ActionFunctionArgs,
-  type LoaderFunctionArgs,
-} from "react-router";
+import { useParams, Link, useNavigate } from "react-router";
+import React from "react";
 import type { Story } from "../types/admin";
 import { getStoryForEdit, updateStory } from "../services/adminApi";
 import StoryJSONEditor from "../components/Admin/StoryJSONEditor";
 import Button from "~/components/ui/Button";
-
-export async function loader({ params, request }: LoaderFunctionArgs) {
-  const id = Number(params.id);
-  const url = new URL(request.url);
-  const baseUrl = `${url.protocol}//${url.host}`;
-  const data = await getStoryForEdit(id, baseUrl);
-  const story: Story = (data as any).Story || (data as Story);
-  return { story };
-}
-
-export async function action({ request, params }: ActionFunctionArgs) {
-  const id = Number(params.id);
-  const formData = await request.formData();
-  const payload = JSON.parse(String(formData.get("story")) || "{}");
-  const url = new URL(request.url);
-  const baseUrl = `${url.protocol}//${url.host}`;
-  await updateStory(id, payload, baseUrl);
-  return redirect(`/admin`);
-}
 
 function Section({
   title,
@@ -44,9 +21,41 @@ function Section({
 }
 
 export default function EditStory() {
-  const { story } = useLoaderData() as { story: Story };
   const { id } = useParams();
-  const nav = useNavigation();
+  const navigate = useNavigate();
+  const [story, setStory] = React.useState<Story | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    async function fetchStory() {
+      try {
+        const data = await getStoryForEdit(Number(id));
+        const storyData: Story = (data as any).Story || (data as Story);
+        setStory(storyData);
+      } catch (error) {
+        console.error("Failed to fetch story:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchStory();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <main className="container mx-auto p-6">
+        <div className="text-center py-8">Loading story...</div>
+      </main>
+    );
+  }
+
+  if (!story) {
+    return (
+      <main className="container mx-auto p-6">
+        <div className="text-center py-8">Failed to load story</div>
+      </main>
+    );
+  }
 
   return (
     <main className="container mx-auto p-6">
@@ -68,10 +77,12 @@ export default function EditStory() {
         <StoryJSONEditor
           value={story}
           onSubmit={async (s) => {
-            await fetch(window.location.pathname, {
-              method: "POST",
-              body: new URLSearchParams([["story", JSON.stringify(s)]]),
-            });
+            try {
+              await updateStory(Number(id), s);
+              navigate("/admin");
+            } catch (error) {
+              console.error("Failed to update story:", error);
+            }
           }}
         />
       </Section>

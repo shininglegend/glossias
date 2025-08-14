@@ -3,6 +3,7 @@ package models
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 // DedupConfig controls which operations use deduplication
@@ -142,15 +143,6 @@ func insertFootnote(tx *sql.Tx, storyID, lineNumber int, footnote Footnote) erro
 	return nil
 }
 
-// TODO: fix! Bad approach!
-
 func joinReferences(refs []string) string {
-	if len(refs) == 0 {
-		return ""
-	}
-	result := refs[0]
-	for i := 1; i < len(refs); i++ {
-		result += "," + refs[i]
-	}
-	return result
+	return strings.Join(refs, ",")
 }

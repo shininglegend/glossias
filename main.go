@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -70,15 +69,8 @@ func main() {
 	// apiRouter.Use(apis.CORSMiddleware())
 	adminHandler.RegisterRoutes(adminApiRouter)
 
-	// Redirect all other requests to port 5173 for the frontend
 	r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// /api results shouldn't redirect
-		if strings.HasPrefix(r.URL.Path, "/api") {
-			http.NotFound(w, r)
-			return
-		}
-		http.Redirect(w, r, "http://localhost:5173"+r.URL.Path,
-			http.StatusMovedPermanently)
+		http.NotFound(w, r)
 	})
 
 	// Select correct port and start the server

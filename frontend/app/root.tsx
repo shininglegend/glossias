@@ -7,9 +7,18 @@ import {
   ScrollRestoration,
 } from "react-router";
 
+import { ClerkProvider } from "@clerk/react-router";
+
 import type { Route } from "./+types/root";
 import stylesheet from "./app.css?url";
 import NavBar from "./components/NavBar";
+
+// Clerk
+const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+if (!PUBLISHABLE_KEY) {
+  throw new Error("Add your Clerk Publishable Key to the .env file");
+}
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -64,15 +73,16 @@ export function HydrateFallback() {
 
 export default function App() {
   return (
-    <>
+    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
       <div id="app-shell">
-        {/* changed: add global navigation and page container */}
         <NavBar />
         <div className="pt-16 p-4 container mx-auto">
-          <Outlet />
+          <main>
+            <Outlet />
+          </main>
         </div>
       </div>
-    </>
+    </ClerkProvider>
   );
 }
 

@@ -3,8 +3,11 @@
   "name": "glossias",
   "type": "collection",
   "defaultEnvironment": "dev",
-  "ignore": [
-    "node_modules",
-    ".git"
-  ]
+  "ignore": ["node_modules", ".git"],
+  "auth": {
+    "mode": "bearer",
+    "bearer": {
+      "token": "{{jwt_token}}"
+    }
+  }
 }

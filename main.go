@@ -3,6 +3,7 @@ package main
 import (
 	"glossias/src/admin"
 	"glossias/src/apis"
+	"glossias/src/auth"
 	"glossias/src/logging"
 	"glossias/src/pkg/database"
 	"glossias/src/pkg/models"
@@ -14,6 +15,9 @@ import (
 
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
+
+	"github.com/clerk/clerk-sdk-go/v2"
+	clerkhttp "github.com/clerk/clerk-sdk-go/v2/http"
 )
 
 func main() {
@@ -33,9 +37,14 @@ func main() {
 	// Set the DB for the models package
 	models.SetDB(db)
 
+	// Clerk stuff
+	clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))
+
+	// All routing below here.
 	r := mux.NewRouter()
 
 	// Setup middleware if needed
+	r.Use(auth.Middleware(logger))
 	r.Use(loggingMiddleware(logger))
 
 	// Initialize handlers
@@ -48,11 +57,19 @@ func main() {
 		http.ServeFile(w, r, "static/robots.txt")
 	})
 
+	// Health check endpoint (no auth required)
+	r.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status": "healthy"}`))
+	}).Methods("GET", "OPTIONS")
+
 	// API handlers
 	apiHandler := apis.NewHandler(logger)
 	apiRouter := r.PathPrefix("/api").Subrouter()
+	// Clerk: require Authorization: Bearer <token> on every request
+	apiRouter.Use(clerkhttp.RequireHeaderAuthorization())
 	apiRouter.Use(jsonMiddleware())
-	// Mount public story API under /api/*
 	apiHandler.RegisterRoutes(apiRouter)
 
 	// Admin API mounted under /api/admin/*

@@ -2,12 +2,13 @@
 import { useParams, Link } from "react-router";
 import React from "react";
 import Story from "../components/Annotator/Story";
-import { clearAnnotations } from "../services/adminApi";
+import { useAdminApi } from "../services/adminApi";
 import Button from "~/components/ui/Button";
 
 export default function AdminAnnotateRoute() {
   const params = useParams();
   const id = Number(params.id);
+  const adminApi = useAdminApi();
   const [refreshKey, setRefreshKey] = React.useState(0);
   const [busy, setBusy] = React.useState(false);
   if (!id) return <div>Invalid story ID</div>;
@@ -15,7 +16,7 @@ export default function AdminAnnotateRoute() {
   const handleClear = async () => {
     setBusy(true);
     try {
-      await clearAnnotations(id);
+      await adminApi.clearAnnotations(id);
       setRefreshKey((k) => k + 1);
     } finally {
       setBusy(false);
@@ -27,10 +28,14 @@ export default function AdminAnnotateRoute() {
       <div className="flex items-center justify-between">
         <div className="flex gap-2">
           <Link to={`/admin/stories/${id}`}>
-            <Button variant="outline" size="sm">Back to Edit</Button>
+            <Button variant="outline" size="sm">
+              Back to Edit
+            </Button>
           </Link>
           <Link to={`/admin/stories/${id}/metadata`}>
-            <Button variant="outline" size="sm">Metadata</Button>
+            <Button variant="outline" size="sm">
+              Metadata
+            </Button>
           </Link>
         </div>
         <Button variant="danger" onClick={handleClear} disabled={busy}>
@@ -41,5 +46,3 @@ export default function AdminAnnotateRoute() {
     </div>
   );
 }
-
-

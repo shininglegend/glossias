@@ -1,6 +1,7 @@
 // [moved from annotator/src/components/Story.tsx]
 import React, { useEffect, useState } from "react";
 import Line from "./Line";
+import { useAuthenticatedFetch } from "../../lib/authFetch";
 import {
   createAnnotationRequest,
   type AnnotationType,
@@ -11,6 +12,7 @@ import {
 } from "../../types/api";
 
 export default function Story({ storyId }: { storyId: number }) {
+  const authenticatedFetch = useAuthenticatedFetch();
   const [lines, setLines] = useState<StoryLine[]>([]);
   const [metadata, setMetaData] = useState<StoryMetadata | null>(null);
   const [loading, setLoading] = useState(true);
@@ -19,7 +21,9 @@ export default function Story({ storyId }: { storyId: number }) {
   useEffect(() => {
     const fetchStory = async () => {
       try {
-        const response = await fetch(`/api/admin/stories/${storyId}`);
+        const response = await authenticatedFetch(
+          `/api/admin/stories/${storyId}`,
+        );
         if (!response.ok) throw new Error("Failed to fetch story");
         const data: ApiResponse = await response.json();
         setLines(data.story.content.lines);
@@ -31,7 +35,7 @@ export default function Story({ storyId }: { storyId: number }) {
       }
     };
     fetchStory();
-  }, [storyId]);
+  }, [storyId, authenticatedFetch]);
 
   const handleAnnotation = async (
     lineNumber: number,
@@ -39,7 +43,7 @@ export default function Story({ storyId }: { storyId: number }) {
     type: AnnotationType,
     start: number,
     end: number,
-    data?: { text?: string; lexicalForm?: string }
+    data?: { text?: string; lexicalForm?: string },
   ) => {
     const request = createAnnotationRequest(
       lineNumber,
@@ -47,17 +51,17 @@ export default function Story({ storyId }: { storyId: number }) {
       text,
       start,
       end,
-      data
+      data,
     );
 
     try {
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `/api/admin/stories/${storyId}/annotations`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(request),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -65,7 +69,9 @@ export default function Story({ storyId }: { storyId: number }) {
         throw new Error(err.error);
       }
 
-      const refreshed = await fetch(`/api/admin/stories/${storyId}`);
+      const refreshed = await authenticatedFetch(
+        `/api/admin/stories/${storyId}`,
+      );
       const data: ApiResponse = await refreshed.json();
       setLines(data.story.content.lines);
       setMetaData(data.metadata);
@@ -102,7 +108,7 @@ export default function Story({ storyId }: { storyId: number }) {
                   </div>
                 )}
               </div>
-            ))
+            )),
           )}
         </div>
       </div>

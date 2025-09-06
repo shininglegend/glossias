@@ -5,7 +5,8 @@ import Input from "~/components/ui/Input";
 import { Card } from "~/components/ui/Card";
 import Badge from "~/components/ui/Badge";
 
-import { clearAnnotations, deleteStory } from "../services/adminApi";
+import { useAdminApi } from "../services/adminApi";
+import { useAuthenticatedFetch } from "../lib/authFetch";
 
 type StoryListItem = {
   id: number;
@@ -15,6 +16,8 @@ type StoryListItem = {
 };
 
 export default function AdminHome() {
+  const adminApi = useAdminApi();
+  const authenticatedFetch = useAuthenticatedFetch();
   const [stories, setStories] = React.useState<StoryListItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [processing, setProcessing] = React.useState(false);
@@ -22,7 +25,7 @@ export default function AdminHome() {
   React.useEffect(() => {
     async function fetchStories() {
       try {
-        const res = await fetch("/api/stories", {
+        const res = await authenticatedFetch("/api/stories", {
           headers: { Accept: "application/json" },
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -35,15 +38,15 @@ export default function AdminHome() {
       }
     }
     fetchStories();
-  }, []);
+  }, [authenticatedFetch]);
 
   const handleAction = async (intent: string, storyId: number) => {
     setProcessing(true);
     try {
       if (intent === "clear-annotations") {
-        await clearAnnotations(storyId);
+        await adminApi.clearAnnotations(storyId);
       } else if (intent === "delete") {
-        await deleteStory(storyId);
+        await adminApi.deleteStory(storyId);
         setStories((prev) => prev.filter((s) => s.id !== storyId));
       }
     } catch (error) {
@@ -58,7 +61,7 @@ export default function AdminHome() {
     if (!q) return stories;
     return stories.filter(
       (s) =>
-        (s.title || "").toLowerCase().includes(q) || String(s.id).includes(q)
+        (s.title || "").toLowerCase().includes(q) || String(s.id).includes(q),
     );
   }, [stories, query]);
 

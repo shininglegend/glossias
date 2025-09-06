@@ -1,10 +1,8 @@
 package apis
 
 import (
-	"encoding/json"
 	"glossias/src/apis/handlers"
 	"log/slog"
-	"net/http"
 
 	"github.com/gorilla/mux"
 )
@@ -26,9 +24,4 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	// Base is /api/stories
 	storiesRouter := router.PathPrefix("/stories").Subrouter()
 	h.Handler.RegisterRoutes(storiesRouter)
-	// Health check endpoint
-	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
-	})
 }

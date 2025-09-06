@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router";
-import { addStory } from "../services/adminApi";
+import { useAdminApi } from "../services/adminApi";
 import Input from "~/components/ui/Input";
 import Textarea from "~/components/ui/Textarea";
 import Label from "~/components/ui/Label";
@@ -8,6 +8,7 @@ import React from "react";
 
 export default function AddStory() {
   const navigate = useNavigate();
+  const adminApi = useAdminApi();
   const [submitting, setSubmitting] = React.useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -16,7 +17,7 @@ export default function AddStory() {
     try {
       const formData = new FormData(e.currentTarget);
       const payload = Object.fromEntries(formData.entries());
-      await addStory({
+      await adminApi.addStory({
         titleEn: String(payload.titleEn),
         languageCode: String(payload.languageCode),
         authorName: String(payload.authorName),

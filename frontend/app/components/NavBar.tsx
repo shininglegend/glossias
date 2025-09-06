@@ -1,11 +1,17 @@
 import { NavLink, useLocation } from "react-router";
 import { useMemo } from "react";
+import {
+  SignedIn,
+  SignedOut,
+  UserButton,
+  SignInButton,
+} from "@clerk/react-router";
 
 export default function NavBar() {
   const location = useLocation();
   const isAdmin = useMemo(
     () => location.pathname.startsWith("/admin"),
-    [location.pathname]
+    [location.pathname],
   );
 
   return (
@@ -37,6 +43,12 @@ export default function NavBar() {
           </div>
         </div>
       )}
+      <SignedOut>
+        <SignInButton />
+      </SignedOut>
+      <SignedIn>
+        <UserButton />
+      </SignedIn>
     </header>
   );
 }

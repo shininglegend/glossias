@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router";
-import { api } from "../services/api";
+import { useApiService } from "../services/api";
 import type { PageData } from "../services/api";
 
 export function Page4() {
   const { id } = useParams<{ id: string }>();
+  const api = useApiService();
   const [pageData, setPageData] = useState<PageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
+    null
+  );
 
   useEffect(() => {
     const fetchPageData = async () => {

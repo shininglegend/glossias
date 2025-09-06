@@ -38,7 +38,12 @@ func main() {
 	models.SetDB(db)
 
 	// Clerk stuff
-	clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))
+	clerk_key := os.Getenv("CLERK_SECRET_KEY")
+	if clerk_key == "" {
+		logger.Error("CLERK_SECRET_KEY environment variable not set")
+		os.Exit(1)
+	}
+	clerk.SetKey(clerk_key)
 
 	// All routing below here.
 	r := mux.NewRouter()
@@ -67,8 +72,18 @@ func main() {
 	// API handlers
 	apiHandler := apis.NewHandler(logger)
 	apiRouter := r.PathPrefix("/api").Subrouter()
+	
 	// Clerk: require Authorization: Bearer <token> on every request
-	apiRouter.Use(clerkhttp.RequireHeaderAuthorization())
+	authorizedParty := os.Getenv("AUTHORIZED_PARTY")
+	if authorizedParty == "" {
+		logger.Warn("AUTHORIZED_PARTY environment variable not set")
+		// It's not acually needed, but can cause problems if missing.
+		apiRouter.Use(clerkhttp.RequireHeaderAuthorization())
+	} else {
+		apiRouter.Use(clerkhttp.RequireHeaderAuthorization(
+			clerkhttp.AuthorizedPartyMatches(authorizedParty),
+		))
+	}
 	apiRouter.Use(jsonMiddleware())
 	apiHandler.RegisterRoutes(apiRouter)
 
@@ -101,13 +116,26 @@ func main() {
 func loggingMiddleware(logger *slog.Logger) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r)
+			// Wrap ResponseWriter to capture status code
+			ww := &responseWriter{ResponseWriter: w, status: 200}
+			next.ServeHTTP(ww, r)
 			logger.Info("request completed",
 				"method", r.Method,
 				"path", r.URL.Path,
+				"status", ww.status,
 				"requester", r.RemoteAddr)
 		})
 	}
+}
+
+type responseWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.status = code
+	rw.ResponseWriter.WriteHeader(code)
 }
 
 func jsonMiddleware() mux.MiddlewareFunc {

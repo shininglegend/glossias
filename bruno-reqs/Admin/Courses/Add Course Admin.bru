@@ -1,0 +1,21 @@
+meta {
+  name: Add Course Admin
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseURL}}/api/admin/courses/{{courseId}}/admins
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "user_id": "user_2example123456789"
+  }
+}
+
+settings {
+  encodeUrl: true
+}

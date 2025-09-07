@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router";
-import { api } from "../services/api";
+import { useApiService } from "../services/api";
 import type { Story } from "../services/api";
 
 export function StoryList() {
+  const api = useApiService();
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

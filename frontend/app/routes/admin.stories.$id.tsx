@@ -1,7 +1,7 @@
 import { useParams, Link, useNavigate } from "react-router";
 import React from "react";
 import type { Story } from "../types/admin";
-import { getStoryForEdit, updateStory } from "../services/adminApi";
+import { useAdminApi } from "../services/adminApi";
 import StoryJSONEditor from "../components/Admin/StoryJSONEditor";
 import Button from "~/components/ui/Button";
 
@@ -23,15 +23,15 @@ function Section({
 export default function EditStory() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const adminApi = useAdminApi();
   const [story, setStory] = React.useState<Story | null>(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     async function fetchStory() {
       try {
-        const data = await getStoryForEdit(Number(id));
-        const storyData: Story = (data as any).Story || (data as Story);
-        setStory(storyData);
+        const data = await adminApi.getStoryForEdit(Number(id));
+        setStory(data ? data : null);
       } catch (error) {
         console.error("Failed to fetch story:", error);
       } finally {
@@ -78,7 +78,7 @@ export default function EditStory() {
           value={story}
           onSubmit={async (s) => {
             try {
-              await updateStory(Number(id), s);
+              await adminApi.updateStory(Number(id), s);
               navigate("/admin");
             } catch (error) {
               console.error("Failed to update story:", error);

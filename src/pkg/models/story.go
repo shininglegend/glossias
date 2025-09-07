@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"glossias/src/pkg/database"
+	"glossias/src/pkg/generated/db"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -23,16 +24,21 @@ var (
 	ErrNotFound          = errors.New("story not found")
 )
 
-var store database.Store
+var queries *db.Queries
+var rawConn any
 
 func SetDB(d any) {
 	if d == nil {
 		panic("database connection is nil")
 	}
-	if s, ok := d.(database.Store); ok {
-		store = s
+	rawConn = d
+	if conn, ok := d.(db.DBTX); ok {
+		queries = db.New(conn)
+	} else if mockConn, ok := d.(*database.MockDBTX); ok {
+		queries = db.New(mockConn)
 	} else {
-		panic("unsupported database type")
+		// For testing - allow nil queries when no real DB connection
+		queries = nil
 	}
 }
 
@@ -49,7 +55,8 @@ type StoryMetadata struct {
 	Author       Author            `json:"author"`
 	GrammarPoint string            `json:"grammarPoint"`
 	Description  Description       `json:"description"`
-	LastRevision time.Time         `json:"lastRevision,omitempty"`
+	CourseID     *int              `json:"courseId,omitempty"`
+	LastRevision *time.Time        `json:"lastRevision,omitempty"`
 }
 
 type Author struct {
@@ -126,12 +133,14 @@ func (sm *StoryMetadata) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
 	}
-
+	if aux.LastRevision == "" {
+		return nil // No timestamp provided
+	}
 	parsedTime, err := time.Parse(time.RFC3339, aux.LastRevision)
 	if err != nil {
 		return err
 	}
-	sm.LastRevision = parsedTime
+	sm.LastRevision = &parsedTime
 	return nil
 }
 

@@ -12,8 +12,8 @@ import (
 )
 
 const createStory = `-- name: CreateStory :one
-INSERT INTO stories (week_number, day_letter, grammar_point, author_id, author_name)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO stories (week_number, day_letter, grammar_point, author_id, author_name, course_id)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING story_id, last_revision
 `
 
@@ -23,6 +23,7 @@ type CreateStoryParams struct {
 	GrammarPoint pgtype.Text `json:"grammar_point"`
 	AuthorID     string      `json:"author_id"`
 	AuthorName   string      `json:"author_name"`
+	CourseID     pgtype.Int4 `json:"course_id"`
 }
 
 type CreateStoryRow struct {
@@ -37,6 +38,7 @@ func (q *Queries) CreateStory(ctx context.Context, arg CreateStoryParams) (Creat
 		arg.GrammarPoint,
 		arg.AuthorID,
 		arg.AuthorName,
+		arg.CourseID,
 	)
 	var i CreateStoryRow
 	err := row.Scan(&i.StoryID, &i.LastRevision)
@@ -53,7 +55,7 @@ func (q *Queries) DeleteStory(ctx context.Context, storyID int32) error {
 }
 
 const getAllStories = `-- name: GetAllStories :many
-SELECT s.story_id, s.week_number, s.day_letter, s.grammar_point, s.last_revision, s.author_id, s.author_name
+SELECT s.story_id, s.week_number, s.day_letter, s.grammar_point, s.last_revision, s.author_id, s.author_name, s.course_id
 FROM stories s
 ORDER BY s.week_number, s.day_letter
 `
@@ -75,6 +77,7 @@ func (q *Queries) GetAllStories(ctx context.Context) ([]Story, error) {
 			&i.LastRevision,
 			&i.AuthorID,
 			&i.AuthorName,
+			&i.CourseID,
 		); err != nil {
 			return nil, err
 		}
@@ -167,9 +170,82 @@ func (q *Queries) GetAllStoriesWithTitles(ctx context.Context) ([]GetAllStoriesW
 	return items, nil
 }
 
+const getStoriesByCourse = `-- name: GetStoriesByCourse :many
+SELECT s.story_id, s.week_number, s.day_letter, s.grammar_point, s.last_revision, s.author_id, s.author_name, s.course_id
+FROM stories s
+WHERE s.course_id = $1
+ORDER BY s.week_number, s.day_letter
+`
+
+func (q *Queries) GetStoriesByCourse(ctx context.Context, courseID pgtype.Int4) ([]Story, error) {
+	rows, err := q.db.Query(ctx, getStoriesByCourse, courseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Story{}
+	for rows.Next() {
+		var i Story
+		if err := rows.Scan(
+			&i.StoryID,
+			&i.WeekNumber,
+			&i.DayLetter,
+			&i.GrammarPoint,
+			&i.LastRevision,
+			&i.AuthorID,
+			&i.AuthorName,
+			&i.CourseID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getStoriesForUserCourses = `-- name: GetStoriesForUserCourses :many
+SELECT s.story_id, s.week_number, s.day_letter, s.grammar_point, s.last_revision, s.author_id, s.author_name, s.course_id
+FROM stories s
+JOIN course_admins ca ON s.course_id = ca.course_id
+WHERE ca.user_id = $1
+ORDER BY s.week_number, s.day_letter
+`
+
+func (q *Queries) GetStoriesForUserCourses(ctx context.Context, userID string) ([]Story, error) {
+	rows, err := q.db.Query(ctx, getStoriesForUserCourses, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Story{}
+	for rows.Next() {
+		var i Story
+		if err := rows.Scan(
+			&i.StoryID,
+			&i.WeekNumber,
+			&i.DayLetter,
+			&i.GrammarPoint,
+			&i.LastRevision,
+			&i.AuthorID,
+			&i.AuthorName,
+			&i.CourseID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStory = `-- name: GetStory :one
 
-SELECT s.story_id, s.week_number, s.day_letter, s.grammar_point, s.last_revision, s.author_id, s.author_name
+SELECT s.story_id, s.week_number, s.day_letter, s.grammar_point, s.last_revision, s.author_id, s.author_name, s.course_id
 FROM stories s
 WHERE s.story_id = $1
 `
@@ -186,12 +262,13 @@ func (q *Queries) GetStory(ctx context.Context, storyID int32) (Story, error) {
 		&i.LastRevision,
 		&i.AuthorID,
 		&i.AuthorName,
+		&i.CourseID,
 	)
 	return i, err
 }
 
 const getStoryWithDescription = `-- name: GetStoryWithDescription :one
-SELECT s.story_id, s.week_number, s.day_letter, s.grammar_point, s.last_revision, s.author_id, s.author_name,
+SELECT s.story_id, s.week_number, s.day_letter, s.grammar_point, s.last_revision, s.author_id, s.author_name, s.course_id,
        sd.language_code, sd.description_text
 FROM stories s
 LEFT JOIN story_descriptions sd ON s.story_id = sd.story_id
@@ -206,6 +283,7 @@ type GetStoryWithDescriptionRow struct {
 	LastRevision    pgtype.Timestamp `json:"last_revision"`
 	AuthorID        string           `json:"author_id"`
 	AuthorName      string           `json:"author_name"`
+	CourseID        pgtype.Int4      `json:"course_id"`
 	LanguageCode    pgtype.Text      `json:"language_code"`
 	DescriptionText pgtype.Text      `json:"description_text"`
 }
@@ -221,6 +299,7 @@ func (q *Queries) GetStoryWithDescription(ctx context.Context, storyID int32) (G
 		&i.LastRevision,
 		&i.AuthorID,
 		&i.AuthorName,
+		&i.CourseID,
 		&i.LanguageCode,
 		&i.DescriptionText,
 	)
@@ -229,7 +308,7 @@ func (q *Queries) GetStoryWithDescription(ctx context.Context, storyID int32) (G
 
 const updateStory = `-- name: UpdateStory :exec
 UPDATE stories
-SET week_number = $2, day_letter = $3, grammar_point = $4, author_id = $5, author_name = $6, last_revision = CURRENT_TIMESTAMP
+SET week_number = $2, day_letter = $3, grammar_point = $4, author_id = $5, author_name = $6, course_id = $7, last_revision = CURRENT_TIMESTAMP
 WHERE story_id = $1
 `
 
@@ -240,6 +319,7 @@ type UpdateStoryParams struct {
 	GrammarPoint pgtype.Text `json:"grammar_point"`
 	AuthorID     string      `json:"author_id"`
 	AuthorName   string      `json:"author_name"`
+	CourseID     pgtype.Int4 `json:"course_id"`
 }
 
 func (q *Queries) UpdateStory(ctx context.Context, arg UpdateStoryParams) error {
@@ -250,6 +330,7 @@ func (q *Queries) UpdateStory(ctx context.Context, arg UpdateStoryParams) error 
 		arg.GrammarPoint,
 		arg.AuthorID,
 		arg.AuthorName,
+		arg.CourseID,
 	)
 	return err
 }

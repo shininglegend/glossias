@@ -22,7 +22,7 @@ func (h *Handler) GetPage2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	story, err := models.GetStoryData(id)
+	story, err := models.GetStoryData(r.Context(), id)
 	if err == models.ErrNotFound {
 		h.sendError(w, "Story not found", http.StatusNotFound)
 		return
@@ -124,7 +124,7 @@ func (h *Handler) CheckVocab(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	story, err := models.GetStoryData(id)
+	story, err := models.GetStoryData(r.Context(), id)
 	if err != nil {
 		h.log.Error("Failed to fetch story in CheckVocab", "error", err, "storyID", id)
 		h.sendError(w, "Failed to fetch story", http.StatusInternalServerError)

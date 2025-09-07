@@ -1,0 +1,23 @@
+meta {
+  name: Update Course
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseURL}}/api/admin/courses/{{courseId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "course_number": "CS101-UPDATED",
+    "name": "Introduction to Computer Science - Updated",
+    "description": "An updated foundational course covering basic programming concepts, algorithms, and computer science principles with modern examples."
+  }
+}
+
+settings {
+  encodeUrl: true
+}

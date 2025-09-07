@@ -1,0 +1,15 @@
+meta {
+  name: List Course Admins
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseURL}}/api/admin/courses/{{courseId}}/admins
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

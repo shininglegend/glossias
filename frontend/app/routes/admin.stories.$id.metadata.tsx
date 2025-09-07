@@ -1,12 +1,13 @@
 import { useParams } from "react-router";
 import React from "react";
 import type { StoryMetadata } from "../types/admin";
-import { getMetadata, updateMetadata } from "../services/adminApi";
+import { useAdminApi } from "../services/adminApi";
 import MetadataForm from "../components/Admin/MetadataForm";
 import Button from "~/components/ui/Button";
 
 export default function EditMetadata() {
   const { id } = useParams();
+  const adminApi = useAdminApi();
   const [metadata, setMetadata] = React.useState<StoryMetadata | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -14,7 +15,7 @@ export default function EditMetadata() {
   React.useEffect(() => {
     async function fetchMetadata() {
       try {
-        const data = await getMetadata(Number(id));
+        const data = await adminApi.getMetadata(Number(id));
         setMetadata(data.story.metadata as StoryMetadata);
       } catch (error) {
         console.error("Failed to fetch metadata:", error);
@@ -51,7 +52,7 @@ export default function EditMetadata() {
         onSubmit={async (m) => {
           setSaving(true);
           try {
-            await updateMetadata(Number(id), m);
+            await adminApi.updateMetadata(Number(id), m);
             setMetadata(m);
           } catch (error) {
             console.error("Failed to save metadata:", error);

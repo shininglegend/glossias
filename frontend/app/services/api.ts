@@ -1,5 +1,8 @@
 // API service for connecting to backend endpoints
 
+import { useCallback } from "react";
+import { useAuthenticatedFetch } from "../lib/authFetch";
+
 const API_BASE = "/api";
 
 export interface Story {
@@ -43,60 +46,80 @@ interface StoriesResponse {
   stories: Story[];
 }
 
-class ApiService {
-  private async fetchAPI<T>(
-    endpoint: string,
-    options?: RequestInit
-  ): Promise<APIResponse<T>> {
-    try {
-      const response = await fetch(`${API_BASE}${endpoint}`, {
-        headers: {
-          "Content-Type": "application/json",
-          ...options?.headers,
-        },
-        ...options,
-      });
+export function useApiService() {
+  const authenticatedFetch = useAuthenticatedFetch();
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  const fetchAPI = useCallback(
+    async <T>(
+      endpoint: string,
+      options?: RequestInit,
+    ): Promise<APIResponse<T>> => {
+      try {
+        const response = await authenticatedFetch(`${API_BASE}${endpoint}`, {
+          headers: {
+            "Content-Type": "application/json",
+            ...options?.headers,
+          },
+          ...options,
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        return await response.json();
+      } catch (error) {
+        console.error("API request failed:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        };
       }
+    },
+    [authenticatedFetch],
+  );
 
-      return await response.json();
-    } catch (error) {
-      console.error("API request failed:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
-    }
-  }
+  return {
+    getStories: useCallback((): Promise<APIResponse<StoriesResponse>> => {
+      return fetchAPI<StoriesResponse>("/stories");
+    }, [fetchAPI]),
 
-  async getStories(): Promise<APIResponse<StoriesResponse>> {
-    return this.fetchAPI<StoriesResponse>("/stories");
-  }
+    getStoryPage1: useCallback(
+      (id: string): Promise<APIResponse<PageData>> => {
+        return fetchAPI<PageData>(`/stories/${id}/page1`);
+      },
+      [fetchAPI],
+    ),
 
-  async getStoryPage1(id: string): Promise<APIResponse<PageData>> {
-    return this.fetchAPI<PageData>(`/stories/${id}/page1`);
-  }
+    getStoryPage2: useCallback(
+      (id: string): Promise<APIResponse<Page2Data>> => {
+        return fetchAPI<Page2Data>(`/stories/${id}/page2`);
+      },
+      [fetchAPI],
+    ),
 
-  async getStoryPage2(id: string): Promise<APIResponse<Page2Data>> {
-    return this.fetchAPI<Page2Data>(`/stories/${id}/page2`);
-  }
+    getStoryPage3: useCallback(
+      (id: string): Promise<APIResponse<Page3Data>> => {
+        return fetchAPI<Page3Data>(`/stories/${id}/page3`);
+      },
+      [fetchAPI],
+    ),
 
-  async getStoryPage3(id: string): Promise<APIResponse<Page3Data>> {
-    return this.fetchAPI<Page3Data>(`/stories/${id}/page3`);
-  }
+    getStoryPage4: useCallback(
+      (id: string): Promise<APIResponse<Page4Data>> => {
+        return fetchAPI<Page4Data>(`/stories/${id}/page4`);
+      },
+      [fetchAPI],
+    ),
 
-  async getStoryPage4(id: string): Promise<APIResponse<Page4Data>> {
-    return this.fetchAPI<Page4Data>(`/stories/${id}/page4`);
-  }
-
-  async checkVocab(id: string, answers: any[]): Promise<APIResponse<any>> {
-    return this.fetchAPI(`/stories/${id}/check-vocab`, {
-      method: "POST",
-      body: JSON.stringify({ answers }),
-    });
-  }
+    checkVocab: useCallback(
+      (id: string, answers: any[]): Promise<APIResponse<any>> => {
+        return fetchAPI(`/stories/${id}/check-vocab`, {
+          method: "POST",
+          body: JSON.stringify({ answers }),
+        });
+      },
+      [fetchAPI],
+    ),
+  };
 }
-
-export const api = new ApiService();

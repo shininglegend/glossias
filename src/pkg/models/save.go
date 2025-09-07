@@ -1,32 +1,42 @@
+// glossias/src/pkg/models/save.go
 package models
 
 import (
-	"database/sql"
+	"context"
 
+	"glossias/src/pkg/generated/db"
+
+	"github.com/jackc/pgx/v5/pgtype"
 	_ "github.com/lib/pq"
 )
 
-func SaveNewStory(story *Story) error {
-	return withTransaction(func(tx *sql.Tx) error {
-		// Insert main story - Changed to RETURNING for PostgreSQL
-		var storyID int
-		err := tx.QueryRow(`
-            INSERT INTO stories (week_number, day_letter, grammar_point, author_id, author_name)
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING story_id`,
-			story.Metadata.WeekNumber, story.Metadata.DayLetter, story.Metadata.GrammarPoint,
-			story.Metadata.Author.ID, story.Metadata.Author.Name).Scan(&storyID)
+func SaveNewStory(ctx context.Context, story *Story) error {
+	return withTransaction(func() error {
+		// Create story using SQLC
+		courseID := pgtype.Int4{Valid: false}
+		if story.Metadata.CourseID != nil {
+			courseID = pgtype.Int4{Int32: int32(*story.Metadata.CourseID), Valid: true}
+		}
+
+		result, err := queries.CreateStory(ctx, db.CreateStoryParams{
+			WeekNumber:   int32(story.Metadata.WeekNumber),
+			DayLetter:    story.Metadata.DayLetter,
+			GrammarPoint: pgtype.Text{String: story.Metadata.GrammarPoint, Valid: story.Metadata.GrammarPoint != ""},
+			AuthorID:     story.Metadata.Author.ID,
+			AuthorName:   story.Metadata.Author.Name,
+			CourseID:     courseID,
+		})
 		if err != nil {
 			return err
 		}
 
-		story.Metadata.StoryID = storyID
-		return saveStoryComponents(tx, story)
+		story.Metadata.StoryID = int(result.StoryID)
+		return saveStoryComponents(ctx, story)
 	})
 }
 
-func SaveStoryData(storyID int, story *Story) error {
-	exists, err := storyExists(storyID)
+func SaveStoryData(ctx context.Context, storyID int, story *Story) error {
+	exists, err := queries.StoryExists(ctx, int32(storyID))
 	if err != nil {
 		return err
 	}
@@ -34,109 +44,101 @@ func SaveStoryData(storyID int, story *Story) error {
 		return ErrNotFound
 	}
 
-	return withTransaction(func(tx *sql.Tx) error {
-		// Changed placeholders and timestamp function
-		_, err := tx.Exec(`
-            UPDATE stories
-            SET week_number = $1, day_letter = $2, grammar_point = $3,
-                author_id = $4, author_name = $5, last_revision = CURRENT_TIMESTAMP
-            WHERE story_id = $6`,
-			story.Metadata.WeekNumber, story.Metadata.DayLetter, story.Metadata.GrammarPoint,
-			story.Metadata.Author.ID, story.Metadata.Author.Name, storyID)
+	return withTransaction(func() error {
+		// Update story using SQLC
+		courseID := pgtype.Int4{Valid: false}
+		if story.Metadata.CourseID != nil {
+			courseID = pgtype.Int4{Int32: int32(*story.Metadata.CourseID), Valid: true}
+		}
+
+		err := queries.UpdateStory(ctx, db.UpdateStoryParams{
+			StoryID:      int32(storyID),
+			WeekNumber:   int32(story.Metadata.WeekNumber),
+			DayLetter:    story.Metadata.DayLetter,
+			GrammarPoint: pgtype.Text{String: story.Metadata.GrammarPoint, Valid: story.Metadata.GrammarPoint != ""},
+			AuthorID:     story.Metadata.Author.ID,
+			AuthorName:   story.Metadata.Author.Name,
+			CourseID:     courseID,
+		})
 		if err != nil {
 			return err
 		}
 
-		if err := deleteStoryComponents(tx, storyID); err != nil {
-			return err
-		}
-
-		return saveStoryComponents(tx, story)
+		return saveStoryComponents(ctx, story)
 	})
 }
 
-func saveStoryComponents(tx *sql.Tx, story *Story) error {
-	// Save titles - Changed to $n placeholders
+func saveStoryComponents(ctx context.Context, story *Story) error {
+	// Save titles using SQLC
 	for lang, title := range story.Metadata.Title {
-		if _, err := tx.Exec(`
-            INSERT INTO story_titles (story_id, language_code, title)
-            VALUES ($1, $2, $3)`,
-			story.Metadata.StoryID, lang, title); err != nil {
+		if err := queries.UpsertStoryTitle(ctx, db.UpsertStoryTitleParams{
+			StoryID:      int32(story.Metadata.StoryID),
+			LanguageCode: lang,
+			Title:        title,
+		}); err != nil {
 			return err
 		}
 	}
 
-	// Save description
+	// Save description using SQLC
 	if story.Metadata.Description.Text != "" || story.Metadata.Description.Language != "" {
-		if _, err := tx.Exec(`
-            INSERT INTO story_descriptions (story_id, language_code, description_text)
-            VALUES ($1, $2, $3)`,
-			story.Metadata.StoryID, story.Metadata.Description.Language,
-			story.Metadata.Description.Text); err != nil {
+		if err := queries.UpsertStoryDescription(ctx, db.UpsertStoryDescriptionParams{
+			StoryID:         int32(story.Metadata.StoryID),
+			LanguageCode:    story.Metadata.Description.Language,
+			DescriptionText: story.Metadata.Description.Text,
+		}); err != nil {
 			return err
 		}
 	}
 
-	return saveLines(tx, story.Metadata.StoryID, story.Content.Lines)
+	return saveLines(ctx, story.Metadata.StoryID, story.Content.Lines)
 }
 
-func saveLines(tx *sql.Tx, storyID int, lines []StoryLine) error {
+func saveLines(ctx context.Context, storyID int, lines []StoryLine) error {
 	for _, line := range lines {
-		if err := saveLine(tx, storyID, &line); err != nil {
+		if err := saveLine(ctx, storyID, &line); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func saveLine(tx *sql.Tx, storyID int, line *StoryLine) error {
-	// Save line
-	_, err := tx.Exec(`
-        INSERT INTO story_lines (story_id, line_number, text, audio_file)
-        VALUES ($1, $2, $3, $4)`,
-		storyID, line.LineNumber, line.Text, line.AudioFile)
+func saveLine(ctx context.Context, storyID int, line *StoryLine) error {
+	// Save line using SQLC
+	audioFile := pgtype.Text{String: "", Valid: false}
+	if line.AudioFile != nil {
+		audioFile = pgtype.Text{String: *line.AudioFile, Valid: true}
+	}
+	err := queries.UpsertStoryLine(ctx, db.UpsertStoryLineParams{
+		StoryID:    int32(storyID),
+		LineNumber: int32(line.LineNumber),
+		Text:       line.Text,
+		AudioFile:  audioFile,
+	})
 	if err != nil {
 		return err
 	}
 
 	// Save vocabulary
 	for _, v := range line.Vocabulary {
-		if err := dedupVocabularyInsert(tx, storyID, line.LineNumber, v); err != nil {
+		if err := dedupVocabularyInsert(ctx, storyID, line.LineNumber, v); err != nil {
 			return err
 		}
 	}
 
 	// Save grammar items
 	for _, g := range line.Grammar {
-		if err := dedupGrammarInsert(tx, storyID, line.LineNumber, g); err != nil {
+		if err := dedupGrammarInsert(ctx, storyID, line.LineNumber, g); err != nil {
 			return err
 		}
 	}
 
 	// Save footnotes
 	for _, f := range line.Footnotes {
-		if err := dedupFootnoteInsert(tx, storyID, line.LineNumber, f); err != nil {
+		if err := dedupFootnoteInsert(ctx, storyID, line.LineNumber, f); err != nil {
 			return err
 		}
 	}
 
 	return nil
-}
-
-func deleteStoryComponents(tx *sql.Tx, storyID int) error {
-	tables := []string{"footnotes", "vocabulary_items", "grammar_items",
-		"story_lines", "story_titles", "story_descriptions"}
-
-	for _, table := range tables {
-		if _, err := tx.Exec(`DELETE FROM `+table+` WHERE story_id = $1`, storyID); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func storyExists(id int) (bool, error) {
-	var exists bool
-	err := store.DB().QueryRow("SELECT EXISTS(SELECT 1 FROM stories WHERE story_id = $1)", id).Scan(&exists)
-	return exists, err
 }

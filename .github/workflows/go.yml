@@ -31,8 +31,8 @@ jobs:
 
       - name: Test routes
         run: |
-          # Test API endpoint
-          curl -f http://localhost:8080/api/stories/hello || exit 1
+          # Test health endpoint
+          curl -f http://localhost:8080/api/health || exit 1
 
       - name: Stop server
         run: pkill -f "main.go"

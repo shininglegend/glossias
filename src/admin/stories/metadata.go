@@ -29,7 +29,7 @@ func (h *Handler) metadataHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleGetMetadata(w http.ResponseWriter, r *http.Request, storyID int) {
-	story, err := models.GetStoryData(storyID)
+	story, err := models.GetStoryData(r.Context(), storyID)
 	if err != nil {
 		if err == models.ErrNotFound {
 			http.Error(w, "Story not found", http.StatusNotFound)
@@ -53,7 +53,7 @@ func (h *Handler) handleUpdateMetadata(w http.ResponseWriter, r *http.Request, s
 		return
 	}
 
-	if err := models.EditStoryMetadata(storyID, metadata); err != nil {
+	if err := models.EditStoryMetadata(r.Context(), storyID, metadata); err != nil {
 		h.log.Error("Failed to update metadata", "error", err, "storyID", storyID)
 		http.Error(w, "Failed to update metadata", http.StatusInternalServerError)
 		return

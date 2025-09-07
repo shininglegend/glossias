@@ -1,9 +1,12 @@
 package models
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
-	"strings"
+
+	"glossias/src/pkg/generated/db"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // DedupConfig controls which operations use deduplication
@@ -27,18 +30,20 @@ func SetDedupConfig(config DedupConfig) {
 }
 
 // dedupVocabularyInsert checks for existing vocabulary and returns existing ID or inserts new
-func dedupVocabularyInsert(tx *sql.Tx, storyID, lineNumber int, vocab VocabularyItem) error {
+func dedupVocabularyInsert(ctx context.Context, storyID, lineNumber int, vocab VocabularyItem) error {
 	if !dedupConfig.EnableVocabulary {
-		return insertVocabulary(tx, storyID, lineNumber, vocab)
+		return insertVocabulary(ctx, storyID, lineNumber, vocab)
 	}
 
-	var exists bool
-	err := tx.QueryRow(`
-		SELECT EXISTS(
-			SELECT 1 FROM vocabulary_items
-			WHERE story_id = $1 AND line_number = $2 AND word = $3 AND lexical_form = $4
-			AND position_start = $5 AND position_end = $6
-		)`, storyID, lineNumber, vocab.Word, vocab.LexicalForm, vocab.Position[0], vocab.Position[1]).Scan(&exists)
+	// Check if vocabulary item exists using SQLC
+	exists, err := queries.CheckVocabularyExists(ctx, db.CheckVocabularyExistsParams{
+		StoryID:       pgtype.Int4{Int32: int32(storyID), Valid: true},
+		LineNumber:    pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+		Word:          vocab.Word,
+		LexicalForm:   vocab.LexicalForm,
+		PositionStart: int32(vocab.Position[0]),
+		PositionEnd:   int32(vocab.Position[1]),
+	})
 
 	if err != nil {
 		return err
@@ -47,22 +52,23 @@ func dedupVocabularyInsert(tx *sql.Tx, storyID, lineNumber int, vocab Vocabulary
 	if exists {
 		return errExists
 	}
-	return insertVocabulary(tx, storyID, lineNumber, vocab)
+	return insertVocabulary(ctx, storyID, lineNumber, vocab)
 }
 
 // dedupGrammarInsert checks for existing grammar and returns existing ID or inserts new
-func dedupGrammarInsert(tx *sql.Tx, storyID, lineNumber int, grammar GrammarItem) error {
+func dedupGrammarInsert(ctx context.Context, storyID, lineNumber int, grammar GrammarItem) error {
 	if !dedupConfig.EnableGrammar {
-		return insertGrammar(tx, storyID, lineNumber, grammar)
+		return insertGrammar(ctx, storyID, lineNumber, grammar)
 	}
 
-	var exists bool
-	err := tx.QueryRow(`
-		SELECT EXISTS(
-			SELECT 1 FROM grammar_items
-			WHERE story_id = $1 AND line_number = $2 AND text = $3
-			AND position_start = $4 AND position_end = $5
-		)`, storyID, lineNumber, grammar.Text, grammar.Position[0], grammar.Position[1]).Scan(&exists)
+	// Check if grammar item exists using SQLC
+	exists, err := queries.CheckGrammarExists(ctx, db.CheckGrammarExistsParams{
+		StoryID:       pgtype.Int4{Int32: int32(storyID), Valid: true},
+		LineNumber:    pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+		Text:          grammar.Text,
+		PositionStart: int32(grammar.Position[0]),
+		PositionEnd:   int32(grammar.Position[1]),
+	})
 
 	if err != nil {
 		return err
@@ -71,26 +77,23 @@ func dedupGrammarInsert(tx *sql.Tx, storyID, lineNumber int, grammar GrammarItem
 	if exists {
 		return errExists
 	}
-	return insertGrammar(tx, storyID, lineNumber, grammar)
+	return insertGrammar(ctx, storyID, lineNumber, grammar)
 }
 
 // dedupFootnoteInsert checks for existing footnote and returns existing ID or inserts new
-func dedupFootnoteInsert(tx *sql.Tx, storyID, lineNumber int, footnote Footnote) error {
+func dedupFootnoteInsert(ctx context.Context, storyID, lineNumber int, footnote Footnote) error {
 	if !dedupConfig.EnableFootnotes {
-		return insertFootnote(tx, storyID, lineNumber, footnote)
+		return insertFootnote(ctx, storyID, lineNumber, footnote)
 	}
 
-	var existingID int
-	err := tx.QueryRow(`
-		SELECT f.id FROM footnotes f
-		JOIN footnote_references fr ON f.id = fr.footnote_id
-		WHERE f.story_id = $1 AND f.line_number = $2 AND f.footnote_text = $3
-		GROUP BY f.id, f.footnote_text
-		HAVING array_agg(fr.reference ORDER BY fr.reference) = $4`,
-		storyID, lineNumber, footnote.Text, fmt.Sprintf("{%s}", joinReferences(footnote.References))).Scan(&existingID)
+	existingID, err := queries.CheckFootnoteExists(ctx, db.CheckFootnoteExistsParams{
+		StoryID:      pgtype.Int4{Int32: int32(storyID), Valid: true},
+		LineNumber:   pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+		FootnoteText: footnote.Text,
+	})
 
-	if err == sql.ErrNoRows {
-		return insertFootnote(tx, storyID, lineNumber, footnote)
+	if existingID == 0 {
+		return insertFootnote(ctx, storyID, lineNumber, footnote)
 	}
 	if err != nil {
 		return err
@@ -98,51 +101,48 @@ func dedupFootnoteInsert(tx *sql.Tx, storyID, lineNumber int, footnote Footnote)
 	return errExists
 }
 
-// Original insert functions (extracted from existing code)
-func insertVocabulary(tx *sql.Tx, storyID, lineNumber int, vocab VocabularyItem) error {
-	_, err := tx.Exec(`
-		INSERT INTO vocabulary_items (
-			story_id, line_number, word, lexical_form,
-			position_start, position_end
-		) VALUES ($1, $2, $3, $4, $5, $6)`,
-		storyID, lineNumber, vocab.Word, vocab.LexicalForm,
-		vocab.Position[0], vocab.Position[1])
+// Original insert functions using SQLC
+func insertVocabulary(ctx context.Context, storyID, lineNumber int, vocab VocabularyItem) error {
+	_, err := queries.CreateVocabularyItem(ctx, db.CreateVocabularyItemParams{
+		StoryID:       pgtype.Int4{Int32: int32(storyID), Valid: true},
+		LineNumber:    pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+		Word:          vocab.Word,
+		LexicalForm:   vocab.LexicalForm,
+		PositionStart: int32(vocab.Position[0]),
+		PositionEnd:   int32(vocab.Position[1]),
+	})
 	return err
 }
 
-func insertGrammar(tx *sql.Tx, storyID, lineNumber int, grammar GrammarItem) error {
-	_, err := tx.Exec(`
-		INSERT INTO grammar_items (
-			story_id, line_number, text,
-			position_start, position_end
-		) VALUES ($1, $2, $3, $4, $5)`,
-		storyID, lineNumber, grammar.Text,
-		grammar.Position[0], grammar.Position[1])
+func insertGrammar(ctx context.Context, storyID, lineNumber int, grammar GrammarItem) error {
+	_, err := queries.CreateGrammarItem(ctx, db.CreateGrammarItemParams{
+		StoryID:       pgtype.Int4{Int32: int32(storyID), Valid: true},
+		LineNumber:    pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+		Text:          grammar.Text,
+		PositionStart: int32(grammar.Position[0]),
+		PositionEnd:   int32(grammar.Position[1]),
+	})
 	return err
 }
 
-func insertFootnote(tx *sql.Tx, storyID, lineNumber int, footnote Footnote) error {
-	var footnoteID int
-	err := tx.QueryRow(`
-		INSERT INTO footnotes (story_id, line_number, footnote_text)
-		VALUES ($1, $2, $3)
-		RETURNING id`,
-		storyID, lineNumber, footnote.Text).Scan(&footnoteID)
+func insertFootnote(ctx context.Context, storyID, lineNumber int, footnote Footnote) error {
+	result, err := queries.CreateFootnote(ctx, db.CreateFootnoteParams{
+		StoryID:      pgtype.Int4{Int32: int32(storyID), Valid: true},
+		LineNumber:   pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+		FootnoteText: footnote.Text,
+	})
 	if err != nil {
 		return err
 	}
 
 	for _, ref := range footnote.References {
-		if _, err := tx.Exec(`
-			INSERT INTO footnote_references (footnote_id, reference)
-			VALUES ($1, $2)`,
-			footnoteID, ref); err != nil {
+		err := queries.CreateFootnoteReference(ctx, db.CreateFootnoteReferenceParams{
+			FootnoteID: result,
+			Reference:  ref,
+		})
+		if err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func joinReferences(refs []string) string {
-	return strings.Join(refs, ",")
 }

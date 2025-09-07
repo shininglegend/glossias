@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"glossias/src/admin"
 	"glossias/src/apis"
+	"glossias/src/auth"
 	"glossias/src/logging"
 	"glossias/src/pkg/database"
 	"glossias/src/pkg/models"
@@ -13,7 +15,11 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+
+	"github.com/clerk/clerk-sdk-go/v2"
+	clerkhttp "github.com/clerk/clerk-sdk-go/v2/http"
 )
 
 func main() {
@@ -21,6 +27,13 @@ func main() {
 		Level:     slog.LevelDebug,
 		UseColors: true,
 	}))
+
+	// Load environment variables from .env file if present
+	err := godotenv.Load()
+	if err != nil {
+		slog.WarnContext(context.Background(), "No .env file found, relying on environment variables")
+		err = nil
+	}
 
 	// Initialize database based on POSTGRES_DB environment variable
 	// USE_POOL=true uses pgxpool, USE_POOL=false uses database/sql, no DATABASE_URL uses mock
@@ -31,11 +44,20 @@ func main() {
 	}
 	defer db.Close()
 	// Set the DB for the models package
-	models.SetDB(db)
+	models.SetDB(db.RawConn())
 
+	// Clerk stuff
+	clerk_key := os.Getenv("CLERK_SECRET_KEY")
+	if clerk_key == "" {
+		logger.Error("CLERK_SECRET_KEY environment variable not set. All auth will fail.")
+	}
+	clerk.SetKey(clerk_key)
+
+	// All routing below here.
 	r := mux.NewRouter()
 
 	// Setup middleware if needed
+	r.Use(auth.Middleware(logger))
 	r.Use(loggingMiddleware(logger))
 
 	// Initialize handlers
@@ -48,11 +70,34 @@ func main() {
 		http.ServeFile(w, r, "static/robots.txt")
 	})
 
+	// Health check endpoint (no auth required)
+	r.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status": "healthy"}`))
+	}).Methods("GET", "OPTIONS")
+
 	// API handlers
 	apiHandler := apis.NewHandler(logger)
 	apiRouter := r.PathPrefix("/api").Subrouter()
+
+	// Clerk: require Authorization: Bearer <token> on every request (unless dev auth bypass)
+	authorizedParty := os.Getenv("AUTHORIZED_PARTY")
+	devUser := os.Getenv("DEV_USER")
+
+	// Skip Clerk middleware if DEV_USER is set
+	if devUser == "" {
+		if authorizedParty == "" {
+			logger.Warn("AUTHORIZED_PARTY environment variable not set")
+			// It's not actually needed, but can cause problems if missing.
+			apiRouter.Use(clerkhttp.RequireHeaderAuthorization())
+		} else {
+			apiRouter.Use(clerkhttp.RequireHeaderAuthorization(
+				clerkhttp.AuthorizedPartyMatches(authorizedParty),
+			))
+		}
+	}
 	apiRouter.Use(jsonMiddleware())
-	// Mount public story API under /api/*
 	apiHandler.RegisterRoutes(apiRouter)
 
 	// Admin API mounted under /api/admin/*
@@ -84,13 +129,26 @@ func main() {
 func loggingMiddleware(logger *slog.Logger) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r)
+			// Wrap ResponseWriter to capture status code
+			ww := &responseWriter{ResponseWriter: w, status: 200}
+			next.ServeHTTP(ww, r)
 			logger.Info("request completed",
 				"method", r.Method,
 				"path", r.URL.Path,
+				"status", ww.status,
 				"requester", r.RemoteAddr)
 		})
 	}
+}
+
+type responseWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.status = code
+	rw.ResponseWriter.WriteHeader(code)
 }
 
 func jsonMiddleware() mux.MiddlewareFunc {

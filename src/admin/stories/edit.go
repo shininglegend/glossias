@@ -43,7 +43,7 @@ func (h *Handler) editStoryHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleGetStory(w http.ResponseWriter, r *http.Request, storyID int) {
 	// Fetch story from database
-	story, err := models.GetStoryData(storyID)
+	story, err := models.GetStoryData(r.Context(), storyID)
 	if err != nil {
 		if err == models.ErrNotFound {
 			http.Error(w, "Story not found", http.StatusNotFound)
@@ -62,8 +62,8 @@ func (h *Handler) handleGetStory(w http.ResponseWriter, r *http.Request, storyID
 
 func (h *Handler) handleUpdateStory(w http.ResponseWriter, r *http.Request, storyID int) {
 	// Parse request body
-	var story models.Story
-	if err := json.NewDecoder(r.Body).Decode(&story); err != nil {
+	story := models.Story{}
+	if err := json.NewDecoder(r.Body).Decode(&story); err != nil || story.Metadata.StoryID == 0 {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
 	}
@@ -81,7 +81,7 @@ func (h *Handler) handleUpdateStory(w http.ResponseWriter, r *http.Request, stor
 	}
 
 	// Update story in database
-	if err := models.SaveStoryData(storyID, &story); err != nil {
+	if err := models.SaveStoryData(r.Context(), storyID, &story); err != nil {
 		h.log.Error("Failed to update story", "error", err, "storyID", storyID)
 		http.Error(w, "Failed to update story", http.StatusInternalServerError)
 		return

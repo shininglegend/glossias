@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router";
-import { api } from "../services/api";
+import { useApiService } from "../services/api";
 import type { Page3Data } from "../services/api";
 
 export function Page3() {
   const { id } = useParams<{ id: string }>();
+  const api = useApiService();
   const [pageData, setPageData] = useState<Page3Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
+    null,
+  );
 
   useEffect(() => {
     const fetchPageData = async () => {
@@ -104,9 +107,13 @@ export function Page3() {
             <div className="story-text">
               {line.text.map((text, textIndex) => {
                 if (text === "%") {
-                  return <span key={textIndex} className="grammar-highlight-start" />;
+                  return (
+                    <span key={textIndex} className="grammar-highlight-start" />
+                  );
                 } else if (text === "&") {
-                  return <span key={textIndex} className="grammar-highlight-end" />;
+                  return (
+                    <span key={textIndex} className="grammar-highlight-end" />
+                  );
                 } else {
                   return <span key={textIndex}>{text}</span>;
                 }

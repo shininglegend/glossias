@@ -11,30 +11,43 @@ import (
 )
 
 type Querier interface {
+	// Course admin management queries
+	AddCourseAdmin(ctx context.Context, arg AddCourseAdminParams) (CourseAdmin, error)
 	BulkCreateGrammarItems(ctx context.Context, arg []BulkCreateGrammarItemsParams) (int64, error)
 	BulkCreateStoryLines(ctx context.Context, arg []BulkCreateStoryLinesParams) (int64, error)
 	BulkCreateVocabularyItems(ctx context.Context, arg []BulkCreateVocabularyItemsParams) (int64, error)
+	CanUserAccessCourse(ctx context.Context, arg CanUserAccessCourseParams) (bool, error)
 	CheckFootnoteExists(ctx context.Context, arg CheckFootnoteExistsParams) (int32, error)
 	CheckGrammarExists(ctx context.Context, arg CheckGrammarExistsParams) (bool, error)
 	CheckVocabularyExists(ctx context.Context, arg CheckVocabularyExistsParams) (bool, error)
+	// Course management queries
+	CreateCourse(ctx context.Context, arg CreateCourseParams) (Course, error)
 	CreateFootnote(ctx context.Context, arg CreateFootnoteParams) (int32, error)
 	CreateFootnoteReference(ctx context.Context, arg CreateFootnoteReferenceParams) error
 	CreateGrammarItem(ctx context.Context, arg CreateGrammarItemParams) (int32, error)
 	CreateStory(ctx context.Context, arg CreateStoryParams) (CreateStoryRow, error)
+	// User management queries
+	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateVocabularyItem(ctx context.Context, arg CreateVocabularyItemParams) (int32, error)
 	DeleteAllGrammarForStory(ctx context.Context, storyID pgtype.Int4) error
 	DeleteAllLineAnnotations(ctx context.Context, arg DeleteAllLineAnnotationsParams) error
 	DeleteAllStoryAnnotations(ctx context.Context, storyID pgtype.Int4) error
 	DeleteAllStoryLines(ctx context.Context, storyID int32) error
 	DeleteAllVocabularyForStory(ctx context.Context, storyID pgtype.Int4) error
+	DeleteCourse(ctx context.Context, courseID int32) error
 	DeleteFootnote(ctx context.Context, id int32) error
 	DeleteFootnoteReferences(ctx context.Context, footnoteID int32) error
+	DeleteFootnoteReferencesByStory(ctx context.Context, storyID pgtype.Int4) error
 	DeleteGrammarItem(ctx context.Context, id int32) error
 	DeleteGrammarItems(ctx context.Context, arg DeleteGrammarItemsParams) error
+	DeleteLineFootnoteReferences(ctx context.Context, arg DeleteLineFootnoteReferencesParams) error
+	DeleteLineGrammar(ctx context.Context, arg DeleteLineGrammarParams) error
+	DeleteLineVocabulary(ctx context.Context, arg DeleteLineVocabularyParams) error
 	DeleteStory(ctx context.Context, storyID int32) error
 	DeleteStoryDescriptions(ctx context.Context, storyID int32) error
 	DeleteStoryLine(ctx context.Context, arg DeleteStoryLineParams) error
 	DeleteStoryTitles(ctx context.Context, storyID int32) error
+	DeleteUser(ctx context.Context, userID string) error
 	DeleteVocabularyItem(ctx context.Context, id int32) error
 	DeleteVocabularyItems(ctx context.Context, arg DeleteVocabularyItemsParams) error
 	GetAllAnnotationsForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllAnnotationsForStoryRow, error)
@@ -44,10 +57,16 @@ type Querier interface {
 	GetAllStoriesBasic(ctx context.Context, languageCode string) ([]GetAllStoriesBasicRow, error)
 	GetAllStoriesWithTitles(ctx context.Context) ([]GetAllStoriesWithTitlesRow, error)
 	GetAllVocabularyForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllVocabularyForStoryRow, error)
+	GetCourse(ctx context.Context, courseID int32) (Course, error)
+	GetCourseAdmins(ctx context.Context, courseID int32) ([]GetCourseAdminsRow, error)
+	GetCourseByNumber(ctx context.Context, courseNumber string) (Course, error)
+	GetCoursesForUser(ctx context.Context, userID string) ([]Course, error)
 	GetFootnoteReferences(ctx context.Context, footnoteID int32) ([]string, error)
 	GetFootnotes(ctx context.Context, arg GetFootnotesParams) ([]Footnote, error)
 	GetGrammarItems(ctx context.Context, arg GetGrammarItemsParams) ([]GrammarItem, error)
 	GetLineText(ctx context.Context, arg GetLineTextParams) (string, error)
+	GetStoriesByCourse(ctx context.Context, courseID pgtype.Int4) ([]Story, error)
+	GetStoriesForUserCourses(ctx context.Context, userID string) ([]Story, error)
 	// Core story operations
 	GetStory(ctx context.Context, storyID int32) (Story, error)
 	// Story descriptions
@@ -60,19 +79,31 @@ type Querier interface {
 	// Story titles
 	GetStoryTitles(ctx context.Context, storyID int32) ([]StoryTitle, error)
 	GetStoryWithDescription(ctx context.Context, storyID int32) (GetStoryWithDescriptionRow, error)
+	GetUser(ctx context.Context, userID string) (User, error)
+	GetUserByEmail(ctx context.Context, email string) (User, error)
+	GetUserCourseAdminRights(ctx context.Context, userID string) ([]GetUserCourseAdminRightsRow, error)
 	GetVocabularyItems(ctx context.Context, arg GetVocabularyItemsParams) ([]VocabularyItem, error)
+	IsUserAdminOfAnyCourse(ctx context.Context, userID string) (bool, error)
+	IsUserCourseAdmin(ctx context.Context, arg IsUserCourseAdminParams) (bool, error)
 	LineExists(ctx context.Context, arg LineExistsParams) (bool, error)
+	ListCourses(ctx context.Context) ([]Course, error)
+	ListSuperAdmins(ctx context.Context) ([]User, error)
+	ListUsers(ctx context.Context) ([]User, error)
+	RemoveCourseAdmin(ctx context.Context, arg RemoveCourseAdminParams) error
 	StoryExists(ctx context.Context, storyID int32) (bool, error)
+	UpdateCourse(ctx context.Context, arg UpdateCourseParams) (Course, error)
 	UpdateFootnote(ctx context.Context, arg UpdateFootnoteParams) error
 	UpdateGrammarByPosition(ctx context.Context, arg UpdateGrammarByPositionParams) error
 	UpdateStory(ctx context.Context, arg UpdateStoryParams) error
 	UpdateStoryRevision(ctx context.Context, storyID int32) error
+	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpdateVocabularyByPosition(ctx context.Context, arg UpdateVocabularyByPositionParams) error
 	UpdateVocabularyByWord(ctx context.Context, arg UpdateVocabularyByWordParams) error
 	UpdateVocabularyItem(ctx context.Context, arg UpdateVocabularyItemParams) error
 	UpsertStoryDescription(ctx context.Context, arg UpsertStoryDescriptionParams) error
 	UpsertStoryLine(ctx context.Context, arg UpsertStoryLineParams) error
 	UpsertStoryTitle(ctx context.Context, arg UpsertStoryTitleParams) error
+	UpsertUser(ctx context.Context, arg UpsertUserParams) (User, error)
 }
 
 var _ Querier = (*Queries)(nil)

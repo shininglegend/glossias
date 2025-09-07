@@ -2,9 +2,12 @@
 package admin
 
 import (
+	"glossias/src/auth"
 	"log/slog"
 	"net/http"
+	"strconv"
 
+	"glossias/src/admin/courses"
 	"glossias/src/admin/stories"
 
 	"github.com/gorilla/mux"
@@ -13,12 +16,14 @@ import (
 type Handler struct {
 	log     *slog.Logger
 	stories *stories.Handler
+	courses *courses.Handler
 }
 
 func NewHandler(log *slog.Logger) *Handler {
 	return &Handler{
 		log:     log,
 		stories: stories.NewHandler(log),
+		courses: courses.NewHandler(log),
 	}
 }
 
@@ -27,13 +32,47 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	// Apply admin-specific middleware at this level
 	r.Use(h.adminAuthMiddleware)
 
-	// Register all admin story routes beneath the provided base router
+	// Register all admin routes beneath the provided base router
 	h.stories.RegisterRoutes(r)
+	h.courses.RegisterRoutes(r)
 }
 
 func (h *Handler) adminAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// TODO: Admin authentication logic here
+		// Get user ID from request context (set by auth middleware)
+		userID, ok := auth.GetUserID(r)
+		if !ok {
+			h.log.Warn("admin access attempted without user ID", "path", r.URL.Path)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Check if user is admin (super admin or course admin)
+		if !auth.IsAdmin(r.Context(), userID) {
+			h.log.Warn("admin access denied", "user_id", userID, "path", r.URL.Path)
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
+		// For course-specific operations, check course access
+		// Extract course_id from query parameters if present
+		courseIDStr := r.URL.Query().Get("course_id")
+		if courseIDStr != "" {
+			courseID, err := strconv.Atoi(courseIDStr)
+			if err != nil {
+				h.log.Warn("invalid course_id parameter", "course_id", courseIDStr, "user_id", userID)
+				http.Error(w, "Invalid course ID", http.StatusBadRequest)
+				return
+			}
+
+			// Check if user has access to this specific course
+			if !auth.HasPermission(r.Context(), userID, int32(courseID)) {
+				h.log.Warn("course access denied", "user_id", userID, "course_id", courseID, "path", r.URL.Path)
+				http.Error(w, "Course access forbidden", http.StatusForbidden)
+				return
+			}
+		}
+
 		next.ServeHTTP(w, r)
 	})
 }

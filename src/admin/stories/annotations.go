@@ -45,6 +45,7 @@ func (h *Handler) annotationsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleGetStoryAnnotations(w http.ResponseWriter, r *http.Request, storyID int) {
+	ctx := r.Context()
 	lineNumberParam := r.URL.Query().Get("line")
 
 	if lineNumberParam != "" {
@@ -55,7 +56,7 @@ func (h *Handler) handleGetStoryAnnotations(w http.ResponseWriter, r *http.Reque
 			return
 		}
 
-		line, err := models.GetLineAnnotations(storyID, lineNumber)
+		line, err := models.GetLineAnnotations(ctx, storyID, lineNumber)
 		if err != nil {
 			if err == models.ErrNotFound {
 				writeJSONError(w, "Story not found", http.StatusNotFound)
@@ -71,7 +72,7 @@ func (h *Handler) handleGetStoryAnnotations(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Get all annotations for story
-	annotations, err := models.GetStoryAnnotations(storyID)
+	annotations, err := models.GetStoryAnnotations(ctx, storyID)
 	if err != nil {
 		if err == models.ErrNotFound {
 			writeJSONError(w, "Story not found", http.StatusNotFound)
@@ -86,6 +87,8 @@ func (h *Handler) handleGetStoryAnnotations(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) handleAddAnnotations(w http.ResponseWriter, r *http.Request, storyID int) {
+	ctx := r.Context()
+
 	var req AnnotationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSONError(w, "Invalid request body", http.StatusBadRequest)
@@ -93,7 +96,7 @@ func (h *Handler) handleAddAnnotations(w http.ResponseWriter, r *http.Request, s
 	}
 
 	// Get line text for validation
-	lineText, err := models.GetLineText(storyID, req.LineNumber)
+	lineText, err := models.GetLineText(ctx, storyID, req.LineNumber)
 	if err != nil {
 		if err == models.ErrInvalidLineNumber {
 			writeJSONError(w, "Line not found", http.StatusNotFound)
@@ -133,7 +136,7 @@ func (h *Handler) handleAddAnnotations(w http.ResponseWriter, r *http.Request, s
 	}
 
 	// Update in database (editline just adds)
-	if err := models.AddLineAnnotations(storyID, req.LineNumber, line); err != nil {
+	if err := models.AddLineAnnotations(ctx, storyID, req.LineNumber, line); err != nil {
 		h.log.Error("Failed to update annotations",
 			"error", err,
 			"storyID", storyID,
@@ -148,6 +151,8 @@ func (h *Handler) handleAddAnnotations(w http.ResponseWriter, r *http.Request, s
 }
 
 func (h *Handler) handleEditAnnotations(w http.ResponseWriter, r *http.Request, storyID int) {
+	ctx := r.Context()
+
 	var req AnnotationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSONError(w, "Invalid request body", http.StatusBadRequest)
@@ -157,25 +162,25 @@ func (h *Handler) handleEditAnnotations(w http.ResponseWriter, r *http.Request, 
 	// Validate that we have both the annotation data and the identifier
 	switch {
 	case req.Grammar != nil && req.GrammarPosition != nil:
-		if err := models.UpdateGrammarAnnotation(storyID, req.LineNumber, *req.GrammarPosition, *req.Grammar); err != nil {
+		if err := models.UpdateGrammarAnnotation(ctx, storyID, req.LineNumber, *req.GrammarPosition, *req.Grammar); err != nil {
 			h.log.Error("Failed to update grammar annotation", "error", err, "storyID", storyID, "lineNumber", req.LineNumber)
 			writeJSONError(w, "Failed to update grammar annotation", http.StatusInternalServerError)
 			return
 		}
 	case req.Footnote != nil && req.FootnoteID != nil:
-		if err := models.UpdateFootnoteAnnotation(storyID, *req.FootnoteID, *req.Footnote); err != nil {
+		if err := models.UpdateFootnoteAnnotation(ctx, storyID, *req.FootnoteID, *req.Footnote); err != nil {
 			h.log.Error("Failed to update footnote annotation", "error", err, "storyID", storyID, "footnoteID", *req.FootnoteID)
 			writeJSONError(w, "Failed to update footnote annotation", http.StatusInternalServerError)
 			return
 		}
 	case req.Vocabulary != nil && req.VocabularyPosition != nil:
-		if err := models.UpdateVocabularyAnnotation(storyID, req.LineNumber, *req.VocabularyPosition, *req.Vocabulary); err != nil {
+		if err := models.UpdateVocabularyAnnotation(ctx, storyID, req.LineNumber, *req.VocabularyPosition, *req.Vocabulary); err != nil {
 			h.log.Error("Failed to update vocabulary annotation", "error", err, "storyID", storyID, "lineNumber", req.LineNumber)
 			writeJSONError(w, "Failed to update vocabulary annotation", http.StatusInternalServerError)
 			return
 		}
 	case req.Vocabulary != nil:
-		if err := models.UpdateVocabularyByWord(storyID, req.LineNumber, req.Vocabulary.Word, req.Vocabulary.LexicalForm); err != nil {
+		if err := models.UpdateVocabularyByWord(ctx, storyID, req.LineNumber, req.Vocabulary.Word, req.Vocabulary.LexicalForm); err != nil {
 			h.log.Error("Failed to update vocabulary lexical form", "error", err, "storyID", storyID, "lineNumber", req.LineNumber, "word", req.Vocabulary.Word)
 			writeJSONError(w, "Failed to update vocabulary lexical form", http.StatusInternalServerError)
 			return
@@ -191,6 +196,8 @@ func (h *Handler) handleEditAnnotations(w http.ResponseWriter, r *http.Request, 
 }
 
 func (h *Handler) handleClearAnnotations(w http.ResponseWriter, r *http.Request, storyID int) {
+	ctx := r.Context()
+
 	lineNumberParam := r.URL.Query().Get("line")
 
 	if lineNumberParam != "" {
@@ -201,14 +208,14 @@ func (h *Handler) handleClearAnnotations(w http.ResponseWriter, r *http.Request,
 			return
 		}
 
-		if err := models.ClearLineAnnotations(storyID, lineNumber); err != nil {
+		if err := models.ClearLineAnnotations(ctx, storyID, lineNumber); err != nil {
 			h.log.Error("Failed to clear line annotations", "error", err, "storyID", storyID, "lineNumber", lineNumber)
 			writeJSONError(w, "Failed to clear line annotations", http.StatusInternalServerError)
 			return
 		}
 	} else {
 		// Clear all annotations for story
-		if err := models.ClearStoryAnnotations(storyID); err != nil {
+		if err := models.ClearStoryAnnotations(ctx, storyID); err != nil {
 			h.log.Error("Failed to clear annotations", "error", err, "storyID", storyID)
 			writeJSONError(w, "Failed to clear annotations", http.StatusInternalServerError)
 			return

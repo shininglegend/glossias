@@ -3,7 +3,6 @@ package models
 
 import (
 	"context"
-	"database/sql"
 
 	"glossias/src/pkg/generated/db"
 
@@ -12,7 +11,7 @@ import (
 )
 
 func SaveNewStory(ctx context.Context, story *Story) error {
-	return withTransaction(func(tx *sql.Tx) error {
+	return withTransaction(func() error {
 		// Create story using SQLC
 		result, err := queries.CreateStory(ctx, db.CreateStoryParams{
 			WeekNumber:   int32(story.Metadata.WeekNumber),
@@ -27,7 +26,7 @@ func SaveNewStory(ctx context.Context, story *Story) error {
 		}
 
 		story.Metadata.StoryID = int(result.StoryID)
-		return saveStoryComponents(ctx, tx, story)
+		return saveStoryComponents(ctx, story)
 	})
 }
 
@@ -40,7 +39,7 @@ func SaveStoryData(ctx context.Context, storyID int, story *Story) error {
 		return ErrNotFound
 	}
 
-	return withTransaction(func(tx *sql.Tx) error {
+	return withTransaction(func() error {
 		// Update story using SQLC
 		err := queries.UpdateStory(ctx, db.UpdateStoryParams{
 			StoryID:      int32(storyID),
@@ -55,15 +54,15 @@ func SaveStoryData(ctx context.Context, storyID int, story *Story) error {
 			return err
 		}
 
-		if err := saveStoryComponents(ctx, tx, story); err != nil {
+		if err := saveStoryComponents(ctx, story); err != nil {
 			return err
 		}
 
-		return saveStoryComponents(ctx, tx, story)
+		return saveStoryComponents(ctx, story)
 	})
 }
 
-func saveStoryComponents(ctx context.Context, tx *sql.Tx, story *Story) error {
+func saveStoryComponents(ctx context.Context, story *Story) error {
 	// Save titles using SQLC
 	for lang, title := range story.Metadata.Title {
 		if err := queries.UpsertStoryTitle(ctx, db.UpsertStoryTitleParams{
@@ -86,19 +85,19 @@ func saveStoryComponents(ctx context.Context, tx *sql.Tx, story *Story) error {
 		}
 	}
 
-	return saveLines(ctx, tx, story.Metadata.StoryID, story.Content.Lines)
+	return saveLines(ctx, story.Metadata.StoryID, story.Content.Lines)
 }
 
-func saveLines(ctx context.Context, tx *sql.Tx, storyID int, lines []StoryLine) error {
+func saveLines(ctx context.Context, storyID int, lines []StoryLine) error {
 	for _, line := range lines {
-		if err := saveLine(ctx, tx, storyID, &line); err != nil {
+		if err := saveLine(ctx, storyID, &line); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func saveLine(ctx context.Context, tx *sql.Tx, storyID int, line *StoryLine) error {
+func saveLine(ctx context.Context, storyID int, line *StoryLine) error {
 	// Save line using SQLC
 	audioFile := pgtype.Text{String: "", Valid: false}
 	if line.AudioFile != nil {
@@ -116,49 +115,24 @@ func saveLine(ctx context.Context, tx *sql.Tx, storyID int, line *StoryLine) err
 
 	// Save vocabulary
 	for _, v := range line.Vocabulary {
-		if err := dedupVocabularyInsert(ctx, tx, storyID, line.LineNumber, v); err != nil {
+		if err := dedupVocabularyInsert(ctx, storyID, line.LineNumber, v); err != nil {
 			return err
 		}
 	}
 
 	// Save grammar items
 	for _, g := range line.Grammar {
-		if err := dedupGrammarInsert(ctx, tx, storyID, line.LineNumber, g); err != nil {
+		if err := dedupGrammarInsert(ctx, storyID, line.LineNumber, g); err != nil {
 			return err
 		}
 	}
 
 	// Save footnotes
 	for _, f := range line.Footnotes {
-		if err := dedupFootnoteInsert(ctx, tx, storyID, line.LineNumber, f); err != nil {
+		if err := dedupFootnoteInsert(ctx, storyID, line.LineNumber, f); err != nil {
 			return err
 		}
 	}
 
-	return nil
-}
-
-func deleteStoryComponents(ctx context.Context, tx *sql.Tx, storyID int) error {
-	// Delete using individual SQLC functions
-	if err := queries.DeleteStoryTitles(ctx, int32(storyID)); err != nil {
-		return err
-	}
-	if err := queries.DeleteStoryDescriptions(ctx, int32(storyID)); err != nil {
-		return err
-	}
-	if err := queries.DeleteAllStoryLines(ctx, int32(storyID)); err != nil {
-		return err
-	}
-
-	// Delete related content using SQLC
-	if err := queries.DeleteAllStoryAnnotations(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true}); err != nil {
-		return err
-	}
-	if err := queries.DeleteAllVocabularyForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true}); err != nil {
-		return err
-	}
-	if err := queries.DeleteAllGrammarForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true}); err != nil {
-		return err
-	}
 	return nil
 }

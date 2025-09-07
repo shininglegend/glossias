@@ -304,7 +304,7 @@ func GetLineText(ctx context.Context, storyID int, lineNumber int) (string, erro
 }
 
 // withTransaction executes a function within a database transaction
-func withTransaction(fn func(*sql.Tx) error) error {
+func withTransaction(fn func() error) error {
 	// Check if we're using pgxpool
 	if pool, ok := rawConn.(*pgxpool.Pool); ok {
 		// Use pgx transaction
@@ -320,7 +320,7 @@ func withTransaction(fn func(*sql.Tx) error) error {
 		queries = queries.WithTx(tx)
 
 		// Execute function (tx parameter is ignored for SQLC)
-		err = fn(nil)
+		err = fn()
 
 		// Restore original queries
 		queries = oldQueries
@@ -332,24 +332,9 @@ func withTransaction(fn func(*sql.Tx) error) error {
 		return tx.Commit(ctx)
 	}
 
-	// Check if we're using *sql.DB
-	if sqlDB, ok := rawConn.(*sql.DB); ok {
-		tx, err := sqlDB.Begin()
-		if err != nil {
-			return err
-		}
-		defer tx.Rollback()
-
-		if err := fn(tx); err != nil {
-			return err
-		}
-
-		return tx.Commit()
-	}
-
 	// Fallback for other connection types
 	fmt.Println("# Connection type not recognized. Transactions disabled.")
-	return fn(nil)
+	return fn()
 }
 
 func GetAllStories(ctx context.Context, language string) ([]Story, error) {

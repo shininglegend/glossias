@@ -3,7 +3,6 @@ package models
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -19,22 +18,22 @@ func Delete(ctx context.Context, storyID int) error {
 		return ErrNotFound
 	}
 
-	return withTransaction(func(tx *sql.Tx) error {
+	return withTransaction(func() error {
 		// Delete in proper order to respect foreign key relationships
 		// Though CASCADE would handle this, we're explicit for control
-		if err := deleteFootnoteData(ctx, tx, storyID); err != nil {
+		if err := deleteFootnoteData(ctx, storyID); err != nil {
 			return err
 		}
 
-		if err := deleteAnnotations(ctx, tx, storyID); err != nil {
+		if err := deleteAnnotations(ctx, storyID); err != nil {
 			return err
 		}
 
-		if err := deleteStoryContent(ctx, tx, storyID); err != nil {
+		if err := deleteStoryContent(ctx, storyID); err != nil {
 			return err
 		}
 
-		if err := deleteMetadata(ctx, tx, storyID); err != nil {
+		if err := deleteMetadata(ctx, storyID); err != nil {
 			return err
 		}
 
@@ -48,13 +47,13 @@ func Delete(ctx context.Context, storyID int) error {
 }
 
 // deleteFootnoteData removes footnotes and their references
-func deleteFootnoteData(ctx context.Context, tx *sql.Tx, storyID int) error {
+func deleteFootnoteData(ctx context.Context, storyID int) error {
 	// Due to CASCADE, we only need to delete footnotes
 	return queries.DeleteAllStoryAnnotations(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
 }
 
 // deleteAnnotations removes vocabulary and grammar items
-func deleteAnnotations(ctx context.Context, tx *sql.Tx, storyID int) error {
+func deleteAnnotations(ctx context.Context, storyID int) error {
 	if err := queries.DeleteAllVocabularyForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true}); err != nil {
 		return err
 	}
@@ -62,12 +61,12 @@ func deleteAnnotations(ctx context.Context, tx *sql.Tx, storyID int) error {
 }
 
 // deleteStoryContent removes the story lines using SQLC
-func deleteStoryContent(ctx context.Context, tx *sql.Tx, storyID int) error {
+func deleteStoryContent(ctx context.Context, storyID int) error {
 	return queries.DeleteAllStoryLines(ctx, int32(storyID))
 }
 
 // deleteMetadata removes titles and descriptions using SQLC
-func deleteMetadata(ctx context.Context, tx *sql.Tx, storyID int) error {
+func deleteMetadata(ctx context.Context, storyID int) error {
 	if err := queries.DeleteStoryTitles(ctx, int32(storyID)); err != nil {
 		return err
 	}

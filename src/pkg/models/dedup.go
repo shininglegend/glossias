@@ -2,9 +2,7 @@ package models
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
-	"strings"
 
 	"glossias/src/pkg/generated/db"
 
@@ -32,9 +30,9 @@ func SetDedupConfig(config DedupConfig) {
 }
 
 // dedupVocabularyInsert checks for existing vocabulary and returns existing ID or inserts new
-func dedupVocabularyInsert(ctx context.Context, tx *sql.Tx, storyID, lineNumber int, vocab VocabularyItem) error {
+func dedupVocabularyInsert(ctx context.Context, storyID, lineNumber int, vocab VocabularyItem) error {
 	if !dedupConfig.EnableVocabulary {
-		return insertVocabulary(ctx, tx, storyID, lineNumber, vocab)
+		return insertVocabulary(ctx, storyID, lineNumber, vocab)
 	}
 
 	// Check if vocabulary item exists using SQLC
@@ -54,13 +52,13 @@ func dedupVocabularyInsert(ctx context.Context, tx *sql.Tx, storyID, lineNumber 
 	if exists {
 		return errExists
 	}
-	return insertVocabulary(ctx, tx, storyID, lineNumber, vocab)
+	return insertVocabulary(ctx, storyID, lineNumber, vocab)
 }
 
 // dedupGrammarInsert checks for existing grammar and returns existing ID or inserts new
-func dedupGrammarInsert(ctx context.Context, tx *sql.Tx, storyID, lineNumber int, grammar GrammarItem) error {
+func dedupGrammarInsert(ctx context.Context, storyID, lineNumber int, grammar GrammarItem) error {
 	if !dedupConfig.EnableGrammar {
-		return insertGrammar(ctx, tx, storyID, lineNumber, grammar)
+		return insertGrammar(ctx, storyID, lineNumber, grammar)
 	}
 
 	// Check if grammar item exists using SQLC
@@ -79,13 +77,13 @@ func dedupGrammarInsert(ctx context.Context, tx *sql.Tx, storyID, lineNumber int
 	if exists {
 		return errExists
 	}
-	return insertGrammar(ctx, tx, storyID, lineNumber, grammar)
+	return insertGrammar(ctx, storyID, lineNumber, grammar)
 }
 
 // dedupFootnoteInsert checks for existing footnote and returns existing ID or inserts new
-func dedupFootnoteInsert(ctx context.Context, tx *sql.Tx, storyID, lineNumber int, footnote Footnote) error {
+func dedupFootnoteInsert(ctx context.Context, storyID, lineNumber int, footnote Footnote) error {
 	if !dedupConfig.EnableFootnotes {
-		return insertFootnote(ctx, tx, storyID, lineNumber, footnote)
+		return insertFootnote(ctx, storyID, lineNumber, footnote)
 	}
 
 	existingID, err := queries.CheckFootnoteExists(ctx, db.CheckFootnoteExistsParams{
@@ -95,7 +93,7 @@ func dedupFootnoteInsert(ctx context.Context, tx *sql.Tx, storyID, lineNumber in
 	})
 
 	if existingID == 0 {
-		return insertFootnote(ctx, tx, storyID, lineNumber, footnote)
+		return insertFootnote(ctx, storyID, lineNumber, footnote)
 	}
 	if err != nil {
 		return err
@@ -104,7 +102,7 @@ func dedupFootnoteInsert(ctx context.Context, tx *sql.Tx, storyID, lineNumber in
 }
 
 // Original insert functions using SQLC
-func insertVocabulary(ctx context.Context, tx *sql.Tx, storyID, lineNumber int, vocab VocabularyItem) error {
+func insertVocabulary(ctx context.Context, storyID, lineNumber int, vocab VocabularyItem) error {
 	_, err := queries.CreateVocabularyItem(ctx, db.CreateVocabularyItemParams{
 		StoryID:       pgtype.Int4{Int32: int32(storyID), Valid: true},
 		LineNumber:    pgtype.Int4{Int32: int32(lineNumber), Valid: true},
@@ -116,7 +114,7 @@ func insertVocabulary(ctx context.Context, tx *sql.Tx, storyID, lineNumber int, 
 	return err
 }
 
-func insertGrammar(ctx context.Context, tx *sql.Tx, storyID, lineNumber int, grammar GrammarItem) error {
+func insertGrammar(ctx context.Context, storyID, lineNumber int, grammar GrammarItem) error {
 	_, err := queries.CreateGrammarItem(ctx, db.CreateGrammarItemParams{
 		StoryID:       pgtype.Int4{Int32: int32(storyID), Valid: true},
 		LineNumber:    pgtype.Int4{Int32: int32(lineNumber), Valid: true},
@@ -127,7 +125,7 @@ func insertGrammar(ctx context.Context, tx *sql.Tx, storyID, lineNumber int, gra
 	return err
 }
 
-func insertFootnote(ctx context.Context, tx *sql.Tx, storyID, lineNumber int, footnote Footnote) error {
+func insertFootnote(ctx context.Context, storyID, lineNumber int, footnote Footnote) error {
 	result, err := queries.CreateFootnote(ctx, db.CreateFootnoteParams{
 		StoryID:      pgtype.Int4{Int32: int32(storyID), Valid: true},
 		LineNumber:   pgtype.Int4{Int32: int32(lineNumber), Valid: true},
@@ -147,8 +145,4 @@ func insertFootnote(ctx context.Context, tx *sql.Tx, storyID, lineNumber int, fo
 		}
 	}
 	return nil
-}
-
-func joinReferences(refs []string) string {
-	return strings.Join(refs, ",")
 }

@@ -24,7 +24,6 @@ var (
 )
 
 var queries *db.Queries
-var dbConn db.DBTX
 var rawConn any
 
 func SetDB(d any) {
@@ -33,7 +32,6 @@ func SetDB(d any) {
 	}
 	rawConn = d
 	if conn, ok := d.(db.DBTX); ok {
-		dbConn = conn
 		queries = db.New(conn)
 	} else {
 		panic("unsupported database type - expected db.DBTX interface. Set USE_POOL=true environment variable to use pgxpool")

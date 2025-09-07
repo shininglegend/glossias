@@ -3,7 +3,6 @@ package models
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 
 	"glossias/src/pkg/generated/db"
@@ -18,7 +17,7 @@ var (
 
 // EditStoryText updates only the text content of story lines
 func EditStoryText(ctx context.Context, storyID int, lines []StoryLine) error {
-	return withTransaction(func(tx *sql.Tx) error {
+	return withTransaction(func() error {
 		// Delete existing lines using SQLC
 		if err := queries.DeleteAllStoryLines(ctx, int32(storyID)); err != nil {
 			return err
@@ -57,7 +56,7 @@ func EditStoryText(ctx context.Context, storyID int, lines []StoryLine) error {
 
 // EditStoryMetadata updates the story's metadata fields
 func EditStoryMetadata(ctx context.Context, storyID int, metadata StoryMetadata) error {
-	return withTransaction(func(tx *sql.Tx) error {
+	return withTransaction(func() error {
 		// Update main story table using SQLC
 		err := queries.UpdateStory(ctx, db.UpdateStoryParams{
 			StoryID:      int32(storyID),
@@ -109,7 +108,7 @@ func EditStoryMetadata(ctx context.Context, storyID int, metadata StoryMetadata)
 
 // AddLineAnnotations updates grammar points, vocabulary, and footnotes for a specific line
 func AddLineAnnotations(ctx context.Context, storyID int, lineNumber int, line StoryLine) error {
-	return withTransaction(func(tx *sql.Tx) error {
+	return withTransaction(func() error {
 		// Verify line exists
 		exists, err := queries.LineExists(ctx, db.LineExistsParams{
 			StoryID:    int32(storyID),
@@ -124,14 +123,14 @@ func AddLineAnnotations(ctx context.Context, storyID int, lineNumber int, line S
 
 		// Insert vocabulary items
 		for _, v := range line.Vocabulary {
-			if err := dedupVocabularyInsert(ctx, tx, storyID, lineNumber, v); err != nil {
+			if err := dedupVocabularyInsert(ctx, storyID, lineNumber, v); err != nil {
 				return err
 			}
 		}
 
 		// Insert grammar items
 		for _, g := range line.Grammar {
-			if err := dedupGrammarInsert(ctx, tx, storyID, lineNumber, g); err != nil {
+			if err := dedupGrammarInsert(ctx, storyID, lineNumber, g); err != nil {
 				return err
 			}
 		}
@@ -139,7 +138,7 @@ func AddLineAnnotations(ctx context.Context, storyID int, lineNumber int, line S
 		// Insert footnotes and their references
 		// Insert footnotes
 		for _, f := range line.Footnotes {
-			if err := dedupFootnoteInsert(ctx, tx, storyID, lineNumber, f); err != nil {
+			if err := dedupFootnoteInsert(ctx, storyID, lineNumber, f); err != nil {
 				return err
 			}
 		}
@@ -178,7 +177,7 @@ func ClearStoryAnnotations(ctx context.Context, storyID int) error {
 		return ErrNotFound
 	}
 
-	return withTransaction(func(tx *sql.Tx) error {
+	return withTransaction(func() error {
 		// Delete all annotations
 		if err := queries.DeleteAllStoryAnnotations(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true}); err != nil {
 			return err
@@ -197,7 +196,7 @@ func ClearStoryAnnotations(ctx context.Context, storyID int) error {
 
 // ClearLineAnnotations removes all annotations from a specific line
 func ClearLineAnnotations(ctx context.Context, storyID int, lineNumber int) error {
-	return withTransaction(func(tx *sql.Tx) error {
+	return withTransaction(func() error {
 		// Verify line exists
 		exists, err := queries.LineExists(ctx, db.LineExistsParams{
 			StoryID:    int32(storyID),
@@ -246,7 +245,7 @@ func ClearLineAnnotations(ctx context.Context, storyID int, lineNumber int) erro
 // UpdateVocabularyAnnotation updates a specific vocabulary annotation by position
 // UpdateVocabularyAnnotation updates a vocabulary annotation at a specific position
 func UpdateVocabularyAnnotation(ctx context.Context, storyID int, lineNumber int, position [2]int, vocab VocabularyItem) error {
-	return withTransaction(func(tx *sql.Tx) error {
+	return withTransaction(func() error {
 		// Update the vocabulary item using SQLC
 		err := queries.UpdateVocabularyByPosition(ctx, db.UpdateVocabularyByPositionParams{
 			StoryID:       pgtype.Int4{Int32: int32(storyID), Valid: true},
@@ -269,7 +268,7 @@ func UpdateVocabularyAnnotation(ctx context.Context, storyID int, lineNumber int
 // UpdateGrammarAnnotation updates a specific grammar annotation by position
 // UpdateGrammarAnnotation updates a grammar annotation at a specific position
 func UpdateGrammarAnnotation(ctx context.Context, storyID int, lineNumber int, position [2]int, grammar GrammarItem) error {
-	return withTransaction(func(tx *sql.Tx) error {
+	return withTransaction(func() error {
 		// Update the grammar item using SQLC
 		err := queries.UpdateGrammarByPosition(ctx, db.UpdateGrammarByPositionParams{
 			StoryID:       pgtype.Int4{Int32: int32(storyID), Valid: true},
@@ -291,7 +290,7 @@ func UpdateGrammarAnnotation(ctx context.Context, storyID int, lineNumber int, p
 // UpdateVocabularyByWord updates a vocabulary item's lexical form by matching the word
 // UpdateVocabularyByWord updates the lexical form of all vocabulary items with a specific word
 func UpdateVocabularyByWord(ctx context.Context, storyID int, lineNumber int, word string, newLexicalForm string) error {
-	return withTransaction(func(tx *sql.Tx) error {
+	return withTransaction(func() error {
 		// Update the vocabulary item by word using SQLC
 		err := queries.UpdateVocabularyByWord(ctx, db.UpdateVocabularyByWordParams{
 			StoryID:     pgtype.Int4{Int32: int32(storyID), Valid: true},
@@ -311,7 +310,7 @@ func UpdateVocabularyByWord(ctx context.Context, storyID int, lineNumber int, wo
 // UpdateFootnoteAnnotation updates a specific footnote by ID
 // UpdateFootnoteAnnotation updates a footnote and its references
 func UpdateFootnoteAnnotation(ctx context.Context, storyID int, footnoteID int, footnote Footnote) error {
-	return withTransaction(func(tx *sql.Tx) error {
+	return withTransaction(func() error {
 		// Update the footnote text using SQLC
 		err := queries.UpdateFootnote(ctx, db.UpdateFootnoteParams{
 			ID:           int32(footnoteID),

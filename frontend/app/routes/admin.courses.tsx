@@ -127,8 +127,6 @@ export default function AdminCourses() {
     }
     try {
       const response = await coursesApi.getCourseAdmins(course.course_id);
-      console.log(response)
-      console.log(response.admins)
       setCourseAdmins(response.admins);
       setManagingAdmins(course);
     } catch (err) {

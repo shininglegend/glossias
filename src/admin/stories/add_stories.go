@@ -27,7 +27,7 @@ type AddStoryRequest struct {
 	DayLetter       string `json:"dayLetter"`
 	DescriptionText string `json:"descriptionText"`
 	StoryText       string `json:"storyText"`
-	CourseID        *int   `json:"courseId,omitempty"`
+	CourseID        int    `json:"courseId"`
 }
 
 func (h *Handler) addStoryHandler(w http.ResponseWriter, r *http.Request) {
@@ -48,11 +48,6 @@ func (h *Handler) addStoryHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Missing required fields", http.StatusBadRequest)
 		return
 	}
-	// Validate course ID and access
-	if req.CourseID == nil {
-		http.Error(w, "Course ID is required", http.StatusBadRequest)
-		return
-	}
 
 	// Validate course access
 	userID, ok := auth.GetUserID(r)
@@ -60,18 +55,18 @@ func (h *Handler) addStoryHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	if !models.IsUserSuperAdmin(ctx, userID) && !models.IsUserCourseAdmin(ctx, userID, int32(*req.CourseID)) {
+	if !models.IsUserSuperAdmin(ctx, userID) && !models.IsUserCourseAdmin(ctx, userID, int32(req.CourseID)) {
 		http.Error(w, "Forbidden: not a course admin", http.StatusForbidden)
 		return
 	}
 	// Check course exists
-	_, err := models.GetCourse(ctx, int32(*req.CourseID))
+	_, err := models.GetCourse(ctx, int32(req.CourseID))
 	if err != nil {
 		if err == models.ErrNotFound {
 			http.Error(w, "Course not found", http.StatusBadRequest)
 			return
 		}
-		h.log.Error("failed to verify course existence", "error", err, "course_id", *req.CourseID)
+		h.log.Error("failed to verify course existence", "error", err, "course_id", req.CourseID)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -130,7 +125,7 @@ func (h *Handler) processAddStory(req AddStoryRequest) (*models.Story, error) {
 				Language: req.LanguageCode,
 				Text:     req.DescriptionText,
 			},
-			CourseID:     req.CourseID,
+			CourseID:     &req.CourseID,
 			LastRevision: &updateTime,
 		},
 		Content: models.StoryContent{

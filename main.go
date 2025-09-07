@@ -88,7 +88,7 @@ func main() {
 	if devUser == "" {
 		if authorizedParty == "" {
 			logger.Warn("AUTHORIZED_PARTY environment variable not set")
-			// It's not acually needed, but can cause problems if missing.
+			// It's not actually needed, but can cause problems if missing.
 			apiRouter.Use(clerkhttp.RequireHeaderAuthorization())
 		} else {
 			apiRouter.Use(clerkhttp.RequireHeaderAuthorization(

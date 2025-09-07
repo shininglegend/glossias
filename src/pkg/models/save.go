@@ -64,10 +64,6 @@ func SaveStoryData(ctx context.Context, storyID int, story *Story) error {
 			return err
 		}
 
-		if err := saveStoryComponents(ctx, story); err != nil {
-			return err
-		}
-
 		return saveStoryComponents(ctx, story)
 	})
 }

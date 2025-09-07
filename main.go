@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
 	"github.com/clerk/clerk-sdk-go/v2"
@@ -25,6 +26,12 @@ func main() {
 		Level:     slog.LevelDebug,
 		UseColors: true,
 	}))
+
+	// Load environment variables from .env file if present
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
 
 	// Initialize database based on POSTGRES_DB environment variable
 	// USE_POOL=true uses pgxpool, USE_POOL=false uses database/sql, no DATABASE_URL uses mock

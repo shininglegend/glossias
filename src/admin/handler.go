@@ -5,6 +5,7 @@ import (
 	"glossias/src/auth"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"glossias/src/admin/stories"
 
@@ -47,6 +48,25 @@ func (h *Handler) adminAuthMiddleware(next http.Handler) http.Handler {
 			h.log.Warn("admin access denied", "user_id", userID, "path", r.URL.Path)
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
+		}
+
+		// For course-specific operations, check course access
+		// Extract course_id from query parameters if present
+		courseIDStr := r.URL.Query().Get("course_id")
+		if courseIDStr != "" {
+			courseID, err := strconv.Atoi(courseIDStr)
+			if err != nil {
+				h.log.Warn("invalid course_id parameter", "course_id", courseIDStr, "user_id", userID)
+				http.Error(w, "Invalid course ID", http.StatusBadRequest)
+				return
+			}
+
+			// Check if user has access to this specific course
+			if !auth.HasPermission(r.Context(), userID, int32(courseID)) {
+				h.log.Warn("course access denied", "user_id", userID, "course_id", courseID, "path", r.URL.Path)
+				http.Error(w, "Course access forbidden", http.StatusForbidden)
+				return
+			}
 		}
 
 		next.ServeHTTP(w, r)

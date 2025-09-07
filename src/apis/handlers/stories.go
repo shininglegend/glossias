@@ -36,7 +36,7 @@ func (h *Handler) GetStories(w http.ResponseWriter, r *http.Request) {
 	lang := r.URL.Query().Get("lang")
 
 	// Fetch stories from database
-	dbStories, err := models.GetAllStories(lang)
+	dbStories, err := models.GetAllStories(r.Context(), lang)
 	if err != nil {
 		h.log.Error("Failed to fetch stories from database", "error", err)
 		h.sendError(w, "Failed to fetch stories", http.StatusInternalServerError)

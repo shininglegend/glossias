@@ -1,0 +1,15 @@
+meta {
+  name: Health check
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseURL}}/api/stories/2/page1
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

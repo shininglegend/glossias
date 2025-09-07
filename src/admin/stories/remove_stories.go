@@ -23,7 +23,7 @@ func (h *Handler) deleteStoryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// First fetch the story data for logging
-	story, err := models.GetStoryData(storyID)
+	story, err := models.GetStoryData(r.Context(), storyID)
 	if err != nil {
 		if err == models.ErrNotFound {
 			writeJSONError(w, "Story not found", http.StatusNotFound)
@@ -41,7 +41,7 @@ func (h *Handler) deleteStoryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete from database
-	if err := models.Delete(storyID); err != nil {
+	if err := models.Delete(r.Context(), storyID); err != nil {
 		h.log.Error("Failed to delete story", "error", err)
 		writeJSONError(w, "Failed to delete story", http.StatusInternalServerError)
 		return

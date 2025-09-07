@@ -21,7 +21,7 @@ func (h *Handler) GetPage4(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	story, err := models.GetStoryData(id)
+	story, err := models.GetStoryData(r.Context(), id)
 	if err == models.ErrNotFound {
 		h.sendError(w, "Story not found", http.StatusNotFound)
 		return

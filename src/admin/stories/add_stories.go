@@ -30,6 +30,7 @@ type AddStoryRequest struct {
 }
 
 func (h *Handler) addStoryHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusOK)
 		return
@@ -71,7 +72,7 @@ func (h *Handler) addStoryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save the story
-	if err := models.SaveNewStory(story); err != nil {
+	if err := models.SaveNewStory(ctx, story); err != nil {
 		h.log.Error("Failed to save story", "error", err)
 		http.Error(w, "Failed to save story", http.StatusInternalServerError)
 		return

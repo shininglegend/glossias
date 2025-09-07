@@ -9,6 +9,7 @@ import (
 
 	"github.com/clerk/clerk-sdk-go/v2"
 	clerkjwt "github.com/clerk/clerk-sdk-go/v2/jwt"
+	"github.com/clerk/clerk-sdk-go/v2/user"
 	"github.com/gorilla/mux"
 )
 
@@ -77,11 +78,38 @@ func extractAndValidateUser(r *http.Request, logger *slog.Logger) (string, error
 		return "", &clerk.APIErrorResponse{HTTPStatusCode: 401}
 	}
 
-	// Basic user sync - just ensure user exists in database
-	// TODO: Additional user info can be fetched separately
-	_, err = models.UpsertUser(ctx, userID, "", "")
+	// Fetch full user details from Clerk to sync with database
+	clerkUser, err := user.Get(ctx, userID)
 	if err != nil {
-		logger.Warn("failed to sync user to database", "error", err, "user_id", userID)
+		logger.Warn("failed to fetch user details from Clerk", "error", err, "user_id", userID)
+		// Fallback to basic user sync without email/name
+		_, syncErr := models.UpsertUser(ctx, userID, "", "")
+		if syncErr != nil {
+			logger.Warn("failed basic user sync to database", "error", syncErr, "user_id", userID)
+		}
+		return userID, nil
+	}
+
+	// Extract email and name from Clerk user data
+	email := ""
+	name := ""
+
+	if len(clerkUser.EmailAddresses) > 0 {
+		email = clerkUser.EmailAddresses[0].EmailAddress
+	}
+
+	if clerkUser.FirstName != nil && clerkUser.LastName != nil {
+		name = *clerkUser.FirstName + " " + *clerkUser.LastName
+	} else if clerkUser.FirstName != nil {
+		name = *clerkUser.FirstName
+	} else if clerkUser.LastName != nil {
+		name = *clerkUser.LastName
+	}
+
+	// Sync user data with database
+	_, err = models.UpsertUser(ctx, userID, email, name)
+	if err != nil {
+		logger.Warn("failed to sync user to database", "error", err, "user_id", userID, "email", email, "name", name)
 		// Don't fail the request if database sync fails
 	}
 

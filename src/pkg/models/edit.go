@@ -36,15 +36,20 @@ func EditStoryText(ctx context.Context, storyID int, lines []StoryLine) error {
 			}
 		}
 
-		// Update last revision timestamp using SQLC
-		err := queries.UpdateStory(ctx, db.UpdateStoryParams{
+		// Fetch existing story metadata
+		existingStory, err := queries.GetStory(ctx, int32(storyID))
+		if err != nil {
+			return err
+		}
+		// Update last revision timestamp using SQLC, preserving existing metadata
+		err = queries.UpdateStory(ctx, db.UpdateStoryParams{
 			StoryID:      int32(storyID),
-			WeekNumber:   0, // These will be overwritten by existing values
-			DayLetter:    "",
-			GrammarPoint: pgtype.Text{String: "", Valid: false},
-			AuthorID:     "",
-			AuthorName:   "",
-			CourseID:     pgtype.Int4{Int32: 0, Valid: false},
+			WeekNumber:   existingStory.WeekNumber,
+			DayLetter:    existingStory.DayLetter,
+			GrammarPoint: existingStory.GrammarPoint,
+			AuthorID:     existingStory.AuthorID,
+			AuthorName:   existingStory.AuthorName,
+			CourseID:     existingStory.CourseID,
 		})
 		if err != nil {
 			return err

@@ -88,9 +88,12 @@ type LineValidationError struct {
 
 // ConvertStoryToAPI converts models.Story to API Story format
 func ConvertStoryToAPI(dbStory models.Story) Story {
+	if dbStory.Metadata.Title["en"] == "" && dbStory.Metadata.Title[""] != "" {
+		dbStory.Metadata.Title["en"] = dbStory.Metadata.Title[""] // "" might hold default title
+	}
 	return Story{
 		ID:         dbStory.Metadata.StoryID,
-		Title:      dbStory.Metadata.Title["en"], // Using English title
+		Title:      dbStory.Metadata.Title["en"], // Using English title if possible
 		WeekNumber: dbStory.Metadata.WeekNumber,
 		DayLetter:  dbStory.Metadata.DayLetter,
 	}

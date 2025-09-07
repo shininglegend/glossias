@@ -24,7 +24,7 @@ export default function EditMetadata() {
       }
     }
     fetchMetadata();
-  }, [id, adminApi]);
+  }, [id]);
   if (loading) {
     return (
       <main className="container mx-auto p-6">

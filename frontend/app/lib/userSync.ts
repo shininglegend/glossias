@@ -35,7 +35,7 @@ export function useUserSync() {
         throw new Error(`Failed to sync user: ${response.status}`);
       }
       const resp = await response.json();
-      const userData = resp.data
+      const userData = resp.data;
       setUserInfo(userData);
     } catch (err) {
       const errorMessage =
@@ -49,10 +49,10 @@ export function useUserSync() {
 
   // Auto-sync when user signs in
   useEffect(() => {
-    if (isLoaded && isSignedIn && user && !userInfo) {
+    if (isLoaded && isSignedIn && user && !userInfo && !loading) {
       syncUser();
     }
-  }, [isLoaded, isSignedIn, user, userInfo, syncUser]);
+  }, [isLoaded, isSignedIn, user?.id, userInfo, loading]);
 
   return {
     userInfo,

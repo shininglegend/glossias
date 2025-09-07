@@ -13,13 +13,18 @@ import (
 func SaveNewStory(ctx context.Context, story *Story) error {
 	return withTransaction(func() error {
 		// Create story using SQLC
+		courseID := pgtype.Int4{Valid: false}
+		if story.Metadata.CourseID != nil {
+			courseID = pgtype.Int4{Int32: int32(*story.Metadata.CourseID), Valid: true}
+		}
+
 		result, err := queries.CreateStory(ctx, db.CreateStoryParams{
 			WeekNumber:   int32(story.Metadata.WeekNumber),
 			DayLetter:    story.Metadata.DayLetter,
 			GrammarPoint: pgtype.Text{String: story.Metadata.GrammarPoint, Valid: story.Metadata.GrammarPoint != ""},
 			AuthorID:     story.Metadata.Author.ID,
 			AuthorName:   story.Metadata.Author.Name,
-			CourseID:     pgtype.Int4{Int32: 0, Valid: false}, // Default null course
+			CourseID:     courseID,
 		})
 		if err != nil {
 			return err
@@ -41,6 +46,11 @@ func SaveStoryData(ctx context.Context, storyID int, story *Story) error {
 
 	return withTransaction(func() error {
 		// Update story using SQLC
+		courseID := pgtype.Int4{Valid: false}
+		if story.Metadata.CourseID != nil {
+			courseID = pgtype.Int4{Int32: int32(*story.Metadata.CourseID), Valid: true}
+		}
+
 		err := queries.UpdateStory(ctx, db.UpdateStoryParams{
 			StoryID:      int32(storyID),
 			WeekNumber:   int32(story.Metadata.WeekNumber),
@@ -48,7 +58,7 @@ func SaveStoryData(ctx context.Context, storyID int, story *Story) error {
 			GrammarPoint: pgtype.Text{String: story.Metadata.GrammarPoint, Valid: story.Metadata.GrammarPoint != ""},
 			AuthorID:     story.Metadata.Author.ID,
 			AuthorName:   story.Metadata.Author.Name,
-			CourseID:     pgtype.Int4{Int32: 0, Valid: false},
+			CourseID:     courseID,
 		})
 		if err != nil {
 			return err

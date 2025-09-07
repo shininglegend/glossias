@@ -4,6 +4,7 @@ import Input from "~/components/ui/Input";
 import Textarea from "~/components/ui/Textarea";
 import Label from "~/components/ui/Label";
 import Button from "~/components/ui/Button";
+import CourseSelector from "~/components/ui/CourseSelector";
 
 type Props = {
   value: StoryMetadata;
@@ -15,7 +16,7 @@ export default function MetadataForm({ value, onSubmit }: Props) {
 
   const update = <K extends keyof StoryMetadata>(
     key: K,
-    val: StoryMetadata[K]
+    val: StoryMetadata[K],
   ) => setMeta((m) => ({ ...m, [key]: val }));
 
   const updateTitle = (lang: string, val: string) =>
@@ -79,6 +80,12 @@ export default function MetadataForm({ value, onSubmit }: Props) {
           onChange={(e) =>
             update("author", { ...meta.author, name: e.target.value })
           }
+        />
+      </div>
+      <div>
+        <CourseSelector
+          value={meta.courseId}
+          onChange={(courseId) => update("courseId", courseId)}
         />
       </div>
       <div className="md:col-span-2">

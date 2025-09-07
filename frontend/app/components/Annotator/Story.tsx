@@ -35,7 +35,7 @@ export default function Story({ storyId }: { storyId: number }) {
       }
     };
     fetchStory();
-  }, [storyId, authenticatedFetch]);
+  }, [storyId]);
 
   const handleAnnotation = async (
     lineNumber: number,

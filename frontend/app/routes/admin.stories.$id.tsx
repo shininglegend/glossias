@@ -39,7 +39,7 @@ export default function EditStory() {
       }
     }
     fetchStory();
-  }, [id, adminApi]);
+  }, [id]);
 
   if (loading) {
     return (

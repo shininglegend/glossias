@@ -37,25 +37,50 @@ export interface AddCourseAdminRequest {
 
 type Json<T> = Promise<T>;
 
+// Cache for pending requests to prevent duplicates
+const pendingRequests = new Map<string, Promise<any>>();
+
 export function useCoursesApi() {
   const authenticatedFetch = useAuthenticatedFetch();
 
   const request = useCallback(
     async <T>(path: string, init?: RequestInit): Json<T> => {
       const url = `/api/admin/courses${path}`;
-      const res = await authenticatedFetch(url, {
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          ...(init?.headers || {}),
-        },
-        ...init,
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+      const method = init?.method || "GET";
+      const cacheKey = `${method}:${url}`;
+
+      // For GET requests, check if there's already a pending request
+      if (method === "GET" && pendingRequests.has(cacheKey)) {
+        return pendingRequests.get(cacheKey);
       }
-      return res.json();
+
+      const requestPromise = (async () => {
+        const res = await authenticatedFetch(url, {
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            ...(init?.headers || {}),
+          },
+          ...init,
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+        }
+        return res.json();
+      })();
+
+      // Cache GET requests
+      if (method === "GET") {
+        pendingRequests.set(cacheKey, requestPromise);
+
+        // Clean up cache when request completes
+        requestPromise.finally(() => {
+          pendingRequests.delete(cacheKey);
+        });
+      }
+
+      return requestPromise;
     },
     [authenticatedFetch],
   );

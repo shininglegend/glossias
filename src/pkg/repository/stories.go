@@ -135,7 +135,7 @@ func (r *Repository) GetStoryData(ctx context.Context, storyID int) (*models.Sto
 				ID:   story.AuthorID,
 				Name: story.AuthorName,
 			},
-			LastRevision: story.LastRevision.Time,
+			LastRevision: &story.LastRevision.Time,
 		},
 		Content: models.StoryContent{
 			Lines: storyLines,
@@ -179,7 +179,7 @@ func (r *Repository) GetAllStories(ctx context.Context) ([]models.Story, error) 
 					ID:   story.AuthorID,
 					Name: story.AuthorName,
 				},
-				LastRevision: story.LastRevision.Time,
+				LastRevision: &story.LastRevision.Time,
 			},
 		}
 
@@ -219,7 +219,7 @@ func (r *Repository) SaveNewStory(ctx context.Context, story *models.Story) erro
 	}
 
 	story.Metadata.StoryID = int(result.StoryID)
-	story.Metadata.LastRevision = result.LastRevision.Time
+	story.Metadata.LastRevision = &result.LastRevision.Time
 
 	// Save titles
 	for lang, title := range story.Metadata.Title {

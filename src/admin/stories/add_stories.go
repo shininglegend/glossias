@@ -5,9 +5,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"glossias/src/auth"
 	"glossias/src/pkg/models"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -27,6 +27,7 @@ type AddStoryRequest struct {
 	DayLetter       string `json:"dayLetter"`
 	DescriptionText string `json:"descriptionText"`
 	StoryText       string `json:"storyText"`
+	CourseID        *int   `json:"courseId,omitempty"`
 }
 
 func (h *Handler) addStoryHandler(w http.ResponseWriter, r *http.Request) {
@@ -36,31 +37,43 @@ func (h *Handler) addStoryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse JSON or form for backward compatibility
+	// Parse JSON
 	var req AddStoryRequest
-	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid JSON", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	// Validate required fields
+	if req.TitleEn == "" || req.LanguageCode == "" || req.AuthorName == "" || req.WeekNumber <= 0 || req.DayLetter == "" || req.DescriptionText == "" || req.StoryText == "" {
+		http.Error(w, "Missing required fields", http.StatusBadRequest)
+		return
+	}
+	// Validate course ID and access
+	if req.CourseID == nil {
+		http.Error(w, "Course ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Validate course access
+	userID, ok := auth.GetUserID(r)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if !models.IsUserSuperAdmin(ctx, userID) && !models.IsUserCourseAdmin(ctx, userID, int32(*req.CourseID)) {
+		http.Error(w, "Forbidden: not a course admin", http.StatusForbidden)
+		return
+	}
+	// Check course exists
+	_, err := models.GetCourse(ctx, int32(*req.CourseID))
+	if err != nil {
+		if err == models.ErrNotFound {
+			http.Error(w, "Course not found", http.StatusBadRequest)
 			return
 		}
-	} else {
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, "Failed to parse form", http.StatusBadRequest)
-			return
-		}
-		weekNum, err := strconv.Atoi(r.FormValue("weekNumber"))
-		if err != nil {
-			http.Error(w, "Invalid week number", http.StatusBadRequest)
-			return
-		}
-		req = AddStoryRequest{
-			TitleEn:      r.FormValue("titleEn"),
-			LanguageCode: r.FormValue("languageCode"),
-			AuthorName:   r.FormValue("authorName"),
-			WeekNumber:   weekNum,
-			DayLetter:    r.FormValue("dayLetter"),
-			StoryText:    r.FormValue("storyText"),
-		}
+		h.log.Error("failed to verify course existence", "error", err, "course_id", *req.CourseID)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
 	}
 
 	// Process the story
@@ -100,6 +113,7 @@ func (h *Handler) processAddStory(req AddStoryRequest) (*models.Story, error) {
 	}
 
 	// Create story structure
+	updateTime := time.Now().UTC()
 	story := &models.Story{
 		Metadata: models.StoryMetadata{
 			// ID will be added later
@@ -116,7 +130,8 @@ func (h *Handler) processAddStory(req AddStoryRequest) (*models.Story, error) {
 				Language: req.LanguageCode,
 				Text:     req.DescriptionText,
 			},
-			LastRevision: time.Now().UTC(),
+			CourseID:     req.CourseID,
+			LastRevision: &updateTime,
 		},
 		Content: models.StoryContent{
 			Lines: lines,

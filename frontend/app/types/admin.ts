@@ -13,6 +13,7 @@ export interface StoryMetadata {
   author: Author;
   grammarPoint: string;
   description: Description;
+  courseId?: number;
   lastRevision?: string; // RFC3339 string required by backend on update
 }
 

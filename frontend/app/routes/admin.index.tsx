@@ -38,7 +38,7 @@ export default function AdminHome() {
       }
     }
     fetchStories();
-  }, [authenticatedFetch]);
+  }, []);
 
   const handleAction = async (intent: string, storyId: number) => {
     setProcessing(true);

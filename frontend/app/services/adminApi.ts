@@ -6,27 +6,52 @@ import type { Story, StoryMetadata, StoryContent } from "../types/admin";
 
 type Json<T> = Promise<T>;
 
+// Cache for pending requests to prevent duplicates
+const pendingRequests = new Map<string, Promise<any>>();
+
 export function useAdminApi() {
   const authenticatedFetch = useAuthenticatedFetch();
 
   const request = useCallback(
     async <T>(path: string, init?: RequestInit, baseUrl?: string): Json<T> => {
       const url = baseUrl ? `${baseUrl}/api/admin${path}` : `/api/admin${path}`;
-      const res = await authenticatedFetch(url, {
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          ...(init?.headers || {}),
-        },
-        ...init,
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+      const method = init?.method || "GET";
+      const cacheKey = `${method}:${url}`;
+
+      // For GET requests, check if there's already a pending request
+      if (method === "GET" && pendingRequests.has(cacheKey)) {
+        return pendingRequests.get(cacheKey);
       }
-      return res.json();
+
+      const requestPromise = (async () => {
+        const res = await authenticatedFetch(url, {
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            ...(init?.headers || {}),
+          },
+          ...init,
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+        }
+        return res.json();
+      })();
+
+      // Cache GET requests
+      if (method === "GET") {
+        pendingRequests.set(cacheKey, requestPromise);
+
+        // Clean up cache when request completes
+        requestPromise.finally(() => {
+          pendingRequests.delete(cacheKey);
+        });
+      }
+
+      return requestPromise;
     },
-    [authenticatedFetch]
+    [authenticatedFetch],
   );
 
   return {
@@ -38,12 +63,12 @@ export function useAdminApi() {
           {
             headers: { Accept: "application/json" },
           },
-          baseUrl
+          baseUrl,
         );
         const story = data.story;
         return story;
       },
-      [request]
+      [request],
     ),
 
     // PUT stories/:id expects full Story JSON
@@ -51,7 +76,7 @@ export function useAdminApi() {
       async (
         id: number,
         story: Story,
-        baseUrl?: string
+        baseUrl?: string,
       ): Json<{ Success: boolean; Story: Story }> => {
         return request<{ Success: boolean; Story: Story }>(
           `/stories/${id}`,
@@ -59,28 +84,28 @@ export function useAdminApi() {
             method: "PUT",
             body: JSON.stringify(story),
           },
-          baseUrl
+          baseUrl,
         );
       },
-      [request]
+      [request],
     ),
 
     // GET stories/:id/metadata -> { Story }
     getMetadata: useCallback(
       async (
         id: number,
-        baseUrl?: string
+        baseUrl?: string,
       ): Json<{ story: Story; Success: boolean }> => {
         const data = await request<any>(
           `/stories/${id}/metadata`,
           {
             headers: { Accept: "application/json" },
           },
-          baseUrl
+          baseUrl,
         );
         return data;
       },
-      [request]
+      [request],
     ),
 
     // PUT stories/:id/metadata expects StoryMetadata
@@ -88,7 +113,7 @@ export function useAdminApi() {
       async (
         id: number,
         metadata: StoryMetadata,
-        baseUrl?: string
+        baseUrl?: string,
       ): Json<{ success: boolean }> => {
         return request<{ success: boolean }>(
           `/stories/${id}/metadata`,
@@ -96,10 +121,10 @@ export function useAdminApi() {
             method: "PUT",
             body: JSON.stringify(metadata),
           },
-          baseUrl
+          baseUrl,
         );
       },
-      [request]
+      [request],
     ),
 
     // GET /stories/:id -> { content }
@@ -108,10 +133,10 @@ export function useAdminApi() {
         return request<{ content: StoryContent }>(
           `/stories/${id}`,
           undefined,
-          baseUrl
+          baseUrl,
         );
       },
-      [request]
+      [request],
     ),
 
     // PUT /stories/:id with one of vocabulary | grammar | footnote
@@ -124,7 +149,7 @@ export function useAdminApi() {
           grammar?: Story["content"]["lines"][number]["grammar"][number];
           footnote?: Story["content"]["lines"][number]["footnotes"][number];
         },
-        baseUrl?: string
+        baseUrl?: string,
       ): Json<{ success: boolean }> => {
         return request<{ success: boolean }>(
           `/stories/${id}`,
@@ -132,10 +157,10 @@ export function useAdminApi() {
             method: "PUT",
             body: JSON.stringify(req),
           },
-          baseUrl
+          baseUrl,
         );
       },
-      [request]
+      [request],
     ),
 
     // DELETE /stories/:id/annotations -> should delete all annotations on this story
@@ -146,10 +171,10 @@ export function useAdminApi() {
           {
             method: "DELETE",
           },
-          baseUrl
+          baseUrl,
         );
       },
-      [request]
+      [request],
     ),
 
     // POST /stories/add for new story
@@ -163,8 +188,9 @@ export function useAdminApi() {
           dayLetter: string;
           storyText: string; // newline-separated lines
           descriptionText?: string;
+          courseId?: number;
         },
-        baseUrl?: string
+        baseUrl?: string,
       ): Json<{ success: boolean; storyId: number }> => {
         return request<{ success: boolean; storyId: number }>(
           `/stories`,
@@ -172,10 +198,10 @@ export function useAdminApi() {
             method: "POST",
             body: JSON.stringify(payload),
           },
-          baseUrl
+          baseUrl,
         );
       },
-      [request]
+      [request],
     ),
 
     // DELETE /stories/:id -> Deletes the story
@@ -186,10 +212,10 @@ export function useAdminApi() {
           {
             method: "DELETE",
           },
-          baseUrl
+          baseUrl,
         );
       },
-      [request]
+      [request],
     ),
   };
 }

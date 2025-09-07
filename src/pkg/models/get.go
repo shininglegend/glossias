@@ -33,10 +33,14 @@ func GetStoryData(ctx context.Context, id int) (*Story, error) {
 		story.Metadata.GrammarPoint = dbStory.GrammarPoint.String
 	}
 	if dbStory.LastRevision.Valid {
-		story.Metadata.LastRevision = dbStory.LastRevision.Time
+		story.Metadata.LastRevision = &dbStory.LastRevision.Time
 	}
 	story.Metadata.Author.ID = dbStory.AuthorID
 	story.Metadata.Author.Name = dbStory.AuthorName
+	if dbStory.CourseID.Valid {
+		courseID := int(dbStory.CourseID.Int32)
+		story.Metadata.CourseID = &courseID
+	}
 
 	// Get titles
 	titles, err := queries.GetStoryTitles(ctx, int32(id))

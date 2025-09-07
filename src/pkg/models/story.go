@@ -51,7 +51,8 @@ type StoryMetadata struct {
 	Author       Author            `json:"author"`
 	GrammarPoint string            `json:"grammarPoint"`
 	Description  Description       `json:"description"`
-	LastRevision time.Time         `json:"lastRevision,omitempty"`
+	CourseID     *int              `json:"courseId,omitempty"`
+	LastRevision *time.Time        `json:"lastRevision,omitempty"`
 }
 
 type Author struct {
@@ -128,12 +129,14 @@ func (sm *StoryMetadata) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
 	}
-
+	if aux.LastRevision == "" {
+		return nil // No timestamp provided
+	}
 	parsedTime, err := time.Parse(time.RFC3339, aux.LastRevision)
 	if err != nil {
 		return err
 	}
-	sm.LastRevision = parsedTime
+	sm.LastRevision = &parsedTime
 	return nil
 }
 

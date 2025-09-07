@@ -58,6 +58,11 @@ func EditStoryText(ctx context.Context, storyID int, lines []StoryLine) error {
 func EditStoryMetadata(ctx context.Context, storyID int, metadata StoryMetadata) error {
 	return withTransaction(func() error {
 		// Update main story table using SQLC
+		courseID := pgtype.Int4{Valid: false}
+		if metadata.CourseID != nil {
+			courseID = pgtype.Int4{Int32: int32(*metadata.CourseID), Valid: true}
+		}
+
 		err := queries.UpdateStory(ctx, db.UpdateStoryParams{
 			StoryID:      int32(storyID),
 			WeekNumber:   int32(metadata.WeekNumber),
@@ -65,7 +70,7 @@ func EditStoryMetadata(ctx context.Context, storyID int, metadata StoryMetadata)
 			GrammarPoint: pgtype.Text{String: metadata.GrammarPoint, Valid: metadata.GrammarPoint != ""},
 			AuthorID:     metadata.Author.ID,
 			AuthorName:   metadata.Author.Name,
-			CourseID:     pgtype.Int4{Int32: 0, Valid: false},
+			CourseID:     courseID,
 		})
 		if err != nil {
 			return err

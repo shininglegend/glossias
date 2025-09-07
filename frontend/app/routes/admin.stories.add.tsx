@@ -4,12 +4,16 @@ import Input from "~/components/ui/Input";
 import Textarea from "~/components/ui/Textarea";
 import Label from "~/components/ui/Label";
 import Button from "~/components/ui/Button";
+import CourseSelector from "~/components/ui/CourseSelector";
 import React from "react";
 
 export default function AddStory() {
   const navigate = useNavigate();
   const adminApi = useAdminApi();
   const [submitting, setSubmitting] = React.useState(false);
+  const [selectedCourseId, setSelectedCourseId] = React.useState<
+    number | undefined
+  >();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -25,6 +29,7 @@ export default function AddStory() {
         dayLetter: String(payload.dayLetter),
         storyText: String(payload.storyText),
         descriptionText: String(payload.descriptionText || ""),
+        courseId: selectedCourseId,
       });
       navigate("/admin");
     } catch (error) {
@@ -95,6 +100,13 @@ export default function AddStory() {
               id="descriptionText"
               name="descriptionText"
               placeholder="Optional short description"
+            />
+          </div>
+          <div>
+            <CourseSelector
+              value={selectedCourseId}
+              onChange={setSelectedCourseId}
+              required
             />
           </div>
         </div>

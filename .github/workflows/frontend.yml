@@ -27,7 +27,11 @@ jobs:
       - name: Type check
         run: npm run typecheck
         working-directory: frontend
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: pk_test_dummy_key_for_ci
 
       - name: Build
         run: npm run build
         working-directory: frontend
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: pk_test_dummy_key_for_ci

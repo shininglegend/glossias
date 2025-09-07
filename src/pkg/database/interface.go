@@ -18,6 +18,7 @@ type DB interface {
 // Store represents our high-level storage interface
 type Store interface {
 	DB() DB
+	RawConn() any // Returns raw database connection for SQLC
 	Close() error
 }
 

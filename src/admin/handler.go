@@ -2,6 +2,7 @@
 package admin
 
 import (
+	"glossias/src/auth"
 	"log/slog"
 	"net/http"
 
@@ -33,7 +34,21 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 
 func (h *Handler) adminAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// TODO: Admin authentication logic here
+		// Get user ID from request context (set by auth middleware)
+		userID, ok := auth.GetUserID(r)
+		if !ok {
+			h.log.Warn("admin access attempted without user ID", "path", r.URL.Path)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Check if user is admin (super admin or course admin)
+		if !auth.IsAdmin(r.Context(), userID) {
+			h.log.Warn("admin access denied", "user_id", userID, "path", r.URL.Path)
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+
 		next.ServeHTTP(w, r)
 	})
 }

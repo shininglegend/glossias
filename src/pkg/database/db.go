@@ -7,7 +7,6 @@ import (
 	"embed"
 	"errors"
 	"os"
-	"strconv"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -16,9 +15,9 @@ import (
 var schemaFS embed.FS
 
 // InitDB selects PostgreSQL implementation based on USE_POOL environment variable
-// USE_POOL=true uses pgxpool, USE_POOL=false uses database/sql
+// USE_POOL=false uses database/sql, otherwise defaults to pgxpool for SQLC compatibility
 func InitDB(dbPath string) (Store, error) {
-	usePool, _ := strconv.ParseBool(os.Getenv("USE_POOL"))
+	usePool := os.Getenv("USE_POOL") != "false" // Default to true for SQLC compatibility
 
 	connStr := os.Getenv("DATABASE_URL")
 	if connStr == "" {
@@ -75,6 +74,10 @@ func (s *mockStore) DB() DB {
 
 func (s *mockStore) Close() error {
 	return nil
+}
+
+func (s *mockStore) RawConn() any {
+	return &mockDB{}
 }
 
 // mockDB implements DB interface with no-ops
@@ -153,6 +156,10 @@ func (s *poolStore) DB() DB {
 func (s *poolStore) Close() error {
 	s.pool.Close()
 	return nil
+}
+
+func (s *poolStore) RawConn() any {
+	return s.pool
 }
 
 // poolDB wraps pgxpool.Pool to implement DB interface
@@ -262,6 +269,13 @@ func (s *sqlStore) DB() DB {
 
 func (s *sqlStore) Close() error {
 	return s.db.Close()
+}
+
+func (s *sqlStore) RawConn() any {
+	if sqlDB, ok := s.db.(*sqlDB); ok {
+		return sqlDB.DB
+	}
+	return s.db
 }
 
 // sqlDB wraps sql.DB to implement DB interface

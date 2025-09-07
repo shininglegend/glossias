@@ -131,6 +131,63 @@ func (q *Queries) DeleteAllVocabularyForStory(ctx context.Context, storyID pgtyp
 	return err
 }
 
+const deleteFootnoteReferencesByStory = `-- name: DeleteFootnoteReferencesByStory :exec
+DELETE FROM footnote_references
+WHERE footnote_id IN (
+    SELECT id FROM footnotes WHERE story_id = $1
+)
+`
+
+func (q *Queries) DeleteFootnoteReferencesByStory(ctx context.Context, storyID pgtype.Int4) error {
+	_, err := q.db.Exec(ctx, deleteFootnoteReferencesByStory, storyID)
+	return err
+}
+
+const deleteLineFootnoteReferences = `-- name: DeleteLineFootnoteReferences :exec
+DELETE FROM footnote_references
+WHERE footnote_id IN (
+    SELECT id FROM footnotes WHERE story_id = $1 AND line_number = $2
+)
+`
+
+type DeleteLineFootnoteReferencesParams struct {
+	StoryID    pgtype.Int4 `json:"story_id"`
+	LineNumber pgtype.Int4 `json:"line_number"`
+}
+
+func (q *Queries) DeleteLineFootnoteReferences(ctx context.Context, arg DeleteLineFootnoteReferencesParams) error {
+	_, err := q.db.Exec(ctx, deleteLineFootnoteReferences, arg.StoryID, arg.LineNumber)
+	return err
+}
+
+const deleteLineGrammar = `-- name: DeleteLineGrammar :exec
+DELETE FROM grammar_items WHERE story_id = $1 AND line_number = $2
+`
+
+type DeleteLineGrammarParams struct {
+	StoryID    pgtype.Int4 `json:"story_id"`
+	LineNumber pgtype.Int4 `json:"line_number"`
+}
+
+func (q *Queries) DeleteLineGrammar(ctx context.Context, arg DeleteLineGrammarParams) error {
+	_, err := q.db.Exec(ctx, deleteLineGrammar, arg.StoryID, arg.LineNumber)
+	return err
+}
+
+const deleteLineVocabulary = `-- name: DeleteLineVocabulary :exec
+DELETE FROM vocabulary_items WHERE story_id = $1 AND line_number = $2
+`
+
+type DeleteLineVocabularyParams struct {
+	StoryID    pgtype.Int4 `json:"story_id"`
+	LineNumber pgtype.Int4 `json:"line_number"`
+}
+
+func (q *Queries) DeleteLineVocabulary(ctx context.Context, arg DeleteLineVocabularyParams) error {
+	_, err := q.db.Exec(ctx, deleteLineVocabulary, arg.StoryID, arg.LineNumber)
+	return err
+}
+
 const lineExists = `-- name: LineExists :one
 SELECT EXISTS(SELECT 1 FROM story_lines WHERE story_id = $1 AND line_number = $2)
 `

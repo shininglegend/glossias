@@ -35,7 +35,7 @@ func main() {
 	}
 	defer db.Close()
 	// Set the DB for the models package
-	models.SetDB(db)
+	models.SetDB(db.RawConn())
 
 	// Clerk stuff
 	clerk_key := os.Getenv("CLERK_SECRET_KEY")
@@ -72,7 +72,7 @@ func main() {
 	// API handlers
 	apiHandler := apis.NewHandler(logger)
 	apiRouter := r.PathPrefix("/api").Subrouter()
-	
+
 	// Clerk: require Authorization: Bearer <token> on every request
 	authorizedParty := os.Getenv("AUTHORIZED_PARTY")
 	if authorizedParty == "" {

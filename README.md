@@ -47,5 +47,62 @@ Place audio files in `static/stories/stories_audio/[story_id]/` where:
 - Code written by Titus unless otherwise noted.
 - AI assistance provided by claude.ai, GitHub Copilot, and Ollama using multiple models. Documentation is in AiUsage.md.
 
+## Architecture
+
+### Database Layer Architecture
+
+The application uses a layered architecture for database access:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    HTTP Handlers                            │
+│              (admin/handler.go, apis/*)                     │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+                      │ calls functions
+                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 Models Package                              │
+│                (src/pkg/models/*)                           │
+│  ┌─────────────────┬────────────────────────────────────┐   │
+│  │ UpsertUser()    │ GetStoryData()    │ SaveStory()    │   │
+│  │ CanUserAccess() │ GetAllStories()   │ DeleteStory()  │   │
+│  │ IsUserAdmin()   │ GetLineText()     │ EditStory()    │   │
+│  └─────────────────┴────────────────────────────────────┘   │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+                      │ uses SQLC queries
+                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│            Generated SQLC Queries                           │
+│            (src/pkg/generated/db/*)                          │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ queries.UpsertUser()    │ queries.GetStoryData()    │    │
+│  │ queries.CanUserAccess() │ queries.GetAllStories()   │    │
+│  │ queries.IsUserAdmin()   │ queries.SaveStory()       │    │
+│  └─────────────────────────────────────────────────────┘    │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+                      │ uses database connection
+                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│          Database Connection                                │
+│          (pgxpool.Pool or database/sql.DB)                  │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+                      │ executes type-safe SQL
+                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   PostgreSQL                                │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Key Points:**
+- HTTP handlers call model functions, never database directly
+- Models package uses generated SQLC queries for type-safe database operations
+- SQLC generates Go code from SQL queries, providing compile-time safety
+- Models package adds business logic layer on top of generated queries
+- Authentication middleware calls model functions for user operations
+
 ### Academic Context
 This project was developed under the oversight of Dr. Derrick Tate for academic credit at Sattler College.

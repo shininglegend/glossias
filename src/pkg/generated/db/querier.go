@@ -37,8 +37,12 @@ type Querier interface {
 	DeleteCourse(ctx context.Context, courseID int32) error
 	DeleteFootnote(ctx context.Context, id int32) error
 	DeleteFootnoteReferences(ctx context.Context, footnoteID int32) error
+	DeleteFootnoteReferencesByStory(ctx context.Context, storyID pgtype.Int4) error
 	DeleteGrammarItem(ctx context.Context, id int32) error
 	DeleteGrammarItems(ctx context.Context, arg DeleteGrammarItemsParams) error
+	DeleteLineFootnoteReferences(ctx context.Context, arg DeleteLineFootnoteReferencesParams) error
+	DeleteLineGrammar(ctx context.Context, arg DeleteLineGrammarParams) error
+	DeleteLineVocabulary(ctx context.Context, arg DeleteLineVocabularyParams) error
 	DeleteStory(ctx context.Context, storyID int32) error
 	DeleteStoryDescriptions(ctx context.Context, storyID int32) error
 	DeleteStoryLine(ctx context.Context, arg DeleteStoryLineParams) error

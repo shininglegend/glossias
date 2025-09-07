@@ -3,7 +3,7 @@ package models
 import (
 	"encoding/json"
 	"errors"
-	"glossias/src/pkg/database"
+	"glossias/src/pkg/generated/db"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -23,16 +23,16 @@ var (
 	ErrNotFound          = errors.New("story not found")
 )
 
-var store database.Store
+var queries *db.Queries
 
 func SetDB(d any) {
 	if d == nil {
 		panic("database connection is nil")
 	}
-	if s, ok := d.(database.Store); ok {
-		store = s
+	if dbConn, ok := d.(db.DBTX); ok {
+		queries = db.New(dbConn)
 	} else {
-		panic("unsupported database type")
+		panic("unsupported database type - expected db.DBTX interface. Set USE_POOL=true environment variable to use pgxpool")
 	}
 }
 

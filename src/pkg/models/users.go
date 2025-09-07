@@ -29,8 +29,8 @@ type CourseAdminRight struct {
 }
 
 // UpsertUser creates or updates a user record
-func UpsertUser(userID, email, name string) (*User, error) {
-	result, err := queries.UpsertUser(context.Background(), db.UpsertUserParams{
+func UpsertUser(ctx context.Context, userID, email, name string) (*User, error) {
+	result, err := queries.UpsertUser(ctx, db.UpsertUserParams{
 		UserID:       userID,
 		Email:        email,
 		Name:         name,
@@ -51,8 +51,8 @@ func UpsertUser(userID, email, name string) (*User, error) {
 }
 
 // GetUser retrieves a user by ID
-func GetUser(userID string) (*User, error) {
-	result, err := queries.GetUser(context.Background(), userID)
+func GetUser(ctx context.Context, userID string) (*User, error) {
+	result, err := queries.GetUser(ctx, userID)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
@@ -71,8 +71,8 @@ func GetUser(userID string) (*User, error) {
 }
 
 // CanUserAccessCourse checks if user can access a specific course
-func CanUserAccessCourse(userID string, courseID int32) bool {
-	canAccess, err := queries.CanUserAccessCourse(context.Background(), db.CanUserAccessCourseParams{
+func CanUserAccessCourse(ctx context.Context, userID string, courseID int32) bool {
+	canAccess, err := queries.CanUserAccessCourse(ctx, db.CanUserAccessCourseParams{
 		UserID:   userID,
 		CourseID: courseID,
 	})
@@ -80,22 +80,21 @@ func CanUserAccessCourse(userID string, courseID int32) bool {
 }
 
 // IsUserAdmin checks if user is admin of any course or super admin
-func IsUserAdmin(userID string) bool {
+func IsUserAdmin(ctx context.Context, userID string) bool {
 	// Check if super admin
-	user, err := queries.GetUser(context.Background(),
-		userID)
+	user, err := queries.GetUser(ctx, userID)
 	if err == nil && user.IsSuperAdmin.Bool {
 		return true
 	}
 
 	// Check if course admin
-	isAdmin, err := queries.IsUserAdminOfAnyCourse(context.Background(), userID)
+	isAdmin, err := queries.IsUserAdminOfAnyCourse(ctx, userID)
 	return err == nil && isAdmin
 }
 
 // IsUserCourseAdmin checks if user is admin of a specific course
-func IsUserCourseAdmin(userID string, courseID int32) bool {
-	isAdmin, err := queries.IsUserCourseAdmin(context.Background(), db.IsUserCourseAdminParams{
+func IsUserCourseAdmin(ctx context.Context, userID string, courseID int32) bool {
+	isAdmin, err := queries.IsUserCourseAdmin(ctx, db.IsUserCourseAdminParams{
 		CourseID: courseID,
 		UserID:   userID,
 	})
@@ -103,8 +102,8 @@ func IsUserCourseAdmin(userID string, courseID int32) bool {
 }
 
 // GetUserCourseAdminRights returns all courses a user is admin of
-func GetUserCourseAdminRights(userID string) ([]CourseAdminRight, error) {
-	results, err := queries.GetUserCourseAdminRights(context.Background(), userID)
+func GetUserCourseAdminRights(ctx context.Context, userID string) ([]CourseAdminRight, error) {
+	results, err := queries.GetUserCourseAdminRights(ctx, userID)
 	if err != nil {
 		return nil, err
 	}

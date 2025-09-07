@@ -1,12 +1,17 @@
 // glossias/src/pkg/models/delete.go
 package models
 
-import "database/sql"
+import (
+	"context"
+	"database/sql"
+
+	"github.com/jackc/pgx/v5/pgtype"
+)
 
 // Delete removes a story and all its associated data from the database
-func Delete(storyID int) error {
+func Delete(ctx context.Context, storyID int) error {
 	// Verify story exists first
-	exists, err := storyExists(storyID)
+	exists, err := queries.StoryExists(ctx, int32(storyID))
 	if err != nil {
 		return err
 	}
@@ -17,24 +22,24 @@ func Delete(storyID int) error {
 	return withTransaction(func(tx *sql.Tx) error {
 		// Delete in proper order to respect foreign key relationships
 		// Though CASCADE would handle this, we're explicit for control
-		if err := deleteFootnoteData(tx, storyID); err != nil {
+		if err := deleteFootnoteData(ctx, tx, storyID); err != nil {
 			return err
 		}
 
-		if err := deleteAnnotations(tx, storyID); err != nil {
+		if err := deleteAnnotations(ctx, tx, storyID); err != nil {
 			return err
 		}
 
-		if err := deleteStoryContent(tx, storyID); err != nil {
+		if err := deleteStoryContent(ctx, tx, storyID); err != nil {
 			return err
 		}
 
-		if err := deleteMetadata(tx, storyID); err != nil {
+		if err := deleteMetadata(ctx, tx, storyID); err != nil {
 			return err
 		}
 
-		// Finally delete the story itself
-		if _, err := tx.Exec(`DELETE FROM stories WHERE story_id = $1`, storyID); err != nil {
+		// Finally delete the story itself using SQLC
+		if err := queries.DeleteStory(ctx, int32(storyID)); err != nil {
 			return err
 		}
 
@@ -43,42 +48,28 @@ func Delete(storyID int) error {
 }
 
 // deleteFootnoteData removes footnotes and their references
-func deleteFootnoteData(tx *sql.Tx, storyID int) error {
+func deleteFootnoteData(ctx context.Context, tx *sql.Tx, storyID int) error {
 	// Due to CASCADE, we only need to delete footnotes
-	_, err := tx.Exec(`DELETE FROM footnotes WHERE story_id = $1`, storyID)
-	return err
+	return queries.DeleteAllStoryAnnotations(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
 }
 
 // deleteAnnotations removes vocabulary and grammar items
-func deleteAnnotations(tx *sql.Tx, storyID int) error {
-	queries := []string{
-		`DELETE FROM vocabulary_items WHERE story_id = $1`,
-		`DELETE FROM grammar_items WHERE story_id = $1`,
+func deleteAnnotations(ctx context.Context, tx *sql.Tx, storyID int) error {
+	if err := queries.DeleteAllVocabularyForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true}); err != nil {
+		return err
 	}
-	for _, query := range queries {
-		if _, err := tx.Exec(query, storyID); err != nil {
-			return err
-		}
-	}
-	return nil
+	return queries.DeleteAllGrammarForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
 }
 
-// deleteStoryContent removes the story lines
-func deleteStoryContent(tx *sql.Tx, storyID int) error {
-	_, err := tx.Exec(`DELETE FROM story_lines WHERE story_id = $1`, storyID)
-	return err
+// deleteStoryContent removes the story lines using SQLC
+func deleteStoryContent(ctx context.Context, tx *sql.Tx, storyID int) error {
+	return queries.DeleteAllStoryLines(ctx, int32(storyID))
 }
 
-// deleteMetadata removes titles and descriptions
-func deleteMetadata(tx *sql.Tx, storyID int) error {
-	queries := []string{
-		`DELETE FROM story_titles WHERE story_id = $1`,
-		`DELETE FROM story_descriptions WHERE story_id = $1`,
+// deleteMetadata removes titles and descriptions using SQLC
+func deleteMetadata(ctx context.Context, tx *sql.Tx, storyID int) error {
+	if err := queries.DeleteStoryTitles(ctx, int32(storyID)); err != nil {
+		return err
 	}
-	for _, query := range queries {
-		if _, err := tx.Exec(query, storyID); err != nil {
-			return err
-		}
-	}
-	return nil
+	return queries.DeleteStoryDescriptions(ctx, int32(storyID))
 }

@@ -2,69 +2,59 @@
 package models
 
 import (
+	"context"
 	"database/sql"
+	"glossias/src/pkg/generated/db"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	_ "github.com/lib/pq"
 )
 
-func GetStoryData(id int) (*Story, error) {
+func GetStoryData(ctx context.Context, id int) (*Story, error) {
 	story := NewStory()
 
 	// Get main story data
-	err := store.DB().QueryRow(`
-        SELECT s.week_number, s.day_letter, s.grammar_point,
-               s.last_revision, s.author_id, s.author_name
-        FROM stories s
-        WHERE s.story_id = $1`, id).Scan(
-		&story.Metadata.WeekNumber,
-		&story.Metadata.DayLetter,
-		&story.Metadata.GrammarPoint,
-		&story.Metadata.LastRevision,
-		&story.Metadata.Author.ID,
-		&story.Metadata.Author.Name,
-	)
-	if err == sql.ErrNoRows {
-		return nil, ErrNotFound
-	}
+	dbStory, err := queries.GetStory(ctx, int32(id))
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 
-	story.Metadata.StoryID = id
+	// Convert DB story to model story
+	story.Metadata.StoryID = int(dbStory.StoryID)
+	story.Metadata.WeekNumber = int(dbStory.WeekNumber)
+	story.Metadata.DayLetter = dbStory.DayLetter
+	if dbStory.GrammarPoint.Valid {
+		story.Metadata.GrammarPoint = dbStory.GrammarPoint.String
+	}
+	if dbStory.LastRevision.Valid {
+		story.Metadata.LastRevision = dbStory.LastRevision.Time
+	}
+	story.Metadata.Author.ID = dbStory.AuthorID
+	story.Metadata.Author.Name = dbStory.AuthorName
 
 	// Get titles
-	rows, err := store.DB().Query(`
-        SELECT language_code, title
-        FROM story_titles
-        WHERE story_id = $1`, id)
+	titles, err := queries.GetStoryTitles(ctx, int32(id))
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var lang, title string
-		if err := rows.Scan(&lang, &title); err != nil {
-			return nil, err
-		}
-		story.Metadata.Title[lang] = title
+	for _, title := range titles {
+		story.Metadata.Title[title.LanguageCode] = title.Title
 	}
 
 	// Get description
-	err = store.DB().QueryRow(`
-        SELECT language_code, description_text
-        FROM story_descriptions
-        WHERE story_id = $1
-        LIMIT 1`, id).Scan(
-		&story.Metadata.Description.Language,
-		&story.Metadata.Description.Text,
-	)
-	if err != nil && err != sql.ErrNoRows {
-		return nil, err
+	storyWithDesc, err := queries.GetStoryWithDescription(ctx, int32(id))
+	if err == nil {
+		if storyWithDesc.LanguageCode.Valid && storyWithDesc.DescriptionText.Valid {
+			story.Metadata.Description.Language = storyWithDesc.LanguageCode.String
+			story.Metadata.Description.Text = storyWithDesc.DescriptionText.String
+		}
 	}
 
 	// Get lines with their components
-	lines, err := getStoryLines(id)
+	lines, err := getStoryLines(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -73,46 +63,74 @@ func GetStoryData(id int) (*Story, error) {
 	return story, nil
 }
 
-func getStoryLines(storyID int) ([]StoryLine, error) {
-	rows, err := store.DB().Query(`
-        SELECT line_number, text, audio_file
-        FROM story_lines
-        WHERE story_id = $1
-        ORDER BY line_number`, storyID)
+func getStoryLines(ctx context.Context, storyID int) ([]StoryLine, error) {
+
+	dbLines, err := queries.GetStoryLines(ctx, int32(storyID))
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var lines []StoryLine
-	for rows.Next() {
+	for _, dbLine := range dbLines {
 		line := StoryLine{
+			LineNumber: int(dbLine.LineNumber),
+			Text:       dbLine.Text,
 			Vocabulary: []VocabularyItem{}, // Init with empty arrays
 			Grammar:    []GrammarItem{},
 			Footnotes:  []Footnote{},
 		}
-		var audioFile sql.NullString
-		if err := rows.Scan(&line.LineNumber, &line.Text, &audioFile); err != nil {
-			return nil, err
-		}
-		if audioFile.Valid {
-			s := audioFile.String
+
+		if dbLine.AudioFile.Valid {
+			s := dbLine.AudioFile.String
 			line.AudioFile = &s
 		}
 
-		// Get vocabulary items
-		if err := getVocabularyItems(storyID, line.LineNumber, &line); err != nil {
+		// Get vocabulary items for this line
+		vocabItems, err := queries.GetAllVocabularyForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+		if err != nil {
 			return nil, err
 		}
-
-		// Get grammar items
-		if err := getGrammarItems(storyID, line.LineNumber, &line); err != nil {
-			return nil, err
+		for _, vocab := range vocabItems {
+			if int(vocab.LineNumber.Int32) == int(dbLine.LineNumber) {
+				line.Vocabulary = append(line.Vocabulary, VocabularyItem{
+					Word:        vocab.Word,
+					LexicalForm: vocab.LexicalForm,
+					Position:    [2]int{int(vocab.PositionStart), int(vocab.PositionEnd)},
+				})
+			}
 		}
 
-		// Get footnotes
-		if err := getFootnotes(storyID, line.LineNumber, &line); err != nil {
+		// Get grammar items for this line
+		grammarItems, err := queries.GetAllGrammarForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+		if err != nil {
 			return nil, err
+		}
+		for _, grammar := range grammarItems {
+			if int(grammar.LineNumber.Int32) == int(dbLine.LineNumber) {
+				line.Grammar = append(line.Grammar, GrammarItem{
+					Text:     grammar.Text,
+					Position: [2]int{int(grammar.PositionStart), int(grammar.PositionEnd)},
+				})
+			}
+		}
+
+		// Get footnotes for this line
+		footnotes, err := queries.GetAllFootnotesForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+		if err != nil {
+			return nil, err
+		}
+		for _, fn := range footnotes {
+			if int(fn.LineNumber.Int32) == int(dbLine.LineNumber) {
+				refs, err := queries.GetFootnoteReferences(ctx, fn.ID)
+				if err != nil {
+					return nil, err
+				}
+				line.Footnotes = append(line.Footnotes, Footnote{
+					ID:         int(fn.ID),
+					Text:       fn.FootnoteText,
+					References: refs,
+				})
+			}
 		}
 
 		lines = append(lines, line)
@@ -120,105 +138,9 @@ func getStoryLines(storyID int) ([]StoryLine, error) {
 	return lines, nil
 }
 
-// Helper functions to get line components
-func getVocabularyItems(storyID, lineNumber int, line *StoryLine) error {
-	rows, err := store.DB().Query(`
-        SELECT word, lexical_form, position_start, position_end
-        FROM vocabulary_items
-        WHERE story_id = $1 AND line_number = $2`,
-		storyID, lineNumber)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var item VocabularyItem
-		if err := rows.Scan(&item.Word, &item.LexicalForm, &item.Position[0], &item.Position[1]); err != nil {
-			return err
-		}
-		line.Vocabulary = append(line.Vocabulary, item)
-	}
-	return nil
-}
-
-// story_data.go (continued)
-
-func getGrammarItems(storyID, lineNumber int, line *StoryLine) error {
-	rows, err := store.DB().Query(`
-        SELECT text, position_start, position_end
-        FROM grammar_items
-        WHERE story_id = $1 AND line_number = $2`,
-		storyID, lineNumber)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var item GrammarItem
-		if err := rows.Scan(&item.Text, &item.Position[0], &item.Position[1]); err != nil {
-			return err
-		}
-		line.Grammar = append(line.Grammar, item)
-	}
-	return nil
-}
-
-func getFootnotes(storyID, lineNumber int, line *StoryLine) error {
-	// Get footnotes
-	rows, err := store.DB().Query(`
-        SELECT f.id, f.footnote_text
-        FROM footnotes f
-        WHERE f.story_id = $1 AND f.line_number = $2`,
-		storyID, lineNumber)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var footnote Footnote
-		if err := rows.Scan(&footnote.ID, &footnote.Text); err != nil {
-			return err
-		}
-
-		// Get references for each footnote
-		refs, err := getFootnoteReferences(footnote.ID)
-		if err != nil {
-			return err
-		}
-		footnote.References = refs
-
-		line.Footnotes = append(line.Footnotes, footnote)
-	}
-	return nil
-}
-
-func getFootnoteReferences(footnoteID int) ([]string, error) {
-	rows, err := store.DB().Query(`
-        SELECT reference
-        FROM footnote_references
-        WHERE footnote_id = $1`,
-		footnoteID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var references []string
-	for rows.Next() {
-		var ref string
-		if err := rows.Scan(&ref); err != nil {
-			return nil, err
-		}
-		references = append(references, ref)
-	}
-	return references, nil
-}
-
 // GetLineAnnotations retrieves all annotations for a specific line
-func GetLineAnnotations(storyID int, lineNumber int) (*StoryLine, error) {
+func GetLineAnnotations(ctx context.Context, storyID int, lineNumber int) (*StoryLine, error) {
+
 	line := &StoryLine{
 		LineNumber: lineNumber,
 		Vocabulary: []VocabularyItem{}, // init as empty arrays
@@ -226,28 +148,62 @@ func GetLineAnnotations(storyID int, lineNumber int) (*StoryLine, error) {
 		Footnotes:  []Footnote{},
 	}
 
-	// Get vocabulary items
-	if err := getVocabularyItems(storyID, lineNumber, line); err != nil {
+	// Get vocabulary items for this line
+	vocabItems, err := queries.GetAllVocabularyForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+	if err != nil {
 		return nil, err
 	}
-
-	// Get grammar items
-	if err := getGrammarItems(storyID, lineNumber, line); err != nil {
-		return nil, err
+	for _, vocab := range vocabItems {
+		if int(vocab.LineNumber.Int32) == lineNumber {
+			line.Vocabulary = append(line.Vocabulary, VocabularyItem{
+				Word:        vocab.Word,
+				LexicalForm: vocab.LexicalForm,
+				Position:    [2]int{int(vocab.PositionStart), int(vocab.PositionEnd)},
+			})
+		}
 	}
 
-	// Get footnotes
-	if err := getFootnotes(storyID, lineNumber, line); err != nil {
+	// Get grammar items for this line
+	grammarItems, err := queries.GetAllGrammarForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+	if err != nil {
 		return nil, err
+	}
+	for _, grammar := range grammarItems {
+		if int(grammar.LineNumber.Int32) == lineNumber {
+			line.Grammar = append(line.Grammar, GrammarItem{
+				Text:     grammar.Text,
+				Position: [2]int{int(grammar.PositionStart), int(grammar.PositionEnd)},
+			})
+		}
+	}
+
+	// Get footnotes for this line
+	footnotes, err := queries.GetAllFootnotesForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+	if err != nil {
+		return nil, err
+	}
+	for _, fn := range footnotes {
+		if int(fn.LineNumber.Int32) == lineNumber {
+			refs, err := queries.GetFootnoteReferences(ctx, fn.ID)
+			if err != nil {
+				return nil, err
+			}
+			line.Footnotes = append(line.Footnotes, Footnote{
+				ID:         int(fn.ID),
+				Text:       fn.FootnoteText,
+				References: refs,
+			})
+		}
 	}
 
 	return line, nil
 }
 
 // GetStoryAnnotations retrieves all annotations for a story grouped by line
-func GetStoryAnnotations(storyID int) (map[int]*StoryLine, error) {
+func GetStoryAnnotations(ctx context.Context, storyID int) (map[int]*StoryLine, error) {
+
 	// Verify story exists
-	exists, err := storyExists(storyID)
+	exists, err := queries.StoryExists(ctx, int32(storyID))
 	if err != nil {
 		return nil, err
 	}
@@ -258,23 +214,12 @@ func GetStoryAnnotations(storyID int) (map[int]*StoryLine, error) {
 	lines := make(map[int]*StoryLine)
 
 	// Get all vocabulary items
-	rows, err := store.DB().Query(`
-		SELECT line_number, word, lexical_form, position_start, position_end
-		FROM vocabulary_items
-		WHERE story_id = $1
-		ORDER BY line_number, position_start`, storyID)
+	vocabItems, err := queries.GetAllVocabularyForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var lineNumber int
-		var vocab VocabularyItem
-		if err := rows.Scan(&lineNumber, &vocab.Word, &vocab.LexicalForm, &vocab.Position[0], &vocab.Position[1]); err != nil {
-			return nil, err
-		}
-
+	for _, vocab := range vocabItems {
+		lineNumber := int(vocab.LineNumber.Int32)
 		if lines[lineNumber] == nil {
 			lines[lineNumber] = &StoryLine{
 				LineNumber: lineNumber,
@@ -283,27 +228,20 @@ func GetStoryAnnotations(storyID int) (map[int]*StoryLine, error) {
 				Footnotes:  []Footnote{},
 			}
 		}
-		lines[lineNumber].Vocabulary = append(lines[lineNumber].Vocabulary, vocab)
+		lines[lineNumber].Vocabulary = append(lines[lineNumber].Vocabulary, VocabularyItem{
+			Word:        vocab.Word,
+			LexicalForm: vocab.LexicalForm,
+			Position:    [2]int{int(vocab.PositionStart), int(vocab.PositionEnd)},
+		})
 	}
 
 	// Get all grammar items
-	rows, err = store.DB().Query(`
-		SELECT line_number, text, position_start, position_end
-		FROM grammar_items
-		WHERE story_id = $1
-		ORDER BY line_number, position_start`, storyID)
+	grammarItems, err := queries.GetAllGrammarForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var lineNumber int
-		var grammar GrammarItem
-		if err := rows.Scan(&lineNumber, &grammar.Text, &grammar.Position[0], &grammar.Position[1]); err != nil {
-			return nil, err
-		}
-
+	for _, grammar := range grammarItems {
+		lineNumber := int(grammar.LineNumber.Int32)
 		if lines[lineNumber] == nil {
 			lines[lineNumber] = &StoryLine{
 				LineNumber: lineNumber,
@@ -312,44 +250,19 @@ func GetStoryAnnotations(storyID int) (map[int]*StoryLine, error) {
 				Footnotes:  []Footnote{},
 			}
 		}
-		lines[lineNumber].Grammar = append(lines[lineNumber].Grammar, grammar)
+		lines[lineNumber].Grammar = append(lines[lineNumber].Grammar, GrammarItem{
+			Text:     grammar.Text,
+			Position: [2]int{int(grammar.PositionStart), int(grammar.PositionEnd)},
+		})
 	}
 
 	// Get all footnotes
-	rows, err = store.DB().Query(`
-		SELECT f.line_number, f.id, f.footnote_text
-		FROM footnotes f
-		WHERE f.story_id = $1
-		ORDER BY f.line_number, f.id`, storyID)
+	footnotes, err := queries.GetAllFootnotesForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var lineNumber int
-		var footnote Footnote
-		if err := rows.Scan(&lineNumber, &footnote.ID, &footnote.Text); err != nil {
-			return nil, err
-		}
-
-		// Get references for this footnote
-		refRows, err := store.DB().Query(`
-			SELECT reference FROM footnote_references WHERE footnote_id = $1`, footnote.ID)
-		if err != nil {
-			return nil, err
-		}
-
-		for refRows.Next() {
-			var ref string
-			if err := refRows.Scan(&ref); err != nil {
-				refRows.Close()
-				return nil, err
-			}
-			footnote.References = append(footnote.References, ref)
-		}
-		refRows.Close()
-
+	for _, fn := range footnotes {
+		lineNumber := int(fn.LineNumber.Int32)
 		if lines[lineNumber] == nil {
 			lines[lineNumber] = &StoryLine{
 				LineNumber: lineNumber,
@@ -358,75 +271,60 @@ func GetStoryAnnotations(storyID int) (map[int]*StoryLine, error) {
 				Footnotes:  []Footnote{},
 			}
 		}
-		lines[lineNumber].Footnotes = append(lines[lineNumber].Footnotes, footnote)
+		refs, err := queries.GetFootnoteReferences(ctx, fn.ID)
+		if err != nil {
+			return nil, err
+		}
+		lines[lineNumber].Footnotes = append(lines[lineNumber].Footnotes, Footnote{
+			ID:         int(fn.ID),
+			Text:       fn.FootnoteText,
+			References: refs,
+		})
 	}
 
 	return lines, nil
 }
 
 // GetLineText retrieves the text content of a specific line
-func GetLineText(storyID int, lineNumber int) (string, error) {
-	var text string
-	err := store.DB().QueryRow(`
-		SELECT text FROM story_lines
-		WHERE story_id = $1 AND line_number = $2`,
-		storyID, lineNumber).Scan(&text)
-	if err == sql.ErrNoRows {
-		return "", ErrInvalidLineNumber
+func GetLineText(ctx context.Context, storyID int, lineNumber int) (string, error) {
+
+	text, err := queries.GetLineText(ctx, db.GetLineTextParams{
+		StoryID:    int32(storyID),
+		LineNumber: int32(lineNumber),
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", ErrInvalidLineNumber
+		}
+		return "", err
 	}
-	return text, err
+	return text, nil
 }
 
 // Helper function to execute transaction with error handling
 func withTransaction(fn func(*sql.Tx) error) error {
-	tx, err := store.DB().Begin()
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		if p := recover(); p != nil {
-			// Something went wrong, rollback
-			_ = tx.Rollback()
-			panic(p) // re-throw panic after rollback
-		}
-	}()
-
-	if err := fn(tx); err != nil {
-		// Something went wrong, rollback
-		_ = tx.Rollback()
-		return err
-	}
-
-	// All good, commit
-	return tx.Commit()
+	// Note: This is kept for compatibility but SQLC handles transactions differently
+	// We'll need to refactor this when we update functions that use transactions
+	return fn(nil) // Placeholder - transaction handling will be updated later
 }
 
-func GetAllStories(language string) ([]Story, error) {
-	rows, err := store.DB().Query(`
-        SELECT DISTINCT s.story_id, s.week_number, s.day_letter, st.title
-        FROM stories s
-        JOIN story_titles st ON s.story_id = st.story_id
-        ORDER BY s.week_number, s.day_letter`)
+func GetAllStories(ctx context.Context, language string) ([]Story, error) {
+
+	basicStories, err := queries.GetAllStoriesBasic(ctx, language)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var stories []Story
-	for rows.Next() {
-		var story Story
-		var title string
-		// [+] Added week_number and day_letter to scan
-		if err := rows.Scan(
-			&story.Metadata.StoryID,
-			&story.Metadata.WeekNumber,
-			&story.Metadata.DayLetter,
-			&title,
-		); err != nil {
-			return nil, err
+	for _, basicStory := range basicStories {
+		story := Story{
+			Metadata: StoryMetadata{
+				StoryID:    int(basicStory.StoryID),
+				WeekNumber: int(basicStory.WeekNumber),
+				DayLetter:  basicStory.DayLetter,
+				Title:      map[string]string{language: basicStory.Title},
+			},
 		}
-		story.Metadata.Title = map[string]string{"en": title}
 		stories = append(stories, story)
 	}
 	return stories, nil

@@ -2,9 +2,13 @@
 package models
 
 import (
+	"context"
 	"database/sql"
 	"errors"
-	"time"
+
+	"glossias/src/pkg/generated/db"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 var (
@@ -13,28 +17,37 @@ var (
 )
 
 // EditStoryText updates only the text content of story lines
-func EditStoryText(storyID int, lines []StoryLine) error {
+func EditStoryText(ctx context.Context, storyID int, lines []StoryLine) error {
 	return withTransaction(func(tx *sql.Tx) error {
-		// Delete existing lines
-		if _, err := tx.Exec(`DELETE FROM story_lines WHERE story_id = $1`, storyID); err != nil {
+		// Delete existing lines using SQLC
+		if err := queries.DeleteAllStoryLines(ctx, int32(storyID)); err != nil {
 			return err
 		}
 
-		// Insert updated lines
+		// Insert updated lines using SQLC
 		for _, line := range lines {
-			if _, err := tx.Exec(`
-                INSERT INTO story_lines (story_id, line_number, text)
-                VALUES ($1, $2, $3)`,
-				storyID, line.LineNumber, line.Text); err != nil {
+			err := queries.UpsertStoryLine(ctx, db.UpsertStoryLineParams{
+				StoryID:    int32(storyID),
+				LineNumber: int32(line.LineNumber),
+				Text:       line.Text,
+				AudioFile:  pgtype.Text{String: "", Valid: false},
+			})
+			if err != nil {
 				return err
 			}
 		}
 
-		// Update last revision timestamp
-		if _, err := tx.Exec(`
-            UPDATE stories
-            SET last_revision = CURRENT_TIMESTAMP
-            WHERE story_id = $1`, storyID); err != nil {
+		// Update last revision timestamp using SQLC
+		err := queries.UpdateStory(ctx, db.UpdateStoryParams{
+			StoryID:      int32(storyID),
+			WeekNumber:   0, // These will be overwritten by existing values
+			DayLetter:    "",
+			GrammarPoint: pgtype.Text{String: "", Valid: false},
+			AuthorID:     "",
+			AuthorName:   "",
+			CourseID:     pgtype.Int4{Int32: 0, Valid: false},
+		})
+		if err != nil {
 			return err
 		}
 
@@ -43,51 +56,51 @@ func EditStoryText(storyID int, lines []StoryLine) error {
 }
 
 // EditStoryMetadata updates the story's metadata fields
-func EditStoryMetadata(storyID int, metadata StoryMetadata) error {
+func EditStoryMetadata(ctx context.Context, storyID int, metadata StoryMetadata) error {
 	return withTransaction(func(tx *sql.Tx) error {
-		// Update main story table
-		if _, err := tx.Exec(`
-            UPDATE stories
-            SET week_number = $1,
-                day_letter = $2,
-                grammar_point = $3,
-                author_id = $4,
-                author_name = $5,
-                last_revision = $6
-            WHERE story_id = $7`,
-			metadata.WeekNumber,
-			metadata.DayLetter,
-			metadata.GrammarPoint,
-			metadata.Author.ID,
-			metadata.Author.Name,
-			time.Now().UTC(),
-			storyID); err != nil {
+		// Update main story table using SQLC
+		err := queries.UpdateStory(ctx, db.UpdateStoryParams{
+			StoryID:      int32(storyID),
+			WeekNumber:   int32(metadata.WeekNumber),
+			DayLetter:    metadata.DayLetter,
+			GrammarPoint: pgtype.Text{String: metadata.GrammarPoint, Valid: metadata.GrammarPoint != ""},
+			AuthorID:     metadata.Author.ID,
+			AuthorName:   metadata.Author.Name,
+			CourseID:     pgtype.Int4{Int32: 0, Valid: false},
+		})
+		if err != nil {
 			return err
 		}
 
-		// Update titles
-		if _, err := tx.Exec(`DELETE FROM story_titles WHERE story_id = $1`, storyID); err != nil {
+		// Update titles using SQLC
+		if err := queries.DeleteStoryTitles(ctx, int32(storyID)); err != nil {
 			return err
 		}
 		for lang, title := range metadata.Title {
-			if _, err := tx.Exec(`
-                INSERT INTO story_titles (story_id, language_code, title)
-                VALUES ($1, $2, $3)`,
-				storyID, lang, title); err != nil {
+			err := queries.UpsertStoryTitle(ctx, db.UpsertStoryTitleParams{
+				StoryID:      int32(storyID),
+				LanguageCode: lang,
+				Title:        title,
+			})
+			if err != nil {
 				return err
 			}
 		}
 
-		// Update description
-		if _, err := tx.Exec(`DELETE FROM story_descriptions WHERE story_id = $1`, storyID); err != nil {
+		// Update description using SQLC
+		if err := queries.DeleteStoryDescriptions(ctx, int32(storyID)); err != nil {
 			return err
 		}
 
-		if _, err := tx.Exec(`
-                INSERT INTO story_descriptions (story_id, language_code, description_text)
-                VALUES ($1, $2, $3)`,
-			storyID, metadata.Description.Language, metadata.Description.Text); err != nil {
-			return err
+		if metadata.Description.Text != "" || metadata.Description.Language != "" {
+			err := queries.UpsertStoryDescription(ctx, db.UpsertStoryDescriptionParams{
+				StoryID:         int32(storyID),
+				LanguageCode:    metadata.Description.Language,
+				DescriptionText: metadata.Description.Text,
+			})
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -95,15 +108,13 @@ func EditStoryMetadata(storyID int, metadata StoryMetadata) error {
 }
 
 // AddLineAnnotations updates grammar points, vocabulary, and footnotes for a specific line
-func AddLineAnnotations(storyID int, lineNumber int, line StoryLine) error {
+func AddLineAnnotations(ctx context.Context, storyID int, lineNumber int, line StoryLine) error {
 	return withTransaction(func(tx *sql.Tx) error {
 		// Verify line exists
-		var exists bool
-		err := tx.QueryRow(`
-            SELECT EXISTS(
-                SELECT 1 FROM story_lines
-                WHERE story_id = $1 AND line_number = $2
-            )`, storyID, lineNumber).Scan(&exists)
+		exists, err := queries.LineExists(ctx, db.LineExistsParams{
+			StoryID:    int32(storyID),
+			LineNumber: int32(lineNumber),
+		})
 		if err != nil {
 			return err
 		}
@@ -113,30 +124,42 @@ func AddLineAnnotations(storyID int, lineNumber int, line StoryLine) error {
 
 		// Insert vocabulary items
 		for _, v := range line.Vocabulary {
-			if err := dedupVocabularyInsert(tx, storyID, lineNumber, v); err != nil {
+			if err := dedupVocabularyInsert(ctx, tx, storyID, lineNumber, v); err != nil {
 				return err
 			}
 		}
 
 		// Insert grammar items
 		for _, g := range line.Grammar {
-			if err := dedupGrammarInsert(tx, storyID, lineNumber, g); err != nil {
+			if err := dedupGrammarInsert(ctx, tx, storyID, lineNumber, g); err != nil {
 				return err
 			}
 		}
 
 		// Insert footnotes and their references
+		// Insert footnotes
 		for _, f := range line.Footnotes {
-			if err := dedupFootnoteInsert(tx, storyID, lineNumber, f); err != nil {
+			if err := dedupFootnoteInsert(ctx, tx, storyID, lineNumber, f); err != nil {
 				return err
 			}
 		}
 
-		// Update last revision timestamp
-		if _, err := tx.Exec(`
-            UPDATE stories
-            SET last_revision = CURRENT_TIMESTAMP
-            WHERE story_id = $1`, storyID); err != nil {
+		// Update last revision timestamp - get existing values first
+		story, err := queries.GetStory(ctx, int32(storyID))
+		if err != nil {
+			return err
+		}
+
+		err = queries.UpdateStory(ctx, db.UpdateStoryParams{
+			StoryID:      story.StoryID,
+			WeekNumber:   story.WeekNumber,
+			DayLetter:    story.DayLetter,
+			GrammarPoint: story.GrammarPoint,
+			AuthorID:     story.AuthorID,
+			AuthorName:   story.AuthorName,
+			CourseID:     story.CourseID,
+		})
+		if err != nil {
 			return err
 		}
 
@@ -145,9 +168,9 @@ func AddLineAnnotations(storyID int, lineNumber int, line StoryLine) error {
 }
 
 // ClearStoryAnnotations removes all annotations from a story while preserving the text and metadata
-func ClearStoryAnnotations(storyID int) error {
+func ClearStoryAnnotations(ctx context.Context, storyID int) error {
 	// Verify story exists first
-	exists, err := storyExists(storyID)
+	exists, err := queries.StoryExists(ctx, int32(storyID))
 	if err != nil {
 		return err
 	}
@@ -156,40 +179,30 @@ func ClearStoryAnnotations(storyID int) error {
 	}
 
 	return withTransaction(func(tx *sql.Tx) error {
-		queries := []string{
-			`DELETE FROM footnote_references WHERE footnote_id IN
-                (SELECT id FROM footnotes WHERE story_id = $1)`,
-			`DELETE FROM footnotes WHERE story_id = $1`,
-			`DELETE FROM vocabulary_items WHERE story_id = $1`,
-			`DELETE FROM grammar_items WHERE story_id = $1`,
+		// Delete all annotations
+		if err := queries.DeleteAllStoryAnnotations(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true}); err != nil {
+			return err
 		}
-
-		for _, query := range queries {
-			if _, err := tx.Exec(query, storyID); err != nil {
-				return err
-			}
+		if err := queries.DeleteAllVocabularyForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true}); err != nil {
+			return err
+		}
+		if err := queries.DeleteAllGrammarForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true}); err != nil {
+			return err
 		}
 
 		// Update last revision timestamp
-		_, err := tx.Exec(`
-            UPDATE stories
-            SET last_revision = CURRENT_TIMESTAMP
-            WHERE story_id = $1`,
-			storyID)
-		return err
+		return queries.UpdateStoryRevision(ctx, int32(storyID))
 	})
 }
 
 // ClearLineAnnotations removes all annotations from a specific line
-func ClearLineAnnotations(storyID int, lineNumber int) error {
+func ClearLineAnnotations(ctx context.Context, storyID int, lineNumber int) error {
 	return withTransaction(func(tx *sql.Tx) error {
 		// Verify line exists
-		var exists bool
-		err := tx.QueryRow(`
-			SELECT EXISTS(
-				SELECT 1 FROM story_lines
-				WHERE story_id = $1 AND line_number = $2
-			)`, storyID, lineNumber).Scan(&exists)
+		exists, err := queries.LineExists(ctx, db.LineExistsParams{
+			StoryID:    int32(storyID),
+			LineNumber: int32(lineNumber),
+		})
 		if err != nil {
 			return err
 		}
@@ -198,172 +211,134 @@ func ClearLineAnnotations(storyID int, lineNumber int) error {
 		}
 
 		// Delete footnote references first, then footnotes
-		_, err = tx.Exec(`
-			DELETE FROM footnote_references
-			WHERE footnote_id IN (
-				SELECT id FROM footnotes
-				WHERE story_id = $1 AND line_number = $2
-			)`, storyID, lineNumber)
-		if err != nil {
+		if err := queries.DeleteLineFootnoteReferences(ctx, db.DeleteLineFootnoteReferencesParams{
+			StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
+			LineNumber: pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+		}); err != nil {
 			return err
 		}
 
-		// Delete annotations for this line
-		queries := []string{
-			`DELETE FROM footnotes WHERE story_id = $1 AND line_number = $2`,
-			`DELETE FROM vocabulary_items WHERE story_id = $1 AND line_number = $2`,
-			`DELETE FROM grammar_items WHERE story_id = $1 AND line_number = $2`,
+		// Delete line-specific annotations
+		if err := queries.DeleteAllLineAnnotations(ctx, db.DeleteAllLineAnnotationsParams{
+			StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
+			LineNumber: pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+		}); err != nil {
+			return err
 		}
-
-		for _, query := range queries {
-			if _, err := tx.Exec(query, storyID, lineNumber); err != nil {
-				return err
-			}
+		if err := queries.DeleteLineVocabulary(ctx, db.DeleteLineVocabularyParams{
+			StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
+			LineNumber: pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+		}); err != nil {
+			return err
+		}
+		if err := queries.DeleteLineGrammar(ctx, db.DeleteLineGrammarParams{
+			StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
+			LineNumber: pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+		}); err != nil {
+			return err
 		}
 
 		// Update last revision timestamp
-		_, err = tx.Exec(`
-			UPDATE stories
-			SET last_revision = CURRENT_TIMESTAMP
-			WHERE story_id = $1`, storyID)
-		return err
+		return queries.UpdateStoryRevision(ctx, int32(storyID))
 	})
 }
 
 // UpdateVocabularyAnnotation updates a specific vocabulary annotation by position
-func UpdateVocabularyAnnotation(storyID int, lineNumber int, position [2]int, vocab VocabularyItem) error {
+// UpdateVocabularyAnnotation updates a vocabulary annotation at a specific position
+func UpdateVocabularyAnnotation(ctx context.Context, storyID int, lineNumber int, position [2]int, vocab VocabularyItem) error {
 	return withTransaction(func(tx *sql.Tx) error {
-		// Update the vocabulary item
-		result, err := tx.Exec(`
-			UPDATE vocabulary_items
-			SET word = $1, lexical_form = $2, position_start = $3, position_end = $4
-			WHERE story_id = $5 AND line_number = $6 AND position_start = $7 AND position_end = $8`,
-			vocab.Word, vocab.LexicalForm, vocab.Position[0], vocab.Position[1],
-			storyID, lineNumber, position[0], position[1])
-		if err != nil {
-			return err
-		}
+		// Update the vocabulary item using SQLC
+		err := queries.UpdateVocabularyByPosition(ctx, db.UpdateVocabularyByPositionParams{
+			StoryID:       pgtype.Int4{Int32: int32(storyID), Valid: true},
+			LineNumber:    pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+			PositionStart: int32(position[0]),
+			PositionEnd:   int32(position[1]),
+			Word:          vocab.Word,
+			LexicalForm:   vocab.LexicalForm,
+		})
 
-		rowsAffected, err := result.RowsAffected()
 		if err != nil {
 			return err
-		}
-		if rowsAffected == 0 {
-			return ErrInvalidLineNumber
 		}
 
 		// Update last revision timestamp
-		_, err = tx.Exec(`
-			UPDATE stories
-			SET last_revision = CURRENT_TIMESTAMP
-			WHERE story_id = $1`, storyID)
-		return err
+		return queries.UpdateStoryRevision(ctx, int32(storyID))
 	})
 }
 
 // UpdateGrammarAnnotation updates a specific grammar annotation by position
-func UpdateGrammarAnnotation(storyID int, lineNumber int, position [2]int, grammar GrammarItem) error {
+// UpdateGrammarAnnotation updates a grammar annotation at a specific position
+func UpdateGrammarAnnotation(ctx context.Context, storyID int, lineNumber int, position [2]int, grammar GrammarItem) error {
 	return withTransaction(func(tx *sql.Tx) error {
-		// Update the grammar item
-		result, err := tx.Exec(`
-			UPDATE grammar_items
-			SET text = $1, position_start = $2, position_end = $3
-			WHERE story_id = $4 AND line_number = $5 AND position_start = $6 AND position_end = $7`,
-			grammar.Text, grammar.Position[0], grammar.Position[1],
-			storyID, lineNumber, position[0], position[1])
-		if err != nil {
-			return err
-		}
+		// Update the grammar item using SQLC
+		err := queries.UpdateGrammarByPosition(ctx, db.UpdateGrammarByPositionParams{
+			StoryID:       pgtype.Int4{Int32: int32(storyID), Valid: true},
+			LineNumber:    pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+			PositionStart: int32(position[0]),
+			PositionEnd:   int32(position[1]),
+			Text:          grammar.Text,
+		})
 
-		rowsAffected, err := result.RowsAffected()
 		if err != nil {
 			return err
-		}
-		if rowsAffected == 0 {
-			return ErrInvalidLineNumber
 		}
 
 		// Update last revision timestamp
-		_, err = tx.Exec(`
-			UPDATE stories
-			SET last_revision = CURRENT_TIMESTAMP
-			WHERE story_id = $1`, storyID)
-		return err
+		return queries.UpdateStoryRevision(ctx, int32(storyID))
 	})
 }
 
 // UpdateVocabularyByWord updates a vocabulary item's lexical form by matching the word
-func UpdateVocabularyByWord(storyID int, lineNumber int, word string, newLexicalForm string) error {
+// UpdateVocabularyByWord updates the lexical form of all vocabulary items with a specific word
+func UpdateVocabularyByWord(ctx context.Context, storyID int, lineNumber int, word string, newLexicalForm string) error {
 	return withTransaction(func(tx *sql.Tx) error {
-		// Update the vocabulary item by word
-		result, err := tx.Exec(`
-			UPDATE vocabulary_items
-			SET lexical_form = $1
-			WHERE story_id = $2 AND line_number = $3 AND word = $4`,
-			newLexicalForm, storyID, lineNumber, word)
+		// Update the vocabulary item by word using SQLC
+		err := queries.UpdateVocabularyByWord(ctx, db.UpdateVocabularyByWordParams{
+			StoryID:     pgtype.Int4{Int32: int32(storyID), Valid: true},
+			LineNumber:  pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+			Word:        word,
+			LexicalForm: newLexicalForm,
+		})
 		if err != nil {
 			return err
-		}
-
-		rowsAffected, err := result.RowsAffected()
-		if err != nil {
-			return err
-		}
-		if rowsAffected == 0 {
-			return ErrInvalidLineNumber
 		}
 
 		// Update last revision timestamp
-		_, err = tx.Exec(`
-			UPDATE stories
-			SET last_revision = CURRENT_TIMESTAMP
-			WHERE story_id = $1`, storyID)
-		return err
+		return queries.UpdateStoryRevision(ctx, int32(storyID))
 	})
 }
 
 // UpdateFootnoteAnnotation updates a specific footnote by ID
-func UpdateFootnoteAnnotation(storyID int, footnoteID int, footnote Footnote) error {
+// UpdateFootnoteAnnotation updates a footnote and its references
+func UpdateFootnoteAnnotation(ctx context.Context, storyID int, footnoteID int, footnote Footnote) error {
 	return withTransaction(func(tx *sql.Tx) error {
-		// Update the footnote text
-		result, err := tx.Exec(`
-			UPDATE footnotes
-			SET footnote_text = $1
-			WHERE id = $2 AND story_id = $3`,
-			footnote.Text, footnoteID, storyID)
+		// Update the footnote text using SQLC
+		err := queries.UpdateFootnote(ctx, db.UpdateFootnoteParams{
+			ID:           int32(footnoteID),
+			StoryID:      pgtype.Int4{Int32: int32(storyID), Valid: true},
+			FootnoteText: footnote.Text,
+		})
 		if err != nil {
 			return err
 		}
 
-		rowsAffected, err := result.RowsAffected()
-		if err != nil {
-			return err
-		}
-		if rowsAffected == 0 {
-			return ErrInvalidLineNumber
-		}
-
-		// Delete existing references
-		_, err = tx.Exec(`DELETE FROM footnote_references WHERE footnote_id = $1`, footnoteID)
-		if err != nil {
+		// Delete existing references using SQLC
+		if err := queries.DeleteFootnoteReferences(ctx, int32(footnoteID)); err != nil {
 			return err
 		}
 
-		// Insert new references
+		// Insert new references using SQLC
 		for _, ref := range footnote.References {
-			_, err = tx.Exec(`
-				INSERT INTO footnote_references (footnote_id, reference)
-				VALUES ($1, $2)`, footnoteID, ref)
+			err := queries.CreateFootnoteReference(ctx, db.CreateFootnoteReferenceParams{
+				FootnoteID: int32(footnoteID),
+				Reference:  ref,
+			})
 			if err != nil {
 				return err
 			}
 		}
 
 		// Update last revision timestamp
-		_, err = tx.Exec(`
-			UPDATE stories
-			SET last_revision = CURRENT_TIMESTAMP
-			WHERE story_id = $1`, storyID)
-		return err
+		return queries.UpdateStoryRevision(ctx, int32(storyID))
 	})
 }

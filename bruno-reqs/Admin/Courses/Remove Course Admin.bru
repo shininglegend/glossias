@@ -1,0 +1,15 @@
+meta {
+  name: Remove Course Admin
+  type: http
+  seq: 8
+}
+
+delete {
+  url: {{baseURL}}/api/admin/courses/{{courseId}}/admins/{{adminUserId}}
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

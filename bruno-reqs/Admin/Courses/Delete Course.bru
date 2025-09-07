@@ -1,0 +1,15 @@
+meta {
+  name: Delete Course
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseURL}}/api/admin/courses/{{courseId}}
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

@@ -7,6 +7,7 @@ import (
 
 	"glossias/src/pkg/generated/db"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -53,7 +54,7 @@ func UpsertUser(ctx context.Context, userID, email, name string) (*User, error) 
 // GetUser retrieves a user by ID
 func GetUser(ctx context.Context, userID string) (*User, error) {
 	result, err := queries.GetUser(ctx, userID)
-	if err == sql.ErrNoRows {
+	if err == sql.ErrNoRows || err == pgx.ErrNoRows {
 		return nil, ErrNotFound
 	}
 	if err != nil {

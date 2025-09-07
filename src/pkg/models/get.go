@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"glossias/src/pkg/generated/db"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq"
@@ -18,7 +19,7 @@ func GetStoryData(ctx context.Context, id int) (*Story, error) {
 	// Get main story data
 	dbStory, err := queries.GetStory(ctx, int32(id))
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == sql.ErrNoRows || err == pgx.ErrNoRows {
 			return nil, ErrNotFound
 		}
 		return nil, err
@@ -295,7 +296,7 @@ func GetLineText(ctx context.Context, storyID int, lineNumber int) (string, erro
 		LineNumber: int32(lineNumber),
 	})
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == sql.ErrNoRows || err == pgx.ErrNoRows {
 			return "", ErrInvalidLineNumber
 		}
 		return "", err

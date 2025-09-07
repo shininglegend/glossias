@@ -6,6 +6,7 @@ import (
 	"glossias/src/pkg/generated/db"
 	"glossias/src/pkg/models"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -26,7 +27,7 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 func (r *Repository) GetStoryData(ctx context.Context, storyID int) (*models.Story, error) {
 	story, err := r.queries.GetStory(ctx, int32(storyID))
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == sql.ErrNoRows || err == pgx.ErrNoRows {
 			return nil, models.ErrNotFound
 		}
 		return nil, err
@@ -368,7 +369,7 @@ func (r *Repository) GetLineText(ctx context.Context, storyID, lineNumber int) (
 		LineNumber: int32(lineNumber),
 	})
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == sql.ErrNoRows || err == pgx.ErrNoRows {
 			return "", models.ErrNotFound
 		}
 		return "", err

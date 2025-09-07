@@ -1,0 +1,23 @@
+meta {
+  name: Create Course
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseURL}}/api/admin/courses
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "course_number": "CS101",
+    "name": "Introduction to Computer Science",
+    "description": "A foundational course covering basic programming concepts and computer science principles."
+  }
+}
+
+settings {
+  encodeUrl: true
+}

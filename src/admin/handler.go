@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"glossias/src/admin/courses"
 	"glossias/src/admin/stories"
 
 	"github.com/gorilla/mux"
@@ -15,12 +16,14 @@ import (
 type Handler struct {
 	log     *slog.Logger
 	stories *stories.Handler
+	courses *courses.Handler
 }
 
 func NewHandler(log *slog.Logger) *Handler {
 	return &Handler{
 		log:     log,
 		stories: stories.NewHandler(log),
+		courses: courses.NewHandler(log),
 	}
 }
 
@@ -29,8 +32,9 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	// Apply admin-specific middleware at this level
 	r.Use(h.adminAuthMiddleware)
 
-	// Register all admin story routes beneath the provided base router
+	// Register all admin routes beneath the provided base router
 	h.stories.RegisterRoutes(r)
+	h.courses.RegisterRoutes(r)
 }
 
 func (h *Handler) adminAuthMiddleware(next http.Handler) http.Handler {

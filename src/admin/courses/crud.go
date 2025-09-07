@@ -52,7 +52,9 @@ func (h *Handler) handleCoursesList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(courses)
+	json.NewEncoder(w).Encode(struct {
+		Courses []models.Course `json:"courses"`
+	}{courses})
 }
 
 // handleCourseCreate creates a new course (super admin only)

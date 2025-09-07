@@ -26,27 +26,24 @@ export function useAdminApi() {
       }
       return res.json();
     },
-    [authenticatedFetch],
+    [authenticatedFetch]
   );
 
   return {
     // GET stories/:id -> { Story, Success }
     getStoryForEdit: useCallback(
-      async (
-        id: number,
-        baseUrl?: string,
-      ): Json<{ Story: Story; Success: boolean } | Story> => {
+      async (id: number, baseUrl?: string): Json<Story | undefined> => {
         const data = await request<any>(
           `/stories/${id}`,
           {
             headers: { Accept: "application/json" },
           },
-          baseUrl,
+          baseUrl
         );
-        // Tolerate {Story,Success} or raw Story
-        return data.Story ? data : { Story: data as Story, Success: true };
+        const story = data.story;
+        return story;
       },
-      [request],
+      [request]
     ),
 
     // PUT stories/:id expects full Story JSON
@@ -54,7 +51,7 @@ export function useAdminApi() {
       async (
         id: number,
         story: Story,
-        baseUrl?: string,
+        baseUrl?: string
       ): Json<{ Success: boolean; Story: Story }> => {
         return request<{ Success: boolean; Story: Story }>(
           `/stories/${id}`,
@@ -62,28 +59,28 @@ export function useAdminApi() {
             method: "PUT",
             body: JSON.stringify(story),
           },
-          baseUrl,
+          baseUrl
         );
       },
-      [request],
+      [request]
     ),
 
     // GET stories/:id/metadata -> { Story }
     getMetadata: useCallback(
       async (
         id: number,
-        baseUrl?: string,
+        baseUrl?: string
       ): Json<{ story: Story; Success: boolean }> => {
         const data = await request<any>(
           `/stories/${id}/metadata`,
           {
             headers: { Accept: "application/json" },
           },
-          baseUrl,
+          baseUrl
         );
         return data;
       },
-      [request],
+      [request]
     ),
 
     // PUT stories/:id/metadata expects StoryMetadata
@@ -91,7 +88,7 @@ export function useAdminApi() {
       async (
         id: number,
         metadata: StoryMetadata,
-        baseUrl?: string,
+        baseUrl?: string
       ): Json<{ success: boolean }> => {
         return request<{ success: boolean }>(
           `/stories/${id}/metadata`,
@@ -99,10 +96,10 @@ export function useAdminApi() {
             method: "PUT",
             body: JSON.stringify(metadata),
           },
-          baseUrl,
+          baseUrl
         );
       },
-      [request],
+      [request]
     ),
 
     // GET /stories/:id -> { content }
@@ -111,10 +108,10 @@ export function useAdminApi() {
         return request<{ content: StoryContent }>(
           `/stories/${id}`,
           undefined,
-          baseUrl,
+          baseUrl
         );
       },
-      [request],
+      [request]
     ),
 
     // PUT /stories/:id with one of vocabulary | grammar | footnote
@@ -127,7 +124,7 @@ export function useAdminApi() {
           grammar?: Story["content"]["lines"][number]["grammar"][number];
           footnote?: Story["content"]["lines"][number]["footnotes"][number];
         },
-        baseUrl?: string,
+        baseUrl?: string
       ): Json<{ success: boolean }> => {
         return request<{ success: boolean }>(
           `/stories/${id}`,
@@ -135,10 +132,10 @@ export function useAdminApi() {
             method: "PUT",
             body: JSON.stringify(req),
           },
-          baseUrl,
+          baseUrl
         );
       },
-      [request],
+      [request]
     ),
 
     // DELETE /stories/:id/annotations -> should delete all annotations on this story
@@ -149,10 +146,10 @@ export function useAdminApi() {
           {
             method: "DELETE",
           },
-          baseUrl,
+          baseUrl
         );
       },
-      [request],
+      [request]
     ),
 
     // POST /stories/add for new story
@@ -167,7 +164,7 @@ export function useAdminApi() {
           storyText: string; // newline-separated lines
           descriptionText?: string;
         },
-        baseUrl?: string,
+        baseUrl?: string
       ): Json<{ success: boolean; storyId: number }> => {
         return request<{ success: boolean; storyId: number }>(
           `/stories`,
@@ -175,10 +172,10 @@ export function useAdminApi() {
             method: "POST",
             body: JSON.stringify(payload),
           },
-          baseUrl,
+          baseUrl
         );
       },
-      [request],
+      [request]
     ),
 
     // DELETE /stories/:id -> Deletes the story
@@ -189,10 +186,10 @@ export function useAdminApi() {
           {
             method: "DELETE",
           },
-          baseUrl,
+          baseUrl
         );
       },
-      [request],
+      [request]
     ),
   };
 }

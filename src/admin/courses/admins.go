@@ -43,7 +43,9 @@ func (h *Handler) handleCourseAdminsList(w http.ResponseWriter, r *http.Request,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(admins)
+	json.NewEncoder(w).Encode(struct {
+		Admins []models.CourseAdmin `json:"admins"`
+	}{admins})
 }
 
 // handleCourseAdminAdd adds a user as admin to a course (super admin only)

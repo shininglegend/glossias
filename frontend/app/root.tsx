@@ -12,6 +12,7 @@ import { ClerkProvider } from "@clerk/react-router";
 import type { Route } from "./+types/root";
 import stylesheet from "./app.css?url";
 import NavBar from "./components/NavBar";
+import { UserProvider } from "./contexts/UserContext";
 
 // Clerk
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -74,14 +75,16 @@ export function HydrateFallback() {
 export default function App() {
   return (
     <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
-      <div id="app-shell">
-        <NavBar />
-        <div className="pt-16 p-4 container mx-auto">
-          <main>
-            <Outlet />
-          </main>
+      <UserProvider>
+        <div id="app-shell">
+          <NavBar />
+          <div className="pt-16 p-4 container mx-auto">
+            <main>
+              <Outlet />
+            </main>
+          </div>
         </div>
-      </div>
+      </UserProvider>
     </ClerkProvider>
   );
 }

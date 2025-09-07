@@ -31,8 +31,7 @@ export default function EditStory() {
     async function fetchStory() {
       try {
         const data = await adminApi.getStoryForEdit(Number(id));
-        const storyData: Story = (data as any).Story || (data as Story);
-        setStory(storyData);
+        setStory(data ? data : null);
       } catch (error) {
         console.error("Failed to fetch story:", error);
       } finally {

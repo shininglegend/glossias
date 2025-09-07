@@ -62,8 +62,8 @@ func (h *Handler) handleGetStory(w http.ResponseWriter, r *http.Request, storyID
 
 func (h *Handler) handleUpdateStory(w http.ResponseWriter, r *http.Request, storyID int) {
 	// Parse request body
-	var story models.Story
-	if err := json.NewDecoder(r.Body).Decode(&story); err != nil {
+	story := models.Story{}
+	if err := json.NewDecoder(r.Body).Decode(&story); err != nil || story.Metadata.StoryID == 0 {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
 	}

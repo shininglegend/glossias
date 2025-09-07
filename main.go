@@ -49,8 +49,7 @@ func main() {
 	// Clerk stuff
 	clerk_key := os.Getenv("CLERK_SECRET_KEY")
 	if clerk_key == "" {
-		logger.Error("CLERK_SECRET_KEY environment variable not set")
-		os.Exit(1)
+		logger.Error("CLERK_SECRET_KEY environment variable not set. All auth will fail.")
 	}
 	clerk.SetKey(clerk_key)
 

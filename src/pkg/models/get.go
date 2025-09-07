@@ -4,9 +4,11 @@ package models
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"glossias/src/pkg/generated/db"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq"
 )
 
@@ -301,11 +303,53 @@ func GetLineText(ctx context.Context, storyID int, lineNumber int) (string, erro
 	return text, nil
 }
 
-// Helper function to execute transaction with error handling
+// withTransaction executes a function within a database transaction
 func withTransaction(fn func(*sql.Tx) error) error {
-	// Note: This is kept for compatibility but SQLC handles transactions differently
-	// We'll need to refactor this when we update functions that use transactions
-	return fn(nil) // Placeholder - transaction handling will be updated later
+	// Check if we're using pgxpool
+	if pool, ok := rawConn.(*pgxpool.Pool); ok {
+		// Use pgx transaction
+		ctx := context.Background()
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback(ctx)
+
+		// Create new queries instance with transaction
+		oldQueries := queries
+		queries = queries.WithTx(tx)
+
+		// Execute function (tx parameter is ignored for SQLC)
+		err = fn(nil)
+
+		// Restore original queries
+		queries = oldQueries
+
+		if err != nil {
+			return err
+		}
+
+		return tx.Commit(ctx)
+	}
+
+	// Check if we're using *sql.DB
+	if sqlDB, ok := rawConn.(*sql.DB); ok {
+		tx, err := sqlDB.Begin()
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+
+		if err := fn(tx); err != nil {
+			return err
+		}
+
+		return tx.Commit()
+	}
+
+	// Fallback for other connection types
+	fmt.Println("# Connection type not recognized. Transactions disabled.")
+	return fn(nil)
 }
 
 func GetAllStories(ctx context.Context, language string) ([]Story, error) {

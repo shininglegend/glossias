@@ -80,16 +80,21 @@ func main() {
 	apiHandler := apis.NewHandler(logger)
 	apiRouter := r.PathPrefix("/api").Subrouter()
 
-	// Clerk: require Authorization: Bearer <token> on every request
+	// Clerk: require Authorization: Bearer <token> on every request (unless dev auth bypass)
 	authorizedParty := os.Getenv("AUTHORIZED_PARTY")
-	if authorizedParty == "" {
-		logger.Warn("AUTHORIZED_PARTY environment variable not set")
-		// It's not acually needed, but can cause problems if missing.
-		apiRouter.Use(clerkhttp.RequireHeaderAuthorization())
-	} else {
-		apiRouter.Use(clerkhttp.RequireHeaderAuthorization(
-			clerkhttp.AuthorizedPartyMatches(authorizedParty),
-		))
+	devUser := os.Getenv("DEV_USER")
+
+	// Skip Clerk middleware if DEV_USER is set
+	if devUser == "" {
+		if authorizedParty == "" {
+			logger.Warn("AUTHORIZED_PARTY environment variable not set")
+			// It's not acually needed, but can cause problems if missing.
+			apiRouter.Use(clerkhttp.RequireHeaderAuthorization())
+		} else {
+			apiRouter.Use(clerkhttp.RequireHeaderAuthorization(
+				clerkhttp.AuthorizedPartyMatches(authorizedParty),
+			))
+		}
 	}
 	apiRouter.Use(jsonMiddleware())
 	apiHandler.RegisterRoutes(apiRouter)

@@ -5,6 +5,7 @@ import (
 	"glossias/src/pkg/models"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/clerk/clerk-sdk-go/v2"
@@ -53,6 +54,41 @@ func Middleware(logger *slog.Logger) mux.MiddlewareFunc {
 // extractAndValidateUser extracts user info from JWT and syncs with database
 func extractAndValidateUser(r *http.Request, logger *slog.Logger) (string, error) {
 	ctx := r.Context()
+
+	// Dev auth bypass - only when DEV_USER is set
+	devUser := os.Getenv("DEV_USER")
+	devAuth := r.Header.Get("dev_auth")
+	if devUser != "" && devAuth == "12345678" {
+		// Load the dev user from Clerk to maintain consistency
+		clerkUser, err := user.Get(ctx, devUser)
+		if err != nil {
+			logger.Warn("failed to fetch dev user from Clerk", "error", err, "dev_user", devUser)
+			return devUser, nil
+		}
+
+		// Sync dev user data with database
+		email := ""
+		name := ""
+		if len(clerkUser.EmailAddresses) > 0 {
+			email = clerkUser.EmailAddresses[0].EmailAddress
+		}
+		if clerkUser.FirstName != nil && clerkUser.LastName != nil {
+			name = *clerkUser.FirstName + " " + *clerkUser.LastName
+		} else if clerkUser.FirstName != nil {
+			name = *clerkUser.FirstName
+		} else if clerkUser.LastName != nil {
+			name = *clerkUser.LastName
+		}
+
+		_, err = models.UpsertUser(ctx, devUser, email, name)
+		if err != nil {
+			logger.Warn("failed to sync dev user to database", "error", err, "dev_user", devUser)
+		}
+
+		logger.Debug("dev auth bypass used", "dev_user", devUser)
+		return devUser, nil
+	}
+
 	// Extract token from Authorization header
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {

@@ -8,6 +8,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Course struct {
+	CourseID     int32            `json:"course_id"`
+	CourseNumber string           `json:"course_number"`
+	Name         string           `json:"name"`
+	Description  pgtype.Text      `json:"description"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+type CourseAdmin struct {
+	CourseID   int32            `json:"course_id"`
+	UserID     string           `json:"user_id"`
+	AssignedAt pgtype.Timestamp `json:"assigned_at"`
+}
+
 type Footnote struct {
 	ID           int32       `json:"id"`
 	StoryID      pgtype.Int4 `json:"story_id"`
@@ -37,6 +52,7 @@ type Story struct {
 	LastRevision pgtype.Timestamp `json:"last_revision"`
 	AuthorID     string           `json:"author_id"`
 	AuthorName   string           `json:"author_name"`
+	CourseID     pgtype.Int4      `json:"course_id"`
 }
 
 type StoryDescription struct {
@@ -56,6 +72,15 @@ type StoryTitle struct {
 	StoryID      int32  `json:"story_id"`
 	LanguageCode string `json:"language_code"`
 	Title        string `json:"title"`
+}
+
+type User struct {
+	UserID       string           `json:"user_id"`
+	Email        string           `json:"email"`
+	Name         string           `json:"name"`
+	IsSuperAdmin pgtype.Bool      `json:"is_super_admin"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
 }
 
 type VocabularyItem struct {

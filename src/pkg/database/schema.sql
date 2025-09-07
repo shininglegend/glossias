@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS stories (
     grammar_point TEXT,
     last_revision TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     author_id TEXT NOT NULL,
-    author_name TEXT NOT NULL
+    author_name TEXT NOT NULL,
+    course_id INTEGER REFERENCES courses (course_id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS story_titles (
@@ -66,4 +67,32 @@ CREATE TABLE IF NOT EXISTS footnote_references (
     footnote_id INTEGER REFERENCES footnotes (id) ON DELETE CASCADE,
     reference TEXT NOT NULL,
     PRIMARY KEY (footnote_id, reference)
+);
+
+-- Users table for authentication and authorization
+CREATE TABLE IF NOT EXISTS users (
+    user_id TEXT PRIMARY KEY, -- Clerk user ID
+    email TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    is_super_admin BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Courses table
+CREATE TABLE IF NOT EXISTS courses (
+    course_id SERIAL PRIMARY KEY,
+    course_number TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Course administrators junction table
+CREATE TABLE IF NOT EXISTS course_admins (
+    course_id INTEGER REFERENCES courses (course_id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users (user_id) ON DELETE CASCADE,
+    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (course_id, user_id)
 );

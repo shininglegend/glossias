@@ -77,7 +77,7 @@ func (s *mockStore) Close() error {
 }
 
 func (s *mockStore) RawConn() any {
-	return &mockDB{}
+	return &MockDBTX{}
 }
 
 // mockDB implements DB interface with no-ops

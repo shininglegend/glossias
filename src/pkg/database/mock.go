@@ -2,8 +2,12 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"sync"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // MockDB implements the DB interface for testing
@@ -99,3 +103,39 @@ func (m *MockDB) Query(query string, args ...interface{}) (Rows, error) {
 func (m *MockDB) QueryRow(query string, args ...interface{}) Row {
 	return &MockRow{}
 }
+
+// MockDBTX implements db.DBTX for testing
+type MockDBTX struct{}
+
+func (m *MockDBTX) Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) {
+	return pgconn.CommandTag{}, nil
+}
+
+func (m *MockDBTX) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
+	return &MockPgxRows{}, nil
+}
+
+func (m *MockDBTX) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
+	return &MockPgxRow{}
+}
+
+func (m *MockDBTX) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
+	return 0, nil
+}
+
+// Mock implementations for pgx types
+type MockPgxRows struct{}
+
+func (m *MockPgxRows) Next() bool                                   { return false }
+func (m *MockPgxRows) Scan(dest ...interface{}) error               { return nil }
+func (m *MockPgxRows) Values() ([]interface{}, error)               { return nil, nil }
+func (m *MockPgxRows) Close()                                       {}
+func (m *MockPgxRows) Err() error                                   { return nil }
+func (m *MockPgxRows) CommandTag() pgconn.CommandTag                { return pgconn.CommandTag{} }
+func (m *MockPgxRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
+func (m *MockPgxRows) RawValues() [][]byte                          { return nil }
+func (m *MockPgxRows) Conn() *pgx.Conn                              { return nil }
+
+type MockPgxRow struct{}
+
+func (m *MockPgxRow) Scan(dest ...interface{}) error { return nil }

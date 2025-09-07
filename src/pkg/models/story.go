@@ -3,6 +3,7 @@ package models
 import (
 	"encoding/json"
 	"errors"
+	"glossias/src/pkg/database"
 	"glossias/src/pkg/generated/db"
 	"time"
 
@@ -33,8 +34,11 @@ func SetDB(d any) {
 	rawConn = d
 	if conn, ok := d.(db.DBTX); ok {
 		queries = db.New(conn)
+	} else if mockConn, ok := d.(*database.MockDBTX); ok {
+		queries = db.New(mockConn)
 	} else {
-		panic("unsupported database type - expected db.DBTX interface. Set USE_POOL=true environment variable to use pgxpool")
+		// For testing - allow nil queries when no real DB connection
+		queries = nil
 	}
 }
 

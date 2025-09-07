@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"glossias/src/admin"
 	"glossias/src/apis"
 	"glossias/src/auth"
@@ -30,7 +31,8 @@ func main() {
 	// Load environment variables from .env file if present
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		slog.WarnContext(context.Background(), "No .env file found, relying on environment variables")
+		err = nil
 	}
 
 	// Initialize database based on POSTGRES_DB environment variable

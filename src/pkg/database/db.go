@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -32,7 +33,15 @@ func InitDB(dbPath string) (Store, error) {
 
 	if usePool {
 		// Use pgxpool for PostgreSQL
-		pool, err := pgxpool.New(context.Background(), connStr)
+		config, err := pgxpool.ParseConfig(connStr)
+		if err != nil {
+			return nil, err
+		}
+
+		// Disable prepared statements to avoid cache conflicts
+		config.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+
+		pool, err := pgxpool.NewWithConfig(context.Background(), config)
 		if err != nil {
 			return nil, err
 		}

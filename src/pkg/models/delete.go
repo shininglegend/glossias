@@ -29,11 +29,19 @@ func Delete(ctx context.Context, storyID int) error {
 			return err
 		}
 
+		if err := deleteAudioFiles(ctx, storyID); err != nil {
+			return err
+		}
+
 		if err := deleteStoryContent(ctx, storyID); err != nil {
 			return err
 		}
 
 		if err := deleteMetadata(ctx, storyID); err != nil {
+			return err
+		}
+
+		if err := deleteStoryGrammarPoints(ctx, storyID); err != nil {
 			return err
 		}
 
@@ -65,10 +73,20 @@ func deleteStoryContent(ctx context.Context, storyID int) error {
 	return queries.DeleteAllStoryLines(ctx, int32(storyID))
 }
 
+// deleteAudioFiles removes audio files using SQLC
+func deleteAudioFiles(ctx context.Context, storyID int) error {
+	return queries.DeleteStoryAudioFiles(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+}
+
 // deleteMetadata removes titles and descriptions using SQLC
 func deleteMetadata(ctx context.Context, storyID int) error {
 	if err := queries.DeleteStoryTitles(ctx, int32(storyID)); err != nil {
 		return err
 	}
 	return queries.DeleteStoryDescriptions(ctx, int32(storyID))
+}
+
+// deleteStoryGrammarPoints removes story grammar point associations
+func deleteStoryGrammarPoints(ctx context.Context, storyID int) error {
+	return queries.ClearStoryGrammarPoints(ctx, int32(storyID))
 }

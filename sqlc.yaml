@@ -1,5 +1,5 @@
 version: "2"
-sql:
+sql: # Run this generate: go sqlc generate
   - engine: "postgresql"
     queries: "src/pkg/database/queries"
     schema: "src/pkg/database/schema.sql"

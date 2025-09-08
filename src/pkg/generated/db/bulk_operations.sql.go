@@ -9,19 +9,33 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type BulkCreateAudioFilesParams struct {
+	StoryID    pgtype.Int4 `json:"story_id"`
+	LineNumber pgtype.Int4 `json:"line_number"`
+	FilePath   string      `json:"file_path"`
+	FileBucket string      `json:"file_bucket"`
+	Label      string      `json:"label"`
+}
+
 type BulkCreateGrammarItemsParams struct {
-	StoryID       pgtype.Int4 `json:"story_id"`
-	LineNumber    pgtype.Int4 `json:"line_number"`
-	Text          string      `json:"text"`
-	PositionStart int32       `json:"position_start"`
-	PositionEnd   int32       `json:"position_end"`
+	StoryID        pgtype.Int4 `json:"story_id"`
+	LineNumber     pgtype.Int4 `json:"line_number"`
+	GrammarPointID pgtype.Int4 `json:"grammar_point_id"`
+	Text           string      `json:"text"`
+	PositionStart  int32       `json:"position_start"`
+	PositionEnd    int32       `json:"position_end"`
+}
+
+type BulkCreateStoryGrammarPointsParams struct {
+	StoryID        int32 `json:"story_id"`
+	GrammarPointID int32 `json:"grammar_point_id"`
 }
 
 type BulkCreateStoryLinesParams struct {
-	StoryID    int32       `json:"story_id"`
-	LineNumber int32       `json:"line_number"`
-	Text       string      `json:"text"`
-	AudioFile  pgtype.Text `json:"audio_file"`
+	StoryID            int32       `json:"story_id"`
+	LineNumber         int32       `json:"line_number"`
+	Text               string      `json:"text"`
+	EnglishTranslation pgtype.Text `json:"english_translation"`
 }
 
 type BulkCreateVocabularyItemsParams struct {

@@ -19,12 +19,12 @@ func SaveNewStory(ctx context.Context, story *Story) error {
 		}
 
 		result, err := queries.CreateStory(ctx, db.CreateStoryParams{
-			WeekNumber:   int32(story.Metadata.WeekNumber),
-			DayLetter:    story.Metadata.DayLetter,
-			GrammarPoint: pgtype.Text{String: story.Metadata.GrammarPoint, Valid: story.Metadata.GrammarPoint != ""},
-			AuthorID:     story.Metadata.Author.ID,
-			AuthorName:   story.Metadata.Author.Name,
-			CourseID:     courseID,
+			WeekNumber: int32(story.Metadata.WeekNumber),
+			DayLetter:  story.Metadata.DayLetter,
+			VideoUrl:   pgtype.Text{String: story.Metadata.VideoURL, Valid: story.Metadata.VideoURL != ""},
+			AuthorID:   story.Metadata.Author.ID,
+			AuthorName: story.Metadata.Author.Name,
+			CourseID:   courseID,
 		})
 		if err != nil {
 			return err
@@ -52,13 +52,13 @@ func SaveStoryData(ctx context.Context, storyID int, story *Story) error {
 		}
 
 		err := queries.UpdateStory(ctx, db.UpdateStoryParams{
-			StoryID:      int32(storyID),
-			WeekNumber:   int32(story.Metadata.WeekNumber),
-			DayLetter:    story.Metadata.DayLetter,
-			GrammarPoint: pgtype.Text{String: story.Metadata.GrammarPoint, Valid: story.Metadata.GrammarPoint != ""},
-			AuthorID:     story.Metadata.Author.ID,
-			AuthorName:   story.Metadata.Author.Name,
-			CourseID:     courseID,
+			StoryID:    int32(storyID),
+			WeekNumber: int32(story.Metadata.WeekNumber),
+			DayLetter:  story.Metadata.DayLetter,
+			VideoUrl:   pgtype.Text{String: story.Metadata.VideoURL, Valid: story.Metadata.VideoURL != ""},
+			AuthorID:   story.Metadata.Author.ID,
+			AuthorName: story.Metadata.Author.Name,
+			CourseID:   courseID,
 		})
 		if err != nil {
 			return err
@@ -105,15 +105,11 @@ func saveLines(ctx context.Context, storyID int, lines []StoryLine) error {
 
 func saveLine(ctx context.Context, storyID int, line *StoryLine) error {
 	// Save line using SQLC
-	audioFile := pgtype.Text{String: "", Valid: false}
-	if line.AudioFile != nil {
-		audioFile = pgtype.Text{String: *line.AudioFile, Valid: true}
-	}
 	err := queries.UpsertStoryLine(ctx, db.UpsertStoryLineParams{
-		StoryID:    int32(storyID),
-		LineNumber: int32(line.LineNumber),
-		Text:       line.Text,
-		AudioFile:  audioFile,
+		StoryID:            int32(storyID),
+		LineNumber:         int32(line.LineNumber),
+		Text:               line.Text,
+		EnglishTranslation: pgtype.Text{String: line.EnglishTranslation, Valid: line.EnglishTranslation != ""},
 	})
 	if err != nil {
 		return err
@@ -136,6 +132,20 @@ func saveLine(ctx context.Context, storyID int, line *StoryLine) error {
 	// Save footnotes
 	for _, f := range line.Footnotes {
 		if err := dedupFootnoteInsert(ctx, storyID, line.LineNumber, f); err != nil {
+			return err
+		}
+	}
+
+	// Save audio files
+	for _, a := range line.AudioFiles {
+		_, err := queries.CreateAudioFile(ctx, db.CreateAudioFileParams{
+			StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
+			LineNumber: pgtype.Int4{Int32: int32(line.LineNumber), Valid: true},
+			FilePath:   a.FilePath,
+			FileBucket: a.FileBucket,
+			Label:      a.Label,
+		})
+		if err != nil {
 			return err
 		}
 	}

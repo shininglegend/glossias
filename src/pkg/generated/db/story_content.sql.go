@@ -89,7 +89,7 @@ func (q *Queries) GetStoryDescription(ctx context.Context, arg GetStoryDescripti
 }
 
 const getStoryLine = `-- name: GetStoryLine :one
-SELECT story_id, line_number, text, audio_file
+SELECT story_id, line_number, text, english_translation
 FROM story_lines
 WHERE story_id = $1 AND line_number = $2
 `
@@ -106,13 +106,13 @@ func (q *Queries) GetStoryLine(ctx context.Context, arg GetStoryLineParams) (Sto
 		&i.StoryID,
 		&i.LineNumber,
 		&i.Text,
-		&i.AudioFile,
+		&i.EnglishTranslation,
 	)
 	return i, err
 }
 
 const getStoryLines = `-- name: GetStoryLines :many
-SELECT story_id, line_number, text, audio_file
+SELECT story_id, line_number, text, english_translation
 FROM story_lines
 WHERE story_id = $1
 ORDER BY line_number
@@ -132,7 +132,7 @@ func (q *Queries) GetStoryLines(ctx context.Context, storyID int32) ([]StoryLine
 			&i.StoryID,
 			&i.LineNumber,
 			&i.Text,
-			&i.AudioFile,
+			&i.EnglishTranslation,
 		); err != nil {
 			return nil, err
 		}
@@ -208,17 +208,17 @@ func (q *Queries) UpsertStoryDescription(ctx context.Context, arg UpsertStoryDes
 }
 
 const upsertStoryLine = `-- name: UpsertStoryLine :exec
-INSERT INTO story_lines (story_id, line_number, text, audio_file)
+INSERT INTO story_lines (story_id, line_number, text, english_translation)
 VALUES ($1, $2, $3, $4)
 ON CONFLICT (story_id, line_number)
-DO UPDATE SET text = EXCLUDED.text, audio_file = EXCLUDED.audio_file
+DO UPDATE SET text = EXCLUDED.text, english_translation = EXCLUDED.english_translation
 `
 
 type UpsertStoryLineParams struct {
-	StoryID    int32       `json:"story_id"`
-	LineNumber int32       `json:"line_number"`
-	Text       string      `json:"text"`
-	AudioFile  pgtype.Text `json:"audio_file"`
+	StoryID            int32       `json:"story_id"`
+	LineNumber         int32       `json:"line_number"`
+	Text               string      `json:"text"`
+	EnglishTranslation pgtype.Text `json:"english_translation"`
 }
 
 func (q *Queries) UpsertStoryLine(ctx context.Context, arg UpsertStoryLineParams) error {
@@ -226,7 +226,7 @@ func (q *Queries) UpsertStoryLine(ctx context.Context, arg UpsertStoryLineParams
 		arg.StoryID,
 		arg.LineNumber,
 		arg.Text,
-		arg.AudioFile,
+		arg.EnglishTranslation,
 	)
 	return err
 }

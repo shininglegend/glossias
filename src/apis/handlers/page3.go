@@ -2,11 +2,9 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"glossias/src/apis/types"
 	"glossias/src/pkg/models"
 	"net/http"
-	"os"
 	"slices"
 	"strconv"
 
@@ -36,12 +34,12 @@ func (h *Handler) GetPage3(w http.ResponseWriter, r *http.Request) {
 	lines := h.processLinesForPage3(*story, id)
 
 	data := types.Page3Data{
+		// TODO: Only send back the grammar point relevant to this page.
 		PageData: types.PageData{
 			StoryID:    storyID,
 			StoryTitle: story.Metadata.Title["en"],
 			Lines:      lines,
 		},
-		GrammarPoint: story.Metadata.GrammarPoint,
 	}
 
 	response := types.APIResponse{
@@ -56,11 +54,7 @@ func (h *Handler) GetPage3(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) processLinesForPage3(story models.Story, id int) []types.Line {
 	lines := make([]types.Line, len(story.Content.Lines))
 
-	folderPath := fmt.Sprintf(storiesDir+"stories_audio/%v_%v%v",
-		story.Metadata.Description.Language,
-		story.Metadata.WeekNumber,
-		story.Metadata.DayLetter)
-	audioDir, err := os.ReadDir(folderPath)
+
 
 	for i, line := range story.Content.Lines {
 		series := []string{}
@@ -91,15 +85,11 @@ func (h *Handler) processLinesForPage3(story models.Story, id int) []types.Line 
 			series = append(series, string(runes[lastEnd:]))
 		}
 
-		var audioFile *string
-		if err == nil && i < len(audioDir) {
-			temp := fmt.Sprintf("/%v/%v", folderPath, audioDir[i].Name())
-			audioFile = &temp
-		}
+
 
 		lines[i] = types.Line{
 			Text:              series,
-			AudioURL:          audioFile,
+			AudioFiles:        []types.AudioFile{}, // Empty for now - could be populated from models
 			HasVocabOrGrammar: len(line.Grammar) > 0,
 		}
 	}

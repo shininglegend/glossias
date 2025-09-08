@@ -29,8 +29,8 @@ func GetStoryData(ctx context.Context, id int) (*Story, error) {
 	story.Metadata.StoryID = int(dbStory.StoryID)
 	story.Metadata.WeekNumber = int(dbStory.WeekNumber)
 	story.Metadata.DayLetter = dbStory.DayLetter
-	if dbStory.GrammarPoint.Valid {
-		story.Metadata.GrammarPoint = dbStory.GrammarPoint.String
+	if dbStory.VideoUrl.Valid {
+		story.Metadata.VideoURL = dbStory.VideoUrl.String
 	}
 	if dbStory.LastRevision.Valid {
 		story.Metadata.LastRevision = &dbStory.LastRevision.Time
@@ -80,16 +80,13 @@ func getStoryLines(ctx context.Context, storyID int) ([]StoryLine, error) {
 	var lines []StoryLine
 	for _, dbLine := range dbLines {
 		line := StoryLine{
-			LineNumber: int(dbLine.LineNumber),
-			Text:       dbLine.Text,
-			Vocabulary: []VocabularyItem{}, // Init with empty arrays
-			Grammar:    []GrammarItem{},
-			Footnotes:  []Footnote{},
-		}
-
-		if dbLine.AudioFile.Valid {
-			s := dbLine.AudioFile.String
-			line.AudioFile = &s
+			LineNumber:         int(dbLine.LineNumber),
+			Text:               dbLine.Text,
+			EnglishTranslation: dbLine.EnglishTranslation.String,
+			Vocabulary:         []VocabularyItem{}, // Init with empty arrays
+			Grammar:            []GrammarItem{},
+			AudioFiles:         []AudioFile{},
+			Footnotes:          []Footnote{},
 		}
 
 		// Get vocabulary items for this line
@@ -114,11 +111,33 @@ func getStoryLines(ctx context.Context, storyID int) ([]StoryLine, error) {
 		}
 		for _, grammar := range grammarItems {
 			if int(grammar.LineNumber.Int32) == int(dbLine.LineNumber) {
-				line.Grammar = append(line.Grammar, GrammarItem{
+				grammarItem := GrammarItem{
 					Text:     grammar.Text,
 					Position: [2]int{int(grammar.PositionStart), int(grammar.PositionEnd)},
-				})
+				}
+				if grammar.GrammarPointID.Valid {
+					gpID := int(grammar.GrammarPointID.Int32)
+					grammarItem.GrammarPointID = &gpID
+				}
+				line.Grammar = append(line.Grammar, grammarItem)
 			}
+		}
+
+		// Get audio files for this line
+		audioFiles, err := queries.GetLineAudioFiles(ctx, db.GetLineAudioFilesParams{
+			StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
+			LineNumber: pgtype.Int4{Int32: int32(dbLine.LineNumber), Valid: true},
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, audio := range audioFiles {
+			line.AudioFiles = append(line.AudioFiles, AudioFile{
+				ID:         int(audio.AudioFileID),
+				FilePath:   audio.FilePath,
+				FileBucket: audio.FileBucket,
+				Label:      audio.Label,
+			})
 		}
 
 		// Get footnotes for this line
@@ -152,6 +171,7 @@ func GetLineAnnotations(ctx context.Context, storyID int, lineNumber int) (*Stor
 		LineNumber: lineNumber,
 		Vocabulary: []VocabularyItem{}, // init as empty arrays
 		Grammar:    []GrammarItem{},
+		AudioFiles: []AudioFile{},
 		Footnotes:  []Footnote{},
 	}
 
@@ -177,11 +197,33 @@ func GetLineAnnotations(ctx context.Context, storyID int, lineNumber int) (*Stor
 	}
 	for _, grammar := range grammarItems {
 		if int(grammar.LineNumber.Int32) == lineNumber {
-			line.Grammar = append(line.Grammar, GrammarItem{
+			grammarItem := GrammarItem{
 				Text:     grammar.Text,
 				Position: [2]int{int(grammar.PositionStart), int(grammar.PositionEnd)},
-			})
+			}
+			if grammar.GrammarPointID.Valid {
+				gpID := int(grammar.GrammarPointID.Int32)
+				grammarItem.GrammarPointID = &gpID
+			}
+			line.Grammar = append(line.Grammar, grammarItem)
 		}
+	}
+
+	// Get audio files for this line
+	audioFiles, err := queries.GetLineAudioFiles(ctx, db.GetLineAudioFilesParams{
+		StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
+		LineNumber: pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, audio := range audioFiles {
+		line.AudioFiles = append(line.AudioFiles, AudioFile{
+			ID:         int(audio.AudioFileID),
+			FilePath:   audio.FilePath,
+			FileBucket: audio.FileBucket,
+			Label:      audio.Label,
+		})
 	}
 
 	// Get footnotes for this line
@@ -232,6 +274,7 @@ func GetStoryAnnotations(ctx context.Context, storyID int) (map[int]*StoryLine, 
 				LineNumber: lineNumber,
 				Vocabulary: []VocabularyItem{},
 				Grammar:    []GrammarItem{},
+				AudioFiles: []AudioFile{},
 				Footnotes:  []Footnote{},
 			}
 		}
@@ -254,13 +297,19 @@ func GetStoryAnnotations(ctx context.Context, storyID int) (map[int]*StoryLine, 
 				LineNumber: lineNumber,
 				Vocabulary: []VocabularyItem{},
 				Grammar:    []GrammarItem{},
+				AudioFiles: []AudioFile{},
 				Footnotes:  []Footnote{},
 			}
 		}
-		lines[lineNumber].Grammar = append(lines[lineNumber].Grammar, GrammarItem{
+		grammarItem := GrammarItem{
 			Text:     grammar.Text,
 			Position: [2]int{int(grammar.PositionStart), int(grammar.PositionEnd)},
-		})
+		}
+		if grammar.GrammarPointID.Valid {
+			gpID := int(grammar.GrammarPointID.Int32)
+			grammarItem.GrammarPointID = &gpID
+		}
+		lines[lineNumber].Grammar = append(lines[lineNumber].Grammar, grammarItem)
 	}
 
 	// Get all footnotes
@@ -275,6 +324,7 @@ func GetStoryAnnotations(ctx context.Context, storyID int) (map[int]*StoryLine, 
 				LineNumber: lineNumber,
 				Vocabulary: []VocabularyItem{},
 				Grammar:    []GrammarItem{},
+				AudioFiles: []AudioFile{},
 				Footnotes:  []Footnote{},
 			}
 		}
@@ -286,6 +336,30 @@ func GetStoryAnnotations(ctx context.Context, storyID int) (map[int]*StoryLine, 
 			ID:         int(fn.ID),
 			Text:       fn.FootnoteText,
 			References: refs,
+		})
+	}
+
+	// Get all audio files for the story and organize by line
+	allAudioFiles, err := queries.GetAllStoryAudioFiles(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+	if err != nil {
+		return nil, err
+	}
+	for _, audio := range allAudioFiles {
+		lineNumber := int(audio.LineNumber.Int32)
+		if lines[lineNumber] == nil {
+			lines[lineNumber] = &StoryLine{
+				LineNumber: lineNumber,
+				Vocabulary: []VocabularyItem{},
+				Grammar:    []GrammarItem{},
+				AudioFiles: []AudioFile{},
+				Footnotes:  []Footnote{},
+			}
+		}
+		lines[lineNumber].AudioFiles = append(lines[lineNumber].AudioFiles, AudioFile{
+			ID:         int(audio.AudioFileID),
+			FilePath:   audio.FilePath,
+			FileBucket: audio.FileBucket,
+			Label:      audio.Label,
 		})
 	}
 

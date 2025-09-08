@@ -13,18 +13,26 @@ import (
 type Querier interface {
 	// Course admin management queries
 	AddCourseAdmin(ctx context.Context, arg AddCourseAdminParams) (CourseAdmin, error)
+	AddGrammarPointToStory(ctx context.Context, arg AddGrammarPointToStoryParams) error
+	BulkCreateAudioFiles(ctx context.Context, arg []BulkCreateAudioFilesParams) (int64, error)
 	BulkCreateGrammarItems(ctx context.Context, arg []BulkCreateGrammarItemsParams) (int64, error)
+	BulkCreateStoryGrammarPoints(ctx context.Context, arg []BulkCreateStoryGrammarPointsParams) (int64, error)
 	BulkCreateStoryLines(ctx context.Context, arg []BulkCreateStoryLinesParams) (int64, error)
 	BulkCreateVocabularyItems(ctx context.Context, arg []BulkCreateVocabularyItemsParams) (int64, error)
 	CanUserAccessCourse(ctx context.Context, arg CanUserAccessCourseParams) (bool, error)
 	CheckFootnoteExists(ctx context.Context, arg CheckFootnoteExistsParams) (int32, error)
 	CheckGrammarExists(ctx context.Context, arg CheckGrammarExistsParams) (bool, error)
 	CheckVocabularyExists(ctx context.Context, arg CheckVocabularyExistsParams) (bool, error)
+	ClearStoryGrammarPoints(ctx context.Context, storyID int32) error
+	// Audio files management queries
+	CreateAudioFile(ctx context.Context, arg CreateAudioFileParams) (LineAudioFile, error)
 	// Course management queries
 	CreateCourse(ctx context.Context, arg CreateCourseParams) (Course, error)
 	CreateFootnote(ctx context.Context, arg CreateFootnoteParams) (int32, error)
 	CreateFootnoteReference(ctx context.Context, arg CreateFootnoteReferenceParams) error
 	CreateGrammarItem(ctx context.Context, arg CreateGrammarItemParams) (int32, error)
+	// Grammar points management queries
+	CreateGrammarPoint(ctx context.Context, arg CreateGrammarPointParams) (GrammarPoint, error)
 	CreateStory(ctx context.Context, arg CreateStoryParams) (CreateStoryRow, error)
 	// User management queries
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
@@ -34,16 +42,21 @@ type Querier interface {
 	DeleteAllStoryAnnotations(ctx context.Context, storyID pgtype.Int4) error
 	DeleteAllStoryLines(ctx context.Context, storyID int32) error
 	DeleteAllVocabularyForStory(ctx context.Context, storyID pgtype.Int4) error
+	DeleteAudioFile(ctx context.Context, audioFileID int32) error
 	DeleteCourse(ctx context.Context, courseID int32) error
 	DeleteFootnote(ctx context.Context, id int32) error
 	DeleteFootnoteReferences(ctx context.Context, footnoteID int32) error
 	DeleteFootnoteReferencesByStory(ctx context.Context, storyID pgtype.Int4) error
 	DeleteGrammarItem(ctx context.Context, id int32) error
 	DeleteGrammarItems(ctx context.Context, arg DeleteGrammarItemsParams) error
+	DeleteGrammarPoint(ctx context.Context, grammarPointID int32) error
+	DeleteLineAudioFiles(ctx context.Context, arg DeleteLineAudioFilesParams) error
 	DeleteLineFootnoteReferences(ctx context.Context, arg DeleteLineFootnoteReferencesParams) error
 	DeleteLineGrammar(ctx context.Context, arg DeleteLineGrammarParams) error
 	DeleteLineVocabulary(ctx context.Context, arg DeleteLineVocabularyParams) error
 	DeleteStory(ctx context.Context, storyID int32) error
+	DeleteStoryAudioFiles(ctx context.Context, storyID pgtype.Int4) error
+	DeleteStoryAudioFilesByLabel(ctx context.Context, arg DeleteStoryAudioFilesByLabelParams) error
 	DeleteStoryDescriptions(ctx context.Context, storyID int32) error
 	DeleteStoryLine(ctx context.Context, arg DeleteStoryLineParams) error
 	DeleteStoryTitles(ctx context.Context, storyID int32) error
@@ -56,7 +69,10 @@ type Querier interface {
 	GetAllStories(ctx context.Context) ([]Story, error)
 	GetAllStoriesBasic(ctx context.Context, languageCode string) ([]GetAllStoriesBasicRow, error)
 	GetAllStoriesWithTitles(ctx context.Context) ([]GetAllStoriesWithTitlesRow, error)
+	GetAllStoryAudioFiles(ctx context.Context, storyID pgtype.Int4) ([]LineAudioFile, error)
 	GetAllVocabularyForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllVocabularyForStoryRow, error)
+	GetAudioFile(ctx context.Context, audioFileID int32) (LineAudioFile, error)
+	GetAudioFilesByLabel(ctx context.Context, label string) ([]LineAudioFile, error)
 	GetCourse(ctx context.Context, courseID int32) (Course, error)
 	GetCourseAdmins(ctx context.Context, courseID int32) ([]GetCourseAdminsRow, error)
 	GetCourseByNumber(ctx context.Context, courseNumber string) (Course, error)
@@ -64,14 +80,20 @@ type Querier interface {
 	GetFootnoteReferences(ctx context.Context, footnoteID int32) ([]string, error)
 	GetFootnotes(ctx context.Context, arg GetFootnotesParams) ([]Footnote, error)
 	GetGrammarItems(ctx context.Context, arg GetGrammarItemsParams) ([]GrammarItem, error)
+	GetGrammarPoint(ctx context.Context, grammarPointID int32) (GrammarPoint, error)
+	GetGrammarPointByName(ctx context.Context, name string) (GrammarPoint, error)
+	GetLineAudioFiles(ctx context.Context, arg GetLineAudioFilesParams) ([]LineAudioFile, error)
 	GetLineText(ctx context.Context, arg GetLineTextParams) (string, error)
 	GetStoriesByCourse(ctx context.Context, courseID pgtype.Int4) ([]Story, error)
 	GetStoriesForUserCourses(ctx context.Context, userID string) ([]Story, error)
+	GetStoriesWithGrammarPoint(ctx context.Context, grammarPointID int32) ([]Story, error)
 	// Core story operations
 	GetStory(ctx context.Context, storyID int32) (Story, error)
+	GetStoryAudioFilesByLabel(ctx context.Context, arg GetStoryAudioFilesByLabelParams) ([]LineAudioFile, error)
 	// Story descriptions
 	GetStoryDescription(ctx context.Context, arg GetStoryDescriptionParams) (string, error)
 	GetStoryFootnotesWithReferences(ctx context.Context, storyID pgtype.Int4) ([]GetStoryFootnotesWithReferencesRow, error)
+	GetStoryGrammarPoints(ctx context.Context, storyID int32) ([]GetStoryGrammarPointsRow, error)
 	GetStoryLine(ctx context.Context, arg GetStoryLineParams) (StoryLine, error)
 	// Story lines
 	GetStoryLines(ctx context.Context, storyID int32) ([]StoryLine, error)
@@ -87,13 +109,17 @@ type Querier interface {
 	IsUserCourseAdmin(ctx context.Context, arg IsUserCourseAdminParams) (bool, error)
 	LineExists(ctx context.Context, arg LineExistsParams) (bool, error)
 	ListCourses(ctx context.Context) ([]Course, error)
+	ListGrammarPoints(ctx context.Context) ([]GrammarPoint, error)
 	ListSuperAdmins(ctx context.Context) ([]User, error)
 	ListUsers(ctx context.Context) ([]User, error)
 	RemoveCourseAdmin(ctx context.Context, arg RemoveCourseAdminParams) error
+	RemoveGrammarPointFromStory(ctx context.Context, arg RemoveGrammarPointFromStoryParams) error
 	StoryExists(ctx context.Context, storyID int32) (bool, error)
+	UpdateAudioFile(ctx context.Context, arg UpdateAudioFileParams) (LineAudioFile, error)
 	UpdateCourse(ctx context.Context, arg UpdateCourseParams) (Course, error)
 	UpdateFootnote(ctx context.Context, arg UpdateFootnoteParams) error
 	UpdateGrammarByPosition(ctx context.Context, arg UpdateGrammarByPositionParams) error
+	UpdateGrammarPoint(ctx context.Context, arg UpdateGrammarPointParams) (GrammarPoint, error)
 	UpdateStory(ctx context.Context, arg UpdateStoryParams) error
 	UpdateStoryRevision(ctx context.Context, storyID int32) error
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)

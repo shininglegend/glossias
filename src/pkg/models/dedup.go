@@ -115,12 +115,17 @@ func insertVocabulary(ctx context.Context, storyID, lineNumber int, vocab Vocabu
 }
 
 func insertGrammar(ctx context.Context, storyID, lineNumber int, grammar GrammarItem) error {
+	grammarPointID := pgtype.Int4{Valid: false}
+	if grammar.GrammarPointID != nil {
+		grammarPointID = pgtype.Int4{Int32: int32(*grammar.GrammarPointID), Valid: true}
+	}
 	_, err := queries.CreateGrammarItem(ctx, db.CreateGrammarItemParams{
-		StoryID:       pgtype.Int4{Int32: int32(storyID), Valid: true},
-		LineNumber:    pgtype.Int4{Int32: int32(lineNumber), Valid: true},
-		Text:          grammar.Text,
-		PositionStart: int32(grammar.Position[0]),
-		PositionEnd:   int32(grammar.Position[1]),
+		StoryID:        pgtype.Int4{Int32: int32(storyID), Valid: true},
+		LineNumber:     pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+		GrammarPointID: grammarPointID,
+		Text:           grammar.Text,
+		PositionStart:  int32(grammar.Position[0]),
+		PositionEnd:    int32(grammar.Position[1]),
 	})
 	return err
 }

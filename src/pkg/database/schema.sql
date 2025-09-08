@@ -30,15 +30,30 @@ CREATE TABLE IF NOT EXISTS course_admins (
     PRIMARY KEY (course_id, user_id)
 );
 
+-- Grammar points reference table
+CREATE TABLE IF NOT EXISTS grammar_points (
+    grammar_point_id SERIAL PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS stories (
     story_id SERIAL PRIMARY KEY,
     week_number INTEGER NOT NULL,
     day_letter TEXT NOT NULL,
-    grammar_point TEXT,
+    video_url TEXT, -- Added for video metadata
     last_revision TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     author_id TEXT NOT NULL,
     author_name TEXT NOT NULL,
     course_id INTEGER REFERENCES courses (course_id) ON DELETE SET NULL
+);
+
+-- Junction table for multiple grammar points per story
+CREATE TABLE IF NOT EXISTS story_grammar_points (
+    story_id INTEGER REFERENCES stories (story_id) ON DELETE CASCADE,
+    grammar_point_id INTEGER REFERENCES grammar_points (grammar_point_id) ON DELETE CASCADE,
+    PRIMARY KEY (story_id, grammar_point_id)
 );
 
 CREATE TABLE IF NOT EXISTS story_titles (
@@ -59,9 +74,24 @@ CREATE TABLE IF NOT EXISTS story_lines (
     story_id INTEGER REFERENCES stories (story_id) ON DELETE CASCADE,
     line_number INTEGER,
     text TEXT NOT NULL,
-    audio_file TEXT,
+    english_translation TEXT, -- Added for line-level translations
     PRIMARY KEY (story_id, line_number)
 );
+
+-- Audio files table for multiple audio files per line
+CREATE TABLE IF NOT EXISTS line_audio_files (
+    audio_file_id SERIAL PRIMARY KEY,
+    story_id INTEGER,
+    line_number INTEGER,
+    file_path TEXT NOT NULL, -- Supabase storage path
+    file_bucket TEXT NOT NULL, -- Supabase bucket name
+    label TEXT NOT NULL, -- e.g., "complete", "vocab_missing"
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (story_id, line_number) REFERENCES story_lines (story_id, line_number) ON DELETE CASCADE
+);
+
+-- Index for efficient querying by label
+CREATE INDEX IF NOT EXISTS idx_audio_files_label ON line_audio_files (story_id, label);
 
 CREATE TABLE IF NOT EXISTS vocabulary_items (
     id SERIAL PRIMARY KEY,
@@ -78,6 +108,7 @@ CREATE TABLE IF NOT EXISTS grammar_items (
     id SERIAL PRIMARY KEY,
     story_id INTEGER,
     line_number INTEGER,
+    grammar_point_id INTEGER REFERENCES grammar_points (grammar_point_id) ON DELETE SET NULL,
     text TEXT NOT NULL,
     position_start INTEGER NOT NULL,
     position_end INTEGER NOT NULL,

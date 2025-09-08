@@ -45,6 +45,13 @@ func main() {
 	defer db.Close()
 	// Set the DB for the models package
 	models.SetDB(db.RawConn())
+	// Set the storage client for the models package
+	storageUrl := os.Getenv("STORAGE_URL")
+	storageKey := os.Getenv("STORAGE_API_KEY")
+	if storageUrl == "" || storageKey == "" {
+		logger.Warn("STORAGE_URL or STORAGE_API_KEY environment variable not set, storage operations will fail")
+	}
+	models.SetStorageClient(storageUrl, storageKey)
 
 	// Clerk stuff
 	clerk_key := os.Getenv("CLERK_SECRET_KEY")

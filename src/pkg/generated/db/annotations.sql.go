@@ -46,23 +46,25 @@ func (q *Queries) CreateFootnoteReference(ctx context.Context, arg CreateFootnot
 }
 
 const createGrammarItem = `-- name: CreateGrammarItem :one
-INSERT INTO grammar_items (story_id, line_number, text, position_start, position_end)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO grammar_items (story_id, line_number, grammar_point_id, text, position_start, position_end)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id
 `
 
 type CreateGrammarItemParams struct {
-	StoryID       pgtype.Int4 `json:"story_id"`
-	LineNumber    pgtype.Int4 `json:"line_number"`
-	Text          string      `json:"text"`
-	PositionStart int32       `json:"position_start"`
-	PositionEnd   int32       `json:"position_end"`
+	StoryID        pgtype.Int4 `json:"story_id"`
+	LineNumber     pgtype.Int4 `json:"line_number"`
+	GrammarPointID pgtype.Int4 `json:"grammar_point_id"`
+	Text           string      `json:"text"`
+	PositionStart  int32       `json:"position_start"`
+	PositionEnd    int32       `json:"position_end"`
 }
 
 func (q *Queries) CreateGrammarItem(ctx context.Context, arg CreateGrammarItemParams) (int32, error) {
 	row := q.db.QueryRow(ctx, createGrammarItem,
 		arg.StoryID,
 		arg.LineNumber,
+		arg.GrammarPointID,
 		arg.Text,
 		arg.PositionStart,
 		arg.PositionEnd,
@@ -252,17 +254,18 @@ func (q *Queries) GetAllFootnotesForStory(ctx context.Context, storyID pgtype.In
 }
 
 const getAllGrammarForStory = `-- name: GetAllGrammarForStory :many
-SELECT line_number, text, position_start, position_end
+SELECT line_number, grammar_point_id, text, position_start, position_end
 FROM grammar_items
 WHERE story_id = $1
 ORDER BY line_number, position_start
 `
 
 type GetAllGrammarForStoryRow struct {
-	LineNumber    pgtype.Int4 `json:"line_number"`
-	Text          string      `json:"text"`
-	PositionStart int32       `json:"position_start"`
-	PositionEnd   int32       `json:"position_end"`
+	LineNumber     pgtype.Int4 `json:"line_number"`
+	GrammarPointID pgtype.Int4 `json:"grammar_point_id"`
+	Text           string      `json:"text"`
+	PositionStart  int32       `json:"position_start"`
+	PositionEnd    int32       `json:"position_end"`
 }
 
 func (q *Queries) GetAllGrammarForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllGrammarForStoryRow, error) {
@@ -276,6 +279,7 @@ func (q *Queries) GetAllGrammarForStory(ctx context.Context, storyID pgtype.Int4
 		var i GetAllGrammarForStoryRow
 		if err := rows.Scan(
 			&i.LineNumber,
+			&i.GrammarPointID,
 			&i.Text,
 			&i.PositionStart,
 			&i.PositionEnd,
@@ -394,7 +398,7 @@ func (q *Queries) GetFootnotes(ctx context.Context, arg GetFootnotesParams) ([]F
 }
 
 const getGrammarItems = `-- name: GetGrammarItems :many
-SELECT id, story_id, line_number, text, position_start, position_end
+SELECT id, story_id, line_number, grammar_point_id, text, position_start, position_end
 FROM grammar_items
 WHERE story_id = $1 AND line_number = $2
 ORDER BY position_start
@@ -418,6 +422,7 @@ func (q *Queries) GetGrammarItems(ctx context.Context, arg GetGrammarItemsParams
 			&i.ID,
 			&i.StoryID,
 			&i.LineNumber,
+			&i.GrammarPointID,
 			&i.Text,
 			&i.PositionStart,
 			&i.PositionEnd,
@@ -532,7 +537,7 @@ func (q *Queries) UpdateFootnote(ctx context.Context, arg UpdateFootnoteParams) 
 
 const updateGrammarByPosition = `-- name: UpdateGrammarByPosition :exec
 UPDATE grammar_items
-SET text = $5, position_start = $6, position_end = $7
+SET grammar_point_id = $5, text = $6, position_start = $7, position_end = $8
 WHERE story_id = $1 AND line_number = $2 AND position_start = $3 AND position_end = $4
 `
 
@@ -541,6 +546,7 @@ type UpdateGrammarByPositionParams struct {
 	LineNumber      pgtype.Int4 `json:"line_number"`
 	PositionStart   int32       `json:"position_start"`
 	PositionEnd     int32       `json:"position_end"`
+	GrammarPointID  pgtype.Int4 `json:"grammar_point_id"`
 	Text            string      `json:"text"`
 	PositionStart_2 int32       `json:"position_start_2"`
 	PositionEnd_2   int32       `json:"position_end_2"`
@@ -552,6 +558,7 @@ func (q *Queries) UpdateGrammarByPosition(ctx context.Context, arg UpdateGrammar
 		arg.LineNumber,
 		arg.PositionStart,
 		arg.PositionEnd,
+		arg.GrammarPointID,
 		arg.Text,
 		arg.PositionStart_2,
 		arg.PositionEnd_2,

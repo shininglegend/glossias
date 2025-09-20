@@ -170,6 +170,17 @@ func (q *Queries) GetAllStoriesWithTitles(ctx context.Context) ([]GetAllStoriesW
 	return items, nil
 }
 
+const getCourseIdForStory = `-- name: GetCourseIdForStory :one
+SELECT course_id FROM stories WHERE story_id = $1
+`
+
+func (q *Queries) GetCourseIdForStory(ctx context.Context, storyID int32) (pgtype.Int4, error) {
+	row := q.db.QueryRow(ctx, getCourseIdForStory, storyID)
+	var course_id pgtype.Int4
+	err := row.Scan(&course_id)
+	return course_id, err
+}
+
 const getStoriesByCourse = `-- name: GetStoriesByCourse :many
 SELECT s.story_id, s.week_number, s.day_letter, s.video_url, s.last_revision, s.author_id, s.author_name, s.course_id
 FROM stories s

@@ -23,8 +23,6 @@ WHERE story_id = $1;
 -- name: DeleteStory :exec
 DELETE FROM stories WHERE story_id = $1;
 
-
-
 -- name: GetAllStoriesBasic :many
 SELECT DISTINCT s.story_id, s.week_number, s.day_letter, st.title
 FROM stories s
@@ -50,6 +48,9 @@ SELECT s.story_id, s.week_number, s.day_letter, s.video_url, s.last_revision, s.
 FROM stories s
 WHERE s.course_id = $1
 ORDER BY s.week_number, s.day_letter;
+
+-- name: GetCourseIdForStory :one
+SELECT course_id FROM stories WHERE story_id = $1;
 
 -- name: GetStoriesForUserCourses :many
 SELECT s.story_id, s.week_number, s.day_letter, s.video_url, s.last_revision, s.author_id, s.author_name, s.course_id

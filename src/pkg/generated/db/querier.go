@@ -76,6 +76,7 @@ type Querier interface {
 	GetCourse(ctx context.Context, courseID int32) (Course, error)
 	GetCourseAdmins(ctx context.Context, courseID int32) ([]GetCourseAdminsRow, error)
 	GetCourseByNumber(ctx context.Context, courseNumber string) (Course, error)
+	GetCourseIdForStory(ctx context.Context, storyID int32) (pgtype.Int4, error)
 	GetCoursesForUser(ctx context.Context, userID string) ([]Course, error)
 	GetFootnoteReferences(ctx context.Context, footnoteID int32) ([]string, error)
 	GetFootnotes(ctx context.Context, arg GetFootnotesParams) ([]Footnote, error)

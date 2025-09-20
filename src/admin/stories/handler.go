@@ -35,4 +35,8 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	stories.HandleFunc("/{id:[0-9]+}/metadata", h.metadataHandler).Methods("GET", "PUT", "OPTIONS")
 	stories.HandleFunc("/{id:[0-9]+}/annotations", h.annotationsHandler).
 		Methods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+
+	// Audio upload endpoints
+	stories.HandleFunc("/audio/upload", h.audioUploadHandler).Methods("POST", "OPTIONS")
+	stories.HandleFunc("/audio/confirm", h.confirmAudioUploadHandler).Methods("POST", "OPTIONS")
 }

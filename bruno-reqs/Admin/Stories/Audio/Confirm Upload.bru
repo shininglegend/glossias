@@ -1,0 +1,25 @@
+meta {
+  name: Confirm Upload
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseURL}}/api/admin/stories/audio/confirm
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "storyId": "{{adminStoryId}}",
+    "lineNumber": 1,
+    "filePath": "{{file_path}}",
+    "fileBucket": "{{file_bucket}}",
+    "label": "complete"
+  }
+}
+
+settings {
+  encodeUrl: true
+}

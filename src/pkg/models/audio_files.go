@@ -321,3 +321,36 @@ func GetSignedAudioURLsForLine(ctx context.Context, storyID, lineNumber int, use
 
 	return signedURLs, nil
 }
+
+// StoryExists checks if a story exists in the database
+func StoryExists(ctx context.Context, storyID int32) (bool, error) {
+	return queries.StoryExists(ctx, storyID)
+}
+
+// LineExists checks if a specific line exists in a story
+func LineExists(ctx context.Context, storyID, lineNumber int) (bool, error) {
+	return queries.LineExists(ctx, db.LineExistsParams{
+		StoryID:    int32(storyID),
+		LineNumber: int32(lineNumber),
+	})
+}
+
+// GenerateSignedUploadURL creates a signed URL for uploading files to Supabase storage
+func GenerateSignedUploadURL(ctx context.Context, bucket, filePath string) (string, error) {
+	if storageClient == nil {
+		return "", errors.New("storage client not initialized")
+	}
+
+	// Generate signed upload URL
+	result, err := storageClient.CreateSignedUploadUrl(bucket, filePath)
+	if err != nil {
+		return "", err
+	}
+
+	// Construct complete URL using base storage URL
+	if storageBaseURL == "" {
+		return "", errors.New("storage base URL not configured")
+	}
+
+	return storageBaseURL + "/storage/v1/s3" + result.Url, nil
+}

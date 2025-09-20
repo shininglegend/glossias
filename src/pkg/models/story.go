@@ -3,6 +3,7 @@ package models
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"glossias/src/pkg/database"
 	"glossias/src/pkg/generated/db"
 	"time"
@@ -28,6 +29,7 @@ var (
 var queries *db.Queries
 var rawConn any
 var storageClient *storage_go.Client
+var storageBaseURL string
 
 func SetDB(d any) {
 	if d == nil {
@@ -47,10 +49,23 @@ func SetDB(d any) {
 // SetStorageClient initializes the Supabase storage client
 func SetStorageClient(url, apiKey string) {
 	if url == "" || apiKey == "" {
+		fmt.Println("Storage credentials missing - operations will fail")
 		storageClient = nil
+		storageBaseURL = ""
 		return
 	}
+
 	storageClient = storage_go.NewClient(url, apiKey, nil)
+	storageBaseURL = url
+	// Test the connection by listing buckets
+	_, err := storageClient.ListBuckets()
+	if err != nil {
+		fmt.Printf("Failed to connect to storage: %v\n", err)
+		storageClient = nil
+		storageBaseURL = ""
+		return
+	}
+	fmt.Printf("Storage client initialized with URL: %s\n", url)
 }
 
 type Story struct {

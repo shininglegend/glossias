@@ -119,9 +119,10 @@ export function Page3() {
                 }
               })}
             </div>
-            {line.audio_url && (
+            {/* TODO: Fix audio handling - line.audio_url may not exist in current Line interface */}
+            {(line as any).audio_url && (
               <button
-                onClick={() => playAudio(line.audio_url!)}
+                onClick={() => playAudio((line as any).audio_url!)}
                 className="audio-button"
                 type="button"
               >

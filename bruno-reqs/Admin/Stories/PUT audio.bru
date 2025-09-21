@@ -1,0 +1,24 @@
+meta {
+  name: PUT audio
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseURL}}/api/admin/stories/audio/upload
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "storyId": 1,
+    "lineNumber": 1,
+    "label": "complete",
+    "fileName": "test_one"
+  }
+}
+
+settings {
+  encodeUrl: true
+}

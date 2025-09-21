@@ -3,11 +3,13 @@ package models
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"glossias/src/pkg/database"
 	"glossias/src/pkg/generated/db"
 	"time"
 
 	_ "github.com/lib/pq"
+	storage_go "github.com/supabase-community/storage-go"
 )
 
 const (
@@ -26,6 +28,8 @@ var (
 
 var queries *db.Queries
 var rawConn any
+var storageClient *storage_go.Client
+var storageBaseURL string
 
 func SetDB(d any) {
 	if d == nil {
@@ -42,6 +46,28 @@ func SetDB(d any) {
 	}
 }
 
+// SetStorageClient initializes the Supabase storage client
+func SetStorageClient(url, apiKey string) {
+	if url == "" || apiKey == "" {
+		fmt.Println("Storage credentials missing - operations will fail")
+		storageClient = nil
+		storageBaseURL = ""
+		return
+	}
+
+	storageClient = storage_go.NewClient(url, apiKey, nil)
+	storageBaseURL = url
+	// Test the connection by listing buckets
+	_, err := storageClient.ListBuckets()
+	if err != nil {
+		fmt.Printf("Failed to connect to storage: %v\n", err)
+		storageClient = nil
+		storageBaseURL = ""
+		return
+	}
+	fmt.Printf("Storage client initialized with URL: %s\n", url)
+}
+
 type Story struct {
 	Metadata StoryMetadata `json:"metadata"`
 	Content  StoryContent  `json:"content"`
@@ -53,7 +79,7 @@ type StoryMetadata struct {
 	DayLetter    string            `json:"dayLetter"`
 	Title        map[string]string `json:"title"` // ISO 639-1 language codes
 	Author       Author            `json:"author"`
-	GrammarPoint string            `json:"grammarPoint"`
+	VideoURL     string            `json:"videoUrl,omitempty"`
 	Description  Description       `json:"description"`
 	CourseID     *int              `json:"courseId,omitempty"`
 	LastRevision *time.Time        `json:"lastRevision,omitempty"`
@@ -78,7 +104,7 @@ type StoryLine struct {
 	Text       string           `json:"text"`
 	Vocabulary []VocabularyItem `json:"vocabulary"`
 	Grammar    []GrammarItem    `json:"grammar"`
-	AudioFile  *string          `json:"audioFile,omitempty"` // Using pointer for optional field
+	AudioFiles []AudioFile      `json:"audioFiles"`
 	Footnotes  []Footnote       `json:"footnotes"`
 }
 
@@ -89,14 +115,32 @@ type VocabularyItem struct {
 }
 
 type GrammarItem struct {
-	Text     string `json:"text"`
-	Position [2]int `json:"position"` // Fixed-size array for [start, end]
+	GrammarPointID *int   `json:"grammarPointId,omitempty"`
+	Text           string `json:"text"`
+	Position       [2]int `json:"position"` // Fixed-size array for [start, end]
 }
 
 type Footnote struct {
 	ID         int      `json:"id"`
 	Text       string   `json:"text"`
 	References []string `json:"references,omitempty"` // Optional field
+}
+
+// AudioFile represents an audio file attached to a line
+type AudioFile struct {
+	ID         int    `json:"id"`
+	StoryID    int    `json:"storyId"`
+	LineNumber int    `json:"lineNumber"`
+	FilePath   string `json:"filePath"`
+	FileBucket string `json:"fileBucket"`
+	Label      string `json:"label"`
+}
+
+// GrammarPoint represents a grammar point definition
+type GrammarPoint struct {
+	ID          int    `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
 }
 
 // ToJSON serializes a Story to JSON bytes

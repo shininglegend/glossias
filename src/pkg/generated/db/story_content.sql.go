@@ -7,8 +7,6 @@ package db
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const deleteAllStoryLines = `-- name: DeleteAllStoryLines :exec
@@ -89,7 +87,7 @@ func (q *Queries) GetStoryDescription(ctx context.Context, arg GetStoryDescripti
 }
 
 const getStoryLine = `-- name: GetStoryLine :one
-SELECT story_id, line_number, text, audio_file
+SELECT story_id, line_number, text
 FROM story_lines
 WHERE story_id = $1 AND line_number = $2
 `
@@ -102,17 +100,12 @@ type GetStoryLineParams struct {
 func (q *Queries) GetStoryLine(ctx context.Context, arg GetStoryLineParams) (StoryLine, error) {
 	row := q.db.QueryRow(ctx, getStoryLine, arg.StoryID, arg.LineNumber)
 	var i StoryLine
-	err := row.Scan(
-		&i.StoryID,
-		&i.LineNumber,
-		&i.Text,
-		&i.AudioFile,
-	)
+	err := row.Scan(&i.StoryID, &i.LineNumber, &i.Text)
 	return i, err
 }
 
 const getStoryLines = `-- name: GetStoryLines :many
-SELECT story_id, line_number, text, audio_file
+SELECT story_id, line_number, text
 FROM story_lines
 WHERE story_id = $1
 ORDER BY line_number
@@ -128,12 +121,7 @@ func (q *Queries) GetStoryLines(ctx context.Context, storyID int32) ([]StoryLine
 	items := []StoryLine{}
 	for rows.Next() {
 		var i StoryLine
-		if err := rows.Scan(
-			&i.StoryID,
-			&i.LineNumber,
-			&i.Text,
-			&i.AudioFile,
-		); err != nil {
+		if err := rows.Scan(&i.StoryID, &i.LineNumber, &i.Text); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -208,26 +196,18 @@ func (q *Queries) UpsertStoryDescription(ctx context.Context, arg UpsertStoryDes
 }
 
 const upsertStoryLine = `-- name: UpsertStoryLine :exec
-INSERT INTO story_lines (story_id, line_number, text, audio_file)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT (story_id, line_number)
-DO UPDATE SET text = EXCLUDED.text, audio_file = EXCLUDED.audio_file
+INSERT INTO story_lines (story_id, line_number, text)
+VALUES ($1, $2, $3)
 `
 
 type UpsertStoryLineParams struct {
-	StoryID    int32       `json:"story_id"`
-	LineNumber int32       `json:"line_number"`
-	Text       string      `json:"text"`
-	AudioFile  pgtype.Text `json:"audio_file"`
+	StoryID    int32  `json:"story_id"`
+	LineNumber int32  `json:"line_number"`
+	Text       string `json:"text"`
 }
 
 func (q *Queries) UpsertStoryLine(ctx context.Context, arg UpsertStoryLineParams) error {
-	_, err := q.db.Exec(ctx, upsertStoryLine,
-		arg.StoryID,
-		arg.LineNumber,
-		arg.Text,
-		arg.AudioFile,
-	)
+	_, err := q.db.Exec(ctx, upsertStoryLine, arg.StoryID, arg.LineNumber, arg.Text)
 	return err
 }
 

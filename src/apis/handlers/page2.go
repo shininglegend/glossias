@@ -6,7 +6,6 @@ import (
 	"glossias/src/apis/types"
 	"glossias/src/pkg/models"
 	"net/http"
-	"os"
 	"slices"
 	"strconv"
 
@@ -57,12 +56,6 @@ func (h *Handler) processLinesForPage2(story models.Story, id int) ([]types.Line
 	lines := make([]types.Line, len(story.Content.Lines))
 	vocabBank := make([]string, 0)
 
-	folderPath := fmt.Sprintf(storiesDir+"stories_audio/%v_%v%v",
-		story.Metadata.Description.Language,
-		story.Metadata.WeekNumber,
-		story.Metadata.DayLetter)
-	audioDir, err := os.ReadDir(folderPath)
-
 	for i, line := range story.Content.Lines {
 		series := []string{}
 		runes := []rune(line.Text)
@@ -84,17 +77,25 @@ func (h *Handler) processLinesForPage2(story models.Story, id int) ([]types.Line
 		if lastEnd < len(runes) {
 			series = append(series, string(runes[lastEnd:]))
 		}
+
 		hasVocab := len(line.Vocabulary) > 0
 
-		var audioFile *string
-		if err == nil && i < len(audioDir) {
-			temp := fmt.Sprintf("/%v/%v", folderPath, audioDir[i].Name())
-			audioFile = &temp
+		// Convert audio files to API format (vocab_missing label only)
+		audioFiles := make([]types.AudioFile, 0)
+		for _, audio := range line.AudioFiles {
+			if audio.Label == "vocab_missing" {
+				audioFiles = append(audioFiles, types.AudioFile{
+					ID:         audio.ID,
+					FilePath:   audio.FilePath,
+					FileBucket: audio.FileBucket,
+					Label:      audio.Label,
+				})
+			}
 		}
 
 		lines[i] = types.Line{
 			Text:              series,
-			AudioURL:          audioFile,
+			AudioFiles:        audioFiles,
 			HasVocabOrGrammar: hasVocab,
 		}
 	}

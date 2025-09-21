@@ -1,0 +1,20 @@
+meta {
+  name: Delete Line Translation
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseURL}}/api/admin/stories/{{adminStoryId}}/translations/line
+  body: none
+  auth: inherit
+}
+
+params:query {
+  line: 1
+  lang: en
+}
+
+settings {
+  encodeUrl: true
+}

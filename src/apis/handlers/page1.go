@@ -2,11 +2,9 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"glossias/src/apis/types"
 	"glossias/src/pkg/models"
 	"net/http"
-	"os"
 	"strconv"
 
 	"github.com/gorilla/mux"
@@ -32,7 +30,7 @@ func (h *Handler) GetPage1(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lines := h.processLinesForPage1(*story, id)
+	lines := h.processLinesForPage1(*story)
 
 	data := types.PageData{
 		StoryID:    storyID,
@@ -49,25 +47,24 @@ func (h *Handler) GetPage1(w http.ResponseWriter, r *http.Request) {
 }
 
 // processLinesForPage1 prepares lines with audio for reading page
-func (h *Handler) processLinesForPage1(story models.Story, id int) []types.Line {
+func (h *Handler) processLinesForPage1(story models.Story) []types.Line {
 	lines := make([]types.Line, 0, len(story.Content.Lines))
 
-	folderPath := fmt.Sprintf(storiesDir+"stories_audio/%v_%v%v",
-		story.Metadata.Description.Language,
-		story.Metadata.WeekNumber,
-		story.Metadata.DayLetter)
-	audioDir, err := os.ReadDir(folderPath)
-
-	for i, dbLine := range story.Content.Lines {
-		var audioFile *string
-		if err == nil && i < len(audioDir) {
-			temp := fmt.Sprintf("/%v/%v", folderPath, audioDir[i].Name())
-			audioFile = &temp
+	for _, dbLine := range story.Content.Lines {
+		// Convert audio files to API format
+		audioFiles := make([]types.AudioFile, 0, len(dbLine.AudioFiles))
+		for _, audio := range dbLine.AudioFiles {
+			audioFiles = append(audioFiles, types.AudioFile{
+				ID:         audio.ID,
+				FilePath:   audio.FilePath,
+				FileBucket: audio.FileBucket,
+				Label:      audio.Label,
+			})
 		}
 
 		lines = append(lines, types.Line{
-			Text:     []string{dbLine.Text},
-			AudioURL: audioFile,
+			Text:               []string{dbLine.Text},
+			AudioFiles:         audioFiles,
 		})
 	}
 

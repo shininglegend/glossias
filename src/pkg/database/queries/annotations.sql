@@ -37,19 +37,19 @@ WHERE story_id = $1
 ORDER BY line_number, position_start;
 
 -- name: GetGrammarItems :many
-SELECT id, story_id, line_number, text, position_start, position_end
+SELECT id, story_id, line_number, grammar_point_id, text, position_start, position_end
 FROM grammar_items
 WHERE story_id = $1 AND line_number = $2
 ORDER BY position_start;
 
 -- name: CreateGrammarItem :one
-INSERT INTO grammar_items (story_id, line_number, text, position_start, position_end)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO grammar_items (story_id, line_number, grammar_point_id, text, position_start, position_end)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id;
 
 -- name: UpdateGrammarByPosition :exec
 UPDATE grammar_items
-SET text = $5, position_start = $6, position_end = $7
+SET grammar_point_id = $5, text = $6, position_start = $7, position_end = $8
 WHERE story_id = $1 AND line_number = $2 AND position_start = $3 AND position_end = $4;
 
 -- name: DeleteGrammarItems :exec
@@ -59,7 +59,7 @@ DELETE FROM grammar_items WHERE story_id = $1 AND line_number = $2;
 DELETE FROM grammar_items WHERE id = $1;
 
 -- name: GetAllGrammarForStory :many
-SELECT line_number, text, position_start, position_end
+SELECT line_number, grammar_point_id, text, position_start, position_end
 FROM grammar_items
 WHERE story_id = $1
 ORDER BY line_number, position_start;

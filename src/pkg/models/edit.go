@@ -29,7 +29,6 @@ func EditStoryText(ctx context.Context, storyID int, lines []StoryLine) error {
 				StoryID:    int32(storyID),
 				LineNumber: int32(line.LineNumber),
 				Text:       line.Text,
-				AudioFile:  pgtype.Text{String: "", Valid: false},
 			})
 			if err != nil {
 				return err
@@ -43,13 +42,13 @@ func EditStoryText(ctx context.Context, storyID int, lines []StoryLine) error {
 		}
 		// Update last revision timestamp using SQLC, preserving existing metadata
 		err = queries.UpdateStory(ctx, db.UpdateStoryParams{
-			StoryID:      int32(storyID),
-			WeekNumber:   existingStory.WeekNumber,
-			DayLetter:    existingStory.DayLetter,
-			GrammarPoint: existingStory.GrammarPoint,
-			AuthorID:     existingStory.AuthorID,
-			AuthorName:   existingStory.AuthorName,
-			CourseID:     existingStory.CourseID,
+			StoryID:    int32(storyID),
+			WeekNumber: existingStory.WeekNumber,
+			DayLetter:  existingStory.DayLetter,
+			VideoUrl:   existingStory.VideoUrl,
+			AuthorID:   existingStory.AuthorID,
+			AuthorName: existingStory.AuthorName,
+			CourseID:   existingStory.CourseID,
 		})
 		if err != nil {
 			return err
@@ -69,13 +68,13 @@ func EditStoryMetadata(ctx context.Context, storyID int, metadata StoryMetadata)
 		}
 
 		err := queries.UpdateStory(ctx, db.UpdateStoryParams{
-			StoryID:      int32(storyID),
-			WeekNumber:   int32(metadata.WeekNumber),
-			DayLetter:    metadata.DayLetter,
-			GrammarPoint: pgtype.Text{String: metadata.GrammarPoint, Valid: metadata.GrammarPoint != ""},
-			AuthorID:     metadata.Author.ID,
-			AuthorName:   metadata.Author.Name,
-			CourseID:     courseID,
+			StoryID:    int32(storyID),
+			WeekNumber: int32(metadata.WeekNumber),
+			DayLetter:  metadata.DayLetter,
+			VideoUrl:   pgtype.Text{String: metadata.VideoURL, Valid: metadata.VideoURL != ""},
+			AuthorID:   metadata.Author.ID,
+			AuthorName: metadata.Author.Name,
+			CourseID:   courseID,
 		})
 		if err != nil {
 			return err
@@ -160,13 +159,13 @@ func AddLineAnnotations(ctx context.Context, storyID int, lineNumber int, line S
 		}
 
 		err = queries.UpdateStory(ctx, db.UpdateStoryParams{
-			StoryID:      story.StoryID,
-			WeekNumber:   story.WeekNumber,
-			DayLetter:    story.DayLetter,
-			GrammarPoint: story.GrammarPoint,
-			AuthorID:     story.AuthorID,
-			AuthorName:   story.AuthorName,
-			CourseID:     story.CourseID,
+			StoryID:    story.StoryID,
+			WeekNumber: story.WeekNumber,
+			DayLetter:  story.DayLetter,
+			VideoUrl:   story.VideoUrl,
+			AuthorID:   story.AuthorID,
+			AuthorName: story.AuthorName,
+			CourseID:   story.CourseID,
 		})
 		if err != nil {
 			return err
@@ -280,12 +279,17 @@ func UpdateVocabularyAnnotation(ctx context.Context, storyID int, lineNumber int
 func UpdateGrammarAnnotation(ctx context.Context, storyID int, lineNumber int, position [2]int, grammar GrammarItem) error {
 	return withTransaction(func() error {
 		// Update the grammar item using SQLC
+		grammarPointID := pgtype.Int4{Valid: false}
+		if grammar.GrammarPointID != nil {
+			grammarPointID = pgtype.Int4{Int32: int32(*grammar.GrammarPointID), Valid: true}
+		}
 		err := queries.UpdateGrammarByPosition(ctx, db.UpdateGrammarByPositionParams{
-			StoryID:       pgtype.Int4{Int32: int32(storyID), Valid: true},
-			LineNumber:    pgtype.Int4{Int32: int32(lineNumber), Valid: true},
-			PositionStart: int32(position[0]),
-			PositionEnd:   int32(position[1]),
-			Text:          grammar.Text,
+			StoryID:        pgtype.Int4{Int32: int32(storyID), Valid: true},
+			LineNumber:     pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+			PositionStart:  int32(position[0]),
+			PositionEnd:    int32(position[1]),
+			GrammarPointID: grammarPointID,
+			Text:           grammar.Text,
 		})
 
 		if err != nil {

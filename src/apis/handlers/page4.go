@@ -2,11 +2,9 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"glossias/src/apis/types"
 	"glossias/src/pkg/models"
 	"net/http"
-	"os"
 	"strconv"
 
 	"github.com/gorilla/mux"
@@ -59,22 +57,10 @@ func (h *Handler) GetPage4(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) processLinesForPage4(story models.Story, id int) []types.Line {
 	lines := make([]types.Line, 0, len(story.Content.Lines))
 
-	folderPath := fmt.Sprintf(storiesDir+"stories_audio/%v_%v%v",
-		story.Metadata.Description.Language,
-		story.Metadata.WeekNumber,
-		story.Metadata.DayLetter)
-	audioDir, err := os.ReadDir(folderPath)
-
-	for i, dbLine := range story.Content.Lines {
-		var audioFile *string
-		if err == nil && i < len(audioDir) {
-			temp := fmt.Sprintf("/%v/%v", folderPath, audioDir[i].Name())
-			audioFile = &temp
-		}
-
+	for _, dbLine := range story.Content.Lines {
 		lines = append(lines, types.Line{
-			Text:     []string{dbLine.Text},
-			AudioURL: audioFile,
+			Text:       []string{dbLine.Text},
+			AudioFiles: []types.AudioFile{}, // No audio files for page 4
 		})
 	}
 

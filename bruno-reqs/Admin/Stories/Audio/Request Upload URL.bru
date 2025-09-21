@@ -1,0 +1,33 @@
+meta {
+  name: Request Upload URL
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseURL}}/api/admin/stories/audio/upload
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "storyId": 1,
+    "lineNumber": 2,
+    "label": "complete",
+    "fileName": "test_audio.mp3"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const responseData = res.getBody();
+    bru.setVar("signed_url", responseData.uploadUrl);
+    bru.setVar("file_path", responseData.filePath);
+    bru.setVar("file_bucket", responseData.fileBucket);
+  }
+}
+
+settings {
+  encodeUrl: true
+}

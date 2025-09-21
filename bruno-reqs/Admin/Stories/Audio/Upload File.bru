@@ -1,0 +1,23 @@
+meta {
+  name: Upload File
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{signed_url}}
+  body: file
+  auth: none
+}
+
+body:multipart-form {
+  ~file: 
+}
+
+body:file {
+  file: @file(/Users/jvcte/code/logos-stories/static/stories/stories_audio/he_9a/Story 9a.01.mp3) @contentType(audio/mpeg)
+}
+
+settings {
+  encodeUrl: true
+}

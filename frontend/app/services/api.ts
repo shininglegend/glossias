@@ -12,9 +12,18 @@ export interface Story {
   day_letter: string;
 }
 
+export interface AudioFile {
+  id: number;
+  filePath: string;
+  fileBucket: string;
+  label: string;
+}
+
 export interface Line {
   text: string[];
-  audio_url?: string;
+  english_translation?: string;
+  audio_files: AudioFile[];
+  signed_audio_urls?: { [key: number]: string };
   has_vocab_or_grammar: boolean;
 }
 
@@ -87,6 +96,14 @@ export function useApiService() {
     getStoryPage1: useCallback(
       (id: string): Promise<APIResponse<PageData>> => {
         return fetchAPI<PageData>(`/stories/${id}/page1`);
+      },
+      [fetchAPI],
+    ),
+
+    getSignedAudioURLs: useCallback(
+      (storyId: string, label?: string): Promise<APIResponse<{ [key: number]: string }>> => {
+        const params = label ? `?label=${encodeURIComponent(label)}` : '';
+        return fetchAPI<{ [key: number]: string }>(`/stories/${storyId}/audio/signed${params}`);
       },
       [fetchAPI],
     ),

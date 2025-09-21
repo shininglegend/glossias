@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router";
 import { useApiService } from "../services/api";
-import type { PageData } from "../services/api";
+import type { PageData, AudioFile } from "../services/api";
 
 export function Page1() {
   const { id } = useParams<{ id: string }>();
@@ -12,6 +12,8 @@ export function Page1() {
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
     null,
   );
+  const [signedAudioURLs, setSignedAudioURLs] = useState<{ [key: number]: string }>({});
+  const [selectedAudioLabel, setSelectedAudioLabel] = useState<string>("complete");
 
   useEffect(() => {
     const fetchPageData = async () => {
@@ -25,6 +27,12 @@ export function Page1() {
         const response = await api.getStoryPage1(id);
         if (response.success && response.data) {
           setPageData(response.data);
+
+          // Fetch signed URLs for selected audio label
+          const audioResponse = await api.getSignedAudioURLs(id, selectedAudioLabel);
+          if (audioResponse.success && audioResponse.data) {
+            setSignedAudioURLs(audioResponse.data);
+          }
         } else {
           setError(response.error || "Failed to fetch page data");
         }
@@ -36,7 +44,7 @@ export function Page1() {
     };
 
     fetchPageData();
-  }, [id]);
+  }, [id, selectedAudioLabel]);
 
   const playAudio = (audioUrl: string) => {
     // Stop current audio if playing
@@ -68,6 +76,16 @@ export function Page1() {
       }
     };
   }, [currentAudio]);
+
+  // Get available audio labels from the data
+  const getAvailableLabels = () => {
+    if (!pageData) return [];
+    const labels = new Set<string>();
+    pageData.lines.forEach(line => {
+      line.audio_files.forEach(audio => labels.add(audio.label));
+    });
+    return Array.from(labels);
+  };
 
   if (loading) {
     return (
@@ -106,23 +124,46 @@ export function Page1() {
         </p>
         <hr />
         <p>Click any play button to restart the story from that point.</p>
+
+        {getAvailableLabels().length > 1 && (
+          <div className="audio-controls">
+            <label htmlFor="audio-label-select">Audio Type: </label>
+            <select
+              id="audio-label-select"
+              value={selectedAudioLabel}
+              onChange={(e) => setSelectedAudioLabel(e.target.value)}
+            >
+              {getAvailableLabels().map(label => (
+                <option key={label} value={label}>
+                  {label.replace('_', ' ')}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </header>
       <div className="container">
         {pageData.lines.length > 0 ? (
-          pageData.lines.map((line, index) => (
-            <div key={index} className="line">
-              <span className="story-text">{line.text.join("")}</span>
-              {line.audio_url && (
-                <button
-                  onClick={() => playAudio(line.audio_url!)}
-                  className="audio-button"
-                  type="button"
-                >
-                  <span className="material-icons">play_arrow</span>
-                </button>
-              )}
-            </div>
-          ))
+          pageData.lines.map((line, index) => {
+            // Find audio file for selected label
+            const selectedAudio = line.audio_files.find(audio => audio.label === selectedAudioLabel);
+            const audioURL = selectedAudio ? signedAudioURLs[selectedAudio.id] : null;
+
+            return (
+              <div key={index} className="line">
+                <span className="story-text">{line.text.join("")}</span>
+                {audioURL && (
+                  <button
+                    onClick={() => playAudio(audioURL)}
+                    className="audio-button"
+                    type="button"
+                  >
+                    <span className="material-icons">play_arrow</span>
+                  </button>
+                )}
+              </div>
+            );
+          })
         ) : (
           <p>This story has no text associated with it yet.</p>
         )}

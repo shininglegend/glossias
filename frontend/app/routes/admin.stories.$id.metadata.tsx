@@ -3,7 +3,7 @@ import React from "react";
 import type { StoryMetadata } from "../types/admin";
 import { useAdminApi } from "../services/adminApi";
 import MetadataForm from "../components/Admin/MetadataForm";
-import Button from "~/components/ui/Button";
+import AdminStoryNavigation from "../components/Admin/AdminStoryNavigation";
 
 export default function EditMetadata() {
   const { id } = useParams();
@@ -47,6 +47,7 @@ export default function EditMetadata() {
         <h1 className="text-2xl font-bold">Edit Metadata #{id}</h1>
         {saving && <span className="text-sm text-slate-500">Saving…</span>}
       </div>
+      <AdminStoryNavigation storyId={id!} />
       <MetadataForm
         value={metadata}
         onSubmit={async (m) => {

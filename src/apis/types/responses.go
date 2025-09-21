@@ -24,11 +24,20 @@ type StoriesResponse struct {
 	Stories []Story `json:"stories"`
 }
 
+// AudioFile represents an audio file in API responses
+type AudioFile struct {
+	ID         int    `json:"id"`
+	FilePath   string `json:"filePath"`
+	FileBucket string `json:"fileBucket"`
+	Label      string `json:"label"`
+}
+
 // Line represents a story line in API responses
 type Line struct {
-	Text              []string `json:"text"`
-	AudioURL          *string  `json:"audio_url,omitempty"`
-	HasVocabOrGrammar bool     `json:"has_vocab_or_grammar"`
+	Text              []string       `json:"text"`
+	AudioFiles        []AudioFile    `json:"audio_files"`
+	SignedAudioURLs   map[int]string `json:"signed_audio_urls,omitempty"`
+	HasVocabOrGrammar bool           `json:"has_vocab_or_grammar"`
 }
 
 // PageData represents common page data structure

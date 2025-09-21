@@ -102,6 +102,22 @@ func IsUserCourseAdmin(ctx context.Context, userID string, courseID int32) bool 
 	return err == nil && isAdmin
 }
 
+// CanUserEditStory checks if user can edit a specific story
+func CanUserEditStory(ctx context.Context, userID string, storyID int32) bool {
+	if IsUserSuperAdmin(ctx, userID) {
+		return true
+	}
+	courseID, err := queries.GetCourseIdForStory(ctx, storyID)
+	if err != nil {
+		return false
+	}
+	isAdmin, err := queries.IsUserCourseAdmin(ctx, db.IsUserCourseAdminParams{
+		CourseID: courseID.Int32,
+		UserID:   userID,
+	})
+	return err == nil && isAdmin
+}
+
 // GetUserCourseAdminRights returns all courses a user is admin of
 func GetUserCourseAdminRights(ctx context.Context, userID string) ([]CourseAdminRight, error) {
 	results, err := queries.GetUserCourseAdminRights(ctx, userID)

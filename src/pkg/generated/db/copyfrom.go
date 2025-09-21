@@ -9,6 +9,42 @@ import (
 	"context"
 )
 
+// iteratorForBulkCreateAudioFiles implements pgx.CopyFromSource.
+type iteratorForBulkCreateAudioFiles struct {
+	rows                 []BulkCreateAudioFilesParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForBulkCreateAudioFiles) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForBulkCreateAudioFiles) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].StoryID,
+		r.rows[0].LineNumber,
+		r.rows[0].FilePath,
+		r.rows[0].FileBucket,
+		r.rows[0].Label,
+	}, nil
+}
+
+func (r iteratorForBulkCreateAudioFiles) Err() error {
+	return nil
+}
+
+func (q *Queries) BulkCreateAudioFiles(ctx context.Context, arg []BulkCreateAudioFilesParams) (int64, error) {
+	return q.db.CopyFrom(ctx, []string{"line_audio_files"}, []string{"story_id", "line_number", "file_path", "file_bucket", "label"}, &iteratorForBulkCreateAudioFiles{rows: arg})
+}
+
 // iteratorForBulkCreateGrammarItems implements pgx.CopyFromSource.
 type iteratorForBulkCreateGrammarItems struct {
 	rows                 []BulkCreateGrammarItemsParams
@@ -31,6 +67,7 @@ func (r iteratorForBulkCreateGrammarItems) Values() ([]interface{}, error) {
 	return []interface{}{
 		r.rows[0].StoryID,
 		r.rows[0].LineNumber,
+		r.rows[0].GrammarPointID,
 		r.rows[0].Text,
 		r.rows[0].PositionStart,
 		r.rows[0].PositionEnd,
@@ -42,7 +79,75 @@ func (r iteratorForBulkCreateGrammarItems) Err() error {
 }
 
 func (q *Queries) BulkCreateGrammarItems(ctx context.Context, arg []BulkCreateGrammarItemsParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"grammar_items"}, []string{"story_id", "line_number", "text", "position_start", "position_end"}, &iteratorForBulkCreateGrammarItems{rows: arg})
+	return q.db.CopyFrom(ctx, []string{"grammar_items"}, []string{"story_id", "line_number", "grammar_point_id", "text", "position_start", "position_end"}, &iteratorForBulkCreateGrammarItems{rows: arg})
+}
+
+// iteratorForBulkCreateLineTranslations implements pgx.CopyFromSource.
+type iteratorForBulkCreateLineTranslations struct {
+	rows                 []BulkCreateLineTranslationsParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForBulkCreateLineTranslations) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForBulkCreateLineTranslations) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].StoryID,
+		r.rows[0].LineNumber,
+		r.rows[0].LanguageCode,
+		r.rows[0].TranslationText,
+	}, nil
+}
+
+func (r iteratorForBulkCreateLineTranslations) Err() error {
+	return nil
+}
+
+func (q *Queries) BulkCreateLineTranslations(ctx context.Context, arg []BulkCreateLineTranslationsParams) (int64, error) {
+	return q.db.CopyFrom(ctx, []string{"line_translations"}, []string{"story_id", "line_number", "language_code", "translation_text"}, &iteratorForBulkCreateLineTranslations{rows: arg})
+}
+
+// iteratorForBulkCreateStoryGrammarPoints implements pgx.CopyFromSource.
+type iteratorForBulkCreateStoryGrammarPoints struct {
+	rows                 []BulkCreateStoryGrammarPointsParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForBulkCreateStoryGrammarPoints) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForBulkCreateStoryGrammarPoints) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].StoryID,
+		r.rows[0].GrammarPointID,
+	}, nil
+}
+
+func (r iteratorForBulkCreateStoryGrammarPoints) Err() error {
+	return nil
+}
+
+func (q *Queries) BulkCreateStoryGrammarPoints(ctx context.Context, arg []BulkCreateStoryGrammarPointsParams) (int64, error) {
+	return q.db.CopyFrom(ctx, []string{"story_grammar_points"}, []string{"story_id", "grammar_point_id"}, &iteratorForBulkCreateStoryGrammarPoints{rows: arg})
 }
 
 // iteratorForBulkCreateStoryLines implements pgx.CopyFromSource.
@@ -68,7 +173,6 @@ func (r iteratorForBulkCreateStoryLines) Values() ([]interface{}, error) {
 		r.rows[0].StoryID,
 		r.rows[0].LineNumber,
 		r.rows[0].Text,
-		r.rows[0].AudioFile,
 	}, nil
 }
 
@@ -77,7 +181,7 @@ func (r iteratorForBulkCreateStoryLines) Err() error {
 }
 
 func (q *Queries) BulkCreateStoryLines(ctx context.Context, arg []BulkCreateStoryLinesParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"story_lines"}, []string{"story_id", "line_number", "text", "audio_file"}, &iteratorForBulkCreateStoryLines{rows: arg})
+	return q.db.CopyFrom(ctx, []string{"story_lines"}, []string{"story_id", "line_number", "text"}, &iteratorForBulkCreateStoryLines{rows: arg})
 }
 
 // iteratorForBulkCreateVocabularyItems implements pgx.CopyFromSource.

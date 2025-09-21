@@ -217,5 +217,83 @@ export function useAdminApi() {
       },
       [request],
     ),
+
+    // GET /stories/:id/translations/lang/:lang -> Translation[]
+    getTranslations: useCallback(
+      async (
+        id: number,
+        languageCode: string = "en",
+        baseUrl?: string,
+      ): Json<
+        Array<{
+          storyId: number;
+          lineNumber: number;
+          languageCode: string;
+          translationText: string;
+        }>
+      > => {
+        return request<
+          Array<{
+            storyId: number;
+            lineNumber: number;
+            languageCode: string;
+            translationText: string;
+          }>
+        >(
+          `/stories/${id}/translations/lang/${languageCode}`,
+          undefined,
+          baseUrl,
+        );
+      },
+      [request],
+    ),
+
+    // PUT /stories/:id/translations/line
+    saveTranslation: useCallback(
+      async (
+        id: number,
+        lineNumber: number,
+        translation: string,
+        languageCode: string = "en",
+        baseUrl?: string,
+      ): Json<{ success: boolean }> => {
+        return request<{ success: boolean }>(
+          `/stories/${id}/translations/line`,
+          {
+            method: "PUT",
+            body: JSON.stringify({
+              lineNumber,
+              languageCode,
+              translation,
+            }),
+          },
+          baseUrl,
+        );
+      },
+      [request],
+    ),
+
+    // PUT /stories/:id/translations
+    saveAllTranslations: useCallback(
+      async (
+        id: number,
+        translations: Array<{ lineNumber: number; translation: string }>,
+        languageCode: string = "en",
+        baseUrl?: string,
+      ): Json<{ success: boolean }> => {
+        return request<{ success: boolean }>(
+          `/stories/${id}/translations`,
+          {
+            method: "PUT",
+            body: JSON.stringify({
+              languageCode,
+              translations,
+            }),
+          },
+          baseUrl,
+        );
+      },
+      [request],
+    ),
   };
 }

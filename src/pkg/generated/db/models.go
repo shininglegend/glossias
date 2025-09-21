@@ -36,19 +36,44 @@ type FootnoteReference struct {
 }
 
 type GrammarItem struct {
-	ID            int32       `json:"id"`
-	StoryID       pgtype.Int4 `json:"story_id"`
-	LineNumber    pgtype.Int4 `json:"line_number"`
-	Text          string      `json:"text"`
-	PositionStart int32       `json:"position_start"`
-	PositionEnd   int32       `json:"position_end"`
+	ID             int32       `json:"id"`
+	StoryID        pgtype.Int4 `json:"story_id"`
+	LineNumber     pgtype.Int4 `json:"line_number"`
+	GrammarPointID pgtype.Int4 `json:"grammar_point_id"`
+	Text           string      `json:"text"`
+	PositionStart  int32       `json:"position_start"`
+	PositionEnd    int32       `json:"position_end"`
+}
+
+type GrammarPoint struct {
+	GrammarPointID int32            `json:"grammar_point_id"`
+	Name           string           `json:"name"`
+	Description    pgtype.Text      `json:"description"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+}
+
+type LineAudioFile struct {
+	AudioFileID int32            `json:"audio_file_id"`
+	StoryID     pgtype.Int4      `json:"story_id"`
+	LineNumber  pgtype.Int4      `json:"line_number"`
+	FilePath    string           `json:"file_path"`
+	FileBucket  string           `json:"file_bucket"`
+	Label       string           `json:"label"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+}
+
+type LineTranslation struct {
+	StoryID         int32  `json:"story_id"`
+	LineNumber      int32  `json:"line_number"`
+	LanguageCode    string `json:"language_code"`
+	TranslationText string `json:"translation_text"`
 }
 
 type Story struct {
 	StoryID      int32            `json:"story_id"`
 	WeekNumber   int32            `json:"week_number"`
 	DayLetter    string           `json:"day_letter"`
-	GrammarPoint pgtype.Text      `json:"grammar_point"`
+	VideoUrl     pgtype.Text      `json:"video_url"`
 	LastRevision pgtype.Timestamp `json:"last_revision"`
 	AuthorID     string           `json:"author_id"`
 	AuthorName   string           `json:"author_name"`
@@ -61,11 +86,15 @@ type StoryDescription struct {
 	DescriptionText string `json:"description_text"`
 }
 
+type StoryGrammarPoint struct {
+	StoryID        int32 `json:"story_id"`
+	GrammarPointID int32 `json:"grammar_point_id"`
+}
+
 type StoryLine struct {
-	StoryID    int32       `json:"story_id"`
-	LineNumber int32       `json:"line_number"`
-	Text       string      `json:"text"`
-	AudioFile  pgtype.Text `json:"audio_file"`
+	StoryID    int32  `json:"story_id"`
+	LineNumber int32  `json:"line_number"`
+	Text       string `json:"text"`
 }
 
 type StoryTitle struct {

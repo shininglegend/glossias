@@ -10,19 +10,20 @@ import {
   createAudioDeleter,
   AudioUploadError,
 } from "~/lib/audio";
-import type { StoryLine } from "../../types/api";
+import type { StoryLine, GrammarPoint } from "../../types/api";
 
 interface Props {
   line: StoryLine;
   completeAudioURL?: string;
   incompleteAudioURL?: string;
+  storyGrammarPoints?: GrammarPoint[];
   onSelect: (
     lineNumber: number,
     text: string,
     type: "vocab" | "grammar" | "footnote",
     start: number,
     end: number,
-    data?: { text?: string; lexicalForm?: string },
+    data?: { text?: string; lexicalForm?: string; grammarPointId?: number },
   ) => void;
 }
 
@@ -30,6 +31,7 @@ export default function Line({
   line,
   completeAudioURL,
   incompleteAudioURL,
+  storyGrammarPoints = [],
   onSelect,
 }: Props) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -78,7 +80,11 @@ export default function Line({
     setMenu(null);
   };
 
-  const handleSave = (data: { text?: string; lexicalForm?: string }) => {
+  const handleSave = (data: {
+    text?: string;
+    lexicalForm?: string;
+    grammarPointId?: number;
+  }) => {
     if (!modal || !selection) return;
     onSelect(
       line.lineNumber,
@@ -177,6 +183,7 @@ export default function Line({
           text={line.text}
           vocabulary={line.vocabulary}
           grammar={line.grammar}
+          grammarPoints={storyGrammarPoints}
           onSelect={handleSelect}
         />
       </div>
@@ -290,6 +297,7 @@ export default function Line({
           selectedText={modal.text}
           onSave={handleSave}
           onClose={() => setModal(null)}
+          storyGrammarPoints={storyGrammarPoints}
         />
       )}
       <ConfirmDialog

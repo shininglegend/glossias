@@ -2,7 +2,12 @@
 
 import { useCallback } from "react";
 import { useAuthenticatedFetch } from "../lib/authFetch";
-import type { Story, StoryMetadata, StoryContent } from "../types/admin";
+import type {
+  Story,
+  StoryMetadata,
+  StoryContent,
+  GrammarPoint,
+} from "../types/admin";
 
 type Json<T> = Promise<T>;
 
@@ -95,7 +100,10 @@ export function useAdminApi() {
       async (
         id: number,
         baseUrl?: string,
-      ): Json<{ story: Story; Success: boolean }> => {
+      ): Json<{
+        story: Story;
+        success: boolean;
+      }> => {
         const data = await request<any>(
           `/stories/${id}/metadata`,
           {

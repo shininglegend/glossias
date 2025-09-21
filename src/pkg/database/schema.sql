@@ -30,10 +30,11 @@ CREATE TABLE IF NOT EXISTS course_admins (
     PRIMARY KEY (course_id, user_id)
 );
 
--- Grammar points reference table
+-- Grammar points table - each point belongs to a specific story
 CREATE TABLE IF NOT EXISTS grammar_points (
     grammar_point_id SERIAL PRIMARY KEY,
-    name TEXT UNIQUE NOT NULL,
+    story_id INTEGER NOT NULL REFERENCES stories (story_id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -49,12 +50,7 @@ CREATE TABLE IF NOT EXISTS stories (
     course_id INTEGER REFERENCES courses (course_id) ON DELETE SET NULL
 );
 
--- Junction table for multiple grammar points per story
-CREATE TABLE IF NOT EXISTS story_grammar_points (
-    story_id INTEGER REFERENCES stories (story_id) ON DELETE CASCADE,
-    grammar_point_id INTEGER REFERENCES grammar_points (grammar_point_id) ON DELETE CASCADE,
-    PRIMARY KEY (story_id, grammar_point_id)
-);
+
 
 CREATE TABLE IF NOT EXISTS story_titles (
     story_id INTEGER REFERENCES stories (story_id) ON DELETE CASCADE,

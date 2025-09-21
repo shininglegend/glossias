@@ -3,7 +3,8 @@
 
 export interface ApiResponse {
   story: Story;
-  metadata: StoryMetadata;
+  success: boolean;
+  error?: string;
 }
 
 export interface StoryMetadata {
@@ -12,7 +13,7 @@ export interface StoryMetadata {
   dayLetter: string;
   title?: string; // map[string]string
   author: Author;
-  grammarPoint: string;
+  grammarPoints: GrammarPoint[];
   description: Description;
 }
 
@@ -27,6 +28,7 @@ export interface Description {
 }
 
 export interface Story {
+  metadata: StoryMetadata;
   content: StoryContent;
 }
 
@@ -58,8 +60,15 @@ export interface VocabularyItem {
 }
 
 export interface GrammarItem {
+  grammarPointId?: number;
   text: string;
   position: [number, number];
+}
+
+export interface GrammarPoint {
+  id: number;
+  name: string;
+  description?: string;
 }
 
 export interface Footnote {
@@ -87,7 +96,7 @@ export const createAnnotationRequest = (
   text: string,
   start: number,
   end: number,
-  data?: { text?: string; lexicalForm?: string },
+  data?: { text?: string; lexicalForm?: string; grammarPointId?: number },
 ): AnnotationRequest => {
   const request: AnnotationRequest = {
     lineNumber,
@@ -105,6 +114,7 @@ export const createAnnotationRequest = (
       request.grammar = {
         text,
         position: [start, end],
+        grammarPointId: data?.grammarPointId,
       };
       break;
     case "footnote":

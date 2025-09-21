@@ -111,6 +111,17 @@ func EditStoryMetadata(ctx context.Context, storyID int, metadata StoryMetadata)
 			}
 		}
 
+		// Update grammar points
+		if err := ClearStoryGrammarPoints(ctx, storyID); err != nil {
+			return err
+		}
+		for _, gp := range metadata.GrammarPoints {
+			// Create grammar point for this story
+			if _, err := CreateGrammarPoint(ctx, storyID, gp.Name, gp.Description); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	})
 }

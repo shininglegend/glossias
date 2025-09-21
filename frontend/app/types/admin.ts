@@ -11,7 +11,7 @@ export interface StoryMetadata {
   dayLetter: string; // a-e
   title: Record<string, string>; // ISO 639-1 -> title
   author: Author;
-  grammarPoint: string;
+  grammarPoints: GrammarPoint[];
   description: Description;
   courseId?: number;
   lastRevision?: string; // RFC3339 string required by backend on update
@@ -47,8 +47,15 @@ export interface VocabularyItem {
 }
 
 export interface GrammarItem {
+  grammarPointId?: number;
   text: string;
   position: [number, number];
+}
+
+export interface GrammarPoint {
+  id: number;
+  name: string;
+  description?: string;
 }
 
 export interface Footnote {

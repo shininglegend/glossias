@@ -30,11 +30,11 @@ DeleteLineTranslation(storyID, lineNumber int, languageCode string) error
 DeleteStoryTranslations(storyID int) error
 
 Grammar Point Operations:
-CreateGrammarPoint(name, description string) (*GrammarPoint, error)
+CreateGrammarPoint(storyID int, name, description string) (*GrammarPoint, error)
 GetGrammarPoint(grammarPointID int) (*GrammarPoint, error)
+GetGrammarPointByName(name string, storyID int) (*GrammarPoint, error)
 ListGrammarPoints() ([]GrammarPoint, error)
 GetStoryGrammarPoints(storyID int) ([]GrammarPoint, error)
-AddGrammarPointToStory(storyID, grammarPointID int) error
 
 Audio File Operations:
 CreateAudioFile(storyID, lineNumber int, filePath, fileBucket, label string) (*AudioFile, error)

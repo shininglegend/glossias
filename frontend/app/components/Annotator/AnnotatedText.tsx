@@ -1,12 +1,17 @@
 // [moved from annotator/src/components/AnnotatedText.tsx]
 import React, { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import type { VocabularyItem as VocabItem, GrammarItem } from "../../types/api";
+import type {
+  VocabularyItem as VocabItem,
+  GrammarItem,
+  GrammarPoint,
+} from "../../types/api";
 
 export interface Props {
   text: string;
   vocabulary: VocabItem[];
   grammar: GrammarItem[];
+  grammarPoints?: GrammarPoint[];
   onSelect?: (start: number, end: number, text: string) => void;
 }
 
@@ -21,6 +26,7 @@ export default function AnnotatedText({
   text,
   vocabulary,
   grammar,
+  grammarPoints = [],
   onSelect,
 }: Props) {
   const segments = useMemo(() => {
@@ -55,7 +61,7 @@ export default function AnnotatedText({
     const walker = document.createTreeWalker(
       container.closest(".annotated-text")!,
       NodeFilter.SHOW_TEXT,
-      null
+      null,
     );
     let node: Node | null;
     while ((node = walker.nextNode())) textNodes.push(node);
@@ -85,7 +91,7 @@ export default function AnnotatedText({
   return (
     <span className="annotated-text leading-7" onMouseUp={handleMouseUp}>
       {segments.map((segment, i) => (
-        <TextSegment key={i} segment={segment} />
+        <TextSegment key={i} segment={segment} grammarPoints={grammarPoints} />
       ))}
     </span>
   );
@@ -98,8 +104,10 @@ interface TextSegments {
 
 function TextSegment({
   segment: { text, annotations },
+  grammarPoints,
 }: {
   segment: TextSegments;
+  grammarPoints: GrammarPoint[];
 }) {
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
@@ -108,7 +116,7 @@ function TextSegment({
   if (!annotations.length) return <>{text}</>;
 
   const classes = annotations.map((a) =>
-    a.type === "vocab" ? "vocab-highlight" : "grammar-highlight"
+    a.type === "vocab" ? "vocab-highlight" : "grammar-highlight",
   );
 
   const tooltipParts: string[] = [];
@@ -118,7 +126,11 @@ function TextSegment({
       tooltipParts.push(`${vocab.word} → ${vocab.lexicalForm}`);
     } else if (a.type === "grammar") {
       const grammar = a.data as GrammarItem;
-      tooltipParts.push(`Grammar: ${grammar.text}`);
+      const grammarPoint = grammarPoints.find(
+        (gp: GrammarPoint) => gp.id === grammar.grammarPointId,
+      );
+      const grammarPointName = grammarPoint ? grammarPoint.name : "Unknown";
+      tooltipParts.push(`${grammarPointName}: ${grammar.text}`);
     }
   });
 
@@ -163,7 +175,7 @@ function TextSegment({
               <div key={i}>{part}</div>
             ))}
           </div>,
-          document.body
+          document.body,
         )}
     </span>
   );
@@ -171,7 +183,7 @@ function TextSegment({
 
 function createTextSegments(
   text: string,
-  annotations: Annotation[]
+  annotations: Annotation[],
 ): TextSegments[] {
   const segments: TextSegments[] = [];
   let lastIndex = 0;

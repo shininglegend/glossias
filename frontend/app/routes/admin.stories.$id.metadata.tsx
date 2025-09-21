@@ -9,6 +9,7 @@ export default function EditMetadata() {
   const { id } = useParams();
   const adminApi = useAdminApi();
   const [metadata, setMetadata] = React.useState<StoryMetadata | null>(null);
+
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
 

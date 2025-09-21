@@ -1,0 +1,31 @@
+meta {
+  name: Upsert Multi Line Translation
+  type: http
+  seq: 7
+}
+
+put {
+  url: {{baseURL}}/api/admin/stories/{{adminStoryId}}/translations
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "languageCode": "en",
+    "translations": [
+      {
+        "lineNumber": 1,
+        "translation": "This is the English translation of line 1"
+      },
+      {
+        "lineNumber": 2,
+        "translation": "This is the English translation of line 2"
+      }
+    ]
+  }
+}
+
+settings {
+  encodeUrl: true
+}

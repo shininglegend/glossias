@@ -1,0 +1,20 @@
+meta {
+  name: Get Line Translation
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseURL}}/api/admin/stories/{{adminStoryId}}/translations/line?line=1&lang=en
+  body: none
+  auth: inherit
+}
+
+params:query {
+  line: 1
+  lang: en
+}
+
+settings {
+  encodeUrl: true
+}

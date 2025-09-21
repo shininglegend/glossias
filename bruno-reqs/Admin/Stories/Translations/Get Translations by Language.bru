@@ -1,0 +1,15 @@
+meta {
+  name: Get Translations by Language
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseURL}}/api/admin/stories/{{adminStoryId}}/translations/lang/en
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

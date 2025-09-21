@@ -22,7 +22,7 @@ export default function Story({ storyId }: { storyId: number }) {
     const fetchStory = async () => {
       try {
         const response = await authenticatedFetch(
-          `/api/admin/stories/${storyId}`,
+          `/api/admin/stories/${storyId}`
         );
         if (!response.ok) throw new Error("Failed to fetch story");
         const data: ApiResponse = await response.json();
@@ -43,7 +43,7 @@ export default function Story({ storyId }: { storyId: number }) {
     type: AnnotationType,
     start: number,
     end: number,
-    data?: { text?: string; lexicalForm?: string },
+    data?: { text?: string; lexicalForm?: string }
   ) => {
     const request = createAnnotationRequest(
       lineNumber,
@@ -51,7 +51,7 @@ export default function Story({ storyId }: { storyId: number }) {
       text,
       start,
       end,
-      data,
+      data
     );
 
     try {
@@ -61,7 +61,7 @@ export default function Story({ storyId }: { storyId: number }) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(request),
-        },
+        }
       );
 
       if (!response.ok) {
@@ -70,7 +70,7 @@ export default function Story({ storyId }: { storyId: number }) {
       }
 
       const refreshed = await authenticatedFetch(
-        `/api/admin/stories/${storyId}`,
+        `/api/admin/stories/${storyId}`
       );
       const data: ApiResponse = await refreshed.json();
       setLines(data.story.content.lines);
@@ -108,7 +108,7 @@ export default function Story({ storyId }: { storyId: number }) {
                   </div>
                 )}
               </div>
-            )),
+            ))
           )}
         </div>
       </div>

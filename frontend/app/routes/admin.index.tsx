@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import React from "react";
 import Button from "~/components/ui/Button";
+import ConfirmDialog from "~/components/ui/ConfirmDialog";
 import Input from "~/components/ui/Input";
 import { Card } from "~/components/ui/Card";
 import Badge from "~/components/ui/Badge";
@@ -21,6 +22,8 @@ export default function AdminHome() {
   const [stories, setStories] = React.useState<StoryListItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [processing, setProcessing] = React.useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+  const [storyToDelete, setStoryToDelete] = React.useState<number | null>(null);
   const [query, setQuery] = React.useState("");
   React.useEffect(() => {
     async function fetchStories() {
@@ -53,6 +56,24 @@ export default function AdminHome() {
       console.error("Action failed:", error);
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const handleDeleteClick = (storyId: number) => {
+    setStoryToDelete(storyId);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
+    setStoryToDelete(null);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (storyToDelete !== null) {
+      handleAction("delete", storyToDelete);
+      setDeleteDialogOpen(false);
+      setStoryToDelete(null);
     }
   };
 
@@ -182,13 +203,7 @@ export default function AdminHome() {
                       {processing ? "Clearing…" : "Clear"}
                     </Button>
                     <Button
-                      onClick={() => {
-                        if (
-                          confirm("Delete this story? This cannot be undone.")
-                        ) {
-                          handleAction("delete", s.id);
-                        }
-                      }}
+                      onClick={() => handleDeleteClick(s.id)}
                       variant="danger"
                       size="sm"
                       icon={
@@ -205,6 +220,13 @@ export default function AdminHome() {
           </ul>
         )}
       </div>
+      <ConfirmDialog
+        isOpen={deleteDialogOpen}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        variant="delete"
+        loading={processing}
+      />
     </main>
   );
 }

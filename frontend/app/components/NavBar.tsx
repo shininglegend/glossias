@@ -13,7 +13,7 @@ export default function NavBar() {
   const { userInfo, loading } = useUserContext();
   const isAdmin = useMemo(
     () => location.pathname.startsWith("/admin"),
-    [location.pathname],
+    [location.pathname]
   );
 
   return (
@@ -28,6 +28,29 @@ export default function NavBar() {
             Home
           </NavItem>
           <NavItem to="/admin">Admin</NavItem>
+          {/* User management */}
+          <UserButton />
+          <SignedOut>
+            <SignInButton />
+          </SignedOut>
+          <SignedIn>
+            {userInfo && !loading && (
+              <div className="text-xs text-slate-300">
+                {userInfo.is_super_admin ? (
+                  <span className="bg-red-500/20 text-red-300 px-2 py-1 rounded">
+                    Super Admin
+                  </span>
+                ) : userInfo.course_admin_rights &&
+                  userInfo.course_admin_rights.length > 0 ? (
+                  <span className="bg-blue-500/20 text-blue-300 px-2 py-1 rounded">
+                    Course Admin
+                  </span>
+                ) : (
+                  <span className="text-slate-400">User</span>
+                )}
+              </div>
+            )}
+          </SignedIn>
         </nav>
       </div>
 
@@ -48,30 +71,6 @@ export default function NavBar() {
           </div>
         </div>
       )}
-
-      <div className="flex items-center gap-3">
-        <SignedOut>
-          <SignInButton />
-        </SignedOut>
-        <SignedIn>
-          {userInfo && !loading && (
-            <div className="text-xs text-slate-300">
-              {userInfo.is_super_admin ? (
-                <span className="bg-red-500/20 text-red-300 px-2 py-1 rounded">
-                  Super Admin
-                </span>
-              ) : (userInfo.course_admin_rights && userInfo.course_admin_rights.length > 0) ? (
-                <span className="bg-blue-500/20 text-blue-300 px-2 py-1 rounded">
-                  Course Admin
-                </span>
-              ) : (
-                <span className="text-slate-400">User</span>
-              )}
-            </div>
-          )}
-          <UserButton />
-        </SignedIn>
-      </div>
     </header>
   );
 }

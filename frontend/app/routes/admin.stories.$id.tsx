@@ -1,9 +1,9 @@
-import { useParams, Link, useNavigate } from "react-router";
+import { useParams, useNavigate } from "react-router";
 import React from "react";
 import type { Story } from "../types/admin";
 import { useAdminApi } from "../services/adminApi";
 import StoryJSONEditor from "../components/Admin/StoryJSONEditor";
-import Button from "~/components/ui/Button";
+import AdminStoryNavigation from "../components/Admin/AdminStoryNavigation";
 
 function Section({
   title,
@@ -60,18 +60,7 @@ export default function EditStory() {
   return (
     <main className="container mx-auto p-6">
       <h1 className="text-2xl font-bold mb-4">Edit Story #{id}</h1>
-      <div className="mb-4 flex gap-3">
-        <Link to={`/admin/stories/${id}/annotate`}>
-          <Button variant="outline" size="sm">
-            Annotate
-          </Button>
-        </Link>
-        <Link to={`/admin/stories/${id}/metadata`}>
-          <Button variant="outline" size="sm">
-            Metadata
-          </Button>
-        </Link>
-      </div>
+      <AdminStoryNavigation storyId={id!} />
 
       <Section title="Raw JSON">
         <StoryJSONEditor

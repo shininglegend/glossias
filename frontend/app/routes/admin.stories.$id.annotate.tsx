@@ -1,9 +1,11 @@
 // Admin annotator route with toolbar actions
-import { useParams, Link } from "react-router";
+import { useParams } from "react-router";
 import React from "react";
 import Story from "../components/Annotator/Story";
 import { useAdminApi } from "../services/adminApi";
 import Button from "~/components/ui/Button";
+import AdminStoryNavigation from "../components/Admin/AdminStoryNavigation";
+import ConfirmDialog from "~/components/ui/ConfirmDialog";
 
 export default function AdminAnnotateRoute() {
   const params = useParams();
@@ -11,6 +13,7 @@ export default function AdminAnnotateRoute() {
   const adminApi = useAdminApi();
   const [refreshKey, setRefreshKey] = React.useState(0);
   const [busy, setBusy] = React.useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = React.useState(false);
   if (!id) return <div>Invalid story ID</div>;
 
   const handleClear = async () => {
@@ -20,29 +23,31 @@ export default function AdminAnnotateRoute() {
       setRefreshKey((k) => k + 1);
     } finally {
       setBusy(false);
+      setShowConfirmDialog(false);
     }
   };
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <div className="flex gap-2">
-          <Link to={`/admin/stories/${id}`}>
-            <Button variant="outline" size="sm">
-              Back to Edit
-            </Button>
-          </Link>
-          <Link to={`/admin/stories/${id}/metadata`}>
-            <Button variant="outline" size="sm">
-              Metadata
-            </Button>
-          </Link>
-        </div>
-        <Button variant="danger" onClick={handleClear} disabled={busy}>
+        <AdminStoryNavigation storyId={id} />
+        <Button
+          variant="danger"
+          onClick={() => setShowConfirmDialog(true)}
+          disabled={busy}
+        >
           {busy ? "Clearing…" : "Clear All Annotations"}
         </Button>
       </div>
       <Story key={refreshKey} storyId={id} />
+      <ConfirmDialog
+        isOpen={showConfirmDialog}
+        onClose={() => setShowConfirmDialog(false)}
+        onConfirm={handleClear}
+        variant="clear"
+        message="This will permanently remove all annotations from this story. This action cannot be undone."
+        loading={busy}
+      />
     </div>
   );
 }

@@ -6,7 +6,8 @@ package models
 Core Types:
 - Story: {Metadata: StoryMetadata, Content: StoryContent}
 - StoryMetadata: {StoryID, WeekNumber, DayLetter, Title(map[lang]string), Author, VideoURL, Description, LastRevision}
-- StoryLine: {LineNumber, Text, EnglishTranslation, Vocabulary[], Grammar[], AudioFiles[], Footnotes[]}
+- StoryLine: {LineNumber, Text, EnglishTranslation, Translations[lang]string, Vocabulary[], Grammar[], AudioFiles[], Footnotes[]}
+- LineTranslation: {StoryID, LineNumber, LanguageCode, TranslationText}
 - VocabularyItem: {Word, LexicalForm, Position[2]int}
 - GrammarItem: {GrammarPointID*, Text, Position[2]int}
 - Footnote: {ID, Text, References[]string}
@@ -19,6 +20,14 @@ GetAllStories(language string) ([]Story, error) // Basic story list
 GetLineAnnotations(storyID, lineNumber int) (*StoryLine, error)
 GetStoryAnnotations(storyID int) (map[int]*StoryLine, error)
 GetLineText(storyID, lineNumber int) (string, error)
+
+Translation Operations:
+GetLineTranslation(storyID, lineNumber int, languageCode string) (string, error)
+UpsertLineTranslation(storyID, lineNumber int, languageCode, translationText string) error
+GetAllTranslationsForStory(storyID int) ([]LineTranslation, error)
+GetTranslationsByLanguage(storyID int, languageCode string) ([]LineTranslation, error)
+DeleteLineTranslation(storyID, lineNumber int, languageCode string) error
+DeleteStoryTranslations(storyID int) error
 
 Grammar Point Operations:
 CreateGrammarPoint(name, description string) (*GrammarPoint, error)
@@ -47,6 +56,7 @@ UpdateGrammarAnnotation(storyID, lineNumber int, position [2]int, grammar Gramma
 UpdateFootnoteAnnotation(storyID, footnoteID int, footnote Footnote) error // Uses UpdateFootnote, DeleteFootnoteReferences, CreateFootnoteReference
 ClearStoryAnnotations(storyID int) error // Uses StoryExists and raw SQL for complex deletes
 ClearLineAnnotations(storyID, lineNumber int) error // Uses raw SQL for complex deletes
+
 
 Delete Operations (SQLC-based):
 Delete(storyID int) error // Uses StoryExists, DeleteStory, and component delete functions

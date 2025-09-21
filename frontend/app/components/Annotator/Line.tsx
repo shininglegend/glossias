@@ -172,7 +172,7 @@ export default function Line({
   return (
     <div className="story-line flex items-start gap-2">
       <span className="line-number text-slate-500 mr-1">{line.lineNumber}</span>
-      <div className="flex-1">
+      <div className="flex-1 outline-dotted p-1">
         <AnnotatedText
           text={line.text}
           vocabulary={line.vocabulary}
@@ -180,9 +180,9 @@ export default function Line({
           onSelect={handleSelect}
         />
       </div>
-      <div className="flex items-center gap-4 text-xs">
+      <div className="flex items-center gap-4 text-xs w-80">
         {/* Complete Audio Controls */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-1">
           <span className="text-slate-600">Complete Audio:</span>
           {hasAudio("complete") && (
             <Button
@@ -222,7 +222,7 @@ export default function Line({
         </div>
 
         {/* Incomplete Audio Controls */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-1">
           <span className="text-slate-600">Incomplete Audio:</span>
           {hasAudio("incomplete") && (
             <Button

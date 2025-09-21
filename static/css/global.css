@@ -80,7 +80,7 @@ body {
 
 .container {
   width: 100%;
-  max-width: 768px; /* md breakpoint */
+  max-width: 1024px; /* lg breakpoint */
   margin: 0 auto;
   padding: 1rem;
   align-items: center;

@@ -1,7 +1,6 @@
 package models
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,11 +8,8 @@ import (
 	"glossias/src/pkg/generated/db"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	_ "github.com/lib/pq"
+	storage_go "github.com/supabase-community/storage-go"
 )
 
 const (
@@ -32,7 +28,7 @@ var (
 
 var queries *db.Queries
 var rawConn any
-var s3Client *s3.Client
+var storageClient *storage_go.Client
 var storageBaseURL string
 
 func SetDB(d any) {
@@ -50,48 +46,26 @@ func SetDB(d any) {
 	}
 }
 
-// SetStorageClient initializes the S3 client for Supabase storage
-func SetStorageClient(url, accessKeyId, secretAccessKey, s3region string) {
-	if url == "" || accessKeyId == "" || secretAccessKey == "" || s3region == "" {
+// SetStorageClient initializes the Supabase storage client
+func SetStorageClient(url, apiKey string) {
+	if url == "" || apiKey == "" {
 		fmt.Println("Storage credentials missing - operations will fail")
-		s3Client = nil
+		storageClient = nil
 		storageBaseURL = ""
 		return
 	}
 
-	// Create S3 client with Supabase endpoint
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion(s3region),
-		config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(
-			func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-				return aws.Endpoint{
-					URL:               url,
-					HostnameImmutable: true,
-				}, nil
-			})),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKeyId, secretAccessKey, "")),
-	)
-	if err != nil {
-		fmt.Printf("Failed to create S3 config: %v\n", err)
-		s3Client = nil
-		storageBaseURL = ""
-		return
-	}
-
-	s3Client = s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.UsePathStyle = true
-	})
+	storageClient = storage_go.NewClient(url, apiKey, nil)
 	storageBaseURL = url
-
 	// Test the connection by listing buckets
-	_, err = s3Client.ListBuckets(context.TODO(), &s3.ListBucketsInput{})
+	_, err := storageClient.ListBuckets()
 	if err != nil {
 		fmt.Printf("Failed to connect to storage: %v\n", err)
-		s3Client = nil
+		storageClient = nil
 		storageBaseURL = ""
 		return
 	}
-	fmt.Printf("S3 client initialized for Supabase storage: %s\n", url)
+	fmt.Printf("Storage client initialized with URL: %s\n", url)
 }
 
 type Story struct {

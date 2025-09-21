@@ -16,6 +16,7 @@ type Querier interface {
 	AddGrammarPointToStory(ctx context.Context, arg AddGrammarPointToStoryParams) error
 	BulkCreateAudioFiles(ctx context.Context, arg []BulkCreateAudioFilesParams) (int64, error)
 	BulkCreateGrammarItems(ctx context.Context, arg []BulkCreateGrammarItemsParams) (int64, error)
+	BulkCreateLineTranslations(ctx context.Context, arg []BulkCreateLineTranslationsParams) (int64, error)
 	BulkCreateStoryGrammarPoints(ctx context.Context, arg []BulkCreateStoryGrammarPointsParams) (int64, error)
 	BulkCreateStoryLines(ctx context.Context, arg []BulkCreateStoryLinesParams) (int64, error)
 	BulkCreateVocabularyItems(ctx context.Context, arg []BulkCreateVocabularyItemsParams) (int64, error)
@@ -41,6 +42,7 @@ type Querier interface {
 	DeleteAllLineAnnotations(ctx context.Context, arg DeleteAllLineAnnotationsParams) error
 	DeleteAllStoryAnnotations(ctx context.Context, storyID pgtype.Int4) error
 	DeleteAllStoryLines(ctx context.Context, storyID int32) error
+	DeleteAllTranslationsForStory(ctx context.Context, storyID int32) error
 	DeleteAllVocabularyForStory(ctx context.Context, storyID pgtype.Int4) error
 	DeleteAudioFile(ctx context.Context, audioFileID int32) error
 	DeleteCourse(ctx context.Context, courseID int32) error
@@ -53,6 +55,8 @@ type Querier interface {
 	DeleteLineAudioFiles(ctx context.Context, arg DeleteLineAudioFilesParams) error
 	DeleteLineFootnoteReferences(ctx context.Context, arg DeleteLineFootnoteReferencesParams) error
 	DeleteLineGrammar(ctx context.Context, arg DeleteLineGrammarParams) error
+	DeleteLineTranslation(ctx context.Context, arg DeleteLineTranslationParams) error
+	DeleteLineTranslations(ctx context.Context, arg DeleteLineTranslationsParams) error
 	DeleteLineVocabulary(ctx context.Context, arg DeleteLineVocabularyParams) error
 	DeleteStory(ctx context.Context, storyID int32) error
 	DeleteStoryAudioFiles(ctx context.Context, storyID pgtype.Int4) error
@@ -70,6 +74,7 @@ type Querier interface {
 	GetAllStoriesBasic(ctx context.Context, languageCode string) ([]GetAllStoriesBasicRow, error)
 	GetAllStoriesWithTitles(ctx context.Context) ([]GetAllStoriesWithTitlesRow, error)
 	GetAllStoryAudioFiles(ctx context.Context, storyID pgtype.Int4) ([]LineAudioFile, error)
+	GetAllTranslationsForStory(ctx context.Context, storyID int32) ([]LineTranslation, error)
 	GetAllVocabularyForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllVocabularyForStoryRow, error)
 	GetAudioFile(ctx context.Context, audioFileID int32) (LineAudioFile, error)
 	GetAudioFilesByLabel(ctx context.Context, label string) ([]LineAudioFile, error)
@@ -85,6 +90,9 @@ type Querier interface {
 	GetGrammarPointByName(ctx context.Context, name string) (GrammarPoint, error)
 	GetLineAudioFiles(ctx context.Context, arg GetLineAudioFilesParams) ([]LineAudioFile, error)
 	GetLineText(ctx context.Context, arg GetLineTextParams) (string, error)
+	GetLineTranslation(ctx context.Context, arg GetLineTranslationParams) (string, error)
+	// Line translations management queries
+	GetLineTranslations(ctx context.Context, arg GetLineTranslationsParams) ([]LineTranslation, error)
 	GetStoriesByCourse(ctx context.Context, courseID pgtype.Int4) ([]Story, error)
 	GetStoriesForUserCourses(ctx context.Context, userID string) ([]Story, error)
 	GetStoriesWithGrammarPoint(ctx context.Context, grammarPointID int32) ([]Story, error)
@@ -102,6 +110,7 @@ type Querier interface {
 	// Story titles
 	GetStoryTitles(ctx context.Context, storyID int32) ([]StoryTitle, error)
 	GetStoryWithDescription(ctx context.Context, storyID int32) (GetStoryWithDescriptionRow, error)
+	GetTranslationsByLanguage(ctx context.Context, arg GetTranslationsByLanguageParams) ([]GetTranslationsByLanguageRow, error)
 	GetUser(ctx context.Context, userID string) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserCourseAdminRights(ctx context.Context, userID string) ([]GetUserCourseAdminRightsRow, error)
@@ -127,6 +136,7 @@ type Querier interface {
 	UpdateVocabularyByPosition(ctx context.Context, arg UpdateVocabularyByPositionParams) error
 	UpdateVocabularyByWord(ctx context.Context, arg UpdateVocabularyByWordParams) error
 	UpdateVocabularyItem(ctx context.Context, arg UpdateVocabularyItemParams) error
+	UpsertLineTranslation(ctx context.Context, arg UpsertLineTranslationParams) error
 	UpsertStoryDescription(ctx context.Context, arg UpsertStoryDescriptionParams) error
 	UpsertStoryLine(ctx context.Context, arg UpsertStoryLineParams) error
 	UpsertStoryTitle(ctx context.Context, arg UpsertStoryTitleParams) error

@@ -82,6 +82,41 @@ func (q *Queries) BulkCreateGrammarItems(ctx context.Context, arg []BulkCreateGr
 	return q.db.CopyFrom(ctx, []string{"grammar_items"}, []string{"story_id", "line_number", "grammar_point_id", "text", "position_start", "position_end"}, &iteratorForBulkCreateGrammarItems{rows: arg})
 }
 
+// iteratorForBulkCreateLineTranslations implements pgx.CopyFromSource.
+type iteratorForBulkCreateLineTranslations struct {
+	rows                 []BulkCreateLineTranslationsParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForBulkCreateLineTranslations) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForBulkCreateLineTranslations) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].StoryID,
+		r.rows[0].LineNumber,
+		r.rows[0].LanguageCode,
+		r.rows[0].TranslationText,
+	}, nil
+}
+
+func (r iteratorForBulkCreateLineTranslations) Err() error {
+	return nil
+}
+
+func (q *Queries) BulkCreateLineTranslations(ctx context.Context, arg []BulkCreateLineTranslationsParams) (int64, error) {
+	return q.db.CopyFrom(ctx, []string{"line_translations"}, []string{"story_id", "line_number", "language_code", "translation_text"}, &iteratorForBulkCreateLineTranslations{rows: arg})
+}
+
 // iteratorForBulkCreateStoryGrammarPoints implements pgx.CopyFromSource.
 type iteratorForBulkCreateStoryGrammarPoints struct {
 	rows                 []BulkCreateStoryGrammarPointsParams

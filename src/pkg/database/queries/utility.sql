@@ -57,3 +57,9 @@ DELETE FROM vocabulary_items WHERE story_id = $1;
 
 -- name: DeleteAllGrammarForStory :exec
 DELETE FROM grammar_items WHERE story_id = $1;
+
+-- name: DeleteAllTranslationsForStory :exec
+DELETE FROM line_translations WHERE story_id = $1;
+
+-- name: DeleteLineTranslations :exec
+DELETE FROM line_translations WHERE story_id = $1 AND line_number = $2;

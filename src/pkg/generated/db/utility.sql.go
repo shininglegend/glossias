@@ -122,6 +122,15 @@ func (q *Queries) DeleteAllStoryAnnotations(ctx context.Context, storyID pgtype.
 	return err
 }
 
+const deleteAllTranslationsForStory = `-- name: DeleteAllTranslationsForStory :exec
+DELETE FROM line_translations WHERE story_id = $1
+`
+
+func (q *Queries) DeleteAllTranslationsForStory(ctx context.Context, storyID int32) error {
+	_, err := q.db.Exec(ctx, deleteAllTranslationsForStory, storyID)
+	return err
+}
+
 const deleteAllVocabularyForStory = `-- name: DeleteAllVocabularyForStory :exec
 DELETE FROM vocabulary_items WHERE story_id = $1
 `
@@ -171,6 +180,20 @@ type DeleteLineGrammarParams struct {
 
 func (q *Queries) DeleteLineGrammar(ctx context.Context, arg DeleteLineGrammarParams) error {
 	_, err := q.db.Exec(ctx, deleteLineGrammar, arg.StoryID, arg.LineNumber)
+	return err
+}
+
+const deleteLineTranslations = `-- name: DeleteLineTranslations :exec
+DELETE FROM line_translations WHERE story_id = $1 AND line_number = $2
+`
+
+type DeleteLineTranslationsParams struct {
+	StoryID    int32 `json:"story_id"`
+	LineNumber int32 `json:"line_number"`
+}
+
+func (q *Queries) DeleteLineTranslations(ctx context.Context, arg DeleteLineTranslationsParams) error {
+	_, err := q.db.Exec(ctx, deleteLineTranslations, arg.StoryID, arg.LineNumber)
 	return err
 }
 

@@ -78,6 +78,15 @@ CREATE TABLE IF NOT EXISTS story_lines (
     PRIMARY KEY (story_id, line_number)
 );
 
+CREATE TABLE IF NOT EXISTS line_translations (
+    story_id INTEGER,
+    line_number INTEGER,
+    language_code TEXT,
+    translation_text TEXT NOT NULL,
+    PRIMARY KEY (story_id, line_number, language_code),
+    FOREIGN KEY (story_id, line_number) REFERENCES story_lines (story_id, line_number) ON DELETE CASCADE
+);
+
 -- Audio files table for multiple audio files per line
 CREATE TABLE IF NOT EXISTS line_audio_files (
     audio_file_id SERIAL PRIMARY KEY,

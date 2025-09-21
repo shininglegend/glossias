@@ -62,6 +62,13 @@ type LineAudioFile struct {
 	CreatedAt   pgtype.Timestamp `json:"created_at"`
 }
 
+type LineTranslation struct {
+	StoryID         int32  `json:"story_id"`
+	LineNumber      int32  `json:"line_number"`
+	LanguageCode    string `json:"language_code"`
+	TranslationText string `json:"translation_text"`
+}
+
 type Story struct {
 	StoryID      int32            `json:"story_id"`
 	WeekNumber   int32            `json:"week_number"`

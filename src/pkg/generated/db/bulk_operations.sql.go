@@ -26,6 +26,13 @@ type BulkCreateGrammarItemsParams struct {
 	PositionEnd    int32       `json:"position_end"`
 }
 
+type BulkCreateLineTranslationsParams struct {
+	StoryID         int32  `json:"story_id"`
+	LineNumber      int32  `json:"line_number"`
+	LanguageCode    string `json:"language_code"`
+	TranslationText string `json:"translation_text"`
+}
+
 type BulkCreateStoryGrammarPointsParams struct {
 	StoryID        int32 `json:"story_id"`
 	GrammarPointID int32 `json:"grammar_point_id"`

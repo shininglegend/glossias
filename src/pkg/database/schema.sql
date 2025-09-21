@@ -74,7 +74,6 @@ CREATE TABLE IF NOT EXISTS story_lines (
     story_id INTEGER REFERENCES stories (story_id) ON DELETE CASCADE,
     line_number INTEGER,
     text TEXT NOT NULL,
-    english_translation TEXT, -- Added for line-level translations
     PRIMARY KEY (story_id, line_number)
 );
 

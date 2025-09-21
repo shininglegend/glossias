@@ -92,10 +92,9 @@ type StoryGrammarPoint struct {
 }
 
 type StoryLine struct {
-	StoryID            int32       `json:"story_id"`
-	LineNumber         int32       `json:"line_number"`
-	Text               string      `json:"text"`
-	EnglishTranslation pgtype.Text `json:"english_translation"`
+	StoryID    int32  `json:"story_id"`
+	LineNumber int32  `json:"line_number"`
+	Text       string `json:"text"`
 }
 
 type StoryTitle struct {

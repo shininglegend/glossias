@@ -7,8 +7,8 @@ INSERT INTO grammar_items (story_id, line_number, grammar_point_id, text, positi
 VALUES ($1, $2, $3, $4, $5, $6);
 
 -- name: BulkCreateStoryLines :copyfrom
-INSERT INTO story_lines (story_id, line_number, text, english_translation)
-VALUES ($1, $2, $3, $4);
+INSERT INTO story_lines (story_id, line_number, text)
+VALUES ($1, $2, $3);
 
 -- name: BulkCreateAudioFiles :copyfrom
 INSERT INTO line_audio_files (story_id, line_number, file_path, file_bucket, label)

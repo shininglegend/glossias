@@ -173,7 +173,6 @@ func (r iteratorForBulkCreateStoryLines) Values() ([]interface{}, error) {
 		r.rows[0].StoryID,
 		r.rows[0].LineNumber,
 		r.rows[0].Text,
-		r.rows[0].EnglishTranslation,
 	}, nil
 }
 
@@ -182,7 +181,7 @@ func (r iteratorForBulkCreateStoryLines) Err() error {
 }
 
 func (q *Queries) BulkCreateStoryLines(ctx context.Context, arg []BulkCreateStoryLinesParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"story_lines"}, []string{"story_id", "line_number", "text", "english_translation"}, &iteratorForBulkCreateStoryLines{rows: arg})
+	return q.db.CopyFrom(ctx, []string{"story_lines"}, []string{"story_id", "line_number", "text"}, &iteratorForBulkCreateStoryLines{rows: arg})
 }
 
 // iteratorForBulkCreateVocabularyItems implements pgx.CopyFromSource.

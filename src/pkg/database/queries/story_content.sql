@@ -35,13 +35,13 @@ DELETE FROM story_descriptions WHERE story_id = $1;
 
 -- Story lines
 -- name: GetStoryLines :many
-SELECT story_id, line_number, text, english_translation
+SELECT story_id, line_number, text
 FROM story_lines
 WHERE story_id = $1
 ORDER BY line_number;
 
 -- name: GetStoryLine :one
-SELECT story_id, line_number, text, english_translation
+SELECT story_id, line_number, text
 FROM story_lines
 WHERE story_id = $1 AND line_number = $2;
 
@@ -50,10 +50,8 @@ SELECT text FROM story_lines
 WHERE story_id = $1 AND line_number = $2;
 
 -- name: UpsertStoryLine :exec
-INSERT INTO story_lines (story_id, line_number, text, english_translation)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT (story_id, line_number)
-DO UPDATE SET text = EXCLUDED.text, english_translation = EXCLUDED.english_translation;
+INSERT INTO story_lines (story_id, line_number, text)
+VALUES ($1, $2, $3);
 
 -- name: DeleteStoryLine :exec
 DELETE FROM story_lines WHERE story_id = $1 AND line_number = $2;

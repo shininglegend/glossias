@@ -6,7 +6,7 @@ package models
 Core Types:
 - Story: {Metadata: StoryMetadata, Content: StoryContent}
 - StoryMetadata: {StoryID, WeekNumber, DayLetter, Title(map[lang]string), Author, VideoURL, Description, LastRevision}
-- StoryLine: {LineNumber, Text, EnglishTranslation, Translations[lang]string, Vocabulary[], Grammar[], AudioFiles[], Footnotes[]}
+- StoryLine: {LineNumber, Text, Translations[lang]string, Vocabulary[], Grammar[], AudioFiles[], Footnotes[]}
 - LineTranslation: {StoryID, LineNumber, LanguageCode, TranslationText}
 - VocabularyItem: {Word, LexicalForm, Position[2]int}
 - GrammarItem: {GrammarPointID*, Text, Position[2]int}
@@ -41,6 +41,7 @@ CreateAudioFile(storyID, lineNumber int, filePath, fileBucket, label string) (*A
 GetLineAudioFiles(storyID, lineNumber int) ([]AudioFile, error)
 GetStoryAudioFilesByLabel(storyID int, label string) ([]AudioFile, error)
 GetAllStoryAudioFiles(storyID int) ([]AudioFile, error)
+DeleteLineAudioFiles(storyID, lineNumber int) error
 
 Save Operations (SQLC-based):
 SaveNewStory(*Story) error // Uses CreateStory, UpsertStoryTitle, UpsertStoryDescription, UpsertStoryLine

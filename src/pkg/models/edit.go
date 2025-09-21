@@ -26,10 +26,9 @@ func EditStoryText(ctx context.Context, storyID int, lines []StoryLine) error {
 		// Insert updated lines using SQLC
 		for _, line := range lines {
 			err := queries.UpsertStoryLine(ctx, db.UpsertStoryLineParams{
-				StoryID:            int32(storyID),
-				LineNumber:         int32(line.LineNumber),
-				Text:               line.Text,
-				EnglishTranslation: pgtype.Text{String: line.EnglishTranslation, Valid: line.EnglishTranslation != ""},
+				StoryID:    int32(storyID),
+				LineNumber: int32(line.LineNumber),
+				Text:       line.Text,
 			})
 			if err != nil {
 				return err

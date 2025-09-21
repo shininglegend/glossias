@@ -100,13 +100,12 @@ type StoryContent struct {
 }
 
 type StoryLine struct {
-	LineNumber         int              `json:"lineNumber"`
-	Text               string           `json:"text"`
-	EnglishTranslation string           `json:"englishTranslation,omitempty"`
-	Vocabulary         []VocabularyItem `json:"vocabulary"`
-	Grammar            []GrammarItem    `json:"grammar"`
-	AudioFiles         []AudioFile      `json:"audioFiles"`
-	Footnotes          []Footnote       `json:"footnotes"`
+	LineNumber int              `json:"lineNumber"`
+	Text       string           `json:"text"`
+	Vocabulary []VocabularyItem `json:"vocabulary"`
+	Grammar    []GrammarItem    `json:"grammar"`
+	AudioFiles []AudioFile      `json:"audioFiles"`
+	Footnotes  []Footnote       `json:"footnotes"`
 }
 
 type VocabularyItem struct {

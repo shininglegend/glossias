@@ -34,11 +34,10 @@ type AudioFile struct {
 
 // Line represents a story line in API responses
 type Line struct {
-	Text                []string    `json:"text"`
-	EnglishTranslation  *string     `json:"english_translation,omitempty"`
-	AudioFiles          []AudioFile `json:"audio_files"`
-	SignedAudioURLs     map[int]string `json:"signed_audio_urls,omitempty"`
-	HasVocabOrGrammar   bool        `json:"has_vocab_or_grammar"`
+	Text              []string       `json:"text"`
+	AudioFiles        []AudioFile    `json:"audio_files"`
+	SignedAudioURLs   map[int]string `json:"signed_audio_urls,omitempty"`
+	HasVocabOrGrammar bool           `json:"has_vocab_or_grammar"`
 }
 
 // PageData represents common page data structure

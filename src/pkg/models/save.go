@@ -109,7 +109,6 @@ func saveLine(ctx context.Context, storyID int, line *StoryLine) error {
 		StoryID:            int32(storyID),
 		LineNumber:         int32(line.LineNumber),
 		Text:               line.Text,
-		EnglishTranslation: pgtype.Text{String: line.EnglishTranslation, Valid: line.EnglishTranslation != ""},
 	})
 	if err != nil {
 		return err

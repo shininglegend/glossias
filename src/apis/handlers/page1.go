@@ -62,14 +62,8 @@ func (h *Handler) processLinesForPage1(story models.Story) []types.Line {
 			})
 		}
 
-		var englishTranslation *string
-		if dbLine.EnglishTranslation != "" {
-			englishTranslation = &dbLine.EnglishTranslation
-		}
-
 		lines = append(lines, types.Line{
 			Text:               []string{dbLine.Text},
-			EnglishTranslation: englishTranslation,
 			AudioFiles:         audioFiles,
 		})
 	}

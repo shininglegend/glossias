@@ -80,13 +80,12 @@ func getStoryLines(ctx context.Context, storyID int) ([]StoryLine, error) {
 	var lines []StoryLine
 	for _, dbLine := range dbLines {
 		line := StoryLine{
-			LineNumber:         int(dbLine.LineNumber),
-			Text:               dbLine.Text,
-			EnglishTranslation: dbLine.EnglishTranslation.String,
-			Vocabulary:         []VocabularyItem{}, // Init with empty arrays
-			Grammar:            []GrammarItem{},
-			AudioFiles:         []AudioFile{},
-			Footnotes:          []Footnote{},
+			LineNumber: int(dbLine.LineNumber),
+			Text:       dbLine.Text,
+			Vocabulary: []VocabularyItem{}, // Init with empty arrays
+			Grammar:    []GrammarItem{},
+			AudioFiles: []AudioFile{},
+			Footnotes:  []Footnote{},
 		}
 
 		// Get vocabulary items for this line

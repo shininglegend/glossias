@@ -166,9 +166,36 @@ func UpdateAudioFile(ctx context.Context, audioFileID int, storyID int, filePath
 	}, nil
 }
 
+// deleteAudioFilesFromStorage deletes audio files from Supabase storage
+func deleteAudioFilesFromStorage(audioFiles []AudioFile) error {
+	if storageClient == nil {
+		return errors.New("storage client not initialized")
+	}
+
+	for _, audioFile := range audioFiles {
+		_, err := storageClient.RemoveFile(audioFile.FileBucket, []string{audioFile.FilePath})
+		if err != nil {
+			return fmt.Errorf("failed to delete file from storage: %w", err)
+		}
+	}
+	return nil
+}
+
 // DeleteAudioFile deletes an audio file
 func DeleteAudioFile(ctx context.Context, audioFileID int) error {
-	err := queries.DeleteAudioFile(ctx, int32(audioFileID))
+	// Get audio file details before deletion
+	audioFile, err := GetAudioFile(ctx, audioFileID)
+	if err != nil {
+		return err
+	}
+
+	// Delete from Supabase storage first
+	if err := deleteAudioFilesFromStorage([]AudioFile{*audioFile}); err != nil {
+		return err
+	}
+
+	// Delete from database
+	err = queries.DeleteAudioFile(ctx, int32(audioFileID))
 	if err == sql.ErrNoRows || err == pgx.ErrNoRows {
 		return ErrNotFound
 	}
@@ -177,6 +204,18 @@ func DeleteAudioFile(ctx context.Context, audioFileID int) error {
 
 // DeleteLineAudioFiles deletes all audio files for a specific line
 func DeleteLineAudioFiles(ctx context.Context, storyID, lineNumber int) error {
+	// Get all audio files for the line before deletion
+	audioFiles, err := GetLineAudioFiles(ctx, storyID, lineNumber)
+	if err != nil {
+		return err
+	}
+
+	// Delete from Supabase storage first
+	if err := deleteAudioFilesFromStorage(audioFiles); err != nil {
+		return err
+	}
+
+	// Delete from database
 	return queries.DeleteLineAudioFiles(ctx, db.DeleteLineAudioFilesParams{
 		StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
 		LineNumber: pgtype.Int4{Int32: int32(lineNumber), Valid: true},
@@ -185,11 +224,35 @@ func DeleteLineAudioFiles(ctx context.Context, storyID, lineNumber int) error {
 
 // DeleteStoryAudioFiles deletes all audio files for a story
 func DeleteStoryAudioFiles(ctx context.Context, storyID int) error {
+	// Get all audio files for the story before deletion
+	audioFiles, err := GetAllStoryAudioFiles(ctx, storyID)
+	if err != nil {
+		return err
+	}
+
+	// Delete from Supabase storage first
+	if err := deleteAudioFilesFromStorage(audioFiles); err != nil {
+		return err
+	}
+
+	// Delete from database
 	return queries.DeleteStoryAudioFiles(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
 }
 
 // DeleteStoryAudioFilesByLabel deletes all audio files for a story with a specific label
 func DeleteStoryAudioFilesByLabel(ctx context.Context, storyID int, label string) error {
+	// Get all audio files for the story with the label before deletion
+	audioFiles, err := GetStoryAudioFilesByLabel(ctx, storyID, label)
+	if err != nil {
+		return err
+	}
+
+	// Delete from Supabase storage first
+	if err := deleteAudioFilesFromStorage(audioFiles); err != nil {
+		return err
+	}
+
+	// Delete from database
 	return queries.DeleteStoryAudioFilesByLabel(ctx, db.DeleteStoryAudioFilesByLabelParams{
 		StoryID: pgtype.Int4{Int32: int32(storyID), Valid: true},
 		Label:   label,

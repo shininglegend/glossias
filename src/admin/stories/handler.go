@@ -79,4 +79,5 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	// Audio upload endpoints
 	stories.HandleFunc("/audio/upload", h.audioUploadHandler).Methods("POST", "OPTIONS")
 	stories.HandleFunc("/audio/confirm", h.confirmAudioUploadHandler).Methods("POST", "OPTIONS")
+	stories.HandleFunc("/audio/delete", h.audioDeleteHandler).Methods("DELETE", "OPTIONS")
 }

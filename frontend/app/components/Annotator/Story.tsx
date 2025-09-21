@@ -11,23 +11,64 @@ import {
   type StoryMetadata,
 } from "../../types/api";
 
+interface AudioURLsResponse {
+  success: boolean;
+  data: Record<string, string>; // lineNumber -> signedURL
+}
+
 export default function Story({ storyId }: { storyId: number }) {
   const authenticatedFetch = useAuthenticatedFetch();
   const [lines, setLines] = useState<StoryLine[]>([]);
   const [metadata, setMetaData] = useState<StoryMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [completeAudioURLs, setCompleteAudioURLs] = useState<
+    Record<string, string>
+  >({});
+  const [incompleteAudioURLs, setIncompleteAudioURLs] = useState<
+    Record<string, string>
+  >({});
+
+  const fetchAudioURLs = async (label: string) => {
+    try {
+      const response = await authenticatedFetch(
+        `/api/stories/${storyId}/audio/signed?label=${label}`,
+      );
+      if (!response.ok) return {};
+      const data: AudioURLsResponse = await response.json();
+      return data.success ? data.data : {};
+    } catch (e) {
+      console.error(`Failed to fetch ${label} audio URLs:`, e);
+      return {};
+    }
+  };
 
   useEffect(() => {
     const fetchStory = async () => {
       try {
         const response = await authenticatedFetch(
-          `/api/admin/stories/${storyId}`
+          `/api/admin/stories/${storyId}`,
         );
         if (!response.ok) throw new Error("Failed to fetch story");
         const data: ApiResponse = await response.json();
-        setLines(data.story.content.lines);
+
+        // Map lines with empty audioFiles for now - backend doesn't return them in admin endpoint
+        const linesWithAudio = data.story.content.lines.map((line) => ({
+          ...line,
+          audioFiles: [], // Will be populated by checking audio URLs
+        }));
+
+        setLines(linesWithAudio);
         setMetaData(data.metadata);
+
+        // Fetch audio URLs for both labels
+        const [completeURLs, incompleteURLs] = await Promise.all([
+          fetchAudioURLs("complete"),
+          fetchAudioURLs("incomplete"),
+        ]);
+
+        setCompleteAudioURLs(completeURLs);
+        setIncompleteAudioURLs(incompleteURLs);
         setLoading(false);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Unknown error");
@@ -43,7 +84,7 @@ export default function Story({ storyId }: { storyId: number }) {
     type: AnnotationType,
     start: number,
     end: number,
-    data?: { text?: string; lexicalForm?: string }
+    data?: { text?: string; lexicalForm?: string },
   ) => {
     const request = createAnnotationRequest(
       lineNumber,
@@ -51,7 +92,7 @@ export default function Story({ storyId }: { storyId: number }) {
       text,
       start,
       end,
-      data
+      data,
     );
 
     try {
@@ -61,7 +102,7 @@ export default function Story({ storyId }: { storyId: number }) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(request),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -70,7 +111,7 @@ export default function Story({ storyId }: { storyId: number }) {
       }
 
       const refreshed = await authenticatedFetch(
-        `/api/admin/stories/${storyId}`
+        `/api/admin/stories/${storyId}`,
       );
       const data: ApiResponse = await refreshed.json();
       setLines(data.story.content.lines);
@@ -87,7 +128,13 @@ export default function Story({ storyId }: { storyId: number }) {
   return (
     <div className="story-container">
       {lines.map((line) => (
-        <Line key={line.lineNumber} line={line} onSelect={handleAnnotation} />
+        <Line
+          key={line.lineNumber}
+          line={{ ...line, storyId: metadata?.storyId || storyId }}
+          onSelect={handleAnnotation}
+          completeAudioURL={completeAudioURLs[line.lineNumber.toString()]}
+          incompleteAudioURL={incompleteAudioURLs[line.lineNumber.toString()]}
+        />
       ))}
       <div className="mt-8 border-t pt-6">
         <h3 className="text-lg font-semibold mb-3">Footnotes</h3>
@@ -108,7 +155,7 @@ export default function Story({ storyId }: { storyId: number }) {
                   </div>
                 )}
               </div>
-            ))
+            )),
           )}
         </div>
       </div>

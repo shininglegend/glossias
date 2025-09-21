@@ -40,7 +40,15 @@ export interface StoryLine {
   vocabulary: VocabularyItem[];
   grammar: GrammarItem[];
   footnotes: Footnote[];
-  audioFile?: string;
+  audioFiles: AudioFile[];
+  storyId?: number;
+}
+
+export interface AudioFile {
+  id: number;
+  filePath: string;
+  fileBucket: string;
+  label: string;
 }
 
 export interface VocabularyItem {
@@ -79,7 +87,7 @@ export const createAnnotationRequest = (
   text: string,
   start: number,
   end: number,
-  data?: { text?: string; lexicalForm?: string }
+  data?: { text?: string; lexicalForm?: string },
 ): AnnotationRequest => {
   const request: AnnotationRequest = {
     lineNumber,

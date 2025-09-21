@@ -119,6 +119,47 @@ func (h *Handler) requestAudioUploadURL(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(response)
 }
 
+func (h *Handler) audioDeleteHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "DELETE" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	type DeleteAudioRequest struct {
+		StoryID    int `json:"storyId"`
+		LineNumber int `json:"lineNumber"`
+	}
+
+	var req DeleteAudioRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Admin authentication check
+	userID, ok := auth.GetUserID(r)
+	if !ok || !models.CanUserEditStory(r.Context(), userID, int32(req.StoryID)) {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Validate request data
+	if req.StoryID <= 0 || req.LineNumber <= 0 {
+		http.Error(w, "Invalid request: storyId and lineNumber must be positive", http.StatusBadRequest)
+		return
+	}
+
+	// Delete all audio files for the line
+	err := models.DeleteLineAudioFiles(r.Context(), req.StoryID, req.LineNumber)
+	if err != nil {
+		h.log.Error("Failed to delete line audio files", "error", err)
+		http.Error(w, "Failed to delete audio files", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) confirmAudioUploadHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

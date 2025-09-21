@@ -97,9 +97,13 @@ func (h *Handler) requestAudioUploadURL(w http.ResponseWriter, r *http.Request) 
 
 	// Generate file path: stories/{storyID}/line_{lineNumber}_{label}_{filename}
 	timestamp := time.Now().Unix()
+	// Sanitize filename to prevent path traversal
+	sanitizedFilename := strings.ReplaceAll(req.FileName, "/", "")
+	sanitizedFilename = strings.ReplaceAll(sanitizedFilename, "\\", "")
+	sanitizedFilename = strings.ReplaceAll(sanitizedFilename, "..", "")
 	filePath := "stories/" + strconv.Itoa(req.StoryID) + "/line_" +
 		strconv.Itoa(req.LineNumber) + "_" + req.Label + "_" +
-		strconv.FormatInt(timestamp, 10) + "_" + req.FileName
+		strconv.FormatInt(timestamp, 10) + "_" + sanitizedFilename
 
 	// Generate signed upload URL
 	signedURL, err := models.GenerateSignedUploadURL(r.Context(), bucket, filePath)

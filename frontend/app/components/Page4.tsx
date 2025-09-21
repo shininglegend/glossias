@@ -10,7 +10,7 @@ export function Page4() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
-    null
+    null,
   );
 
   useEffect(() => {
@@ -102,9 +102,10 @@ export function Page4() {
         {pageData.lines.map((line, lineIndex) => (
           <div key={lineIndex} className="line">
             <div className="story-text">{line.text.join("")}</div>
-            {line.audio_url && (
+            {/* TODO: Fix audio handling - line.audio_url may not exist in current Line interface */}
+            {(line as any).audio_url && (
               <button
-                onClick={() => playAudio(line.audio_url!)}
+                onClick={() => playAudio((line as any).audio_url!)}
                 className="audio-button"
                 type="button"
               >

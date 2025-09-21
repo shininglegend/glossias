@@ -45,13 +45,13 @@ const variantConfig = {
     title: "Confirm Action",
     message: "Are you sure you want to proceed?",
     confirmText: "Proceed",
-    buttonVariant: "default" as const,
+    buttonVariant: "primary" as const,
   },
   default: {
     title: "Confirm",
     message: "Are you sure?",
     confirmText: "Confirm",
-    buttonVariant: "default" as const,
+    buttonVariant: "primary" as const,
   },
 };
 

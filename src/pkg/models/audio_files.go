@@ -428,7 +428,7 @@ func GenerateSignedUploadURL(ctx context.Context, bucket, filePath string) (stri
 	if storageBaseURL == "" {
 		return "", errors.New("storage base URL not configured")
 	}
-	fmt.Println("Generated signed upload URL:\n", storageBaseURL+result.Url)
+	// fmt.Println("Generated signed upload URL:\n", storageBaseURL+result.Url)
 
 	return storageBaseURL + result.Url, nil
 }

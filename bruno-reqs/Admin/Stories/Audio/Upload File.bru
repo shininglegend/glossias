@@ -5,7 +5,7 @@ meta {
 }
 
 put {
-  url: http://127.0.0.1:54321/storage/v1/s3/{{signed_url}}
+  url: {{signed_url}}
   body: file
   auth: none
 }

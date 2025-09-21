@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"glossias/src/pkg/generated/db"
 
@@ -11,8 +12,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+var ErrAudioFileExists = errors.New("audio file with this label already exists for this line")
+
 // CreateAudioFile creates a new audio file record
 func CreateAudioFile(ctx context.Context, storyID, lineNumber int, filePath, fileBucket, label string) (*AudioFile, error) {
+	// Check if audio file already exists for this line and label
+	existingAudioFiles, err := GetLineAudioFiles(ctx, storyID, lineNumber)
+	if err != nil {
+		return nil, err
+	}
+	for _, audioFile := range existingAudioFiles {
+		if audioFile.Label == label {
+			return nil, ErrAudioFileExists
+		}
+	}
+
 	result, err := queries.CreateAudioFile(ctx, db.CreateAudioFileParams{
 		StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
 		LineNumber: pgtype.Int4{Int32: int32(lineNumber), Valid: true},
@@ -351,6 +365,7 @@ func GenerateSignedUploadURL(ctx context.Context, bucket, filePath string) (stri
 	if storageBaseURL == "" {
 		return "", errors.New("storage base URL not configured")
 	}
+	fmt.Println("Generated signed upload URL:\n", storageBaseURL+result.Url)
 
-	return storageBaseURL + "/storage/v1/s3" + result.Url, nil
+	return storageBaseURL + result.Url, nil
 }

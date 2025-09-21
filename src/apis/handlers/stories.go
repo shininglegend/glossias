@@ -11,6 +11,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
+const expiresInSeconds = 60 * 60 // 1 hour
+
 // RegisterRoutes registers all API routes with the given router
 func (h *Handler) RegisterRoutes(router *mux.Router) {
 	// Base is /api/stories
@@ -80,7 +82,7 @@ func (h *Handler) GetSignedAudioURLs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate signed URLs (expires in 4 hours)
-	signedURLs, err := models.GetSignedAudioURLsForStory(r.Context(), id, userID, label, 14400)
+	signedURLs, err := models.GetSignedAudioURLsForStory(r.Context(), id, userID, label, expiresInSeconds)
 	if err == models.ErrNotFound {
 		h.sendError(w, "Story or audio files not found.", http.StatusNotFound)
 		return

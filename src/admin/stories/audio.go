@@ -157,6 +157,10 @@ func (h *Handler) confirmAudioUploadHandler(w http.ResponseWriter, r *http.Reque
 	audioFile, err := models.CreateAudioFile(r.Context(), req.StoryID, req.LineNumber,
 		req.FilePath, req.FileBucket, req.Label)
 	if err != nil {
+		if err == models.ErrAudioFileExists {
+			http.Error(w, "An audio file with this label already exists for this line", http.StatusBadRequest)
+			return
+		}
 		h.log.Error("Failed to create audio file record", "error", err)
 		http.Error(w, "Failed to create audio file record", http.StatusInternalServerError)
 		return

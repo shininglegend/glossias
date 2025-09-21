@@ -47,11 +47,10 @@ func main() {
 	models.SetDB(db.RawConn())
 	// Set the storage client for the models package
 	storageUrl := os.Getenv("STORAGE_URL")
-	storageKey := os.Getenv("STORAGE_API_KEY")
-	if storageUrl == "" || storageKey == "" {
-		logger.Warn("STORAGE_URL or STORAGE_API_KEY environment variable not set, storage operations will fail")
-	}
-	models.SetStorageClient(storageUrl, storageKey)
+	s3AccessKeyId := os.Getenv("S3_ACCESS_KEY_ID")
+	s3SecretAccessKey := os.Getenv("S3_SECRET_ACCESS_KEY")
+	s3region := os.Getenv("S3_REGION")
+	models.SetStorageClient(storageUrl, s3AccessKeyId, s3SecretAccessKey, s3region)
 
 	// Clerk stuff
 	clerk_key := os.Getenv("CLERK_SECRET_KEY")

@@ -9,6 +9,7 @@ import (
 
 	"glossias/src/auth"
 	"glossias/src/pkg/models"
+	"glossias/src/pkg/utils"
 )
 
 type AudioUploadRequest struct {
@@ -98,9 +99,7 @@ func (h *Handler) requestAudioUploadURL(w http.ResponseWriter, r *http.Request) 
 	// Generate file path: stories/{storyID}/line_{lineNumber}_{label}_{filename}
 	timestamp := time.Now().Unix()
 	// Sanitize filename to prevent path traversal
-	sanitizedFilename := strings.ReplaceAll(req.FileName, "/", "")
-	sanitizedFilename = strings.ReplaceAll(sanitizedFilename, "\\", "")
-	sanitizedFilename = strings.ReplaceAll(sanitizedFilename, "..", "")
+	sanitizedFilename := utils.SanitizeFileName(req.FileName)
 	filePath := "stories/" + strconv.Itoa(req.StoryID) + "/line_" +
 		strconv.Itoa(req.LineNumber) + "_" + req.Label + "_" +
 		strconv.FormatInt(timestamp, 10) + "_" + sanitizedFilename

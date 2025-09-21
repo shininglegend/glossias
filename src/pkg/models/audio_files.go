@@ -5,9 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"glossias/src/pkg/generated/db"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -168,12 +171,15 @@ func UpdateAudioFile(ctx context.Context, audioFileID int, storyID int, filePath
 
 // deleteAudioFilesFromStorage deletes audio files from Supabase storage
 func deleteAudioFilesFromStorage(audioFiles []AudioFile) error {
-	if storageClient == nil {
+	if s3Client == nil {
 		return errors.New("storage client not initialized")
 	}
 
 	for _, audioFile := range audioFiles {
-		_, err := storageClient.RemoveFile(audioFile.FileBucket, []string{audioFile.FilePath})
+		_, err := s3Client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
+			Bucket: aws.String(audioFile.FileBucket),
+			Key:    aws.String(audioFile.FilePath),
+		})
 		if err != nil {
 			return fmt.Errorf("failed to delete file from storage: %w", err)
 		}
@@ -283,7 +289,7 @@ func GetAudioFilesByLabel(ctx context.Context, label string) ([]AudioFile, error
 
 // GetSignedAudioURL generates a signed URL for a specific audio file
 func GetSignedAudioURL(ctx context.Context, audioFileID int, userID string, expiresInSeconds int) (string, error) {
-	if storageClient == nil {
+	if s3Client == nil {
 		return "", errors.New("storage client not initialized")
 	}
 
@@ -306,18 +312,24 @@ func GetSignedAudioURL(ctx context.Context, audioFileID int, userID string, expi
 		}
 	}
 
-	// Generate signed URL from Supabase
-	result, err := storageClient.CreateSignedUrl(audioFile.FileBucket, audioFile.FilePath, expiresInSeconds)
-	if err != nil {
-		return "", err
+	// Generate signed URL using Supabase REST API
+	baseURL := storageBaseURL
+	if baseURL == "" {
+		return "", errors.New("storage base URL not configured")
 	}
 
-	return result.SignedURL, nil
+	// Remove /s3 suffix and add /object/sign for REST API
+	baseURL = strings.TrimSuffix(baseURL, "/s3")
+
+	signedURL := fmt.Sprintf("%s/object/sign/%s/%s?expiresIn=%d",
+		baseURL, audioFile.FileBucket, audioFile.FilePath, expiresInSeconds)
+
+	return signedURL, nil
 }
 
 // GetSignedAudioURLsForStory generates signed URLs for all audio files in a story with optional label filter
 func GetSignedAudioURLsForStory(ctx context.Context, storyID int, userID string, label string, expiresInSeconds int) (map[int]string, error) {
-	if storageClient == nil {
+	if s3Client == nil {
 		return nil, errors.New("storage client not initialized")
 	}
 
@@ -351,11 +363,19 @@ func GetSignedAudioURLsForStory(ctx context.Context, storyID int, userID string,
 	// Generate signed URLs
 	signedURLs := make(map[int]string)
 	for _, audioFile := range audioFiles {
-		result, err := storageClient.CreateSignedUrl(audioFile.FileBucket, audioFile.FilePath, expiresInSeconds)
-		if err != nil {
-			return nil, err
+		// Generate signed URL using Supabase REST API
+		baseURL := storageBaseURL
+		if baseURL == "" {
+			return nil, errors.New("storage base URL not configured")
 		}
-		signedURLs[audioFile.ID] = result.SignedURL
+
+		// Remove /s3 suffix and add /object/sign for REST API
+		baseURL = strings.TrimSuffix(baseURL, "/s3")
+
+		signedURL := fmt.Sprintf("%s/object/sign/%s/%s?expiresIn=%d",
+			baseURL, audioFile.FileBucket, audioFile.FilePath, expiresInSeconds)
+
+		signedURLs[audioFile.ID] = signedURL
 	}
 
 	return signedURLs, nil
@@ -363,7 +383,7 @@ func GetSignedAudioURLsForStory(ctx context.Context, storyID int, userID string,
 
 // GetSignedAudioURLsForLine generates signed URLs for all audio files on a specific line
 func GetSignedAudioURLsForLine(ctx context.Context, storyID, lineNumber int, userID string, expiresInSeconds int) (map[int]string, error) {
-	if storageClient == nil {
+	if s3Client == nil {
 		return nil, errors.New("storage client not initialized")
 	}
 
@@ -389,11 +409,19 @@ func GetSignedAudioURLsForLine(ctx context.Context, storyID, lineNumber int, use
 	// Generate signed URLs
 	signedURLs := make(map[int]string)
 	for _, audioFile := range audioFiles {
-		result, err := storageClient.CreateSignedUrl(audioFile.FileBucket, audioFile.FilePath, expiresInSeconds)
-		if err != nil {
-			return nil, err
+		// Generate signed URL using Supabase REST API
+		baseURL := storageBaseURL
+		if baseURL == "" {
+			return nil, errors.New("storage base URL not configured")
 		}
-		signedURLs[audioFile.ID] = result.SignedURL
+
+		// Remove /s3 suffix and add /object/sign for REST API
+		baseURL = strings.TrimSuffix(baseURL, "/s3")
+
+		signedURL := fmt.Sprintf("%s/object/sign/%s/%s?expiresIn=%d",
+			baseURL, audioFile.FileBucket, audioFile.FilePath, expiresInSeconds)
+
+		signedURLs[audioFile.ID] = signedURL
 	}
 
 	return signedURLs, nil
@@ -414,21 +442,21 @@ func LineExists(ctx context.Context, storyID, lineNumber int) (bool, error) {
 
 // GenerateSignedUploadURL creates a signed URL for uploading files to Supabase storage
 func GenerateSignedUploadURL(ctx context.Context, bucket, filePath string) (string, error) {
-	if storageClient == nil {
+	if s3Client == nil {
 		return "", errors.New("storage client not initialized")
 	}
 
-	// Generate signed upload URL
-	result, err := storageClient.CreateSignedUploadUrl(bucket, filePath)
-	if err != nil {
-		return "", err
-	}
-
-	// Construct complete URL using base storage URL
-	if storageBaseURL == "" {
+	// Generate signed upload URL using Supabase REST API
+	baseURL := storageBaseURL
+	if baseURL == "" {
 		return "", errors.New("storage base URL not configured")
 	}
-	// fmt.Println("Generated signed upload URL:\n", storageBaseURL+result.Url)
 
-	return storageBaseURL + result.Url, nil
+	// Remove /s3 suffix and add /object/upload/sign for REST API
+	baseURL = strings.TrimSuffix(baseURL, "/s3")
+
+	signedURL := fmt.Sprintf("%s/object/upload/sign/%s/%s",
+		baseURL, bucket, filePath)
+
+	return signedURL, nil
 }

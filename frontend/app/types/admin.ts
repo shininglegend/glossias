@@ -14,6 +14,7 @@ export interface StoryMetadata {
   grammarPoints: GrammarPoint[];
   description: Description;
   courseId?: number;
+  videoUrl?: string;
   lastRevision?: string; // RFC3339 string required by backend on update
 }
 

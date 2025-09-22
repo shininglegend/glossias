@@ -11,24 +11,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const addGrammarPointToStory = `-- name: AddGrammarPointToStory :exec
-INSERT INTO story_grammar_points (story_id, grammar_point_id)
-VALUES ($1, $2)
-ON CONFLICT (story_id, grammar_point_id) DO NOTHING
-`
-
-type AddGrammarPointToStoryParams struct {
-	StoryID        int32 `json:"story_id"`
-	GrammarPointID int32 `json:"grammar_point_id"`
-}
-
-func (q *Queries) AddGrammarPointToStory(ctx context.Context, arg AddGrammarPointToStoryParams) error {
-	_, err := q.db.Exec(ctx, addGrammarPointToStory, arg.StoryID, arg.GrammarPointID)
-	return err
-}
-
 const clearStoryGrammarPoints = `-- name: ClearStoryGrammarPoints :exec
-DELETE FROM story_grammar_points WHERE story_id = $1
+DELETE FROM grammar_points WHERE story_id = $1
 `
 
 func (q *Queries) ClearStoryGrammarPoints(ctx context.Context, storyID int32) error {
@@ -38,22 +22,24 @@ func (q *Queries) ClearStoryGrammarPoints(ctx context.Context, storyID int32) er
 
 const createGrammarPoint = `-- name: CreateGrammarPoint :one
 
-INSERT INTO grammar_points (name, description)
-VALUES ($1, $2)
-RETURNING grammar_point_id, name, description, created_at
+INSERT INTO grammar_points (story_id, name, description)
+VALUES ($1, $2, $3)
+RETURNING grammar_point_id, story_id, name, description, created_at
 `
 
 type CreateGrammarPointParams struct {
+	StoryID     int32       `json:"story_id"`
 	Name        string      `json:"name"`
 	Description pgtype.Text `json:"description"`
 }
 
 // Grammar points management queries
 func (q *Queries) CreateGrammarPoint(ctx context.Context, arg CreateGrammarPointParams) (GrammarPoint, error) {
-	row := q.db.QueryRow(ctx, createGrammarPoint, arg.Name, arg.Description)
+	row := q.db.QueryRow(ctx, createGrammarPoint, arg.StoryID, arg.Name, arg.Description)
 	var i GrammarPoint
 	err := row.Scan(
 		&i.GrammarPointID,
+		&i.StoryID,
 		&i.Name,
 		&i.Description,
 		&i.CreatedAt,
@@ -71,7 +57,7 @@ func (q *Queries) DeleteGrammarPoint(ctx context.Context, grammarPointID int32) 
 }
 
 const getGrammarPoint = `-- name: GetGrammarPoint :one
-SELECT grammar_point_id, name, description, created_at
+SELECT grammar_point_id, story_id, name, description, created_at
 FROM grammar_points
 WHERE grammar_point_id = $1
 `
@@ -81,6 +67,7 @@ func (q *Queries) GetGrammarPoint(ctx context.Context, grammarPointID int32) (Gr
 	var i GrammarPoint
 	err := row.Scan(
 		&i.GrammarPointID,
+		&i.StoryID,
 		&i.Name,
 		&i.Description,
 		&i.CreatedAt,
@@ -89,16 +76,22 @@ func (q *Queries) GetGrammarPoint(ctx context.Context, grammarPointID int32) (Gr
 }
 
 const getGrammarPointByName = `-- name: GetGrammarPointByName :one
-SELECT grammar_point_id, name, description, created_at
+SELECT grammar_point_id, story_id, name, description, created_at
 FROM grammar_points
-WHERE name = $1
+WHERE name = $1 AND story_id = $2
 `
 
-func (q *Queries) GetGrammarPointByName(ctx context.Context, name string) (GrammarPoint, error) {
-	row := q.db.QueryRow(ctx, getGrammarPointByName, name)
+type GetGrammarPointByNameParams struct {
+	Name    string `json:"name"`
+	StoryID int32  `json:"story_id"`
+}
+
+func (q *Queries) GetGrammarPointByName(ctx context.Context, arg GetGrammarPointByNameParams) (GrammarPoint, error) {
+	row := q.db.QueryRow(ctx, getGrammarPointByName, arg.Name, arg.StoryID)
 	var i GrammarPoint
 	err := row.Scan(
 		&i.GrammarPointID,
+		&i.StoryID,
 		&i.Name,
 		&i.Description,
 		&i.CreatedAt,
@@ -109,8 +102,8 @@ func (q *Queries) GetGrammarPointByName(ctx context.Context, name string) (Gramm
 const getStoriesWithGrammarPoint = `-- name: GetStoriesWithGrammarPoint :many
 SELECT s.story_id, s.week_number, s.day_letter, s.video_url, s.last_revision, s.author_id, s.author_name, s.course_id
 FROM stories s
-JOIN story_grammar_points sgp ON s.story_id = sgp.story_id
-WHERE sgp.grammar_point_id = $1
+JOIN grammar_points gp ON s.story_id = gp.story_id
+WHERE gp.grammar_point_id = $1
 ORDER BY s.week_number, s.day_letter
 `
 
@@ -144,11 +137,10 @@ func (q *Queries) GetStoriesWithGrammarPoint(ctx context.Context, grammarPointID
 }
 
 const getStoryGrammarPoints = `-- name: GetStoryGrammarPoints :many
-SELECT gp.grammar_point_id, gp.name, gp.description
-FROM grammar_points gp
-JOIN story_grammar_points sgp ON gp.grammar_point_id = sgp.grammar_point_id
-WHERE sgp.story_id = $1
-ORDER BY gp.name
+SELECT grammar_point_id, name, description
+FROM grammar_points
+WHERE story_id = $1
+ORDER BY name
 `
 
 type GetStoryGrammarPointsRow struct {
@@ -178,7 +170,7 @@ func (q *Queries) GetStoryGrammarPoints(ctx context.Context, storyID int32) ([]G
 }
 
 const listGrammarPoints = `-- name: ListGrammarPoints :many
-SELECT grammar_point_id, name, description, created_at
+SELECT grammar_point_id, story_id, name, description, created_at
 FROM grammar_points
 ORDER BY name
 `
@@ -194,6 +186,7 @@ func (q *Queries) ListGrammarPoints(ctx context.Context) ([]GrammarPoint, error)
 		var i GrammarPoint
 		if err := rows.Scan(
 			&i.GrammarPointID,
+			&i.StoryID,
 			&i.Name,
 			&i.Description,
 			&i.CreatedAt,
@@ -208,26 +201,11 @@ func (q *Queries) ListGrammarPoints(ctx context.Context) ([]GrammarPoint, error)
 	return items, nil
 }
 
-const removeGrammarPointFromStory = `-- name: RemoveGrammarPointFromStory :exec
-DELETE FROM story_grammar_points
-WHERE story_id = $1 AND grammar_point_id = $2
-`
-
-type RemoveGrammarPointFromStoryParams struct {
-	StoryID        int32 `json:"story_id"`
-	GrammarPointID int32 `json:"grammar_point_id"`
-}
-
-func (q *Queries) RemoveGrammarPointFromStory(ctx context.Context, arg RemoveGrammarPointFromStoryParams) error {
-	_, err := q.db.Exec(ctx, removeGrammarPointFromStory, arg.StoryID, arg.GrammarPointID)
-	return err
-}
-
 const updateGrammarPoint = `-- name: UpdateGrammarPoint :one
 UPDATE grammar_points
 SET name = $2, description = $3
 WHERE grammar_point_id = $1
-RETURNING grammar_point_id, name, description, created_at
+RETURNING grammar_point_id, story_id, name, description, created_at
 `
 
 type UpdateGrammarPointParams struct {
@@ -241,6 +219,7 @@ func (q *Queries) UpdateGrammarPoint(ctx context.Context, arg UpdateGrammarPoint
 	var i GrammarPoint
 	err := row.Scan(
 		&i.GrammarPointID,
+		&i.StoryID,
 		&i.Name,
 		&i.Description,
 		&i.CreatedAt,

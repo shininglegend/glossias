@@ -127,6 +127,23 @@ func (h *Handler) handleAddAnnotations(w http.ResponseWriter, r *http.Request, s
 			writeJSONError(w, "Grammar text not found in line text", http.StatusBadRequest)
 			return
 		}
+		// Validate grammar point exists and belongs to this story if specified
+		if req.Grammar.GrammarPointID != nil {
+			grammarPoint, err := models.GetGrammarPoint(ctx, *req.Grammar.GrammarPointID)
+			if err != nil {
+				if err == models.ErrNotFound {
+					writeJSONError(w, "Grammar point not found", http.StatusBadRequest)
+					return
+				}
+				h.log.Error("Failed to get grammar point", "error", err, "grammarPointID", *req.Grammar.GrammarPointID)
+				writeJSONError(w, "Internal server error", http.StatusInternalServerError)
+				return
+			}
+			if grammarPoint.StoryID != storyID {
+				writeJSONError(w, "Grammar point does not belong to this story", http.StatusBadRequest)
+				return
+			}
+		}
 		line.Grammar = []models.GrammarItem{*req.Grammar}
 	case req.Footnote != nil:
 		line.Footnotes = []models.Footnote{*req.Footnote}

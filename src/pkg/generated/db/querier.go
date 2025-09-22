@@ -13,11 +13,9 @@ import (
 type Querier interface {
 	// Course admin management queries
 	AddCourseAdmin(ctx context.Context, arg AddCourseAdminParams) (CourseAdmin, error)
-	AddGrammarPointToStory(ctx context.Context, arg AddGrammarPointToStoryParams) error
 	BulkCreateAudioFiles(ctx context.Context, arg []BulkCreateAudioFilesParams) (int64, error)
 	BulkCreateGrammarItems(ctx context.Context, arg []BulkCreateGrammarItemsParams) (int64, error)
 	BulkCreateLineTranslations(ctx context.Context, arg []BulkCreateLineTranslationsParams) (int64, error)
-	BulkCreateStoryGrammarPoints(ctx context.Context, arg []BulkCreateStoryGrammarPointsParams) (int64, error)
 	BulkCreateStoryLines(ctx context.Context, arg []BulkCreateStoryLinesParams) (int64, error)
 	BulkCreateVocabularyItems(ctx context.Context, arg []BulkCreateVocabularyItemsParams) (int64, error)
 	CanUserAccessCourse(ctx context.Context, arg CanUserAccessCourseParams) (bool, error)
@@ -87,7 +85,7 @@ type Querier interface {
 	GetFootnotes(ctx context.Context, arg GetFootnotesParams) ([]Footnote, error)
 	GetGrammarItems(ctx context.Context, arg GetGrammarItemsParams) ([]GrammarItem, error)
 	GetGrammarPoint(ctx context.Context, grammarPointID int32) (GrammarPoint, error)
-	GetGrammarPointByName(ctx context.Context, name string) (GrammarPoint, error)
+	GetGrammarPointByName(ctx context.Context, arg GetGrammarPointByNameParams) (GrammarPoint, error)
 	GetLineAudioFiles(ctx context.Context, arg GetLineAudioFilesParams) ([]LineAudioFile, error)
 	GetLineText(ctx context.Context, arg GetLineTextParams) (string, error)
 	GetLineTranslation(ctx context.Context, arg GetLineTranslationParams) (string, error)
@@ -123,7 +121,6 @@ type Querier interface {
 	ListSuperAdmins(ctx context.Context) ([]User, error)
 	ListUsers(ctx context.Context) ([]User, error)
 	RemoveCourseAdmin(ctx context.Context, arg RemoveCourseAdminParams) error
-	RemoveGrammarPointFromStory(ctx context.Context, arg RemoveGrammarPointFromStoryParams) error
 	StoryExists(ctx context.Context, storyID int32) (bool, error)
 	UpdateAudioFile(ctx context.Context, arg UpdateAudioFileParams) (LineAudioFile, error)
 	UpdateCourse(ctx context.Context, arg UpdateCourseParams) (Course, error)

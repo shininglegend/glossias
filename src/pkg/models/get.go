@@ -60,6 +60,13 @@ func GetStoryData(ctx context.Context, id int) (*Story, error) {
 		}
 	}
 
+	// Get grammar points
+	grammarPoints, err := GetStoryGrammarPoints(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	story.Metadata.GrammarPoints = grammarPoints
+
 	// Get lines with their components
 	lines, err := getStoryLines(ctx, id)
 	if err != nil {

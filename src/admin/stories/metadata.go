@@ -10,6 +10,11 @@ import (
 	"github.com/gorilla/mux"
 )
 
+type MetadataResponse struct {
+	Story   *models.Story `json:"story"`
+	Success bool          `json:"success"`
+}
+
 func (h *Handler) metadataHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	storyID, err := strconv.Atoi(vars["id"])
@@ -39,7 +44,8 @@ func (h *Handler) handleGetMetadata(w http.ResponseWriter, r *http.Request, stor
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(EditStoryResponse{
+
+	json.NewEncoder(w).Encode(MetadataResponse{
 		Story:   story,
 		Success: true,
 	})

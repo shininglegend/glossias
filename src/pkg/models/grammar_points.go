@@ -10,9 +10,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// CreateGrammarPoint creates a new grammar point
-func CreateGrammarPoint(ctx context.Context, name, description string) (*GrammarPoint, error) {
+// CreateGrammarPoint creates a new grammar point for a specific story
+func CreateGrammarPoint(ctx context.Context, storyID int, name, description string) (*GrammarPoint, error) {
 	result, err := queries.CreateGrammarPoint(ctx, db.CreateGrammarPointParams{
+		StoryID:     int32(storyID),
 		Name:        name,
 		Description: pgtype.Text{String: description, Valid: description != ""},
 	})
@@ -22,6 +23,7 @@ func CreateGrammarPoint(ctx context.Context, name, description string) (*Grammar
 
 	return &GrammarPoint{
 		ID:          int(result.GrammarPointID),
+		StoryID:     int(result.StoryID),
 		Name:        result.Name,
 		Description: result.Description.String,
 	}, nil
@@ -39,14 +41,18 @@ func GetGrammarPoint(ctx context.Context, grammarPointID int) (*GrammarPoint, er
 
 	return &GrammarPoint{
 		ID:          int(result.GrammarPointID),
+		StoryID:     int(result.StoryID),
 		Name:        result.Name,
 		Description: result.Description.String,
 	}, nil
 }
 
-// GetGrammarPointByName retrieves a grammar point by name
-func GetGrammarPointByName(ctx context.Context, name string) (*GrammarPoint, error) {
-	result, err := queries.GetGrammarPointByName(ctx, name)
+// GetGrammarPointByName retrieves a grammar point by name and story ID
+func GetGrammarPointByName(ctx context.Context, name string, storyID int) (*GrammarPoint, error) {
+	result, err := queries.GetGrammarPointByName(ctx, db.GetGrammarPointByNameParams{
+		Name:    name,
+		StoryID: int32(storyID),
+	})
 	if err == sql.ErrNoRows || err == pgx.ErrNoRows {
 		return nil, ErrNotFound
 	}
@@ -56,6 +62,7 @@ func GetGrammarPointByName(ctx context.Context, name string) (*GrammarPoint, err
 
 	return &GrammarPoint{
 		ID:          int(result.GrammarPointID),
+		StoryID:     int(result.StoryID),
 		Name:        result.Name,
 		Description: result.Description.String,
 	}, nil
@@ -72,6 +79,7 @@ func ListGrammarPoints(ctx context.Context) ([]GrammarPoint, error) {
 	for _, result := range results {
 		grammarPoints = append(grammarPoints, GrammarPoint{
 			ID:          int(result.GrammarPointID),
+			StoryID:     int(result.StoryID),
 			Name:        result.Name,
 			Description: result.Description.String,
 		})
@@ -96,6 +104,7 @@ func UpdateGrammarPoint(ctx context.Context, grammarPointID int, name, descripti
 
 	return &GrammarPoint{
 		ID:          int(result.GrammarPointID),
+		StoryID:     int(result.StoryID),
 		Name:        result.Name,
 		Description: result.Description.String,
 	}, nil
@@ -110,22 +119,6 @@ func DeleteGrammarPoint(ctx context.Context, grammarPointID int) error {
 	return err
 }
 
-// AddGrammarPointToStory adds a grammar point to a story
-func AddGrammarPointToStory(ctx context.Context, storyID, grammarPointID int) error {
-	return queries.AddGrammarPointToStory(ctx, db.AddGrammarPointToStoryParams{
-		StoryID:        int32(storyID),
-		GrammarPointID: int32(grammarPointID),
-	})
-}
-
-// RemoveGrammarPointFromStory removes a grammar point from a story
-func RemoveGrammarPointFromStory(ctx context.Context, storyID, grammarPointID int) error {
-	return queries.RemoveGrammarPointFromStory(ctx, db.RemoveGrammarPointFromStoryParams{
-		StoryID:        int32(storyID),
-		GrammarPointID: int32(grammarPointID),
-	})
-}
-
 // GetStoryGrammarPoints returns all grammar points for a story
 func GetStoryGrammarPoints(ctx context.Context, storyID int) ([]GrammarPoint, error) {
 	results, err := queries.GetStoryGrammarPoints(ctx, int32(storyID))
@@ -137,6 +130,7 @@ func GetStoryGrammarPoints(ctx context.Context, storyID int) ([]GrammarPoint, er
 	for _, result := range results {
 		grammarPoints = append(grammarPoints, GrammarPoint{
 			ID:          int(result.GrammarPointID),
+			StoryID:     storyID,
 			Name:        result.Name,
 			Description: result.Description.String,
 		})

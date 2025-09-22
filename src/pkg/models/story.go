@@ -23,6 +23,7 @@ var (
 	ErrMissingDayLetter  = errors.New("missing day letter")
 	ErrTitleTooShort     = errors.New("title too short")
 	ErrMissingAuthorID   = errors.New("missing author ID")
+	ErrMissingGrammarPoints = errors.New("at least one grammar point is required")
 	ErrNotFound          = errors.New("story not found")
 )
 
@@ -74,15 +75,16 @@ type Story struct {
 }
 
 type StoryMetadata struct {
-	StoryID      int               `json:"storyId"`
-	WeekNumber   int               `json:"weekNumber"`
-	DayLetter    string            `json:"dayLetter"`
-	Title        map[string]string `json:"title"` // ISO 639-1 language codes
-	Author       Author            `json:"author"`
-	VideoURL     string            `json:"videoUrl,omitempty"`
-	Description  Description       `json:"description"`
-	CourseID     *int              `json:"courseId,omitempty"`
-	LastRevision *time.Time        `json:"lastRevision,omitempty"`
+	StoryID       int               `json:"storyId"`
+	WeekNumber    int               `json:"weekNumber"`
+	DayLetter     string            `json:"dayLetter"`
+	Title         map[string]string `json:"title"` // ISO 639-1 language codes
+	Author        Author            `json:"author"`
+	VideoURL      string            `json:"videoUrl,omitempty"`
+	Description   Description       `json:"description"`
+	CourseID      *int              `json:"courseId,omitempty"`
+	LastRevision  *time.Time        `json:"lastRevision,omitempty"`
+	GrammarPoints []GrammarPoint    `json:"grammarPoints"`
 }
 
 type Author struct {
@@ -139,6 +141,7 @@ type AudioFile struct {
 // GrammarPoint represents a grammar point definition
 type GrammarPoint struct {
 	ID          int    `json:"id"`
+	StoryID     int    `json:"story_id"`
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 }
@@ -192,7 +195,8 @@ func (sm *StoryMetadata) UnmarshalJSON(data []byte) error {
 func NewStory() *Story {
 	return &Story{
 		Metadata: StoryMetadata{
-			Title: make(map[string]string),
+			Title:         make(map[string]string),
+			GrammarPoints: make([]GrammarPoint, 0),
 		},
 		Content: StoryContent{
 			Lines: make([]StoryLine, 0),
@@ -213,6 +217,9 @@ func (s *Story) Validate() error {
 	}
 	if s.Metadata.Author.ID == "" {
 		return ErrMissingAuthorID
+	}
+	if len(s.Metadata.GrammarPoints) == 0 {
+		return ErrMissingGrammarPoints
 	}
 	return nil
 }

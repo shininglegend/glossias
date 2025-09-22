@@ -47,6 +47,7 @@ type GrammarItem struct {
 
 type GrammarPoint struct {
 	GrammarPointID int32            `json:"grammar_point_id"`
+	StoryID        int32            `json:"story_id"`
 	Name           string           `json:"name"`
 	Description    pgtype.Text      `json:"description"`
 	CreatedAt      pgtype.Timestamp `json:"created_at"`
@@ -84,11 +85,6 @@ type StoryDescription struct {
 	StoryID         int32  `json:"story_id"`
 	LanguageCode    string `json:"language_code"`
 	DescriptionText string `json:"description_text"`
-}
-
-type StoryGrammarPoint struct {
-	StoryID        int32 `json:"story_id"`
-	GrammarPointID int32 `json:"grammar_point_id"`
 }
 
 type StoryLine struct {

@@ -1,0 +1,15 @@
+meta {
+  name: Get Story Metadata
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseURL}}/api/admin/stories/{{adminStoryId}}/metadata
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

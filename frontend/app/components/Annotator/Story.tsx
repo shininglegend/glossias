@@ -9,6 +9,7 @@ import {
   type ApiResponse,
   type StoryLine,
   type StoryMetadata,
+  type GrammarPoint,
 } from "../../types/api";
 
 interface AudioURLsResponse {
@@ -59,7 +60,7 @@ export default function Story({ storyId }: { storyId: number }) {
         }));
 
         setLines(linesWithAudio);
-        setMetaData(data.metadata);
+        setMetaData(data.story.metadata);
 
         // Fetch audio URLs for both labels
         const [completeURLs, incompleteURLs] = await Promise.all([
@@ -84,7 +85,7 @@ export default function Story({ storyId }: { storyId: number }) {
     type: AnnotationType,
     start: number,
     end: number,
-    data?: { text?: string; lexicalForm?: string },
+    data?: { text?: string; lexicalForm?: string; grammarPointId?: number },
   ) => {
     const request = createAnnotationRequest(
       lineNumber,
@@ -115,7 +116,7 @@ export default function Story({ storyId }: { storyId: number }) {
       );
       const data: ApiResponse = await refreshed.json();
       setLines(data.story.content.lines);
-      setMetaData(data.metadata);
+      setMetaData(data.story.metadata);
     } catch (err) {
       console.error(err);
       alert("Failed to save annotation");
@@ -134,6 +135,7 @@ export default function Story({ storyId }: { storyId: number }) {
           onSelect={handleAnnotation}
           completeAudioURL={completeAudioURLs[line.lineNumber.toString()]}
           incompleteAudioURL={incompleteAudioURLs[line.lineNumber.toString()]}
+          storyGrammarPoints={metadata?.grammarPoints || []}
         />
       ))}
       <div className="mt-8 border-t pt-6">

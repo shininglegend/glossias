@@ -34,7 +34,6 @@ func (h *Handler) GetPage3(w http.ResponseWriter, r *http.Request) {
 	lines := h.processLinesForPage3(*story, id)
 
 	data := types.Page3Data{
-		// TODO: Only send back the grammar point relevant to this page.
 		PageData: types.PageData{
 			StoryID:    storyID,
 			StoryTitle: story.Metadata.Title["en"],
@@ -53,8 +52,6 @@ func (h *Handler) GetPage3(w http.ResponseWriter, r *http.Request) {
 // processLinesForPage3 prepares lines with grammar highlights
 func (h *Handler) processLinesForPage3(story models.Story, id int) []types.Line {
 	lines := make([]types.Line, len(story.Content.Lines))
-
-
 
 	for i, line := range story.Content.Lines {
 		series := []string{}
@@ -84,8 +81,6 @@ func (h *Handler) processLinesForPage3(story models.Story, id int) []types.Line 
 		if lastEnd < len(runes) {
 			series = append(series, string(runes[lastEnd:]))
 		}
-
-
 
 		lines[i] = types.Line{
 			Text:              series,

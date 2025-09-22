@@ -30,7 +30,7 @@ export default function AdminAnnotateRoute() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <AdminStoryNavigation storyId={id} />
+        <h1 className="text-2xl font-bold">Edit Annotations #{id}</h1>
         <Button
           variant="danger"
           onClick={() => setShowConfirmDialog(true)}
@@ -39,6 +39,8 @@ export default function AdminAnnotateRoute() {
           {busy ? "Clearing…" : "Clear All Annotations"}
         </Button>
       </div>
+      <AdminStoryNavigation storyId={id} />
+      <h3>Story</h3>
       <Story key={refreshKey} storyId={id} />
       <ConfirmDialog
         isOpen={showConfirmDialog}

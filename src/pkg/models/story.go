@@ -23,6 +23,7 @@ var (
 	ErrMissingDayLetter  = errors.New("missing day letter")
 	ErrTitleTooShort     = errors.New("title too short")
 	ErrMissingAuthorID   = errors.New("missing author ID")
+	ErrMissingGrammarPoints = errors.New("at least one grammar point is required")
 	ErrNotFound          = errors.New("story not found")
 )
 
@@ -218,7 +219,7 @@ func (s *Story) Validate() error {
 		return ErrMissingAuthorID
 	}
 	if len(s.Metadata.GrammarPoints) == 0 {
-		return errors.New("at least one grammar point is required")
+		return ErrMissingGrammarPoints
 	}
 	return nil
 }

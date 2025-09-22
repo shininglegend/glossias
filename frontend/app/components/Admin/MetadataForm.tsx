@@ -16,6 +16,9 @@ export default function MetadataForm({ value, onSubmit }: Props) {
     grammarPoints: value.grammarPoints || [],
   });
 
+  const nameInputRef = React.useRef<HTMLInputElement>(null);
+  const descInputRef = React.useRef<HTMLInputElement>(null);
+
   const update = <K extends keyof StoryMetadata>(
     key: K,
     val: StoryMetadata[K],
@@ -94,7 +97,7 @@ export default function MetadataForm({ value, onSubmit }: Props) {
               <Input
                 type="text"
                 placeholder="e.g., Present Tense"
-                id="new-grammar-name"
+                ref={nameInputRef}
               />
             </div>
             <div>
@@ -102,21 +105,14 @@ export default function MetadataForm({ value, onSubmit }: Props) {
               <Input
                 type="text"
                 placeholder="Brief description"
-                id="new-grammar-description"
+                ref={descInputRef}
               />
             </div>
             <div>
               <Button
                 type="button"
                 onClick={() => {
-                  const nameInput = document.getElementById(
-                    "new-grammar-name",
-                  ) as HTMLInputElement;
-                  const descInput = document.getElementById(
-                    "new-grammar-description",
-                  ) as HTMLInputElement;
-
-                  const name = nameInput?.value?.trim();
+                  const name = nameInputRef.current?.value?.trim();
                   if (!name) {
                     alert("Grammar point name is required");
                     return;
@@ -125,7 +121,7 @@ export default function MetadataForm({ value, onSubmit }: Props) {
                   const newGrammarPoint = {
                     id: Date.now(), // Temporary ID for frontend
                     name,
-                    description: descInput?.value?.trim() || "",
+                    description: descInputRef.current?.value?.trim() || "",
                   };
 
                   update("grammarPoints", [
@@ -134,8 +130,8 @@ export default function MetadataForm({ value, onSubmit }: Props) {
                   ]);
 
                   // Clear inputs
-                  if (nameInput) nameInput.value = "";
-                  if (descInput) descInput.value = "";
+                  if (nameInputRef.current) nameInputRef.current.value = "";
+                  if (descInputRef.current) descInputRef.current.value = "";
                 }}
                 className="bg-green-600 hover:bg-green-700"
               >

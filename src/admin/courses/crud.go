@@ -96,17 +96,17 @@ func (h *Handler) handleCourseCreate(w http.ResponseWriter, r *http.Request) {
 
 // handleCourseGet returns a specific course
 func (h *Handler) handleCourseGet(w http.ResponseWriter, r *http.Request, courseID int32) {
-	// userID, ok := auth.GetUserID(r)
-	// if !ok {
-	// 	http.Error(w, "Unauthorized", http.StatusUnauthorized)
-	// 	return
-	// }
+	userID, ok := auth.GetUserID(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
-	// // Check if user has access to this course
-	// if !auth.HasPermission(r.Context(), userID, courseID) {
-	// 	http.Error(w, "Access denied", http.StatusForbidden)
-	// 	return
-	// }
+	// Check if user has access to this course
+	if !auth.HasPermission(r.Context(), userID, courseID) {
+		http.Error(w, "Access denied", http.StatusForbidden)
+		return
+	}
 
 	course, err := models.GetCourse(r.Context(), courseID)
 	if err != nil {

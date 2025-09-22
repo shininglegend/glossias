@@ -14,6 +14,7 @@ type StoryListItem = {
   title: string;
   week_number: number; // keeping backend field name
   day_letter: string;
+  course_name?: string;
 };
 
 export default function AdminHome() {
@@ -140,6 +141,7 @@ export default function AdminHome() {
                         {s.title || `Story #${s.id}`}
                       </Link>
                       <div className="mt-1 text-xs text-slate-500">
+                        {s.course_name && <div>{s.course_name}</div>}
                         Week {s.week_number}
                         {(s.day_letter || "").toUpperCase()}
                       </div>
@@ -183,6 +185,19 @@ export default function AdminHome() {
                         }
                       >
                         Annotate
+                      </Button>
+                    </Link>
+                    <Link to={`/admin/stories/${s.id}/translate`}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        icon={
+                          <span className="material-icons text-sm">
+                            translate
+                          </span>
+                        }
+                      >
+                        Translate
                       </Button>
                     </Link>
                     <Button

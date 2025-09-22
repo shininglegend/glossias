@@ -171,6 +171,14 @@ export default function MetadataForm({ value, onSubmit }: Props) {
           onChange={(courseId) => update("courseId", courseId)}
         />
       </div>
+      <div>
+        <Label>Video URL</Label>
+        <Input
+          value={meta.videoUrl || ""}
+          onChange={(e) => update("videoUrl", e.target.value)}
+          placeholder="https://..."
+        />
+      </div>
       <div className="md:col-span-2">
         <Label>Description Language</Label>
         <Input

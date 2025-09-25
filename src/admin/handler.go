@@ -9,6 +9,7 @@ import (
 
 	"glossias/src/admin/courses"
 	"glossias/src/admin/stories"
+	adminusers "glossias/src/admin/users"
 
 	"github.com/gorilla/mux"
 )
@@ -17,6 +18,7 @@ type Handler struct {
 	log     *slog.Logger
 	stories *stories.Handler
 	courses *courses.Handler
+	users   *adminusers.Handler
 }
 
 func NewHandler(log *slog.Logger) *Handler {
@@ -24,6 +26,7 @@ func NewHandler(log *slog.Logger) *Handler {
 		log:     log,
 		stories: stories.NewHandler(log),
 		courses: courses.NewHandler(log),
+		users:   adminusers.NewHandler(log),
 	}
 }
 
@@ -35,6 +38,7 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	// Register all admin routes beneath the provided base router
 	h.stories.RegisterRoutes(r)
 	h.courses.RegisterRoutes(r)
+	h.users.RegisterRoutes(r)
 }
 
 func (h *Handler) adminAuthMiddleware(next http.Handler) http.Handler {

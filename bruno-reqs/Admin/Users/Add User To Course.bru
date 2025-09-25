@@ -1,0 +1,21 @@
+meta {
+  name: Add User To Course
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseURL}}/api/admin/course-users/{{courseId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "email": "student@example.com"
+  }
+}
+
+settings {
+  encodeUrl: true
+}

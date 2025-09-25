@@ -36,10 +36,6 @@ export const links: Route.LinksFunction = () => [
     rel: "stylesheet",
     href: "https://fonts.googleapis.com/icon?family=Material+Icons",
   },
-  { rel: "stylesheet", href: "/static/css/global.css" },
-  { rel: "stylesheet", href: "/static/css/index.css" },
-  { rel: "stylesheet", href: "/static/css/stories.css" },
-  { rel: "stylesheet", href: "/static/css/page1.css" },
   { rel: "stylesheet", href: stylesheet },
 ];
 

@@ -1,0 +1,15 @@
+meta {
+  name: Get Users For Course
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseURL}}/api/admin/course-users/{{courseId}}
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

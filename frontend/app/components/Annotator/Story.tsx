@@ -57,6 +57,7 @@ export default function Story({ storyId }: { storyId: number }) {
         const linesWithAudio = data.story.content.lines.map((line) => ({
           ...line,
           audioFiles: [], // Will be populated by checking audio URLs
+          languageCode: data.story.metadata.description.language, // Pass language code from metadata
         }));
 
         setLines(linesWithAudio);
@@ -115,7 +116,14 @@ export default function Story({ storyId }: { storyId: number }) {
         `/api/admin/stories/${storyId}`,
       );
       const data: ApiResponse = await refreshed.json();
-      setLines(data.story.content.lines);
+
+      // Preserve language code when updating lines
+      const updatedLines = data.story.content.lines.map((line) => ({
+        ...line,
+        languageCode: data.story.metadata.description.language,
+      }));
+
+      setLines(updatedLines);
       setMetaData(data.story.metadata);
     } catch (err) {
       console.error(err);

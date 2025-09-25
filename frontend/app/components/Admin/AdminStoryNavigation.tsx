@@ -15,11 +15,6 @@ export default function AdminStoryNavigation({
 
   return (
     <div className="flex gap-2 mb-4">
-      <Link to={basePath}>
-        <Button variant={isActive(basePath) ? "primary" : "outline"} size="sm">
-          Edit Story
-        </Button>
-      </Link>
       <Link to={`${basePath}/annotate`}>
         <Button
           variant={isActive(`${basePath}/annotate`) ? "primary" : "outline"}

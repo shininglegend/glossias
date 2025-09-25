@@ -3,7 +3,7 @@ import { StoryList } from "../components/StoryList";
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "Logos Stories" },
+    { title: "Glossias" },
     { name: "description", content: "Select a story to begin reading" },
   ];
 }

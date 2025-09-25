@@ -130,7 +130,7 @@ export default function TranslateStory() {
   return (
     <main className="container mx-auto p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-        <h1 className="text-2xl font-bold">Translate Story #{id}</h1>
+        <h1 className="text-2xl font-bold">Translate Story  for "{story.metadata.title["en"]}"</h1>
         <Button
           onClick={saveAllTranslations}
           disabled={!hasAnyChanges || bulkSaving}

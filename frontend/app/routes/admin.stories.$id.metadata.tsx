@@ -12,6 +12,8 @@ export default function EditMetadata() {
 
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
+  const [justSaved, setJustSaved] = React.useState(false);
 
   React.useEffect(() => {
     async function fetchMetadata() {
@@ -45,17 +47,30 @@ export default function EditMetadata() {
   return (
     <main className="container mx-auto p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Edit Metadata #{id}</h1>
+        <h1 className="text-2xl font-bold">
+          Edit Metadata for "{metadata.title["en"]}"
+        </h1>
         {saving && <span className="text-sm text-slate-500">Saving…</span>}
+        {!saving && hasUnsavedChanges && (
+          <span className="text-sm text-orange-600">Unsaved changes</span>
+        )}
+        {!saving && !hasUnsavedChanges && justSaved && (
+          <span className="text-sm text-green-600">Saved!</span>
+        )}
       </div>
       <AdminStoryNavigation storyId={id!} />
       <MetadataForm
         value={metadata}
+        onHasChanges={setHasUnsavedChanges}
+        onResetSaveStatus={() => setJustSaved(false)}
         onSubmit={async (m) => {
           setSaving(true);
+          setHasUnsavedChanges(false);
           try {
             await adminApi.updateMetadata(Number(id), m);
             setMetadata(m);
+            setJustSaved(true);
+            setTimeout(() => setJustSaved(false), 2000);
           } catch (error) {
             console.error("Failed to save metadata:", error);
           } finally {

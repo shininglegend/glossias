@@ -47,7 +47,7 @@ export function StoryList() {
   return (
     <>
       <header>
-        <h1>Logos Stories</h1>
+        <h1>Glossias</h1>
         <p>Select a story to begin reading</p>
         <hr />
       </header>

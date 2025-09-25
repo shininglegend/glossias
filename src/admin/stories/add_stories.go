@@ -44,7 +44,7 @@ func (h *Handler) addStoryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Validate required fields
-	if req.TitleEn == "" || req.LanguageCode == "" || req.AuthorName == "" || req.WeekNumber <= 0 || req.DayLetter == "" || req.DescriptionText == "" || req.StoryText == "" {
+	if req.TitleEn == "" || req.LanguageCode == "" || req.AuthorName == "" || req.StoryText == "" {
 		http.Error(w, "Missing required fields", http.StatusBadRequest)
 		return
 	}
@@ -93,17 +93,18 @@ func (h *Handler) addStoryHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) processAddStory(req AddStoryRequest) (*models.Story, error) {
 	// Split story text into lines
-	textLines := strings.Split(strings.TrimSpace(req.StoryText), "\n")
+	textLines := strings.Split(req.StoryText, "\n")
 
 	// Create story lines
 	lines := make([]models.StoryLine, len(textLines))
 	for i, text := range textLines {
+		if strings.TrimSpace(text) == "" && i == len(textLines)-1 {
+			// Skip trailing empty line at end
+			continue
+		}
 		lines[i] = models.StoryLine{
 			LineNumber: i + 1,
-			Text:       strings.TrimSpace(text),
-			// Vocabulary: []models.VocabularyItem{},
-			// Grammar:    []models.GrammarItem{},
-			// Footnotes:  []models.Footnote{},
+			Text:       text,
 		}
 	}
 

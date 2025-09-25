@@ -1,4 +1,4 @@
-# Logos Stories
+# Glossias
 
 A web application for displaying stories with synchronized text and audio.
 

@@ -7,11 +7,14 @@ import type {
   GrammarPoint,
 } from "../../types/api";
 
+const RTL_LANGUAGES = ["he", "ar", "fa", "ur"];
+
 export interface Props {
   text: string;
   vocabulary: VocabItem[];
   grammar: GrammarItem[];
   grammarPoints?: GrammarPoint[];
+  languageCode?: string;
   onSelect?: (start: number, end: number, text: string) => void;
 }
 
@@ -27,69 +30,112 @@ export default function AnnotatedText({
   vocabulary,
   grammar,
   grammarPoints = [],
+  languageCode,
   onSelect,
 }: Props) {
+  const isRTL = languageCode && RTL_LANGUAGES.includes(languageCode);
+
+  // Store original text for position calculations
+  const originalText = useMemo(() => text, [text]);
+
+  // Handle RTL indentation by converting leading tabs to padding
+  const { displayText, indentLevel } = useMemo(() => {
+    if (!isRTL) return { displayText: text, indentLevel: 0 };
+
+    const leadingTabs = text.match(/^\t*/)?.[0] || "";
+    const tabCount = leadingTabs.length;
+    const textWithoutTabs = text.slice(tabCount);
+
+    return {
+      displayText: textWithoutTabs,
+      indentLevel: tabCount,
+    };
+  }, [text, isRTL]);
+
   const segments = useMemo(() => {
     const annotations: Annotation[] = [
       ...vocabulary.map((v) => ({
-        start: v.position[0],
-        end: v.position[1],
+        start: v.position[0] - (isRTL ? indentLevel : 0), // Adjust positions for removed tabs
+        end: v.position[1] - (isRTL ? indentLevel : 0),
         type: "vocab" as const,
         data: v,
       })),
       ...grammar.map((g) => ({
-        start: g.position[0],
-        end: g.position[1],
+        start: g.position[0] - (isRTL ? indentLevel : 0),
+        end: g.position[1] - (isRTL ? indentLevel : 0),
         type: "grammar" as const,
         data: g,
       })),
     ].sort((a, b) => a.start - b.start);
 
-    return createTextSegments(text, annotations);
-  }, [text, vocabulary, grammar]);
+    return createTextSegments(displayText, annotations);
+  }, [displayText, vocabulary, grammar, isRTL, indentLevel]);
 
   const handleMouseUp = () => {
     const selection = window.getSelection();
     if (!selection || !onSelect) return;
 
     const range = selection.getRangeAt(0);
-    const container = (range.commonAncestorContainer as HTMLElement)
-      .parentElement;
-    if (!container?.closest(".annotated-text")) return;
+    const annotatedTextElement = (
+      range.commonAncestorContainer.nodeType === Node.TEXT_NODE
+        ? range.commonAncestorContainer.parentElement
+        : (range.commonAncestorContainer as HTMLElement)
+    )?.closest(".annotated-text");
 
+    if (!annotatedTextElement) return;
+
+    // Build mapping from DOM text nodes to original text positions
     const textNodes: Node[] = [];
+    const nodePositions: number[] = [];
     const walker = document.createTreeWalker(
-      container.closest(".annotated-text")!,
+      annotatedTextElement,
       NodeFilter.SHOW_TEXT,
       null,
     );
-    let node: Node | null;
-    while ((node = walker.nextNode())) textNodes.push(node);
 
+    let node: Node | null;
+    let originalPosition = isRTL ? indentLevel : 0;
+
+    while ((node = walker.nextNode())) {
+      textNodes.push(node);
+      nodePositions.push(originalPosition);
+      originalPosition += node.textContent?.length || 0;
+    }
+
+    // Find selection positions in original text
     let absoluteStart = 0;
     let absoluteEnd = 0;
     let foundStart = false;
-    let currentPosition = 0;
+    let foundEnd = false;
 
-    for (const n of textNodes) {
-      const nodeLength = n.textContent?.length || 0;
-      if (n === range.startContainer) {
-        absoluteStart = currentPosition + range.startOffset;
+    for (let i = 0; i < textNodes.length; i++) {
+      const node = textNodes[i];
+      const nodeStartPos = nodePositions[i];
+
+      if (node === range.startContainer && !foundStart) {
+        absoluteStart = nodeStartPos + range.startOffset;
         foundStart = true;
       }
-      if (n === range.endContainer) {
-        absoluteEnd = currentPosition + range.endOffset;
+
+      if (node === range.endContainer) {
+        absoluteEnd = nodeStartPos + range.endOffset;
+        foundEnd = true;
         break;
       }
-      if (!foundStart) currentPosition += nodeLength;
     }
 
-    if (absoluteStart !== absoluteEnd)
+    if (foundStart && foundEnd && absoluteStart !== absoluteEnd) {
       onSelect(absoluteStart, absoluteEnd, selection.toString());
+    }
   };
 
   return (
-    <span className="annotated-text leading-7" onMouseUp={handleMouseUp}>
+    <span
+      className={`annotated-text leading-7 whitespace-pre ${isRTL ? "text-right" : "text-left"}`}
+      dir={isRTL ? "rtl" : "ltr"}
+      style={isRTL ? { paddingRight: `${indentLevel * 2}em` } : undefined}
+      onMouseUp={handleMouseUp}
+    >
       {segments.map((segment, i) => (
         <TextSegment key={i} segment={segment} grammarPoints={grammarPoints} />
       ))}
@@ -115,9 +161,38 @@ function TextSegment({
 
   if (!annotations.length) return <>{text}</>;
 
-  const classes = annotations.map((a) =>
-    a.type === "vocab" ? "vocab-highlight" : "grammar-highlight",
-  );
+  const grammarColorClasses = [
+    "text-decoration: underline wavy #ef4444;", // red
+    "text-decoration: underline wavy #3b82f6;", // blue
+    "text-decoration: underline wavy #10b981;", // green
+    "text-decoration: underline wavy #f59e0b;", // amber
+    "text-decoration: underline wavy #8b5cf6;", // violet
+    "text-decoration: underline wavy #ec4899;", // pink
+    "text-decoration: underline wavy #06b6d4;", // cyan
+    "text-decoration: underline wavy #84cc16;", // lime
+  ];
+
+  const classes: string[] = [];
+  const styles: React.CSSProperties = {};
+
+  annotations.forEach((a) => {
+    if (a.type === "vocab") {
+      classes.push("vocab-highlight");
+    } else {
+      const grammar = a.data as GrammarItem;
+      const grammarPoint = grammarPoints.find(
+        (gp: GrammarPoint) => gp.id === grammar.grammarPointId,
+      );
+      if (grammarPoint) {
+        const colorIndex = grammarPoint.id % grammarColorClasses.length;
+        styles.textDecoration = grammarColorClasses[colorIndex]
+          .split(": ")[1]
+          .slice(0, -1);
+        styles.textUnderlineOffset = "3px";
+      }
+      classes.push("grammar-highlight");
+    }
+  });
 
   const tooltipParts: string[] = [];
   annotations.forEach((a) => {
@@ -155,6 +230,7 @@ function TextSegment({
   return (
     <span
       className={`${classes.join(" ")} relative`}
+      style={styles}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       data-testid="annotated-segment"

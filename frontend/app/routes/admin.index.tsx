@@ -135,7 +135,7 @@ export default function AdminHome() {
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <Link
-                        to={`/admin/stories/${s.id}`}
+                        to={`/admin/stories/${s.id}/metadata`}
                         className="block truncate font-medium text-slate-900 hover:underline"
                       >
                         {s.title || `Story #${s.id}`}
@@ -150,19 +150,6 @@ export default function AdminHome() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    <Link to={`/admin/stories/${s.id}`}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        icon={
-                          <span className="material-icons text-sm">
-                            data_object
-                          </span>
-                        }
-                      >
-                        Edit JSON
-                      </Button>
-                    </Link>
                     <Link to={`/admin/stories/${s.id}/metadata`}>
                       <Button
                         variant="outline"
@@ -200,23 +187,7 @@ export default function AdminHome() {
                         Translate
                       </Button>
                     </Link>
-                    <Button
-                      onClick={() => {
-                        if (confirm("Clear all annotations?")) {
-                          handleAction("clear-annotations", s.id);
-                        }
-                      }}
-                      variant="warning"
-                      size="sm"
-                      icon={
-                        <span className="material-icons text-sm">
-                          layers_clear
-                        </span>
-                      }
-                      disabled={processing}
-                    >
-                      {processing ? "Clearing…" : "Clear"}
-                    </Button>
+
                     <Button
                       onClick={() => handleDeleteClick(s.id)}
                       variant="danger"

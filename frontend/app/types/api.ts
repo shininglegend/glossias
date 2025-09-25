@@ -23,7 +23,7 @@ export interface Author {
 }
 
 export interface Description {
-  language: string;
+  language: string; // 2-letter Unicode language code
   text: string;
 }
 
@@ -44,6 +44,7 @@ export interface StoryLine {
   footnotes: Footnote[];
   audioFiles: AudioFile[];
   storyId?: number;
+  languageCode?: string;
 }
 
 export interface AudioFile {

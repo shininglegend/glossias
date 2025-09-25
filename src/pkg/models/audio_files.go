@@ -355,7 +355,7 @@ func GetSignedAudioURLsForStory(ctx context.Context, storyID int, userID string,
 		if err != nil {
 			return nil, err
 		}
-		signedURLs[audioFile.ID] = result.SignedURL
+		signedURLs[audioFile.LineNumber] = result.SignedURL
 	}
 
 	return signedURLs, nil

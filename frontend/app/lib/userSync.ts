@@ -1,5 +1,5 @@
 import { useAuth, useUser } from "@clerk/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuthenticatedFetch } from "./authFetch";
 
 export interface UserInfo {
@@ -22,9 +22,17 @@ export function useUserSync() {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lastSyncAttempt = useRef<number>(0); // Track last sync attempt timestamp
 
   const syncUser = useCallback(async () => {
     if (!isSignedIn || !user) return;
+
+    // Rate limit: only allow one request per 5 seconds
+    const now = Date.now();
+    if (now - lastSyncAttempt.current < 5000) {
+      return;
+    }
+    lastSyncAttempt.current = now;
 
     setLoading(true);
     setError(null);

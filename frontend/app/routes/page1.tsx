@@ -3,7 +3,7 @@ import { Page1 } from "../components/Page1";
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "Logos Stories - Page 1" },
+    { title: "Glossias - Page 1" },
     { name: "description", content: "Listen to the story" },
   ];
 }

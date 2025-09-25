@@ -11,8 +11,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// GetPage1 returns JSON data for story page 1 (reading)
-func (h *Handler) GetPage1(w http.ResponseWriter, r *http.Request) {
+// GetAudioPage returns JSON data for story page 1 (reading)
+func (h *Handler) GetAudioPage(w http.ResponseWriter, r *http.Request) {
 	storyID := mux.Vars(r)["id"]
 	id, err := strconv.Atoi(storyID)
 	if err != nil {
@@ -31,7 +31,7 @@ func (h *Handler) GetPage1(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lines := h.processLinesForPage1(*story)
+	lines := h.transformLinesForAudio(*story)
 
 	data := types.PageData{
 		StoryID:    storyID,
@@ -47,8 +47,8 @@ func (h *Handler) GetPage1(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// processLinesForPage1 prepares lines with audio for reading page
-func (h *Handler) processLinesForPage1(story models.Story) []types.Line {
+// transformLinesForAudio prepares lines with audio for reading page
+func (h *Handler) transformLinesForAudio(story models.Story) []types.Line {
 	lines := make([]types.Line, 0, len(story.Content.Lines))
 
 	for _, dbLine := range story.Content.Lines {

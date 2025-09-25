@@ -13,8 +13,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// GetPage2 returns JSON data for story page 2 (vocabulary)
-func (h *Handler) GetPage2(w http.ResponseWriter, r *http.Request) {
+// GetVocabPage returns JSON data for story page 2 (vocabulary)
+func (h *Handler) GetVocabPage(w http.ResponseWriter, r *http.Request) {
 	storyID := mux.Vars(r)["id"]
 	id, err := strconv.Atoi(storyID)
 	if err != nil {
@@ -33,9 +33,9 @@ func (h *Handler) GetPage2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lines, vocabBank := h.processLinesForPage2(*story, id)
+	lines, vocabBank := h.generateVocabLines(*story, id)
 
-	data := types.Page2Data{
+	data := types.VocabPageData{
 		PageData: types.PageData{
 			StoryID:    storyID,
 			StoryTitle: story.Metadata.Title["en"],
@@ -52,8 +52,8 @@ func (h *Handler) GetPage2(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// processLinesForPage2 prepares lines with vocabulary blanks and vocab bank
-func (h *Handler) processLinesForPage2(story models.Story, id int) ([]types.Line, []string) {
+// generateVocabLines prepares lines with vocabulary blanks and vocab bank
+func (h *Handler) generateVocabLines(story models.Story, id int) ([]types.Line, []string) {
 	lines := make([]types.Line, len(story.Content.Lines))
 	vocabBank := make([]string, 0)
 

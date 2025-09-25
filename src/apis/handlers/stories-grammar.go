@@ -12,8 +12,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// GetPage3 returns JSON data for story page 3 (grammar)
-func (h *Handler) GetPage3(w http.ResponseWriter, r *http.Request) {
+// GetGrammarPage returns JSON data for story page 3 (grammar)
+func (h *Handler) GetGrammarPage(w http.ResponseWriter, r *http.Request) {
 	storyID := mux.Vars(r)["id"]
 	id, err := strconv.Atoi(storyID)
 	if err != nil {
@@ -32,9 +32,9 @@ func (h *Handler) GetPage3(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lines := h.processLinesForPage3(*story, id)
+	lines := h.createGrammarAnnotatedLines(*story, id)
 
-	data := types.Page3Data{
+	data := types.GrammarPageData{
 		PageData: types.PageData{
 			StoryID:    storyID,
 			StoryTitle: story.Metadata.Title["en"],
@@ -50,8 +50,8 @@ func (h *Handler) GetPage3(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// processLinesForPage3 prepares lines with grammar highlights
-func (h *Handler) processLinesForPage3(story models.Story, id int) []types.Line {
+// createGrammarAnnotatedLines prepares lines with grammar highlights
+func (h *Handler) createGrammarAnnotatedLines(story models.Story, id int) []types.Line {
 	lines := make([]types.Line, len(story.Content.Lines))
 
 	for i, line := range story.Content.Lines {

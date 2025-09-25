@@ -11,8 +11,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// GetPage4 returns JSON data for story page 4 (translation)
-func (h *Handler) GetPage4(w http.ResponseWriter, r *http.Request) {
+// GetTranslateData returns JSON data for story page 4 (translation)
+func (h *Handler) GetTranslateData(w http.ResponseWriter, r *http.Request) {
 	storyID := mux.Vars(r)["id"]
 	id, err := strconv.Atoi(storyID)
 	if err != nil {
@@ -31,13 +31,13 @@ func (h *Handler) GetPage4(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lines := h.processLinesForPage4(*story, id)
+	lines := h.processLinesForTranslation(*story, id)
 
 	// TODO: Translation field not yet implemented in StoryMetadata
 	// Return empty translation for now
 	translation := ""
 
-	data := types.Page4Data{
+	data := types.TranslationPageData{
 		PageData: types.PageData{
 			StoryID:    storyID,
 			StoryTitle: story.Metadata.Title["en"],
@@ -54,8 +54,8 @@ func (h *Handler) GetPage4(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// processLinesForPage4 prepares lines for translation page (plain text with audio)
-func (h *Handler) processLinesForPage4(story models.Story, id int) []types.Line {
+// processLinesForTranslation prepares lines for translation page (plain text with audio)
+func (h *Handler) processLinesForTranslation(story models.Story, id int) []types.Line {
 	lines := make([]types.Line, 0, len(story.Content.Lines))
 
 	for _, dbLine := range story.Content.Lines {

@@ -24,7 +24,7 @@ List all stories.
 }
 ```
 
-### GET `/api/stories/{id}/page1`
+### GET `/api/stories/{id}/audio`
 Reading page with audio.
 
 **Response:**
@@ -45,7 +45,7 @@ Reading page with audio.
 }
 ```
 
-### GET `/api/stories/{id}/page2`
+### GET `/api/stories/{id}/vocab`
 Vocabulary exercise with blanks (`%`) and word bank.
 
 **Response:**
@@ -67,7 +67,7 @@ Vocabulary exercise with blanks (`%`) and word bank.
 }
 ```
 
-### GET `/api/stories/{id}/page3`
+### GET `/api/stories/{id}/grammar`
 Grammar lesson with highlights (`%grammar&`).
 
 **Response:**
@@ -89,7 +89,7 @@ Grammar lesson with highlights (`%grammar&`).
 }
 ```
 
-### GET `/api/stories/{id}/page4`
+### GET `/api/stories/{id}/translate`
 Translation page (empty translation field - not implemented).
 
 **Response:**

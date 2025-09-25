@@ -95,7 +95,7 @@ export function useApiService() {
 
     getStoryAudio: useCallback(
       (id: string): Promise<APIResponse<PageData>> => {
-        return fetchAPI<PageData>(`/stories/${id}/page1`);
+        return fetchAPI<PageData>(`/stories/${id}/audio`);
       },
       [fetchAPI],
     ),
@@ -110,21 +110,21 @@ export function useApiService() {
 
     getStoryVocab: useCallback(
       (id: string): Promise<APIResponse<VocabData>> => {
-        return fetchAPI<VocabData>(`/stories/${id}/page2`);
+        return fetchAPI<VocabData>(`/stories/${id}/vocab`);
       },
       [fetchAPI],
     ),
 
     getStoryGrammar: useCallback(
       (id: string): Promise<APIResponse<GrammarData>> => {
-        return fetchAPI<GrammarData>(`/stories/${id}/page3`);
+        return fetchAPI<GrammarData>(`/stories/${id}/grammar`);
       },
       [fetchAPI],
     ),
 
     getStoryTranslate: useCallback(
       (id: string): Promise<APIResponse<TranslateData>> => {
-        return fetchAPI<TranslateData>(`/stories/${id}/page4`);
+        return fetchAPI<TranslateData>(`/stories/${id}/translate`);
       },
       [fetchAPI],
     ),

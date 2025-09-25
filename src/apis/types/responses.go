@@ -47,20 +47,20 @@ type PageData struct {
 	Lines      []Line `json:"lines"`
 }
 
-// Page2Data extends PageData with vocabulary bank
-type Page2Data struct {
+// VocabPageData extends PageData with vocabulary bank
+type VocabPageData struct {
 	PageData
 	VocabBank []string `json:"vocab_bank"`
 }
 
-// Page3Data extends PageData with grammar point
-type Page3Data struct {
+// GrammarPageData extends PageData with grammar point
+type GrammarPageData struct {
 	PageData
 	GrammarPoint string `json:"grammar_point"`
 }
 
-// Page3Data extends PageData with  translation
-type Page4Data struct {
+// TranslationPageData extends PageData with  translation
+type TranslationPageData struct {
 	PageData
 	Translation string `json:"translation"`
 }

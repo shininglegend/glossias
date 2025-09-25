@@ -25,10 +25,10 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	}).Methods("GET", "OPTIONS")
 
 	// Individual page endpoints
-	router.HandleFunc("/{id}/page1", h.GetPage1).Methods("GET", "OPTIONS")
-	router.HandleFunc("/{id}/page2", h.GetPage2).Methods("GET", "OPTIONS")
-	router.HandleFunc("/{id}/page3", h.GetPage3).Methods("GET", "OPTIONS")
-	router.HandleFunc("/{id}/page4", h.GetPage4).Methods("GET", "OPTIONS")
+	router.HandleFunc("/{id}/audio", h.GetAudioPage).Methods("GET", "OPTIONS")
+	router.HandleFunc("/{id}/vocab", h.GetVocabPage).Methods("GET", "OPTIONS")
+	router.HandleFunc("/{id}/grammar", h.GetGrammarPage).Methods("GET", "OPTIONS")
+	router.HandleFunc("/{id}/translate", h.GetTranslateData).Methods("GET", "OPTIONS")
 
 	// Audio endpoints
 	router.HandleFunc("/{id}/audio/signed", h.GetSignedAudioURLs).Methods("GET", "OPTIONS")

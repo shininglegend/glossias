@@ -30,7 +30,7 @@ type UpdateCourseRequest struct {
 	Description  string `json:"description"`
 }
 
-// handleCoursesList returns all courses (super admin only)
+// handleCoursesList returns all courses for super admins, or courses user is admin of for regular admins
 func (h *Handler) handleCoursesList(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.GetUserID(r)
 	if !ok {
@@ -38,13 +38,17 @@ func (h *Handler) handleCoursesList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only super admins can list all courses
-	if !models.IsUserSuperAdmin(r.Context(), userID) {
-		http.Error(w, "Super admin access required", http.StatusForbidden)
-		return
+	var courses []models.Course
+	var err error
+
+	if models.IsUserSuperAdmin(r.Context(), userID) {
+		// Super admins can list all courses
+		courses, err = models.ListAllCourses(r.Context())
+	} else {
+		// Regular admins can only see courses they admin
+		courses, err = models.GetCoursesForUser(r.Context(), userID)
 	}
 
-	courses, err := models.ListAllCourses(r.Context())
 	if err != nil {
 		h.log.Error("failed to list courses", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)

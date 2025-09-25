@@ -35,6 +35,9 @@ export default function AnnotatedText({
 }: Props) {
   const isRTL = languageCode && RTL_LANGUAGES.includes(languageCode);
 
+  // Store original text for position calculations
+  const originalText = useMemo(() => text, [text]);
+
   // Handle RTL indentation by converting leading tabs to padding
   const { displayText, indentLevel } = useMemo(() => {
     if (!isRTL) return { displayText: text, indentLevel: 0 };
@@ -73,39 +76,30 @@ export default function AnnotatedText({
     if (!selection || !onSelect) return;
 
     const range = selection.getRangeAt(0);
-    const container = (range.commonAncestorContainer as HTMLElement)
-      .parentElement;
-    if (!container?.closest(".annotated-text")) return;
+    const annotatedTextElement = (
+      range.commonAncestorContainer.nodeType === Node.TEXT_NODE
+        ? range.commonAncestorContainer.parentElement
+        : (range.commonAncestorContainer as HTMLElement)
+    )?.closest(".annotated-text");
 
-    const textNodes: Node[] = [];
-    const walker = document.createTreeWalker(
-      container.closest(".annotated-text")!,
-      NodeFilter.SHOW_TEXT,
-      null
-    );
-    let node: Node | null;
-    while ((node = walker.nextNode())) textNodes.push(node);
+    if (!annotatedTextElement) return;
 
-    let absoluteStart = 0;
-    let absoluteEnd = 0;
-    let foundStart = false;
-    let currentPosition = 0;
+    // Get the selected text directly from the original text
+    const selectedText = selection.toString();
+    if (!selectedText.trim()) return;
 
-    for (const n of textNodes) {
-      const nodeLength = n.textContent?.length || 0;
-      if (n === range.startContainer) {
-        absoluteStart = currentPosition + range.startOffset;
-        foundStart = true;
-      }
-      if (n === range.endContainer) {
-        absoluteEnd = currentPosition + range.endOffset;
-        break;
-      }
-      if (!foundStart) currentPosition += nodeLength;
-    }
+    // Find the selection in the original text
+    // We need to account for RTL indentation adjustments
+    const searchText = isRTL ? displayText : originalText;
+    const startIndex = searchText.indexOf(selectedText);
 
-    if (absoluteStart !== absoluteEnd)
-      onSelect(absoluteStart, absoluteEnd, selection.toString());
+    if (startIndex === -1) return;
+
+    // Adjust positions back to original text coordinates
+    const originalStart = isRTL ? startIndex + indentLevel : startIndex;
+    const originalEnd = originalStart + selectedText.length;
+
+    onSelect(originalStart, originalEnd, selectedText);
   };
 
   return (
@@ -140,9 +134,38 @@ function TextSegment({
 
   if (!annotations.length) return <>{text}</>;
 
-  const classes = annotations.map((a) =>
-    a.type === "vocab" ? "vocab-highlight" : "grammar-highlight"
-  );
+  const grammarColorClasses = [
+    "text-decoration: underline wavy #ef4444;", // red
+    "text-decoration: underline wavy #3b82f6;", // blue
+    "text-decoration: underline wavy #10b981;", // green
+    "text-decoration: underline wavy #f59e0b;", // amber
+    "text-decoration: underline wavy #8b5cf6;", // violet
+    "text-decoration: underline wavy #ec4899;", // pink
+    "text-decoration: underline wavy #06b6d4;", // cyan
+    "text-decoration: underline wavy #84cc16;", // lime
+  ];
+
+  const classes: string[] = [];
+  const styles: React.CSSProperties = {};
+
+  annotations.forEach((a) => {
+    if (a.type === "vocab") {
+      classes.push("vocab-highlight");
+    } else {
+      const grammar = a.data as GrammarItem;
+      const grammarPoint = grammarPoints.find(
+        (gp: GrammarPoint) => gp.id === grammar.grammarPointId,
+      );
+      if (grammarPoint) {
+        const colorIndex = grammarPoint.id % grammarColorClasses.length;
+        styles.textDecoration = grammarColorClasses[colorIndex]
+          .split(": ")[1]
+          .slice(0, -1);
+        styles.textUnderlineOffset = "3px";
+      }
+      classes.push("grammar-highlight");
+    }
+  });
 
   const tooltipParts: string[] = [];
   annotations.forEach((a) => {
@@ -152,7 +175,7 @@ function TextSegment({
     } else if (a.type === "grammar") {
       const grammar = a.data as GrammarItem;
       const grammarPoint = grammarPoints.find(
-        (gp: GrammarPoint) => gp.id === grammar.grammarPointId
+        (gp: GrammarPoint) => gp.id === grammar.grammarPointId,
       );
       const grammarPointName = grammarPoint ? grammarPoint.name : "Unknown";
       tooltipParts.push(`${grammarPointName}: ${grammar.text}`);
@@ -180,6 +203,7 @@ function TextSegment({
   return (
     <span
       className={`${classes.join(" ")} relative`}
+      style={styles}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       data-testid="annotated-segment"
@@ -200,7 +224,7 @@ function TextSegment({
               <div key={i}>{part}</div>
             ))}
           </div>,
-          document.body
+          document.body,
         )}
     </span>
   );
@@ -208,7 +232,7 @@ function TextSegment({
 
 function createTextSegments(
   text: string,
-  annotations: Annotation[]
+  annotations: Annotation[],
 ): TextSegments[] {
   const segments: TextSegments[] = [];
   let lastIndex = 0;

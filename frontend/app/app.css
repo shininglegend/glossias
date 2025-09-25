@@ -9,8 +9,8 @@
   cursor: help;
 }
 .annotated-text .grammar-highlight {
-  text-decoration: underline wavy #4a5568;
   text-underline-offset: 3px;
+  cursor: help;
 }
 .story-container {
   display: flex;

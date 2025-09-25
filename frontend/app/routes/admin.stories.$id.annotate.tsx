@@ -30,7 +30,7 @@ export default function AdminAnnotateRoute() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Edit Annotations #{id}</h1>
+        <h1 className="text-2xl font-bold">Edit Annotations</h1>
         <Button
           variant="danger"
           onClick={() => setShowConfirmDialog(true)}

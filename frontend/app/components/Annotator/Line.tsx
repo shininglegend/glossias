@@ -279,7 +279,7 @@ export default function Line({
       <div className="flex items-center gap-4 text-xs w-50">
         {/* Complete Audio Controls */}
         <div className="flex items-center gap-1">
-          <span className="text-slate-600">Complete Audio:</span>
+          <span className="text-slate-600">Audio w Vocab:</span>
           {hasAudio("complete") ? (
             <>
               <Button

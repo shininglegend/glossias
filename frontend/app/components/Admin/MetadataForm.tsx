@@ -8,9 +8,16 @@ import CourseSelector from "~/components/ui/CourseSelector";
 type Props = {
   value: StoryMetadata;
   onSubmit: (metadata: StoryMetadata) => void;
+  onHasChanges?: (hasChanges: boolean) => void;
+  onResetSaveStatus?: () => void;
 };
 
-export default function MetadataForm({ value, onSubmit }: Props) {
+export default function MetadataForm({
+  value,
+  onSubmit,
+  onHasChanges,
+  onResetSaveStatus,
+}: Props) {
   const [meta, setMeta] = React.useState<StoryMetadata>({
     ...value,
     grammarPoints: value.grammarPoints || [],
@@ -22,10 +29,17 @@ export default function MetadataForm({ value, onSubmit }: Props) {
   const update = <K extends keyof StoryMetadata>(
     key: K,
     val: StoryMetadata[K],
-  ) => setMeta((m) => ({ ...m, [key]: val }));
+  ) => {
+    setMeta((m) => ({ ...m, [key]: val }));
+    onHasChanges?.(true);
+    onResetSaveStatus?.();
+  };
 
-  const updateTitle = (lang: string, val: string) =>
+  const updateTitle = (lang: string, val: string) => {
     setMeta((m) => ({ ...m, title: { ...m.title, [lang]: val } }));
+    onHasChanges?.(true);
+    onResetSaveStatus?.();
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

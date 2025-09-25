@@ -1,62 +1,60 @@
-/* glossias/static/css/page2.css */
-
 .vocab-select {
-    display: inline-block;
-    width: 120px;
-    padding: 0.5rem;
-    font-size: 1.5rem;
-    font-family: "SBL Hebrew", "Helvetica Neue", Helvetica, sans-serif;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.25rem;
-    background-color: white;
-    cursor: pointer;
-    margin: 0 0.5rem;
+  display: inline-block;
+  width: 120px;
+  padding: 0.5rem;
+  font-size: 1.5rem;
+  font-family: "SBL Hebrew", "Helvetica Neue", Helvetica, sans-serif;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.25rem;
+  background-color: white;
+  cursor: pointer;
+  margin: 0 0.5rem;
 }
 
 .vocab-select:focus {
-    outline: 2px solid var(--primary);
-    border-color: var(--primary);
+  outline: 2px solid var(--primary);
+  border-color: var(--primary);
 }
 
 .vocab-select.correct {
-    border-color: #22c55e;
-    background-color: #f0fdf4;
+  border-color: #22c55e;
+  background-color: #f0fdf4;
 }
 
 .vocab-select.incorrect {
-    border-color: #ef4444;
-    background-color: #fef2f2;
+  border-color: #ef4444;
+  background-color: #fef2f2;
 }
 
 .vocab-select:disabled {
-    opacity: 0.75;
-    cursor: not-allowed;
+  opacity: 0.75;
+  cursor: not-allowed;
 }
 
 /* Other buttons */
 .next-button {
-    margin-top: 2rem;
-    text-align: center;
+  margin-top: 2rem;
+  text-align: center;
 }
 .button-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 1rem 2rem;
-    background-color: #4caf50;
-    color: white;
-    text-decoration: none;
-    border-radius: 4px;
-    transition: background-color 0.3s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 2rem;
+  background-color: #4caf50;
+  color: white;
+  text-decoration: none;
+  border-radius: 4px;
+  transition: background-color 0.3s;
 }
 .button-link:hover {
-    background-color: #45a049;
+  background-color: #45a049;
 }
 
 .score {
-    font-size: 2rem;
-    font-weight: bold;
-    border-radius: 4px;
-    background: var(--info);
-    color: white;
+  font-size: 2rem;
+  font-weight: bold;
+  border-radius: 4px;
+  background: var(--info);
+  color: white;
 }

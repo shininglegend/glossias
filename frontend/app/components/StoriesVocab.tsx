@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router";
 import { useApiService } from "../services/api";
-import type { Page2Data } from "../services/api";
+import type { VocabData } from "../services/api";
+import "./StoriesVocab.css";
 
-export function Page2() {
+export function StoriesVocab() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
-  const [pageData, setPageData] = useState<Page2Data | null>(null);
+  const [pageData, setPageData] = useState<VocabData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
@@ -28,7 +29,7 @@ export function Page2() {
       }
 
       try {
-        const response = await api.getStoryPage2(id);
+        const response = await api.getStoryVocab(id);
         if (response.success && response.data) {
           setPageData(response.data);
         } else {
@@ -218,7 +219,7 @@ export function Page2() {
 
         {checkResults && (
           <div className="next-button">
-            <Link to={`/stories/${id}/page3`} className="button-link">
+            <Link to={`/stories/${id}/translate`} className="button-link">
               <span>Next Step</span>
               <span className="material-icons">arrow_forward</span>
             </Link>

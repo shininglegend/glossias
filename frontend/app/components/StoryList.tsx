@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { useApiService } from "../services/api";
 import type { Story } from "../services/api";
+import "./StoryList.css";
 
 export function StoryList() {
   const api = useApiService();
@@ -60,7 +61,7 @@ export function StoryList() {
                 Week {story.week_number}
                 {story.day_letter}
               </p>
-              <Link to={`/stories/${story.id}/page1`}>Start Reading</Link>
+              <Link to={`/stories/${story.id}/audio`}>Start Reading</Link>
             </div>
           ))}
         </div>

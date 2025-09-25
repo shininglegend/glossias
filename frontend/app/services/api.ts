@@ -33,15 +33,15 @@ export interface PageData {
   lines: Line[];
 }
 
-export interface Page2Data extends PageData {
+export interface VocabData extends PageData {
   vocab_bank: string[];
 }
 
-export interface Page3Data extends PageData {
+export interface GrammarData extends PageData {
   grammar_point: string;
 }
 
-export interface Page4Data extends PageData {
+export interface TranslateData extends PageData {
   translation: string;
 }
 
@@ -93,7 +93,7 @@ export function useApiService() {
       return fetchAPI<StoriesResponse>("/stories");
     }, [fetchAPI]),
 
-    getStoryPage1: useCallback(
+    getStoryAudio: useCallback(
       (id: string): Promise<APIResponse<PageData>> => {
         return fetchAPI<PageData>(`/stories/${id}/page1`);
       },
@@ -108,23 +108,23 @@ export function useApiService() {
       [fetchAPI],
     ),
 
-    getStoryPage2: useCallback(
-      (id: string): Promise<APIResponse<Page2Data>> => {
-        return fetchAPI<Page2Data>(`/stories/${id}/page2`);
+    getStoryVocab: useCallback(
+      (id: string): Promise<APIResponse<VocabData>> => {
+        return fetchAPI<VocabData>(`/stories/${id}/page2`);
       },
       [fetchAPI],
     ),
 
-    getStoryPage3: useCallback(
-      (id: string): Promise<APIResponse<Page3Data>> => {
-        return fetchAPI<Page3Data>(`/stories/${id}/page3`);
+    getStoryGrammar: useCallback(
+      (id: string): Promise<APIResponse<GrammarData>> => {
+        return fetchAPI<GrammarData>(`/stories/${id}/page3`);
       },
       [fetchAPI],
     ),
 
-    getStoryPage4: useCallback(
-      (id: string): Promise<APIResponse<Page4Data>> => {
-        return fetchAPI<Page4Data>(`/stories/${id}/page4`);
+    getStoryTranslate: useCallback(
+      (id: string): Promise<APIResponse<TranslateData>> => {
+        return fetchAPI<TranslateData>(`/stories/${id}/page4`);
       },
       [fetchAPI],
     ),

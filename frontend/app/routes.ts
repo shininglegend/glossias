@@ -2,10 +2,10 @@ import { type RouteConfig, index, route } from "@react-router/dev/routes";
 
 export default [
   index("routes/home.tsx"),
-  route("stories/:id/page1", "routes/page1.tsx"),
-  route("stories/:id/page2", "routes/page2.tsx"),
-  route("stories/:id/page3", "routes/page3.tsx"),
-  route("stories/:id/page4", "routes/page4.tsx"),
+  route("stories/:id/audio", "routes/stories-audio.tsx"),
+  route("stories/:id/vocab", "routes/stories-vocab.tsx"),
+  route("stories/:id/grammar", "routes/stories-grammar.tsx"),
+  route("stories/:id/translate", "routes/stories-translate.tsx"),
   // Admin SPA routes replacing server templates
   route("admin", "routes/admin.index.tsx"),
   route("admin/courses", "routes/admin.courses.tsx"),

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router";
 import { useApiService } from "../services/api";
-import type { Page3Data } from "../services/api";
+import type { GrammarData } from "../services/api";
+import "./StoriesGrammar.css";
 
-export function Page3() {
+export function StoriesGrammar() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
-  const [pageData, setPageData] = useState<Page3Data | null>(null);
+  const [pageData, setPageData] = useState<GrammarData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
@@ -22,7 +23,7 @@ export function Page3() {
       }
 
       try {
-        const response = await api.getStoryPage3(id);
+        const response = await api.getStoryGrammar(id);
         if (response.success && response.data) {
           setPageData(response.data);
         } else {
@@ -133,8 +134,8 @@ export function Page3() {
         ))}
 
         <div className="next-button">
-          <Link to={`/stories/${id}/page4`} className="button-link">
-            <span>Next Step</span>
+          <Link to={`/stories/${id}/score`} className="button-link">
+            <span>See Score</span>
             <span className="material-icons">arrow_forward</span>
           </Link>
         </div>

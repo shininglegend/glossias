@@ -3,7 +3,7 @@ import { useParams, Link } from "react-router";
 import { useApiService } from "../services/api";
 import type { PageData } from "../services/api";
 
-export function Page4() {
+export function StoriesTranslate() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
   const [pageData, setPageData] = useState<PageData | null>(null);
@@ -22,7 +22,7 @@ export function Page4() {
       }
 
       try {
-        const response = await api.getStoryPage4(id);
+        const response = await api.getStoryTranslate(id);
         if (response.success && response.data) {
           setPageData(response.data);
         } else {
@@ -116,9 +116,9 @@ export function Page4() {
         ))}
 
         <div className="next-button">
-          <Link to="/" className="button-link">
-            <span>Back to Stories</span>
-            <span className="material-icons">home</span>
+          <Link to={`/stories/${id}/grammar`} className="button-link">
+            <span>Next Step</span>
+            <span className="material-icons">arrow_forward</span>
           </Link>
         </div>
       </div>

@@ -13,7 +13,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func GetStoryData(ctx context.Context, id int) (*Story, error) {
+func GetStoryData(ctx context.Context, id int, userID string) (*Story, error) {
 	story := NewStory()
 
 	// Get main story data
@@ -23,6 +23,14 @@ func GetStoryData(ctx context.Context, id int) (*Story, error) {
 			return nil, ErrNotFound
 		}
 		return nil, err
+	}
+
+	// Check if user has access to this story
+	if dbStory.CourseID.Valid {
+		courseID := int32(dbStory.CourseID.Int32)
+		if !CanUserAccessCourse(ctx, userID, courseID) {
+			return nil, ErrNotFound
+		}
 	}
 
 	// Convert DB story to model story
@@ -422,9 +430,12 @@ func withTransaction(fn func() error) error {
 	return fn()
 }
 
-func GetAllStories(ctx context.Context, language string) ([]Story, error) {
+func GetAllStories(ctx context.Context, language string, userID string) ([]Story, error) {
 
-	basicStories, err := queries.GetAllStoriesBasic(ctx, language)
+	basicStories, err := queries.GetAllStoriesForUser(ctx, db.GetAllStoriesForUserParams{
+		LanguageCode: language,
+		UserID:       userID,
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -3,6 +3,7 @@ package stories
 
 import (
 	"encoding/json"
+	"glossias/src/auth"
 	"glossias/src/pkg/models"
 	"net/http"
 	"strconv"
@@ -34,7 +35,7 @@ func (h *Handler) metadataHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleGetMetadata(w http.ResponseWriter, r *http.Request, storyID int) {
-	story, err := models.GetStoryData(r.Context(), storyID)
+	story, err := models.GetStoryData(r.Context(), storyID, auth.GetUserID(r))
 	if err != nil {
 		if err == models.ErrNotFound {
 			http.Error(w, "Story not found", http.StatusNotFound)

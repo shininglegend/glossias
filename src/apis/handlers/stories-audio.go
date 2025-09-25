@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"glossias/src/apis/types"
+	"glossias/src/auth"
 	"glossias/src/pkg/models"
 	"net/http"
 	"strconv"
@@ -19,7 +20,7 @@ func (h *Handler) GetPage1(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	story, err := models.GetStoryData(r.Context(), id)
+	story, err := models.GetStoryData(r.Context(), id, auth.GetUserID(r))
 	if err == models.ErrNotFound {
 		h.sendError(w, "Story not found", http.StatusNotFound)
 		return
@@ -63,8 +64,8 @@ func (h *Handler) processLinesForPage1(story models.Story) []types.Line {
 		}
 
 		lines = append(lines, types.Line{
-			Text:               []string{dbLine.Text},
-			AudioFiles:         audioFiles,
+			Text:       []string{dbLine.Text},
+			AudioFiles: audioFiles,
 		})
 	}
 

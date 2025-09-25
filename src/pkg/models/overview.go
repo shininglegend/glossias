@@ -15,8 +15,8 @@ Core Types:
 - GrammarPoint: {ID, Name, Description}
 
 Database Functions (SQLC-based):
-GetStoryData(id int) (*Story, error) // Full story with all components
-GetAllStories(language string) ([]Story, error) // Basic story list
+GetStoryData(id int, userID string) (*Story, error) // Full story with all components
+GetAllStories(language string, userID string) ([]Story, error) // Basic story list
 GetLineAnnotations(storyID, lineNumber int) (*StoryLine, error)
 GetStoryAnnotations(storyID int) (map[int]*StoryLine, error)
 GetLineText(storyID, lineNumber int) (string, error)
@@ -69,6 +69,13 @@ CanUserAccessCourse(userID string, courseID int32) bool // Uses CanUserAccessCou
 IsUserAdmin(userID string) bool // Uses GetUser and IsUserAdminOfAnyCourse
 IsUserCourseAdmin(userID string, courseID int32) bool // Uses IsUserCourseAdmin
 GetUserCourseAdminRights(userID string) ([]CourseAdminRight, error) // Uses GetUserCourseAdminRights
+
+Course User Operations (SQLC-based):
+AddUserToCourseByEmail(email string, courseID int) error // Uses GetUserByEmail, AddUserToCourse
+RemoveUserFromCourse(courseID int, userID string) error // Uses RemoveUserFromCourse
+DeleteAllUsersFromCourse(courseID int) error // Uses DeleteAllUsersFromCourse
+GetCoursesForUser(userID string) ([]UserCourse, error) // Uses GetCoursesForUser
+GetUsersForCourse(courseID int) ([]CourseUser, error) // Uses GetUsersForCourse
 
 Error Types:
 ErrNotFound, ErrInvalidStoryID, ErrInvalidLineNumber, ErrMissingStoryID,

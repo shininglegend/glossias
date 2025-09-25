@@ -40,7 +40,7 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 func (h *Handler) adminAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Get user ID from request context (set by auth middleware)
-		userID, ok := auth.GetUserID(r)
+		userID, ok := auth.GetUserIDWithOk(r)
 		if !ok {
 			h.log.Warn("admin access attempted without user ID", "path", r.URL.Path)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)

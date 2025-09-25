@@ -207,9 +207,9 @@ func IsUserSuperAdmin(ctx context.Context, userID string) bool {
 	return err == nil && user.IsSuperAdmin.Bool
 }
 
-// GetCoursesForUser returns all courses a user is admin of
-func GetCoursesForUser(ctx context.Context, userID string) ([]Course, error) {
-	results, err := queries.GetCoursesForUser(ctx, userID)
+// GetAdminCoursesForUser returns all courses a user is admin of
+func GetAdminCoursesForUser(ctx context.Context, userID string) ([]Course, error) {
+	results, err := queries.GetAdminCoursesForUser(ctx, userID)
 	if err != nil {
 		return nil, err
 	}

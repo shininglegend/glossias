@@ -13,6 +13,7 @@ import (
 type Querier interface {
 	// Course admin management queries
 	AddCourseAdmin(ctx context.Context, arg AddCourseAdminParams) (CourseAdmin, error)
+	AddUserToCourse(ctx context.Context, arg AddUserToCourseParams) error
 	BulkCreateAudioFiles(ctx context.Context, arg []BulkCreateAudioFilesParams) (int64, error)
 	BulkCreateGrammarItems(ctx context.Context, arg []BulkCreateGrammarItemsParams) (int64, error)
 	BulkCreateLineTranslations(ctx context.Context, arg []BulkCreateLineTranslationsParams) (int64, error)
@@ -41,6 +42,7 @@ type Querier interface {
 	DeleteAllStoryAnnotations(ctx context.Context, storyID pgtype.Int4) error
 	DeleteAllStoryLines(ctx context.Context, storyID int32) error
 	DeleteAllTranslationsForStory(ctx context.Context, storyID int32) error
+	DeleteAllUsersFromCourse(ctx context.Context, courseID int32) error
 	DeleteAllVocabularyForStory(ctx context.Context, storyID pgtype.Int4) error
 	DeleteAudioFile(ctx context.Context, audioFileID int32) error
 	DeleteCourse(ctx context.Context, courseID int32) error
@@ -65,11 +67,13 @@ type Querier interface {
 	DeleteUser(ctx context.Context, userID string) error
 	DeleteVocabularyItem(ctx context.Context, id int32) error
 	DeleteVocabularyItems(ctx context.Context, arg DeleteVocabularyItemsParams) error
+	GetAdminCoursesForUser(ctx context.Context, userID string) ([]Course, error)
 	GetAllAnnotationsForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllAnnotationsForStoryRow, error)
 	GetAllFootnotesForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllFootnotesForStoryRow, error)
 	GetAllGrammarForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllGrammarForStoryRow, error)
 	GetAllStories(ctx context.Context) ([]Story, error)
 	GetAllStoriesBasic(ctx context.Context, languageCode string) ([]GetAllStoriesBasicRow, error)
+	GetAllStoriesForUser(ctx context.Context, arg GetAllStoriesForUserParams) ([]GetAllStoriesForUserRow, error)
 	GetAllStoriesWithTitles(ctx context.Context) ([]GetAllStoriesWithTitlesRow, error)
 	GetAllStoryAudioFiles(ctx context.Context, storyID pgtype.Int4) ([]LineAudioFile, error)
 	GetAllTranslationsForStory(ctx context.Context, storyID int32) ([]LineTranslation, error)
@@ -80,7 +84,7 @@ type Querier interface {
 	GetCourseAdmins(ctx context.Context, courseID int32) ([]GetCourseAdminsRow, error)
 	GetCourseByNumber(ctx context.Context, courseNumber string) (Course, error)
 	GetCourseIdForStory(ctx context.Context, storyID int32) (pgtype.Int4, error)
-	GetCoursesForUser(ctx context.Context, userID string) ([]Course, error)
+	GetCoursesForUser(ctx context.Context, userID string) ([]GetCoursesForUserRow, error)
 	GetFootnoteReferences(ctx context.Context, footnoteID int32) ([]string, error)
 	GetFootnotes(ctx context.Context, arg GetFootnotesParams) ([]Footnote, error)
 	GetGrammarItems(ctx context.Context, arg GetGrammarItemsParams) ([]GrammarItem, error)
@@ -112,6 +116,7 @@ type Querier interface {
 	GetUser(ctx context.Context, userID string) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserCourseAdminRights(ctx context.Context, userID string) ([]GetUserCourseAdminRightsRow, error)
+	GetUsersForCourse(ctx context.Context, courseID int32) ([]GetUsersForCourseRow, error)
 	GetVocabularyItems(ctx context.Context, arg GetVocabularyItemsParams) ([]VocabularyItem, error)
 	IsUserAdminOfAnyCourse(ctx context.Context, userID string) (bool, error)
 	IsUserCourseAdmin(ctx context.Context, arg IsUserCourseAdminParams) (bool, error)
@@ -121,6 +126,7 @@ type Querier interface {
 	ListSuperAdmins(ctx context.Context) ([]User, error)
 	ListUsers(ctx context.Context) ([]User, error)
 	RemoveCourseAdmin(ctx context.Context, arg RemoveCourseAdminParams) error
+	RemoveUserFromCourse(ctx context.Context, arg RemoveUserFromCourseParams) error
 	StoryExists(ctx context.Context, storyID int32) (bool, error)
 	UpdateAudioFile(ctx context.Context, arg UpdateAudioFileParams) (LineAudioFile, error)
 	UpdateCourse(ctx context.Context, arg UpdateCourseParams) (Course, error)

@@ -153,9 +153,17 @@ func extractAndValidateUser(r *http.Request, logger *slog.Logger) (string, error
 }
 
 // GetUserID extracts user ID from request context
-func GetUserID(r *http.Request) (string, bool) {
+func GetUserIDWithOk(r *http.Request) (string, bool) {
 	userID, ok := r.Context().Value(UserIDKey).(string)
 	return userID, ok
+}
+
+func GetUserID(r *http.Request) string {
+	userID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok {
+		return ""
+	}
+	return userID
 }
 
 // HasPermission checks if user has permission to access a course

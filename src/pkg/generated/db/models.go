@@ -23,6 +23,12 @@ type CourseAdmin struct {
 	AssignedAt pgtype.Timestamp `json:"assigned_at"`
 }
 
+type CourseUser struct {
+	CourseID   int32            `json:"course_id"`
+	UserID     string           `json:"user_id"`
+	EnrolledAt pgtype.Timestamp `json:"enrolled_at"`
+}
+
 type Footnote struct {
 	ID           int32       `json:"id"`
 	StoryID      pgtype.Int4 `json:"story_id"`

@@ -30,6 +30,14 @@ CREATE TABLE IF NOT EXISTS course_admins (
     PRIMARY KEY (course_id, user_id)
 );
 
+-- Course users junction table - assigns users to courses without admin privileges
+CREATE TABLE IF NOT EXISTS course_users (
+    course_id INTEGER REFERENCES courses (course_id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users (user_id) ON DELETE CASCADE,
+    enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (course_id, user_id)
+);
+
 -- Grammar points table - each point belongs to a specific story
 CREATE TABLE IF NOT EXISTS grammar_points (
     grammar_point_id SERIAL PRIMARY KEY,

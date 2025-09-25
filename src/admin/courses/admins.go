@@ -23,7 +23,7 @@ type AddCourseAdminRequest struct {
 
 // handleCourseAdminsList returns all admins for a specific course
 func (h *Handler) handleCourseAdminsList(w http.ResponseWriter, r *http.Request, courseID int32) {
-	userID, ok := auth.GetUserID(r)
+	userID, ok := auth.GetUserIDWithOk(r)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -50,7 +50,7 @@ func (h *Handler) handleCourseAdminsList(w http.ResponseWriter, r *http.Request,
 
 // handleCourseAdminAdd adds a user as admin to a course (super admin only)
 func (h *Handler) handleCourseAdminAdd(w http.ResponseWriter, r *http.Request, courseID int32) {
-	userID, ok := auth.GetUserID(r)
+	userID, ok := auth.GetUserIDWithOk(r)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -112,7 +112,7 @@ func (h *Handler) handleCourseAdminAdd(w http.ResponseWriter, r *http.Request, c
 
 // handleCourseAdminRemove removes a user as admin from a course (super admin only)
 func (h *Handler) handleCourseAdminRemove(w http.ResponseWriter, r *http.Request, courseID int32, targetUserID string) {
-	userID, ok := auth.GetUserID(r)
+	userID, ok := auth.GetUserIDWithOk(r)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return

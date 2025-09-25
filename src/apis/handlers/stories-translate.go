@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"glossias/src/apis/types"
+	"glossias/src/auth"
 	"glossias/src/pkg/models"
 	"net/http"
 	"strconv"
@@ -19,7 +20,7 @@ func (h *Handler) GetPage4(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	story, err := models.GetStoryData(r.Context(), id)
+	story, err := models.GetStoryData(r.Context(), id, auth.GetUserID(r))
 	if err == models.ErrNotFound {
 		h.sendError(w, "Story not found", http.StatusNotFound)
 		return

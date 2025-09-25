@@ -1,7 +1,7 @@
 # AI Usage Documentation
 
 ## Overview
-This document details the use of AI tools in developing the Logos Stories project.
+This document details the use of AI tools in developing the Glossias project.
 
 ### Rational
 Normally, courses for credit at an academic institution do not encourage the use of generative AI tools for code development.

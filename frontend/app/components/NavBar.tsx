@@ -20,7 +20,7 @@ export default function NavBar() {
     <header className="sticky top-0 z-50 bg-slate-900 text-white border-b border-white/10">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
         <NavLink to="/" className="font-bold tracking-tight">
-          Logos Stories
+          Glossias
         </NavLink>
 
         <nav className="inline-flex items-center gap-2" aria-label="Primary">

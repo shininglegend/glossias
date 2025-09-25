@@ -7,11 +7,14 @@ import type {
   GrammarPoint,
 } from "../../types/api";
 
+const RTL_LANGUAGES = ["he", "ar", "fa", "ur"];
+
 export interface Props {
   text: string;
   vocabulary: VocabItem[];
   grammar: GrammarItem[];
   grammarPoints?: GrammarPoint[];
+  languageCode?: string;
   onSelect?: (start: number, end: number, text: string) => void;
 }
 
@@ -27,26 +30,43 @@ export default function AnnotatedText({
   vocabulary,
   grammar,
   grammarPoints = [],
+  languageCode,
   onSelect,
 }: Props) {
+  const isRTL = languageCode && RTL_LANGUAGES.includes(languageCode);
+
+  // Handle RTL indentation by converting leading tabs to padding
+  const { displayText, indentLevel } = useMemo(() => {
+    if (!isRTL) return { displayText: text, indentLevel: 0 };
+
+    const leadingTabs = text.match(/^\t*/)?.[0] || "";
+    const tabCount = leadingTabs.length;
+    const textWithoutTabs = text.slice(tabCount);
+
+    return {
+      displayText: textWithoutTabs,
+      indentLevel: tabCount,
+    };
+  }, [text, isRTL]);
+
   const segments = useMemo(() => {
     const annotations: Annotation[] = [
       ...vocabulary.map((v) => ({
-        start: v.position[0],
-        end: v.position[1],
+        start: v.position[0] - (isRTL ? indentLevel : 0), // Adjust positions for removed tabs
+        end: v.position[1] - (isRTL ? indentLevel : 0),
         type: "vocab" as const,
         data: v,
       })),
       ...grammar.map((g) => ({
-        start: g.position[0],
-        end: g.position[1],
+        start: g.position[0] - (isRTL ? indentLevel : 0),
+        end: g.position[1] - (isRTL ? indentLevel : 0),
         type: "grammar" as const,
         data: g,
       })),
     ].sort((a, b) => a.start - b.start);
 
-    return createTextSegments(text, annotations);
-  }, [text, vocabulary, grammar]);
+    return createTextSegments(displayText, annotations);
+  }, [displayText, vocabulary, grammar, isRTL, indentLevel]);
 
   const handleMouseUp = () => {
     const selection = window.getSelection();
@@ -61,7 +81,7 @@ export default function AnnotatedText({
     const walker = document.createTreeWalker(
       container.closest(".annotated-text")!,
       NodeFilter.SHOW_TEXT,
-      null,
+      null
     );
     let node: Node | null;
     while ((node = walker.nextNode())) textNodes.push(node);
@@ -89,7 +109,12 @@ export default function AnnotatedText({
   };
 
   return (
-    <span className="annotated-text leading-7" onMouseUp={handleMouseUp}>
+    <span
+      className={`annotated-text leading-7 whitespace-pre ${isRTL ? "text-right" : "text-left"}`}
+      dir={isRTL ? "rtl" : "ltr"}
+      style={isRTL ? { paddingRight: `${indentLevel * 2}em` } : undefined}
+      onMouseUp={handleMouseUp}
+    >
       {segments.map((segment, i) => (
         <TextSegment key={i} segment={segment} grammarPoints={grammarPoints} />
       ))}
@@ -116,7 +141,7 @@ function TextSegment({
   if (!annotations.length) return <>{text}</>;
 
   const classes = annotations.map((a) =>
-    a.type === "vocab" ? "vocab-highlight" : "grammar-highlight",
+    a.type === "vocab" ? "vocab-highlight" : "grammar-highlight"
   );
 
   const tooltipParts: string[] = [];
@@ -127,7 +152,7 @@ function TextSegment({
     } else if (a.type === "grammar") {
       const grammar = a.data as GrammarItem;
       const grammarPoint = grammarPoints.find(
-        (gp: GrammarPoint) => gp.id === grammar.grammarPointId,
+        (gp: GrammarPoint) => gp.id === grammar.grammarPointId
       );
       const grammarPointName = grammarPoint ? grammarPoint.name : "Unknown";
       tooltipParts.push(`${grammarPointName}: ${grammar.text}`);
@@ -175,7 +200,7 @@ function TextSegment({
               <div key={i}>{part}</div>
             ))}
           </div>,
-          document.body,
+          document.body
         )}
     </span>
   );
@@ -183,7 +208,7 @@ function TextSegment({
 
 function createTextSegments(
   text: string,
-  annotations: Annotation[],
+  annotations: Annotation[]
 ): TextSegments[] {
   const segments: TextSegments[] = [];
   let lastIndex = 0;

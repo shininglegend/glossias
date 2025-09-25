@@ -10,6 +10,7 @@ import {
   createAudioDeleter,
   AudioUploadError,
 } from "~/lib/audio";
+import { useAuthenticatedFetch } from "../../lib/authFetch";
 import type { StoryLine, GrammarPoint } from "../../types/api";
 
 interface Props {
@@ -45,6 +46,8 @@ export default function Line({
     text: string;
   } | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const authenticatedFetch = useAuthenticatedFetch();
 
   const handleClickAway = useCallback((event: MouseEvent) => {
     const target = event.target as HTMLElement;
@@ -102,17 +105,70 @@ export default function Line({
   const [audioUploading, setAudioUploading] = useState<string | null>(null);
   const [audioDeleting, setAudioDeleting] = useState<string | null>(null);
   const [audioPlaying, setAudioPlaying] = useState<string | null>(null);
+  const [clearingAnnotations, setClearingAnnotations] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const [localCompleteAudioURL, setLocalCompleteAudioURL] = useState<
+    string | undefined
+  >(completeAudioURL);
   const uploadAudioFile = createAudioUploader();
   const deleteLineAudio = createAudioDeleter();
 
   // Check if audio exists based on provided URLs
   const hasAudio = (label: string) => {
-    return label === "complete" ? !!completeAudioURL : !!incompleteAudioURL;
+    return label === "complete"
+      ? !!localCompleteAudioURL
+      : !!incompleteAudioURL;
+  };
+
+  // Fetch signed URL after successful upload
+  const fetchSignedURL = async (label: string) => {
+    try {
+      const response = await authenticatedFetch(
+        `/api/stories/${line.storyId}/audio/signed?label=${label}`,
+      );
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data.success ? data.data[line.lineNumber.toString()] : null;
+    } catch (e) {
+      console.error(`Failed to fetch ${label} audio URL:`, e);
+      return null;
+    }
+  };
+
+  const handleClearAnnotations = async () => {
+    if (!line.storyId) {
+      alert("Story ID not available. Please refresh the page and try again.");
+      setShowClearConfirm(false);
+      return;
+    }
+
+    setClearingAnnotations(true);
+    try {
+      const response = await authenticatedFetch(
+        `/api/admin/stories/${line.storyId}/annotations?line=${line.lineNumber}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to clear annotations: ${response.status}`);
+      }
+
+      // Refresh the page to reload the story data
+      window.location.reload();
+    } catch (error) {
+      console.error("Error clearing annotations:", error);
+      alert("Failed to clear annotations");
+    } finally {
+      setClearingAnnotations(false);
+      setShowClearConfirm(false);
+    }
   };
 
   const handleAudioPlay = async (label: string) => {
     const audioURL =
-      label === "complete" ? completeAudioURL : incompleteAudioURL;
+      label === "complete" ? localCompleteAudioURL : incompleteAudioURL;
     if (!audioURL) return;
 
     setAudioPlaying(label);
@@ -138,10 +194,25 @@ export default function Line({
     if (!file) return;
 
     setAudioUploading(label);
+    setUploadSuccess(null);
     try {
       await uploadAudioFile(file, line.storyId || 0, line.lineNumber, label);
       // Reset input
       event.target.value = "";
+
+      // Show success state
+      setUploadSuccess(label);
+
+      // Fetch the new signed URL and update local state
+      if (label === "complete") {
+        const newURL = await fetchSignedURL(label);
+        if (newURL) {
+          setLocalCompleteAudioURL(newURL);
+        }
+      }
+
+      // Clear success state after 3 seconds
+      setTimeout(() => setUploadSuccess(null), 3000);
     } catch (error) {
       if (error instanceof AudioUploadError) {
         alert(`Upload failed at ${error.step}: ${error.message}`);
@@ -175,111 +246,94 @@ export default function Line({
     }
   };
 
+  const RTL_LANGUAGES = ["he", "ar", "fa", "ur"];
+  const isRTL = line.languageCode && RTL_LANGUAGES.includes(line.languageCode);
+
   return (
-    <div className="story-line flex items-start gap-2">
+    <div className={`story-line flex items-start gap-2`}>
       <span className="line-number text-slate-500 mr-1">{line.lineNumber}</span>
-      <div className="flex-1 outline-dotted p-1">
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setShowClearConfirm(true)}
+        disabled={clearingAnnotations}
+        className="text-xs"
+      >
+        {clearingAnnotations ? "Clearing..." : "Clear Annotations"}
+      </Button>
+
+      <div
+        className={`flex-1 outline-dotted p-1 whitespace-pre ${isRTL ? "text-right" : ""}`}
+        dir={isRTL ? "rtl" : "ltr"}
+      >
         <AnnotatedText
           text={line.text}
           vocabulary={line.vocabulary}
           grammar={line.grammar}
           grammarPoints={storyGrammarPoints}
+          languageCode={line.languageCode}
           onSelect={handleSelect}
         />
       </div>
-      <div className="flex items-center gap-4 text-xs w-80">
+      <div className="flex items-center gap-4 text-xs w-50">
         {/* Complete Audio Controls */}
-        <div className="flex items-center gap-1 flex-1">
+        <div className="flex items-center gap-1">
           <span className="text-slate-600">Complete Audio:</span>
-          {hasAudio("complete") && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleAudioPlay("complete")}
-              className="text-xs px-1"
-              disabled={
-                audioUploading !== null ||
-                audioDeleting !== null ||
-                audioPlaying !== null
-              }
-            >
-              {audioPlaying === "complete" ? "⏸️" : "▶️"}
-            </Button>
+          {hasAudio("complete") ? (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleAudioPlay("complete")}
+                className="text-xs px-1"
+                disabled={
+                  audioUploading !== null ||
+                  audioDeleting !== null ||
+                  audioPlaying !== null
+                }
+              >
+                {audioPlaying === "complete" ? "⏸️" : "▶️"}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={audioUploading !== null || audioDeleting !== null}
+                className="text-xs px-1"
+              >
+                {audioDeleting === "all" ? "⏳" : "🗑️"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <input
+                type="file"
+                accept="audio/*"
+                onChange={(e) => handleAudioUpload(e, "complete")}
+                style={{ display: "none" }}
+                id={`audio-upload-complete-${line.lineNumber}`}
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  document
+                    .getElementById(`audio-upload-complete-${line.lineNumber}`)
+                    ?.click()
+                }
+                disabled={audioUploading !== null || audioDeleting !== null}
+                className="text-xs px-1"
+              >
+                {audioUploading === "complete"
+                  ? "⏳"
+                  : uploadSuccess === "complete"
+                    ? "✅"
+                    : "📁"}
+              </Button>
+            </>
           )}
-          <input
-            type="file"
-            accept="audio/*"
-            onChange={(e) => handleAudioUpload(e, "complete")}
-            style={{ display: "none" }}
-            id={`audio-upload-complete-${line.lineNumber}`}
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() =>
-              document
-                .getElementById(`audio-upload-complete-${line.lineNumber}`)
-                ?.click()
-            }
-            disabled={audioUploading !== null || audioDeleting !== null}
-            className="text-xs px-1"
-          >
-            {audioUploading === "complete" ? "⏳" : "📁"}
-          </Button>
         </div>
-
-        {/* Incomplete Audio Controls */}
-        <div className="flex items-center gap-1 flex-1">
-          <span className="text-slate-600">Incomplete Audio:</span>
-          {hasAudio("incomplete") && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleAudioPlay("incomplete")}
-              className="text-xs px-1"
-              disabled={
-                audioUploading !== null ||
-                audioDeleting !== null ||
-                audioPlaying !== null
-              }
-            >
-              {audioPlaying === "incomplete" ? "⏸️" : "▶️"}
-            </Button>
-          )}
-          <input
-            type="file"
-            accept="audio/*"
-            onChange={(e) => handleAudioUpload(e, "incomplete")}
-            style={{ display: "none" }}
-            id={`audio-upload-incomplete-${line.lineNumber}`}
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() =>
-              document
-                .getElementById(`audio-upload-incomplete-${line.lineNumber}`)
-                ?.click()
-            }
-            disabled={audioUploading !== null || audioDeleting !== null}
-            className="text-xs px-1"
-          >
-            {audioUploading === "incomplete" ? "⏳" : "📁"}
-          </Button>
-        </div>
-
-        {/* Delete All Audio Button */}
-        {(hasAudio("complete") || hasAudio("incomplete")) && (
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => setShowDeleteConfirm(true)}
-            disabled={audioUploading !== null || audioDeleting !== null}
-            className="text-xs px-1"
-          >
-            {audioDeleting === "all" ? "⏳" : "🗑️"}
-          </Button>
-        )}
       </div>
       {menu && (
         <AnnotationMenu
@@ -308,6 +362,15 @@ export default function Line({
         title="Delete All Audio"
         message="This will permanently remove all audio files from this line. This action cannot be undone."
         loading={audioDeleting === "all"}
+      />
+      <ConfirmDialog
+        isOpen={showClearConfirm}
+        onClose={() => setShowClearConfirm(false)}
+        onConfirm={handleClearAnnotations}
+        variant="clear"
+        title="Clear Line Annotations"
+        message={`This will remove all annotations from line ${line.lineNumber}. This action cannot be undone.`}
+        loading={clearingAnnotations}
       />
     </div>
   );

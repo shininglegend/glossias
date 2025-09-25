@@ -81,6 +81,7 @@ export default function AnnotationModal({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={type === "vocab" ? "e.g. lemma" : "Enter note"}
+              autoFocus={type === "vocab"}
             />
           </div>
         )}

@@ -57,7 +57,6 @@ export default function MetadataForm({
           type="number"
           value={meta.weekNumber}
           onChange={(e) => update("weekNumber", Number(e.target.value))}
-          required
         />
       </div>
       <div>
@@ -66,7 +65,6 @@ export default function MetadataForm({
           value={meta.dayLetter}
           onChange={(e) => update("dayLetter", e.target.value)}
           maxLength={1}
-          required
         />
       </div>
       <div>

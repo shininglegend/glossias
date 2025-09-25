@@ -84,22 +84,49 @@ export default function AnnotatedText({
 
     if (!annotatedTextElement) return;
 
-    // Get the selected text directly from the original text
-    const selectedText = selection.toString();
-    if (!selectedText.trim()) return;
+    // Build mapping from DOM text nodes to original text positions
+    const textNodes: Node[] = [];
+    const nodePositions: number[] = [];
+    const walker = document.createTreeWalker(
+      annotatedTextElement,
+      NodeFilter.SHOW_TEXT,
+      null,
+    );
 
-    // Find the selection in the original text
-    // We need to account for RTL indentation adjustments
-    const searchText = isRTL ? displayText : originalText;
-    const startIndex = searchText.indexOf(selectedText);
+    let node: Node | null;
+    let originalPosition = isRTL ? indentLevel : 0;
 
-    if (startIndex === -1) return;
+    while ((node = walker.nextNode())) {
+      textNodes.push(node);
+      nodePositions.push(originalPosition);
+      originalPosition += node.textContent?.length || 0;
+    }
 
-    // Adjust positions back to original text coordinates
-    const originalStart = isRTL ? startIndex + indentLevel : startIndex;
-    const originalEnd = originalStart + selectedText.length;
+    // Find selection positions in original text
+    let absoluteStart = 0;
+    let absoluteEnd = 0;
+    let foundStart = false;
+    let foundEnd = false;
 
-    onSelect(originalStart, originalEnd, selectedText);
+    for (let i = 0; i < textNodes.length; i++) {
+      const node = textNodes[i];
+      const nodeStartPos = nodePositions[i];
+
+      if (node === range.startContainer && !foundStart) {
+        absoluteStart = nodeStartPos + range.startOffset;
+        foundStart = true;
+      }
+
+      if (node === range.endContainer) {
+        absoluteEnd = nodeStartPos + range.endOffset;
+        foundEnd = true;
+        break;
+      }
+    }
+
+    if (foundStart && foundEnd && absoluteStart !== absoluteEnd) {
+      onSelect(absoluteStart, absoluteEnd, selection.toString());
+    }
   };
 
   return (

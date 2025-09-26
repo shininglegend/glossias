@@ -27,3 +27,10 @@ export function useUserContext() {
   }
   return context;
 }
+
+export function isUserAdminOfCourses(user: UserInfo | null): boolean {
+  if (!user?.course_admin_rights) {
+    return false;
+  }
+  return user?.is_super_admin || user?.course_admin_rights.length > 0;
+}

@@ -48,7 +48,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Meta />
         <Links />
       </head>
-      <body>
+      <body className="min-h-screen flex flex-col">
         {children}
         <ScrollRestoration />
         <Scripts />
@@ -72,9 +72,9 @@ export default function App() {
   return (
     <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
       <UserProvider>
-        <div id="app-shell">
+        <div id="app-shell" className="flex-1 flex flex-col">
           <NavBar />
-          <div className="pt-16 p-4 container mx-auto">
+          <div className="pt-16 p-4 container mx-auto flex-1">
             <main>
               <Outlet />
             </main>

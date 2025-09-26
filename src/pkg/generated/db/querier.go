@@ -24,6 +24,10 @@ type Querier interface {
 	CheckGrammarExists(ctx context.Context, arg CheckGrammarExistsParams) (bool, error)
 	CheckVocabularyExists(ctx context.Context, arg CheckVocabularyExistsParams) (bool, error)
 	ClearStoryGrammarPoints(ctx context.Context, storyID int32) error
+	CloseAnonymousTimeEntry(ctx context.Context, arg CloseAnonymousTimeEntryParams) error
+	CloseTimeEntry(ctx context.Context, arg CloseTimeEntryParams) error
+	// Anonymous time tracking queries
+	CreateAnonymousTimeEntry(ctx context.Context, arg CreateAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
 	// Audio files management queries
 	CreateAudioFile(ctx context.Context, arg CreateAudioFileParams) (LineAudioFile, error)
 	// Course management queries
@@ -34,6 +38,8 @@ type Querier interface {
 	// Grammar points management queries
 	CreateGrammarPoint(ctx context.Context, arg CreateGrammarPointParams) (GrammarPoint, error)
 	CreateStory(ctx context.Context, arg CreateStoryParams) (CreateStoryRow, error)
+	// Time tracking queries
+	CreateTimeEntry(ctx context.Context, arg CreateTimeEntryParams) (UserTimeTracking, error)
 	// User management queries
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateVocabularyItem(ctx context.Context, arg CreateVocabularyItemParams) (int32, error)
@@ -58,6 +64,7 @@ type Querier interface {
 	DeleteLineTranslation(ctx context.Context, arg DeleteLineTranslationParams) error
 	DeleteLineTranslations(ctx context.Context, arg DeleteLineTranslationsParams) error
 	DeleteLineVocabulary(ctx context.Context, arg DeleteLineVocabularyParams) error
+	DeleteOldAnonymousEntries(ctx context.Context, createdAt pgtype.Timestamp) error
 	DeleteStory(ctx context.Context, storyID int32) error
 	DeleteStoryAudioFiles(ctx context.Context, storyID pgtype.Int4) error
 	DeleteStoryAudioFilesByLabel(ctx context.Context, arg DeleteStoryAudioFilesByLabelParams) error
@@ -67,6 +74,8 @@ type Querier interface {
 	DeleteUser(ctx context.Context, userID string) error
 	DeleteVocabularyItem(ctx context.Context, id int32) error
 	DeleteVocabularyItems(ctx context.Context, arg DeleteVocabularyItemsParams) error
+	GetActiveAnonymousTimeEntry(ctx context.Context, arg GetActiveAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
+	GetActiveTimeEntry(ctx context.Context, arg GetActiveTimeEntryParams) (UserTimeTracking, error)
 	GetAdminCoursesForUser(ctx context.Context, userID string) ([]Course, error)
 	GetAllAnnotationsForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllAnnotationsForStoryRow, error)
 	GetAllFootnotesForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllFootnotesForStoryRow, error)
@@ -78,6 +87,7 @@ type Querier interface {
 	GetAllStoryAudioFiles(ctx context.Context, storyID pgtype.Int4) ([]LineAudioFile, error)
 	GetAllTranslationsForStory(ctx context.Context, storyID int32) ([]LineTranslation, error)
 	GetAllVocabularyForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllVocabularyForStoryRow, error)
+	GetAnonymousTimeEntryByID(ctx context.Context, trackingID int32) (AnonymousTimeTracking, error)
 	GetAudioFile(ctx context.Context, audioFileID int32) (LineAudioFile, error)
 	GetAudioFilesByLabel(ctx context.Context, label string) ([]LineAudioFile, error)
 	GetCourse(ctx context.Context, courseID int32) (Course, error)
@@ -112,6 +122,9 @@ type Querier interface {
 	// Story titles
 	GetStoryTitles(ctx context.Context, storyID int32) ([]StoryTitle, error)
 	GetStoryWithDescription(ctx context.Context, storyID int32) (GetStoryWithDescriptionRow, error)
+	GetTimeEntriesForStory(ctx context.Context, storyID pgtype.Int4) ([]UserTimeTracking, error)
+	GetTimeEntriesForUser(ctx context.Context, userID string) ([]UserTimeTracking, error)
+	GetTimeEntryByID(ctx context.Context, trackingID int32) (UserTimeTracking, error)
 	GetTranslationsByLanguage(ctx context.Context, arg GetTranslationsByLanguageParams) ([]GetTranslationsByLanguageRow, error)
 	GetUser(ctx context.Context, userID string) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
@@ -128,6 +141,7 @@ type Querier interface {
 	RemoveCourseAdmin(ctx context.Context, arg RemoveCourseAdminParams) error
 	RemoveUserFromCourse(ctx context.Context, arg RemoveUserFromCourseParams) error
 	StoryExists(ctx context.Context, storyID int32) (bool, error)
+	UpdateAnonymousTimeEntry(ctx context.Context, arg UpdateAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
 	UpdateAudioFile(ctx context.Context, arg UpdateAudioFileParams) (LineAudioFile, error)
 	UpdateCourse(ctx context.Context, arg UpdateCourseParams) (Course, error)
 	UpdateFootnote(ctx context.Context, arg UpdateFootnoteParams) error
@@ -135,6 +149,7 @@ type Querier interface {
 	UpdateGrammarPoint(ctx context.Context, arg UpdateGrammarPointParams) (GrammarPoint, error)
 	UpdateStory(ctx context.Context, arg UpdateStoryParams) error
 	UpdateStoryRevision(ctx context.Context, storyID int32) error
+	UpdateTimeEntry(ctx context.Context, arg UpdateTimeEntryParams) (UserTimeTracking, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpdateVocabularyByPosition(ctx context.Context, arg UpdateVocabularyByPositionParams) error
 	UpdateVocabularyByWord(ctx context.Context, arg UpdateVocabularyByWordParams) error

@@ -11,7 +11,8 @@ import (
 // Handler is a wrapper that delegates to the handlers package
 type Handler struct {
 	*handlers.Handler
-	users *users.Handler
+	users  *users.Handler
+	logger *slog.Logger
 }
 
 // NewHandler creates a new API handler
@@ -19,6 +20,7 @@ func NewHandler(logger *slog.Logger) *Handler {
 	return &Handler{
 		Handler: handlers.NewHandler(logger),
 		users:   users.NewHandler(logger),
+		logger:  logger,
 	}
 }
 

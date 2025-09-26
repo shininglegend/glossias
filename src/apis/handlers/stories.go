@@ -25,6 +25,7 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	}).Methods("GET", "OPTIONS")
 
 	// Individual page endpoints
+	router.HandleFunc("/{id}/metadata", h.GetStoryMetadata).Methods("GET", "OPTIONS")
 	router.HandleFunc("/{id}/audio", h.GetAudioPage).Methods("GET", "OPTIONS")
 	router.HandleFunc("/{id}/vocab", h.GetVocabPage).Methods("GET", "OPTIONS")
 	router.HandleFunc("/{id}/grammar", h.GetGrammarPage).Methods("GET", "OPTIONS")

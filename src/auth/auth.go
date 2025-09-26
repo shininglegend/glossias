@@ -26,6 +26,7 @@ func Middleware(logger *slog.Logger) mux.MiddlewareFunc {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Expose-Headers", "X-Tracking-ID")
 
 			// Handle preflight OPTIONS request
 			if r.Method == "OPTIONS" {
@@ -33,8 +34,9 @@ func Middleware(logger *slog.Logger) mux.MiddlewareFunc {
 				return
 			}
 
-			// Extract and validate JWT token for API routes (except health)
-			if strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/health" {
+			// Extract and validate JWT token for API routes (except health and time tracking)
+			if strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/health" &&
+				!strings.HasPrefix(r.URL.Path, "/api/time-tracking") {
 				userID, err := extractAndValidateUser(r, logger)
 				if err != nil {
 					logger.Error("auth failed", "error", err, "path", r.URL.Path)

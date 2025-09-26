@@ -140,3 +140,34 @@ CREATE TABLE IF NOT EXISTS footnote_references (
     reference TEXT NOT NULL,
     PRIMARY KEY (footnote_id, reference)
 );
+
+-- User time tracking table
+CREATE TABLE IF NOT EXISTS user_time_tracking (
+    tracking_id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+    route TEXT NOT NULL,
+    story_id INTEGER REFERENCES stories (story_id) ON DELETE SET NULL,
+    started_at TIMESTAMP NOT NULL,
+    ended_at TIMESTAMP,
+    total_time_seconds INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for efficient querying by user and date
+CREATE INDEX IF NOT EXISTS idx_time_tracking_user_date ON user_time_tracking (user_id, started_at);
+
+-- Anonymous user time tracking table (separate to prevent database bloat)
+CREATE TABLE IF NOT EXISTS anonymous_time_tracking (
+    tracking_id SERIAL PRIMARY KEY,
+    session_id TEXT NOT NULL, -- Browser fingerprint or session identifier
+    route TEXT NOT NULL,
+    story_id INTEGER REFERENCES stories (story_id) ON DELETE SET NULL,
+    started_at TIMESTAMP NOT NULL,
+    ended_at TIMESTAMP,
+    total_time_seconds INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for efficient querying and cleanup
+CREATE INDEX IF NOT EXISTS idx_anonymous_time_tracking_date ON anonymous_time_tracking (created_at);
+CREATE INDEX IF NOT EXISTS idx_anonymous_time_tracking_session ON anonymous_time_tracking (session_id, started_at);

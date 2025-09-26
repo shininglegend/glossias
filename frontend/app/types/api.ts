@@ -15,6 +15,7 @@ export interface StoryMetadata {
   author: Author;
   grammarPoints: GrammarPoint[];
   description: Description;
+  videoUrl?: string;
 }
 
 export interface Author {

@@ -8,6 +8,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AnonymousTimeTracking struct {
+	TrackingID       int32            `json:"tracking_id"`
+	SessionID        string           `json:"session_id"`
+	Route            string           `json:"route"`
+	StoryID          pgtype.Int4      `json:"story_id"`
+	StartedAt        pgtype.Timestamp `json:"started_at"`
+	EndedAt          pgtype.Timestamp `json:"ended_at"`
+	TotalTimeSeconds pgtype.Int4      `json:"total_time_seconds"`
+	CreatedAt        pgtype.Timestamp `json:"created_at"`
+}
+
 type Course struct {
 	CourseID     int32            `json:"course_id"`
 	CourseNumber string           `json:"course_number"`
@@ -112,6 +123,17 @@ type User struct {
 	IsSuperAdmin pgtype.Bool      `json:"is_super_admin"`
 	CreatedAt    pgtype.Timestamp `json:"created_at"`
 	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+type UserTimeTracking struct {
+	TrackingID       int32            `json:"tracking_id"`
+	UserID           string           `json:"user_id"`
+	Route            string           `json:"route"`
+	StoryID          pgtype.Int4      `json:"story_id"`
+	StartedAt        pgtype.Timestamp `json:"started_at"`
+	EndedAt          pgtype.Timestamp `json:"ended_at"`
+	TotalTimeSeconds pgtype.Int4      `json:"total_time_seconds"`
+	CreatedAt        pgtype.Timestamp `json:"created_at"`
 }
 
 type VocabularyItem struct {

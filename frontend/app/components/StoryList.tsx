@@ -61,7 +61,7 @@ export function StoryList() {
                 Week {story.week_number}
                 {story.day_letter}
               </p>
-              <Link to={`/stories/${story.id}/audio`}>Start Reading</Link>
+              <Link to={`/stories/${story.id}/video`}>Start Reading</Link>
             </div>
           ))}
         </div>

@@ -12,6 +12,20 @@ export interface Story {
   day_letter: string;
 }
 
+export interface Description {
+  language: string;
+  text: string;
+}
+
+export interface StoryMetadata {
+  storyId: number;
+  weekNumber: number;
+  dayLetter: string;
+  title?: string | { [key: string]: string };
+  description?: Description;
+  videoUrl?: string;
+}
+
 export interface AudioFile {
   id: number;
   filePath: string;
@@ -101,9 +115,14 @@ export function useApiService() {
     ),
 
     getSignedAudioURLs: useCallback(
-      (storyId: string, label?: string): Promise<APIResponse<{ [key: number]: string }>> => {
-        const params = label ? `?label=${encodeURIComponent(label)}` : '';
-        return fetchAPI<{ [key: number]: string }>(`/stories/${storyId}/audio/signed${params}`);
+      (
+        storyId: string,
+        label?: string,
+      ): Promise<APIResponse<{ [key: number]: string }>> => {
+        const params = label ? `?label=${encodeURIComponent(label)}` : "";
+        return fetchAPI<{ [key: number]: string }>(
+          `/stories/${storyId}/audio/signed${params}`,
+        );
       },
       [fetchAPI],
     ),
@@ -125,6 +144,13 @@ export function useApiService() {
     getStoryTranslate: useCallback(
       (id: string): Promise<APIResponse<TranslateData>> => {
         return fetchAPI<TranslateData>(`/stories/${id}/translate`);
+      },
+      [fetchAPI],
+    ),
+
+    getStoryMetadata: useCallback(
+      (id: string): Promise<APIResponse<StoryMetadata>> => {
+        return fetchAPI<StoryMetadata>(`/stories/${id}/metadata`);
       },
       [fetchAPI],
     ),

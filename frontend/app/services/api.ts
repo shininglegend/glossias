@@ -164,5 +164,21 @@ export function useApiService() {
       },
       [fetchAPI],
     ),
+
+    checkVocabLine: useCallback(
+      (
+        id: string,
+        lineNumber: number,
+        answer: string,
+      ): Promise<APIResponse<{ correct: boolean }>> => {
+        return fetchAPI(`/stories/${id}/check-vocab`, {
+          method: "POST",
+          body: JSON.stringify({
+            answers: [{ line_number: lineNumber, answers: [answer] }],
+          }),
+        });
+      },
+      [fetchAPI],
+    ),
   };
 }

@@ -62,6 +62,13 @@ ClearLineAnnotations(storyID, lineNumber int) error // Uses raw SQL for complex 
 Delete Operations (SQLC-based):
 Delete(storyID int) error // Uses StoryExists, DeleteStory, and component delete functions
 
+Score Operations:
+SaveVocabScore(ctx context.Context, userID string, storyID int, lineNumber int, correct bool) error
+SaveGrammarScore(ctx context.Context, userID string, storyID int, lineNumber int, correct bool) error
+SaveGrammarScoresForPoint(ctx context.Context, userID string, storyID int, grammarPointID int, lineScores map[int]bool) error // Multi-line grammar point scoring
+GetUserVocabScores(ctx context.Context, userID string, storyID int) (map[int]bool, error) // Returns map[lineNumber]correct
+GetUserGrammarScores(ctx context.Context, userID string, storyID int) (map[int]bool, error) // Returns map[lineNumber]correct
+
 User Operations (SQLC-based):
 UpsertUser(userID, email, name string) (*User, error) // Uses UpsertUser
 GetUser(userID string) (*User, error) // Uses GetUser

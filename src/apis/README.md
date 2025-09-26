@@ -68,7 +68,7 @@ Vocabulary exercise with blanks (`%`) and word bank.
 ```
 
 ### GET `/api/stories/{id}/grammar`
-Grammar lesson with highlights (`%grammar&`).
+Grammar exercise with blank story lines and grammar point info.
 
 **Response:**
 ```json
@@ -79,8 +79,8 @@ Grammar lesson with highlights (`%grammar&`).
     "story_title": "Story Title",
     "lines": [
       {
-        "text": ["Text with ", "%", "grammar", "&", " highlighted"],
-        "audio_url": "/static/stories/stories_audio/en_1A/line1.mp3",
+        "text": ["Full line of text"],
+        "audio_files": [],
         "has_vocab_or_grammar": true
       }
     ],
@@ -112,7 +112,7 @@ Translation page (empty translation field - not implemented).
 ```
 
 ### POST `/api/stories/{id}/check-vocab`
-Check vocabulary answers.
+Check vocabulary answers for one line.
 
 **Request:**
 ```json
@@ -120,7 +120,7 @@ Check vocabulary answers.
   "answers": [
     {
       "line_number": 0,
-      "answers": ["word1", "word2"]
+      "answers": ["word1"]
     }
   ]
 }
@@ -131,12 +131,45 @@ Check vocabulary answers.
 {
   "success": true,
   "data": {
-    "answers": [
+    "correct": true
+  }
+}
+```
+
+### POST `/api/stories/{id}/check-grammar`
+Check grammar answers for multiple lines of same grammar point.
+
+**Request:**
+```json
+{
+  "grammar_point_id": 1,
+  "answers": [
+    {
+      "line_number": 0,
+      "positions": [5, 12, 20]
+    },
+    {
+      "line_number": 2,
+      "positions": [8]
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "correct": 3,
+    "wrong": 1,
+    "total_answers": 4,
+    "results": [
       {
-        "correct": true,
-        "user_answer": "word1",
-        "correct_answer": "word1",
-        "line": 0
+        "line_number": 0,
+        "position": [5, 9],
+        "text": "verb",
+        "correct": true
       }
     ]
   }

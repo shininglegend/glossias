@@ -86,6 +86,8 @@ type Querier interface {
 	GetAllStoriesWithTitles(ctx context.Context) ([]GetAllStoriesWithTitlesRow, error)
 	GetAllStoryAudioFiles(ctx context.Context, storyID pgtype.Int4) ([]LineAudioFile, error)
 	GetAllTranslationsForStory(ctx context.Context, storyID int32) ([]LineTranslation, error)
+	GetAllUsersStoryGrammarSummary(ctx context.Context, storyID int32) ([]GetAllUsersStoryGrammarSummaryRow, error)
+	GetAllUsersStoryVocabSummary(ctx context.Context, storyID int32) ([]GetAllUsersStoryVocabSummaryRow, error)
 	GetAllVocabularyForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllVocabularyForStoryRow, error)
 	GetAnonymousTimeEntryByID(ctx context.Context, trackingID int32) (AnonymousTimeTracking, error)
 	GetAudioFile(ctx context.Context, audioFileID int32) (LineAudioFile, error)
@@ -115,12 +117,14 @@ type Querier interface {
 	GetStoryDescription(ctx context.Context, arg GetStoryDescriptionParams) (string, error)
 	GetStoryFootnotesWithReferences(ctx context.Context, storyID pgtype.Int4) ([]GetStoryFootnotesWithReferencesRow, error)
 	GetStoryGrammarPoints(ctx context.Context, storyID int32) ([]GetStoryGrammarPointsRow, error)
+	GetStoryGrammarScores(ctx context.Context, storyID int32) ([]GetStoryGrammarScoresRow, error)
 	GetStoryLine(ctx context.Context, arg GetStoryLineParams) (StoryLine, error)
 	// Story lines
 	GetStoryLines(ctx context.Context, storyID int32) ([]StoryLine, error)
 	GetStoryTitle(ctx context.Context, arg GetStoryTitleParams) (string, error)
 	// Story titles
 	GetStoryTitles(ctx context.Context, storyID int32) ([]StoryTitle, error)
+	GetStoryVocabScores(ctx context.Context, storyID int32) ([]GetStoryVocabScoresRow, error)
 	GetStoryWithDescription(ctx context.Context, storyID int32) (GetStoryWithDescriptionRow, error)
 	GetTimeEntriesForStory(ctx context.Context, storyID pgtype.Int4) ([]UserTimeTracking, error)
 	GetTimeEntriesForUser(ctx context.Context, userID string) ([]UserTimeTracking, error)
@@ -129,6 +133,12 @@ type Querier interface {
 	GetUser(ctx context.Context, userID string) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserCourseAdminRights(ctx context.Context, userID string) ([]GetUserCourseAdminRightsRow, error)
+	GetUserGrammarScores(ctx context.Context, arg GetUserGrammarScoresParams) ([]GetUserGrammarScoresRow, error)
+	GetUserLatestGrammarScoresByLine(ctx context.Context, arg GetUserLatestGrammarScoresByLineParams) ([]GetUserLatestGrammarScoresByLineRow, error)
+	GetUserLatestVocabScoresByLine(ctx context.Context, arg GetUserLatestVocabScoresByLineParams) ([]GetUserLatestVocabScoresByLineRow, error)
+	GetUserStoryGrammarSummary(ctx context.Context, arg GetUserStoryGrammarSummaryParams) (GetUserStoryGrammarSummaryRow, error)
+	GetUserStoryVocabSummary(ctx context.Context, arg GetUserStoryVocabSummaryParams) (GetUserStoryVocabSummaryRow, error)
+	GetUserVocabScores(ctx context.Context, arg GetUserVocabScoresParams) ([]GetUserVocabScoresRow, error)
 	GetUsersForCourse(ctx context.Context, courseID int32) ([]GetUsersForCourseRow, error)
 	GetVocabularyItems(ctx context.Context, arg GetVocabularyItemsParams) ([]VocabularyItem, error)
 	IsUserAdminOfAnyCourse(ctx context.Context, userID string) (bool, error)
@@ -140,6 +150,9 @@ type Querier interface {
 	ListUsers(ctx context.Context) ([]User, error)
 	RemoveCourseAdmin(ctx context.Context, arg RemoveCourseAdminParams) error
 	RemoveUserFromCourse(ctx context.Context, arg RemoveUserFromCourseParams) error
+	SaveGrammarScore(ctx context.Context, arg SaveGrammarScoreParams) error
+	// Score management queries
+	SaveVocabScore(ctx context.Context, arg SaveVocabScoreParams) error
 	StoryExists(ctx context.Context, storyID int32) (bool, error)
 	UpdateAnonymousTimeEntry(ctx context.Context, arg UpdateAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
 	UpdateAudioFile(ctx context.Context, arg UpdateAudioFileParams) (LineAudioFile, error)

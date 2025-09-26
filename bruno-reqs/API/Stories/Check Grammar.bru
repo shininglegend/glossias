@@ -1,0 +1,31 @@
+meta {
+  name: Check Grammar
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseURL}}/api/stories/{{adminStoryId}}/check-grammar
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "grammar_point_id": 1,
+    "answers": [
+      {
+        "line_number": 0,
+        "positions": [5, 12, 20]
+      },
+      {
+        "line_number": 2,
+        "positions": [8]
+      }
+    ]
+  }
+}
+
+settings {
+  encodeUrl: true
+}

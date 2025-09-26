@@ -70,6 +70,16 @@ type GrammarPoint struct {
 	CreatedAt      pgtype.Timestamp `json:"created_at"`
 }
 
+type GrammarScore struct {
+	ScoreID       int32            `json:"score_id"`
+	UserID        string           `json:"user_id"`
+	StoryID       int32            `json:"story_id"`
+	LineNumber    int32            `json:"line_number"`
+	GrammarItemID int32            `json:"grammar_item_id"`
+	Correct       bool             `json:"correct"`
+	AttemptedAt   pgtype.Timestamp `json:"attempted_at"`
+}
+
 type LineAudioFile struct {
 	AudioFileID int32            `json:"audio_file_id"`
 	StoryID     pgtype.Int4      `json:"story_id"`
@@ -134,6 +144,16 @@ type UserTimeTracking struct {
 	EndedAt          pgtype.Timestamp `json:"ended_at"`
 	TotalTimeSeconds pgtype.Int4      `json:"total_time_seconds"`
 	CreatedAt        pgtype.Timestamp `json:"created_at"`
+}
+
+type VocabScore struct {
+	ScoreID     int32            `json:"score_id"`
+	UserID      string           `json:"user_id"`
+	StoryID     int32            `json:"story_id"`
+	LineNumber  int32            `json:"line_number"`
+	VocabItemID int32            `json:"vocab_item_id"`
+	Correct     bool             `json:"correct"`
+	AttemptedAt pgtype.Timestamp `json:"attempted_at"`
 }
 
 type VocabularyItem struct {

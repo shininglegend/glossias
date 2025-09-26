@@ -108,13 +108,19 @@ func (h *Handler) generateVocabLines(story models.Story, id int) ([]types.Line, 
 	return lines, vocabBank
 }
 
-// CheckVocab handles vocabulary checking
+// CheckVocab handles vocabulary checking for a single line
 func (h *Handler) CheckVocab(w http.ResponseWriter, r *http.Request) {
 
 	var req types.CheckVocabRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.log.Warn("Invalid request body in CheckVocab", "error", err, "ip", r.RemoteAddr)
 		h.sendError(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Only process one line at a time
+	if len(req.Answers) != 1 {
+		h.sendError(w, "Must provide answers for exactly one line", http.StatusBadRequest)
 		return
 	}
 
@@ -133,67 +139,46 @@ func (h *Handler) CheckVocab(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build expected answers map for validation
-	expectedAnswers := make(map[int]int)
-	for i, line := range story.Content.Lines {
-		expectedAnswers[i] = len(line.Vocabulary)
+	answer := req.Answers[0]
+
+	// Validate line number
+	if answer.LineNumber < 0 || answer.LineNumber >= len(story.Content.Lines) {
+		h.log.Warn("Invalid line number in CheckVocab", "lineNumber", answer.LineNumber, "maxLines", len(story.Content.Lines), "ip", r.RemoteAddr)
+		h.sendError(w, fmt.Sprintf("Invalid line number: %d", answer.LineNumber), http.StatusBadRequest)
+		return
 	}
 
-	var results []types.VocabResult
+	line := story.Content.Lines[answer.LineNumber]
+	expectedVocabCount := len(line.Vocabulary)
 
-	// Process each line's answers
-	for _, answer := range req.Answers {
-		// Validate line number
-		if answer.LineNumber < 0 || answer.LineNumber >= len(story.Content.Lines) {
-			h.log.Warn("Invalid line number in CheckVocab", "lineNumber", answer.LineNumber, "maxLines", len(story.Content.Lines), "ip", r.RemoteAddr)
-			h.sendValidationError(w, fmt.Sprintf("Invalid line number: %d", answer.LineNumber), expectedAnswers)
-			return
-		}
+	// Validate answer count
+	if len(answer.Answers) != expectedVocabCount {
+		h.log.Warn("Wrong number of answers provided", "lineNumber", answer.LineNumber, "expected", expectedVocabCount, "provided", len(answer.Answers), "ip", r.RemoteAddr)
+		h.sendError(w, fmt.Sprintf("Expected %d answers, got %d", expectedVocabCount, len(answer.Answers)), http.StatusBadRequest)
+		return
+	}
 
-		line := story.Content.Lines[answer.LineNumber]
-
-		// Build correct answers map
-		correctAnswers := make(map[string]bool)
-		expectedVocabCount := len(line.Vocabulary)
-
-		for _, vocab := range line.Vocabulary {
-			correctAnswers[vocab.LexicalForm] = true
-		}
-
-		h.log.Debug("Correct answers for line", "lineNumber", answer.LineNumber, "correctAnswers", correctAnswers)
-
-		// Validate answer count
-		if len(answer.Answers) != expectedVocabCount {
-			h.log.Warn("Wrong number of answers provided", "lineNumber", answer.LineNumber, "expected", expectedVocabCount, "provided", len(answer.Answers), "ip", r.RemoteAddr)
-			h.sendValidationError(w, fmt.Sprintf("Line %d expects %d answers, got %d", answer.LineNumber, expectedVocabCount, len(answer.Answers)), expectedAnswers)
-			return
-		}
-
-		// Process each answer for this line
-		for i, userAnswer := range answer.Answers {
-			isCorrect := correctAnswers[userAnswer]
-
-			// Find the correct answer for this position
-			var correctAnswer string
-			if i < len(line.Vocabulary) {
-				correctAnswer = line.Vocabulary[i].LexicalForm
-			}
-
-			results = append(results, types.VocabResult{
-				Correct:       isCorrect,
-				UserAnswer:    userAnswer,
-				CorrectAnswer: correctAnswer,
-				Line:          answer.LineNumber,
-			})
+	// Check if all answers are correct
+	allCorrect := true
+	for i, userAnswer := range answer.Answers {
+		if i >= len(line.Vocabulary) || userAnswer != line.Vocabulary[i].LexicalForm {
+			allCorrect = false
+			break
 		}
 	}
 
-	h.log.Debug("Vocab check completed", "ip", r.RemoteAddr, "totalResults", len(results))
+	// Save score if available
+	userID := auth.GetUserID(r)
+	if userID != "" {
+		if err := models.SaveVocabScore(r.Context(), userID, id, answer.LineNumber, allCorrect); err != nil {
+			h.log.Error("Failed to save vocab score", "error", err, "userID", userID, "storyID", id, "line", answer.LineNumber)
+		}
+	}
 
 	response := types.APIResponse{
 		Success: true,
 		Data: types.CheckVocabResponse{
-			Answers: results,
+			Correct: allCorrect,
 		},
 	}
 

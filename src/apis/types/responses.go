@@ -76,6 +76,18 @@ type CheckVocabRequest struct {
 	Answers []VocabAnswer `json:"answers"`
 }
 
+// GrammarAnswer represents grammar answer from client
+type GrammarAnswer struct {
+	LineNumber int   `json:"line_number"`
+	Positions  []int `json:"positions"`
+}
+
+// CheckGrammarRequest represents the request body for grammar checking
+type CheckGrammarRequest struct {
+	GrammarPointID int             `json:"grammar_point_id"`
+	Answers        []GrammarAnswer `json:"answers"`
+}
+
 // VocabResult represents individual vocabulary check result
 type VocabResult struct {
 	Correct       bool   `json:"correct"`
@@ -86,7 +98,23 @@ type VocabResult struct {
 
 // CheckVocabResponse represents the response for vocab checking
 type CheckVocabResponse struct {
-	Answers []VocabResult `json:"answers"`
+	Correct bool `json:"correct"`
+}
+
+// GrammarResult represents individual grammar check result with position info
+type GrammarResult struct {
+	LineNumber int    `json:"line_number"`
+	Position   [2]int `json:"position"`
+	Text       string `json:"text"`
+	Correct    bool   `json:"correct"`
+}
+
+// CheckGrammarResponse represents the response for grammar checking
+type CheckGrammarResponse struct {
+	Correct      int             `json:"correct"`
+	Wrong        int             `json:"wrong"`
+	TotalAnswers int             `json:"total_answers"`
+	Results      []GrammarResult `json:"results"`
 }
 
 // LineValidationError represents validation error with expected answer counts

@@ -83,7 +83,7 @@ export function StoriesVideo() {
         <p>No video available for this story</p>
         <div className="next-button">
           <Link
-            to={`/stories/${id}/audio`}
+            to={`/stories/${id}/vocab`}
             className="button-link"
             style={{
               backgroundColor: "#22c55e",
@@ -97,7 +97,7 @@ export function StoriesVideo() {
               fontWeight: "500",
             }}
           >
-            <span>Skip to Audio</span>
+            <span>Skip to Vocab</span>
             <span className="material-icons">arrow_forward</span>
           </Link>
         </div>
@@ -124,7 +124,7 @@ export function StoriesVideo() {
         {videoWatched && (
           <div style={{ marginBottom: "20px", textAlign: "center" }}>
             <Link
-              to={`/stories/${id}/audio`}
+              to={`/stories/${id}/vocab`}
               className="button-link"
               style={{
                 backgroundColor: "#22c55e",

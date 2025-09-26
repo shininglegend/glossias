@@ -1,60 +1,51 @@
+/* Custom styles that can't be achieved with Tailwind alone */
+
+.story-lines {
+  line-height: 2.2;
+}
+
+.story-line {
+  transition: background-color 0.3s;
+}
+
+.vocab-container {
+  position: relative;
+}
+
 .vocab-select {
-  display: inline-block;
-  width: 120px;
-  padding: 0.5rem;
-  font-size: 1.5rem;
-  font-family: "SBL Hebrew", "Helvetica Neue", Helvetica, sans-serif;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.25rem;
-  background-color: white;
-  cursor: pointer;
-  margin: 0 0.5rem;
+  transition: all 0.2s;
 }
 
 .vocab-select:focus {
-  outline: 2px solid var(--primary);
-  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.vocab-select.correct {
-  border-color: #22c55e;
-  background-color: #f0fdf4;
+.check-button {
+  position: absolute;
+  right: -30px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
-.vocab-select.incorrect {
-  border-color: #ef4444;
-  background-color: #fef2f2;
+.error-indicator {
+  position: absolute;
+  right: -30px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
-.vocab-select:disabled {
-  opacity: 0.75;
-  cursor: not-allowed;
+.success-indicator {
+  position: absolute;
+  right: -30px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
-/* Other buttons */
-.next-button {
-  margin-top: 2rem;
-  text-align: center;
-}
-.button-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 1rem 2rem;
-  background-color: #4caf50;
-  color: white;
-  text-decoration: none;
-  border-radius: 4px;
-  transition: background-color 0.3s;
-}
-.button-link:hover {
-  background-color: #45a049;
+.next-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 8px -1px rgba(0, 0, 0, 0.15);
 }
 
-.score {
-  font-size: 2rem;
-  font-weight: bold;
-  border-radius: 4px;
-  background: var(--info);
-  color: white;
+.line-content {
+  
 }

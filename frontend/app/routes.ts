@@ -7,6 +7,7 @@ export default [
   route("stories/:id/vocab", "routes/stories-vocab.tsx"),
   route("stories/:id/grammar", "routes/stories-grammar.tsx"),
   route("stories/:id/translate", "routes/stories-translate.tsx"),
+  route("stories/:id/score", "routes/stories-score.tsx"),
   // Admin SPA routes replacing server templates
   route("admin", "routes/admin.index.tsx"),
   route("admin/courses", "routes/admin.courses.tsx"),

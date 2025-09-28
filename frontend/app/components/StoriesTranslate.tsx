@@ -150,6 +150,18 @@ export function StoriesTranslate() {
             </div>
           </div>
         )}
+
+        {translations && (
+          <div className="text-center mt-4">
+            <Link
+              to={`/stories/${id}/grammar`}
+              className="inline-flex items-center px-8 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 text-lg font-semibold transition-all duration-200 shadow-lg"
+            >
+              <span>Continue to Grammar</span>
+              <span className="material-icons ml-2">arrow_forward</span>
+            </Link>
+          </div>
+        )}
       </header>
 
       <div className="max-w-4xl mx-auto px-5">
@@ -205,18 +217,6 @@ export function StoriesTranslate() {
               );
             })()}
         </div>
-
-        {translations && (
-          <div className="text-center mt-8">
-            <Link
-              to={`/stories/${id}/grammar`}
-              className="inline-flex items-center px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-            >
-              <span>Continue to Grammar</span>
-              <span className="material-icons ml-2">arrow_forward</span>
-            </Link>
-          </div>
-        )}
       </div>
     </>
   );

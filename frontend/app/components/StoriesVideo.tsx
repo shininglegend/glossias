@@ -81,24 +81,13 @@ export function StoriesVideo() {
             : metadata.title?.en || "Story"}
         </h1>
         <p>No video available for this story</p>
-        <div className="next-button">
+        <div className="text-center">
           <Link
             to={`/stories/${id}/vocab`}
-            className="button-link"
-            style={{
-              backgroundColor: "#22c55e",
-              color: "white",
-              padding: "12px 24px",
-              borderRadius: "8px",
-              textDecoration: "none",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              fontWeight: "500",
-            }}
+            className="inline-flex items-center px-8 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 text-lg font-semibold transition-all duration-200 shadow-lg"
           >
-            <span>Skip to Vocab</span>
-            <span className="material-icons">arrow_forward</span>
+            <span>Skip to Vocabulary</span>
+            <span className="material-icons ml-2">arrow_forward</span>
           </Link>
         </div>
       </div>
@@ -113,33 +102,29 @@ export function StoriesVideo() {
             ? metadata.title
             : metadata.title?.en || "Story"}
         </h1>
-        <h2>Step 0: Watch the story video.</h2>
-        <p>
-          {metadata.description?.text ||
-            "Watch the video to get familiar with the story before listening."}
-        </p>
-        <hr />
+        <h2>Step 0: Watch the story video</h2>
+
+        <div className="bg-gray-50 border border-gray-300 p-4 mb-4 rounded-lg text-center">
+          <div className="flex items-start justify-center">
+            <span className="material-icons text-gray-600 mr-2 mt-1">info</span>
+            <div>
+              <p className="text-gray-700">
+                {metadata.description?.text ||
+                  "Watch the video to get familiar with the story before listening."}
+              </p>
+            </div>
+          </div>
+        </div>
       </header>
-      <div className="container">
+      <div className="max-w-4xl mx-auto px-5">
         {videoWatched && (
-          <div style={{ marginBottom: "20px", textAlign: "center" }}>
+          <div className="text-center mb-8">
             <Link
               to={`/stories/${id}/vocab`}
-              className="button-link"
-              style={{
-                backgroundColor: "#22c55e",
-                color: "white",
-                padding: "12px 24px",
-                borderRadius: "8px",
-                textDecoration: "none",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                fontWeight: "500",
-              }}
+              className="inline-flex items-center px-8 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 text-lg font-semibold transition-all duration-200 shadow-lg"
             >
-              <span>Next Step</span>
-              <span className="material-icons">arrow_forward</span>
+              <span>Continue to Vocabulary</span>
+              <span className="material-icons ml-2">arrow_forward</span>
             </Link>
           </div>
         )}

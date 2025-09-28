@@ -312,7 +312,7 @@ export function StoriesGrammar() {
               {checkResults?.next_grammar_point_id ? (
                 <Link
                   to={`/stories/${id}/grammar?id=${checkResults.next_grammar_point_id}`}
-                  className="inline-flex items-center px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                  className="inline-flex items-center px-8 py-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-lg font-semibold transition-all duration-200 shadow-lg"
                 >
                   <span>Next Grammar Exercise</span>
                   <span className="material-icons ml-2">arrow_forward</span>
@@ -320,7 +320,7 @@ export function StoriesGrammar() {
               ) : (
                 <Link
                   to={`/stories/${id}/score`}
-                  className="inline-flex items-center px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                  className="inline-flex items-center px-8 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 text-lg font-semibold transition-all duration-200 shadow-lg"
                 >
                   <span>Continue to Score</span>
                   <span className="material-icons ml-2">arrow_forward</span>
@@ -335,7 +335,7 @@ export function StoriesGrammar() {
           {pageData.lines.length > 0 &&
             (() => {
               const RTL_LANGUAGES = ["he", "ar", "fa", "ur"];
-              const languageCode = pageData.languageCode;
+              const languageCode = pageData.language;
               const isRTL =
                 languageCode && RTL_LANGUAGES.includes(languageCode);
 

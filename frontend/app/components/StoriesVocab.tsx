@@ -19,7 +19,7 @@ export function StoriesVocab() {
   const [error, setError] = useState<string | null>(null);
   const [audioURLs, setAudioURLs] = useState<Record<string, string>>({});
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
-    null
+    null,
   );
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentLineIndex, setCurrentLineIndex] = useState(0);
@@ -41,7 +41,7 @@ export function StoriesVocab() {
     if (!id) return {};
     try {
       const response = await authenticatedFetch(
-        `/api/stories/${id}/audio/signed?label=complete`
+        `/api/stories/${id}/audio/signed?label=complete`,
       );
       if (!response.ok) return {};
       const data: AudioURLsResponse = await response.json();
@@ -242,7 +242,7 @@ export function StoriesVocab() {
       const response = await api.checkVocabLine(
         id,
         lineIndex,
-        selectedAnswers[lineIndex]
+        selectedAnswers[lineIndex],
       );
       if (response.success && response.data) {
         const isCorrect = response.data.correct;
@@ -309,8 +309,23 @@ export function StoriesVocab() {
     <>
       <header>
         <h1>{pageData.story_title}</h1>
-        <h2>Step 2: Vocabulary Practice</h2>
-        <p>Fill in the blanks with the correct vocabulary words:</p>
+        <h2>Step 1: Vocabulary Practice</h2>
+
+        <div className="bg-gray-50 border border-gray-300 p-4 mb-4 rounded-lg text-center">
+          <div className="flex items-start justify-center">
+            <span className="material-icons text-gray-600 mr-2 mt-1">info</span>
+            <div>
+              <p className="text-gray-700 mb-2">
+                Listen to the audio and fill in the blanks with the correct
+                vocabulary words.
+              </p>
+              <p className="text-gray-700">
+                Click the play button first, then select answers for the
+                highlighted vocabulary gaps.
+              </p>
+            </div>
+          </div>
+        </div>
         <button
           onClick={playStoryAudio}
           className={`inline-flex items-center gap-2 px-5 py-3 my-5 text-white border-none rounded-lg text-base cursor-pointer transition-colors duration-200 ${
@@ -379,7 +394,7 @@ export function StoriesVocab() {
                                   onChange={(e) =>
                                     handleAnswerChange(
                                       lineIndex,
-                                      e.target.value
+                                      e.target.value,
                                     )
                                   }
                                   disabled={isDisabled}
@@ -401,7 +416,7 @@ export function StoriesVocab() {
                                       >
                                         {word}
                                       </option>
-                                    )
+                                    ),
                                   )}
                                 </select>
                                 {selectedAnswers[lineIndex] &&

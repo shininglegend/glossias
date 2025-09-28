@@ -57,7 +57,7 @@ export interface GrammarPageData {
   story_id: string;
   story_title: string;
   lines: GrammarLine[];
-  languageCode?: string;
+  language: string;
 }
 
 export interface VocabData extends PageData {

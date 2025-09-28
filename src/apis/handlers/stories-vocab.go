@@ -168,7 +168,12 @@ func (h *Handler) CheckVocab(w http.ResponseWriter, r *http.Request) {
 	// Save score if available
 	userID := auth.GetUserID(r)
 	if userID != "" {
-		if err := models.SaveVocabScore(r.Context(), userID, id, answer.LineNumber, allCorrect); err != nil {
+		incorrectAnswer := ""
+		if !allCorrect {
+			// Join the user's answers to save as incorrect answer
+			incorrectAnswer = fmt.Sprintf("%v", answer.Answers)
+		}
+		if err := models.SaveVocabScore(r.Context(), userID, id, answer.LineNumber, allCorrect, incorrectAnswer); err != nil {
 			h.log.Error("Failed to save vocab score", "error", err, "userID", userID, "storyID", id, "line", answer.LineNumber)
 		}
 	}

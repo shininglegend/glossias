@@ -150,7 +150,9 @@ type Querier interface {
 	ListUsers(ctx context.Context) ([]User, error)
 	RemoveCourseAdmin(ctx context.Context, arg RemoveCourseAdminParams) error
 	RemoveUserFromCourse(ctx context.Context, arg RemoveUserFromCourseParams) error
+	SaveGrammarIncorrectAnswer(ctx context.Context, arg SaveGrammarIncorrectAnswerParams) error
 	SaveGrammarScore(ctx context.Context, arg SaveGrammarScoreParams) error
+	SaveVocabIncorrectAnswer(ctx context.Context, arg SaveVocabIncorrectAnswerParams) error
 	// Score management queries
 	SaveVocabScore(ctx context.Context, arg SaveVocabScoreParams) error
 	StoryExists(ctx context.Context, storyID int32) (bool, error)

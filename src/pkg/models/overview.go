@@ -63,9 +63,9 @@ Delete Operations (SQLC-based):
 Delete(storyID int) error // Uses StoryExists, DeleteStory, and component delete functions
 
 Score Operations:
-SaveVocabScore(ctx context.Context, userID string, storyID int, lineNumber int, correct bool) error
-SaveGrammarScore(ctx context.Context, userID string, storyID int, lineNumber int, correct bool) error
-SaveGrammarScoresForPoint(ctx context.Context, userID string, storyID int, grammarPointID int, lineScores map[int]bool) error // Multi-line grammar point scoring
+SaveVocabScore(ctx context.Context, userID string, storyID int, lineNumber int, correct bool, incorrectAnswer string) error
+SaveGrammarScore(ctx context.Context, userID string, storyID int, lineNumber int, correct bool, selectedLine int, selectedPositions []int) error
+SaveGrammarScoresForPoint(ctx context.Context, userID string, storyID int, grammarPointID int, lineScores map[int]bool, incorrectAnswers map[int]struct{SelectedLine int; SelectedPositions []int}) error // Multi-line grammar point scoring
 GetUserVocabScores(ctx context.Context, userID string, storyID int) (map[int]bool, error) // Returns map[lineNumber]correct
 GetUserGrammarScores(ctx context.Context, userID string, storyID int) (map[int]bool, error) // Returns map[lineNumber]correct
 

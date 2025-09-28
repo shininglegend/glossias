@@ -52,6 +52,17 @@ type FootnoteReference struct {
 	Reference  string `json:"reference"`
 }
 
+type GrammarIncorrectAnswer struct {
+	ID                int32            `json:"id"`
+	UserID            string           `json:"user_id"`
+	StoryID           int32            `json:"story_id"`
+	LineNumber        int32            `json:"line_number"`
+	GrammarItemID     int32            `json:"grammar_item_id"`
+	SelectedLine      int32            `json:"selected_line"`
+	SelectedPositions []int32          `json:"selected_positions"`
+	AttemptedAt       pgtype.Timestamp `json:"attempted_at"`
+}
+
 type GrammarItem struct {
 	ID             int32       `json:"id"`
 	StoryID        pgtype.Int4 `json:"story_id"`
@@ -144,6 +155,16 @@ type UserTimeTracking struct {
 	EndedAt          pgtype.Timestamp `json:"ended_at"`
 	TotalTimeSeconds pgtype.Int4      `json:"total_time_seconds"`
 	CreatedAt        pgtype.Timestamp `json:"created_at"`
+}
+
+type VocabIncorrectAnswer struct {
+	ID              int32            `json:"id"`
+	UserID          string           `json:"user_id"`
+	StoryID         int32            `json:"story_id"`
+	LineNumber      int32            `json:"line_number"`
+	VocabItemID     int32            `json:"vocab_item_id"`
+	IncorrectAnswer string           `json:"incorrect_answer"`
+	AttemptedAt     pgtype.Timestamp `json:"attempted_at"`
 }
 
 type VocabScore struct {

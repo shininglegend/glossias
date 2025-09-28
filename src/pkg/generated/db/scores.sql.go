@@ -482,6 +482,32 @@ func (q *Queries) GetUserVocabScores(ctx context.Context, arg GetUserVocabScores
 	return items, nil
 }
 
+const saveGrammarIncorrectAnswer = `-- name: SaveGrammarIncorrectAnswer :exec
+INSERT INTO grammar_incorrect_answers (user_id, story_id, line_number, grammar_item_id, selected_line, selected_positions)
+VALUES ($1, $2, $3, $4, $5, $6)
+`
+
+type SaveGrammarIncorrectAnswerParams struct {
+	UserID            string  `json:"user_id"`
+	StoryID           int32   `json:"story_id"`
+	LineNumber        int32   `json:"line_number"`
+	GrammarItemID     int32   `json:"grammar_item_id"`
+	SelectedLine      int32   `json:"selected_line"`
+	SelectedPositions []int32 `json:"selected_positions"`
+}
+
+func (q *Queries) SaveGrammarIncorrectAnswer(ctx context.Context, arg SaveGrammarIncorrectAnswerParams) error {
+	_, err := q.db.Exec(ctx, saveGrammarIncorrectAnswer,
+		arg.UserID,
+		arg.StoryID,
+		arg.LineNumber,
+		arg.GrammarItemID,
+		arg.SelectedLine,
+		arg.SelectedPositions,
+	)
+	return err
+}
+
 const saveGrammarScore = `-- name: SaveGrammarScore :exec
 INSERT INTO grammar_scores (user_id, story_id, line_number, grammar_item_id, correct)
 VALUES ($1, $2, $3, $4, $5)
@@ -502,6 +528,30 @@ func (q *Queries) SaveGrammarScore(ctx context.Context, arg SaveGrammarScorePara
 		arg.LineNumber,
 		arg.GrammarItemID,
 		arg.Correct,
+	)
+	return err
+}
+
+const saveVocabIncorrectAnswer = `-- name: SaveVocabIncorrectAnswer :exec
+INSERT INTO vocab_incorrect_answers (user_id, story_id, line_number, vocab_item_id, incorrect_answer)
+VALUES ($1, $2, $3, $4, $5)
+`
+
+type SaveVocabIncorrectAnswerParams struct {
+	UserID          string `json:"user_id"`
+	StoryID         int32  `json:"story_id"`
+	LineNumber      int32  `json:"line_number"`
+	VocabItemID     int32  `json:"vocab_item_id"`
+	IncorrectAnswer string `json:"incorrect_answer"`
+}
+
+func (q *Queries) SaveVocabIncorrectAnswer(ctx context.Context, arg SaveVocabIncorrectAnswerParams) error {
+	_, err := q.db.Exec(ctx, saveVocabIncorrectAnswer,
+		arg.UserID,
+		arg.StoryID,
+		arg.LineNumber,
+		arg.VocabItemID,
+		arg.IncorrectAnswer,
 	)
 	return err
 }

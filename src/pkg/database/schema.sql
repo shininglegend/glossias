@@ -196,6 +196,31 @@ CREATE TABLE IF NOT EXISTS grammar_scores (
     FOREIGN KEY (story_id, line_number) REFERENCES story_lines (story_id, line_number) ON DELETE CASCADE
 );
 
+-- Incorrect vocabulary answers table
+CREATE TABLE IF NOT EXISTS vocab_incorrect_answers (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+    story_id INTEGER NOT NULL REFERENCES stories (story_id) ON DELETE CASCADE,
+    line_number INTEGER NOT NULL,
+    vocab_item_id INTEGER NOT NULL REFERENCES vocabulary_items (id) ON DELETE CASCADE,
+    incorrect_answer TEXT NOT NULL,
+    attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (story_id, line_number) REFERENCES story_lines (story_id, line_number) ON DELETE CASCADE
+);
+
+-- Incorrect grammar answers table
+CREATE TABLE IF NOT EXISTS grammar_incorrect_answers (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+    story_id INTEGER NOT NULL REFERENCES stories (story_id) ON DELETE CASCADE,
+    line_number INTEGER NOT NULL,
+    grammar_item_id INTEGER NOT NULL REFERENCES grammar_items (id) ON DELETE CASCADE,
+    selected_line INTEGER NOT NULL,
+    selected_positions INTEGER[] NOT NULL,
+    attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (story_id, line_number) REFERENCES story_lines (story_id, line_number) ON DELETE CASCADE
+);
+
 -- Indexes for efficient score querying
 CREATE INDEX IF NOT EXISTS idx_vocab_scores_user_story ON vocab_scores (user_id, story_id);
 CREATE INDEX IF NOT EXISTS idx_vocab_scores_story ON vocab_scores (story_id);
@@ -203,3 +228,7 @@ CREATE INDEX IF NOT EXISTS idx_vocab_scores_user ON vocab_scores (user_id);
 CREATE INDEX IF NOT EXISTS idx_grammar_scores_user_story ON grammar_scores (user_id, story_id);
 CREATE INDEX IF NOT EXISTS idx_grammar_scores_story ON grammar_scores (story_id);
 CREATE INDEX IF NOT EXISTS idx_grammar_scores_user ON grammar_scores (user_id);
+
+-- Indexes for incorrect answers
+CREATE INDEX IF NOT EXISTS idx_vocab_incorrect_user_story ON vocab_incorrect_answers (user_id, story_id);
+CREATE INDEX IF NOT EXISTS idx_grammar_incorrect_user_story ON grammar_incorrect_answers (user_id, story_id);

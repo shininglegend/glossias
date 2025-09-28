@@ -8,6 +8,14 @@ VALUES ($1, $2, $3, $4, $5);
 INSERT INTO grammar_scores (user_id, story_id, line_number, grammar_item_id, correct)
 VALUES ($1, $2, $3, $4, $5);
 
+-- name: SaveVocabIncorrectAnswer :exec
+INSERT INTO vocab_incorrect_answers (user_id, story_id, line_number, vocab_item_id, incorrect_answer)
+VALUES ($1, $2, $3, $4, $5);
+
+-- name: SaveGrammarIncorrectAnswer :exec
+INSERT INTO grammar_incorrect_answers (user_id, story_id, line_number, grammar_item_id, selected_line, selected_positions)
+VALUES ($1, $2, $3, $4, $5, $6);
+
 -- name: GetUserVocabScores :many
 SELECT vs.line_number, vs.vocab_item_id, vs.correct, vs.attempted_at, vi.word, vi.lexical_form
 FROM vocab_scores vs

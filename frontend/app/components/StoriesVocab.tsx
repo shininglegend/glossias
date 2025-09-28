@@ -10,6 +10,11 @@ interface AudioURLsResponse {
   data: Record<string, string>; // lineNumber -> signedURL
 }
 
+// Helper function to check if a line contains vocabulary placeholders
+const lineHasVocab = (line: { text: string[] }): boolean => {
+  return line.text.includes("%");
+};
+
 export function StoriesVocab() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
@@ -132,6 +137,14 @@ export function StoriesVocab() {
     setCurrentLineIndex(0);
   };
 
+  const pauseAudio = () => {
+    if (currentAudio) {
+      currentAudio.pause();
+    }
+    setCurrentAudio(null);
+    setIsPlaying(false);
+  };
+
   const playLineAudio = (lineIndex: number) => {
     const lineKey = (lineIndex + 1).toString();
     const audio = prefetchedAudio[lineKey];
@@ -164,7 +177,7 @@ export function StoriesVocab() {
     if (!pageData) return;
 
     if (isPlaying) {
-      stopAudio();
+      pauseAudio();
       return;
     }
 
@@ -201,7 +214,7 @@ export function StoriesVocab() {
         audio.removeEventListener("ended", onEnded);
 
         // If this line has vocab and isn't completed, stop here
-        if (line.has_vocab_or_grammar && !completedLines.has(startIndex)) {
+        if (lineHasVocab(line) && !completedLines.has(startIndex)) {
           setIsPlaying(false);
           return;
         }
@@ -215,7 +228,7 @@ export function StoriesVocab() {
       setPlayedLines((prev) => new Set([...prev, startIndex]));
 
       // If this line has vocab and isn't completed, stop here
-      if (line.has_vocab_or_grammar && !completedLines.has(startIndex)) {
+      if (lineHasVocab(line) && !completedLines.has(startIndex)) {
         setIsPlaying(false);
         return;
       }
@@ -269,7 +282,7 @@ export function StoriesVocab() {
   const allVocabCompleted = () => {
     if (!pageData) return false;
     return pageData.lines.every((line, index) => {
-      return !line.has_vocab_or_grammar || completedLines.has(index);
+      return !lineHasVocab(line) || completedLines.has(index);
     });
   };
 
@@ -358,7 +371,7 @@ export function StoriesVocab() {
                   {pageData.lines.map((line, lineIndex) => (
                     <div
                       key={lineIndex}
-                      className={`story-line inline ${line.has_vocab_or_grammar ? "has-vocab" : ""} ${
+                      className={`story-line inline ${lineHasVocab(line) ? "has-vocab" : ""} ${
                         currentLineIndex === lineIndex && isPlaying
                           ? "bg-yellow-100 px-1 py-0.5 rounded"
                           : ""
@@ -447,7 +460,7 @@ export function StoriesVocab() {
                           }
                         })}
                       </div>
-                      {line.has_vocab_or_grammar &&
+                      {lineHasVocab(line) &&
                         !completedLines.has(lineIndex) &&
                         prefetchedAudio[(lineIndex + 1).toString()] &&
                         (playedLines.has(lineIndex) ||

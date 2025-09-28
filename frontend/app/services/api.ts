@@ -38,7 +38,6 @@ export interface Line {
   english_translation?: string;
   audio_files: AudioFile[];
   signed_audio_urls?: { [key: number]: string };
-  has_vocab_or_grammar: boolean;
 }
 
 export interface GrammarLine {

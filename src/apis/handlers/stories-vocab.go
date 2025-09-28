@@ -39,6 +39,7 @@ func (h *Handler) GetVocabPage(w http.ResponseWriter, r *http.Request) {
 		PageData: types.PageData{
 			StoryID:    storyID,
 			StoryTitle: story.Metadata.Title["en"],
+			Language:   story.Metadata.Description.Language,
 		},
 		Lines:     lines,
 		VocabBank: vocabBank,
@@ -93,8 +94,8 @@ func (h *Handler) generateVocabLines(story models.Story, id int) ([]types.Line, 
 		}
 
 		lines[i] = types.Line{
-			Text:              series,
-			AudioFiles:        audioFiles,
+			Text:       series,
+			AudioFiles: audioFiles,
 		}
 	}
 

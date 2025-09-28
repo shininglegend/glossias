@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link, useSearchParams } from "react-router";
 import { useApiService } from "../services/api";
 import type { GrammarData } from "../services/api";

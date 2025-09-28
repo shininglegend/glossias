@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router";
 import { useApiService } from "../services/api";
 import { useAuthenticatedFetch } from "../lib/authFetch";
@@ -19,7 +19,7 @@ export function StoriesVocab() {
   const [error, setError] = useState<string | null>(null);
   const [audioURLs, setAudioURLs] = useState<Record<string, string>>({});
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
-    null,
+    null
   );
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentLineIndex, setCurrentLineIndex] = useState(0);
@@ -41,7 +41,7 @@ export function StoriesVocab() {
     if (!id) return {};
     try {
       const response = await authenticatedFetch(
-        `/api/stories/${id}/audio/signed?label=complete`,
+        `/api/stories/${id}/audio/signed?label=complete`
       );
       if (!response.ok) return {};
       const data: AudioURLsResponse = await response.json();
@@ -96,19 +96,12 @@ export function StoriesVocab() {
       }
 
       try {
-        const [vocabResponse, metadataResponse] = await Promise.all([
-          api.getStoryVocab(id),
-          api.getStoryMetadata(id),
-        ]);
+        const [vocabResponse] = await Promise.all([api.getStoryVocab(id)]);
 
         if (vocabResponse.success && vocabResponse.data) {
           setPageData(vocabResponse.data);
         } else {
           setError(vocabResponse.error || "Failed to fetch page data");
-        }
-
-        if (metadataResponse.success && metadataResponse.data) {
-          setMetadata(metadataResponse.data);
         }
 
         // Fetch signed audio URLs
@@ -249,7 +242,7 @@ export function StoriesVocab() {
       const response = await api.checkVocabLine(
         id,
         lineIndex,
-        selectedAnswers[lineIndex],
+        selectedAnswers[lineIndex]
       );
       if (response.success && response.data) {
         const isCorrect = response.data.correct;
@@ -338,7 +331,7 @@ export function StoriesVocab() {
           {pageData.lines.length > 0 &&
             (() => {
               const RTL_LANGUAGES = ["he", "ar", "fa", "ur"];
-              const languageCode = metadata?.description?.language;
+              const languageCode = pageData.language;
               const isRTL =
                 languageCode && RTL_LANGUAGES.includes(languageCode);
 
@@ -386,7 +379,7 @@ export function StoriesVocab() {
                                   onChange={(e) =>
                                     handleAnswerChange(
                                       lineIndex,
-                                      e.target.value,
+                                      e.target.value
                                     )
                                   }
                                   disabled={isDisabled}
@@ -408,7 +401,7 @@ export function StoriesVocab() {
                                       >
                                         {word}
                                       </option>
-                                    ),
+                                    )
                                   )}
                                 </select>
                                 {selectedAnswers[lineIndex] &&

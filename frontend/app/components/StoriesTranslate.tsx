@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router";
 import { useApiService } from "../services/api";
-import type { PageData } from "../services/api";
+import type { PageData, TranslateData } from "../services/api";
 
 export function StoriesTranslate() {
   const { id } = useParams<{ id: string }>();
@@ -9,9 +9,10 @@ export function StoriesTranslate() {
   const [pageData, setPageData] = useState<PageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
-    null,
-  );
+
+  const [selectedLines, setSelectedLines] = useState<number[]>([]);
+  const [translations, setTranslations] = useState<TranslateData | null>(null);
+  const [translationLoading, setTranslationLoading] = useState(false);
 
   useEffect(() => {
     const fetchPageData = async () => {
@@ -22,7 +23,7 @@ export function StoriesTranslate() {
       }
 
       try {
-        const response = await api.getStoryTranslate(id);
+        const response = await api.getStoryWithAudio(id);
         if (response.success && response.data) {
           setPageData(response.data);
         } else {
@@ -37,33 +38,6 @@ export function StoriesTranslate() {
 
     fetchPageData();
   }, [id]);
-
-  const playAudio = (audioUrl: string) => {
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio.currentTime = 0;
-    }
-
-    const audio = new Audio(audioUrl);
-    setCurrentAudio(audio);
-
-    audio.play().catch((err) => {
-      console.error("Failed to play audio:", err);
-    });
-
-    audio.addEventListener("ended", () => {
-      setCurrentAudio(null);
-    });
-  };
-
-  useEffect(() => {
-    return () => {
-      if (currentAudio) {
-        currentAudio.pause();
-        currentAudio.currentTime = 0;
-      }
-    };
-  }, [currentAudio]);
 
   if (loading) {
     return (
@@ -91,36 +65,158 @@ export function StoriesTranslate() {
     );
   }
 
+  const handleLineSelect = (lineIndex: number) => {
+    if (translations) return; // Can't change selection after translation
+
+    if (selectedLines.includes(lineIndex)) {
+      setSelectedLines(selectedLines.filter((index) => index !== lineIndex));
+    } else if (selectedLines.length < 5) {
+      setSelectedLines([...selectedLines, lineIndex]);
+    }
+  };
+
+  const handleGetTranslation = async () => {
+    if (selectedLines.length !== 5 || !id) return;
+
+    setTranslationLoading(true);
+    try {
+      const response = await api.getTranslations(id, selectedLines);
+      if (response.success && response.data) {
+        setTranslations(response.data);
+      }
+    } catch (err) {
+      console.error("Failed to get translations:", err);
+    } finally {
+      setTranslationLoading(false);
+    }
+  };
+
   return (
     <>
       <header>
         <h1>{pageData.story_title}</h1>
-        <h2>Step 4: Translation</h2>
-        <p>Listen to the story and practice translating it.</p>
-      </header>
-      <div className="container">
-        {pageData.lines.map((line, lineIndex) => (
-          <div key={lineIndex} className="line">
-            <div className="story-text">{line.text.join("")}</div>
-            {/* TODO: Fix audio handling - line.audio_url may not exist in current Line interface */}
-            {(line as any).audio_url && (
-              <button
-                onClick={() => playAudio((line as any).audio_url!)}
-                className="audio-button"
-                type="button"
-              >
-                <span className="material-icons">play_arrow</span>
-              </button>
-            )}
-          </div>
-        ))}
+        <h2>Step 2: Translation</h2>
 
-        <div className="next-button">
-          <Link to={`/stories/${id}/grammar`} className="button-link">
-            <span>Next Step</span>
-            <span className="material-icons">arrow_forward</span>
-          </Link>
+        <div className="bg-gray-50 border border-gray-300 p-4 mb-4 rounded-lg text-center">
+          <div className="flex items-start justify-center">
+            <span className="material-icons text-gray-600 mr-2 mt-1">info</span>
+            <div>
+              <p className="text-gray-700 mb-2">
+                Select exactly 5 lines from the text below that you would like
+                to see translated.
+              </p>
+              <p className="text-gray-700">
+                Selected:{" "}
+                <span className="font-semibold">{selectedLines.length}/5</span>
+              </p>
+            </div>
+          </div>
         </div>
+
+        {!translations && (
+          <div className="mt-4">
+            <button
+              onClick={handleGetTranslation}
+              disabled={selectedLines.length !== 5 || translationLoading}
+              className={`px-6 py-3 rounded-lg font-medium ${
+                selectedLines.length === 5 && !translationLoading
+                  ? "bg-blue-500 text-white hover:bg-blue-600"
+                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
+              }`}
+            >
+              {translationLoading ? (
+                <>
+                  <span className="material-icons animate-spin mr-2">
+                    refresh
+                  </span>
+                  Getting Translations...
+                </>
+              ) : (
+                `Get Translations (${selectedLines.length}/5)`
+              )}
+            </button>
+          </div>
+        )}
+
+        {translations && (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded-lg mb-4">
+            <div className="flex items-center mb-3">
+              <span className="material-icons text-yellow-600 mr-2">
+                translate
+              </span>
+              <h3 className="text-xl font-bold text-yellow-900">
+                Translations
+              </h3>
+            </div>
+          </div>
+        )}
+      </header>
+
+      <div className="max-w-4xl mx-auto px-5">
+        <div className="story-lines text-2xl max-w-3xl mx-auto">
+          {pageData.lines.length > 0 &&
+            (() => {
+              const RTL_LANGUAGES = ["he", "ar", "fa", "ur"];
+              const languageCode = pageData.language;
+              const isRTL =
+                languageCode && RTL_LANGUAGES.includes(languageCode);
+
+              return (
+                <div
+                  className={isRTL ? "text-right" : "text-left"}
+                  dir={isRTL ? "rtl" : "ltr"}
+                >
+                  {pageData.lines.map((line, lineIndex) => {
+                    const isSelected = selectedLines.includes(lineIndex);
+                    const translationIndex = selectedLines.indexOf(lineIndex);
+
+                    return (
+                      <div key={lineIndex} className="story-line inline">
+                        <div
+                          className={`line-content text-3xl rounded-lg cursor-pointer transition-colors duration-150 ${
+                            translations
+                              ? isSelected
+                                ? "bg-blue-100 border-2 border-blue-300"
+                                : "bg-gray-50"
+                              : isSelected
+                                ? "bg-blue-200 border-2 dborder-blue-400"
+                                : "hover:bg-gray-100 border-2 border-transparent"
+                          } ${isRTL ? "text-right" : "text-left"}`}
+                          onClick={() => handleLineSelect(lineIndex)}
+                          dir={isRTL ? "rtl" : "ltr"}
+                        >
+                          <span>{line.text}</span>
+                        </div>
+
+                        {translations && translationIndex >= 0 && (
+                          <div
+                            className="mt-2 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg text-left"
+                            dir="ltr"
+                          >
+                            <p className="text-lg text-yellow-800">
+                              {translations.lines[translationIndex].translation}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+        </div>
+
+        {translations && (
+          <div className="text-center mt-8">
+            <Link
+              to={`/stories/${id}/grammar`}
+              className="inline-flex items-center px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+            >
+              <span>Continue to Grammar</span>
+              <span className="material-icons ml-2">arrow_forward</span>
+            </Link>
+          </div>
+        )}
       </div>
     </>
   );

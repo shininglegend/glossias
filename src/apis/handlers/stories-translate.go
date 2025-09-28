@@ -7,7 +7,6 @@ import (
 	"glossias/src/auth"
 	"glossias/src/pkg/models"
 	"net/http"
-	"slices"
 	"strconv"
 
 	"github.com/gorilla/mux"
@@ -22,6 +21,26 @@ func (h *Handler) GetTranslateData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Parse line numbers from query parameters
+	lineNumbersStr := r.URL.Query().Get("lines")
+	if lineNumbersStr == "" {
+		h.sendError(w, "Line numbers required", http.StatusBadRequest)
+		return
+	}
+
+	var lineNumbers []int
+	err = json.Unmarshal([]byte(lineNumbersStr), &lineNumbers)
+	if err != nil {
+		h.sendError(w, "Invalid line numbers format", http.StatusBadRequest)
+		return
+	}
+
+	// Validate line numbers
+	if len(lineNumbers) == 0 || len(lineNumbers) > 5 {
+		h.sendError(w, "Must specify 1-5 line numbers", http.StatusBadRequest)
+		return
+	}
+
 	story, err := models.GetStoryData(r.Context(), id, auth.GetUserID(r))
 	if err == models.ErrNotFound {
 		h.sendError(w, "Story not found", http.StatusNotFound)
@@ -33,7 +52,17 @@ func (h *Handler) GetTranslateData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lines, err := h.processLinesForTranslation(r.Context(), *story, id, nil)
+	// Convert 1-indexed to 0-indexed and validate bounds
+	zeroIndexedLines := make([]int, len(lineNumbers))
+	for i, lineNum := range lineNumbers {
+		if lineNum < 1 || lineNum > len(story.Content.Lines) {
+			h.sendError(w, "Line number out of bounds", http.StatusBadRequest)
+			return
+		}
+		zeroIndexedLines[i] = lineNum - 1
+	}
+
+	lines, err := h.processLinesForTranslation(r.Context(), *story, id, zeroIndexedLines)
 	if err != nil {
 		h.log.Error("Failed to process lines for translation", "error", err)
 		h.sendError(w, "Failed to process lines for translation", http.StatusInternalServerError)
@@ -44,6 +73,7 @@ func (h *Handler) GetTranslateData(w http.ResponseWriter, r *http.Request) {
 		PageData: types.PageData{
 			StoryID:    storyID,
 			StoryTitle: story.Metadata.Title["en"],
+			Language:   story.Metadata.Description.Language,
 		},
 		Lines: lines,
 	}
@@ -58,23 +88,27 @@ func (h *Handler) GetTranslateData(w http.ResponseWriter, r *http.Request) {
 
 // processLinesForTranslation prepares lines for translation page
 func (h *Handler) processLinesForTranslation(ctx context.Context, story models.Story, id int, linesToTranslate []int) ([]types.LineTranslation, error) {
-	lines := make([]types.LineTranslation, 0, len(story.Content.Lines))
+	lines := make([]types.LineTranslation, 0, len(linesToTranslate))
 
 	translation, err := models.GetTranslationsByLanguage(ctx, id, "en")
 	if err != nil {
 		return nil, err
 	}
 
-	for i, dbLine := range story.Content.Lines {
-		if translation != nil && i < len(translation) {
-			if slices.Contains(linesToTranslate, i) {
-				lines = append(lines, types.LineTranslation{
-					LineText: types.LineText{
-						Text: dbLine.Text,
-					},
-					Translation: &translation[i].TranslationText,
-				})
+	for _, lineIndex := range linesToTranslate {
+		if lineIndex < len(story.Content.Lines) {
+			dbLine := story.Content.Lines[lineIndex]
+			lineTranslation := types.LineTranslation{
+				LineText: types.LineText{
+					Text: dbLine.Text,
+				},
 			}
+
+			if translation != nil && lineIndex < len(translation) {
+				lineTranslation.Translation = &translation[lineIndex].TranslationText
+			}
+
+			lines = append(lines, lineTranslation)
 		}
 	}
 

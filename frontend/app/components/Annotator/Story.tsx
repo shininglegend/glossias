@@ -57,7 +57,6 @@ export default function Story({ storyId }: { storyId: number }) {
         const linesWithAudio = data.story.content.lines.map((line) => ({
           ...line,
           audioFiles: [], // Will be populated by checking audio URLs
-          languageCode: data.story.metadata.description.language, // Pass language code from metadata
         }));
 
         setLines(linesWithAudio);
@@ -120,7 +119,6 @@ export default function Story({ storyId }: { storyId: number }) {
       // Preserve language code when updating lines
       const updatedLines = data.story.content.lines.map((line) => ({
         ...line,
-        languageCode: data.story.metadata.description.language,
       }));
 
       setLines(updatedLines);

@@ -48,6 +48,7 @@ type LineText struct {
 type PageData struct {
 	StoryID    string `json:"story_id"`
 	StoryTitle string `json:"story_title"`
+	Language   string `json:"language"`
 }
 
 // AudioPageData extends PageData with lines containing audio

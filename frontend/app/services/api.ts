@@ -50,7 +50,7 @@ export interface PageData {
   story_id: string;
   story_title: string;
   lines: Line[];
-  languageCode?: string;
+  language: string;
 }
 
 export interface GrammarPageData {
@@ -71,8 +71,16 @@ export interface GrammarData extends GrammarPageData {
   instances_count: number;
 }
 
-export interface TranslateData extends PageData {
+export interface TranslationLine {
+  text: string;
   translation: string;
+}
+
+export interface TranslateData {
+  story_id: string;
+  story_title: string;
+  language: string;
+  lines: TranslationLine[];
 }
 
 export interface APIResponse<T = any> {
@@ -163,13 +171,6 @@ export function useApiService() {
       [fetchAPI],
     ),
 
-    getStoryTranslate: useCallback(
-      (id: string): Promise<APIResponse<TranslateData>> => {
-        return fetchAPI<TranslateData>(`/stories/${id}/translate`);
-      },
-      [fetchAPI],
-    ),
-
     getStoryMetadata: useCallback(
       (id: string): Promise<APIResponse<StoryMetadata>> => {
         return fetchAPI<StoryMetadata>(`/stories/${id}/metadata`);
@@ -216,6 +217,22 @@ export function useApiService() {
             answers,
           }),
         });
+      },
+      [fetchAPI],
+    ),
+
+    getTranslations: useCallback(
+      (
+        id: string,
+        lineNumbers: number[],
+      ): Promise<APIResponse<TranslateData>> => {
+        const lines = lineNumbers.map((n) => n + 1).join(","); // Convert to 1-based indexing
+        return fetchAPI<TranslateData>(
+          `/stories/${id}/translate?lines=[${lines}]`,
+          {
+            method: "POST",
+          },
+        );
       },
       [fetchAPI],
     ),

@@ -167,15 +167,15 @@ func (h *Handler) CheckGrammar(w http.ResponseWriter, r *http.Request) {
 
 	// Check if answer count matches expected
 	if totalAnswered != totalExpected {
-		h.sendError(w, fmt.Sprintf("Expected %d grammar points but got %d answers", totalExpected, totalAnswered), http.StatusBadRequest)
+		h.sendError(w, fmt.Sprintf("Expected %d grammar points but got %d answers. If expected == 0, then check both grammar point ID and story", totalExpected, totalAnswered), http.StatusBadRequest)
 		return
 	}
 
 	// Create user selection map for quick lookup
 	userSelections := make(map[int]map[int]bool) // lineNumber -> position -> selected
 	for _, answer := range req.Answers {
-		// Validate line number
-		if answer.LineNumber < 0 || answer.LineNumber >= len(story.Content.Lines) {
+		// Validate line number (convert from 1-based to 0-based)
+		if answer.LineNumber < 1 || answer.LineNumber > len(story.Content.Lines) {
 			h.sendError(w, fmt.Sprintf("Invalid line number: %d", answer.LineNumber), http.StatusBadRequest)
 			return
 		}
@@ -224,7 +224,7 @@ func (h *Handler) CheckGrammar(w http.ResponseWriter, r *http.Request) {
 	// Build user selections (what the user actually clicked)
 	var userSelectionResults []types.UserSelection
 	for lineNum, lineSelections := range userSelections {
-		line := story.Content.Lines[lineNum]
+		line := story.Content.Lines[lineNum-1]
 		grammarItems := grammarItemsMap[lineNum]
 
 		for pos := range lineSelections {

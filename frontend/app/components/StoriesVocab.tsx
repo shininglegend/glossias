@@ -397,9 +397,7 @@ export function StoriesVocab() {
                                   }
                                 >
                                   <option value="">
-                                    {!playedLines.has(lineIndex)
-                                      ? "-"
-                                      : "___"}
+                                    {!playedLines.has(lineIndex) ? "-" : "___"}
                                   </option>
                                   {pageData.vocab_bank.map(
                                     (word, wordIndex) => (
@@ -472,10 +470,10 @@ export function StoriesVocab() {
             </div>
             <div className="mt-5">
               <Link
-                to={`/stories/${id}/grammar`}
+                to={`/stories/${id}/translate`}
                 className="next-button inline-flex items-center gap-2 px-8 py-4 bg-green-500 text-white no-underline rounded-lg text-lg font-semibold transition-all duration-200 shadow-lg hover:bg-green-600"
               >
-                <span>Continue to Grammar</span>
+                <span>Continue to Translation</span>
                 <span className="material-icons">arrow_forward</span>
               </Link>
             </div>

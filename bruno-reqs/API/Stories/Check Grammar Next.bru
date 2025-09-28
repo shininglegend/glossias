@@ -1,7 +1,7 @@
 meta {
-  name: Check Grammar
+  name: Check Grammar Next
   type: http
-  seq: 6
+  seq: 8
 }
 
 post {
@@ -12,16 +12,20 @@ post {
 
 body:json {
   {
-    "grammar_point_id": 16,
+    "grammar_point_id": {{nextGrammarPointId}},
     "answers": [
       {
         "line_number": 0,
-        "positions": [5, 12, 20]
+        "positions": [
+          5
+        ] //, 12, 20]
+      },
+      {
+        "line_number": 2,
+        "positions": [
+          8
+        ]
       }
-  //     {
-  //       "line_number": 1,
-  //       "positions": [8]
-  //     }
     ]
   }
 }

@@ -78,9 +78,9 @@ export function StoriesGrammar() {
   const handleTextClick = (lineIndex: number, charIndex: number) => {
     if (isSubmitted) return;
 
-    const newPosition = { lineNumber: lineIndex, position: charIndex };
+    const newPosition = { lineNumber: lineIndex + 1, position: charIndex };
     const existingIndex = selectedPositions.findIndex(
-      (pos) => pos.lineNumber === lineIndex && pos.position === charIndex,
+      (pos) => pos.lineNumber === lineIndex + 1 && pos.position === charIndex,
     );
 
     if (existingIndex >= 0) {
@@ -136,7 +136,7 @@ export function StoriesGrammar() {
 
   const isPositionSelected = (lineIndex: number, charIndex: number) => {
     return selectedPositions.some(
-      (pos) => pos.lineNumber === lineIndex && pos.position === charIndex,
+      (pos) => pos.lineNumber === lineIndex + 1 && pos.position === charIndex,
     );
   };
 
@@ -144,7 +144,7 @@ export function StoriesGrammar() {
     if (!checkResults) return false;
     return checkResults.grammar_instances.some(
       (instance) =>
-        instance.line_number === lineIndex &&
+        instance.line_number === lineIndex + 1 &&
         charIndex >= instance.position[0] &&
         charIndex <= instance.position[1],
     );
@@ -154,7 +154,7 @@ export function StoriesGrammar() {
     if (!checkResults || !isPositionSelected(lineIndex, charIndex)) return null;
     return checkResults.user_selections.find(
       (selection) =>
-        selection.line_number === lineIndex &&
+        selection.line_number === lineIndex + 1 &&
         charIndex >= selection.position[0] &&
         charIndex <= selection.position[1],
     );
@@ -191,18 +191,73 @@ export function StoriesGrammar() {
       <header>
         <h1>{pageData.story_title}</h1>
         <h2>Step 3: Grammar Focus</h2>
-        <p>
-          <strong>Grammar Point:</strong> {pageData.grammar_point}
-        </p>
-        {pageData.grammar_description && (
-          <p>
-            <strong>Description:</strong> {pageData.grammar_description}
-          </p>
-        )}
-        <p>
-          Find {pageData.instances_count} instances by clicking on the text.
-          Selected: {selectedPositions.length}/{pageData.instances_count}
-        </p>
+        <div className="bg-gray-50 border border-gray-300 p-4 mb-4 rounded-lg text-center">
+          <div className="flex items-start justify-center">
+            <span className="material-icons text-gray-600 mr-2 mt-1">info</span>
+            <div>
+              <p className="text-gray-700 mb-2">
+                <strong>Grammar Point:</strong> {pageData.grammar_point}
+                {pageData.grammar_description && (
+                  <span> - {pageData.grammar_description}</span>
+                )}
+              </p>
+              <p className="text-gray-700">
+                Find each occurrence of this grammar point in the text below.
+                Click on any character within each occurrence - you only need
+                one selection per occurrence. Find exactly{" "}
+                {pageData.instances_count} instances. Selected:{" "}
+                <span className="font-semibold">
+                  {selectedPositions.length}/{pageData.instances_count}
+                </span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg mb-4 text-center">
+          <div className="flex items-center justify-center text-blue-700">
+            <span className="material-icons mr-2 text-sm">touch_app</span>
+            <span className="text-sm">
+              Click individual characters in the text below. Selected characters
+              will be highlighted in blue.
+            </span>
+          </div>
+        </div>
+
+        <div className="bg-gray-50 border border-gray-200 p-3 rounded-lg mb-4 text-center">
+          <h5 className="font-medium text-gray-700 mb-2 text-sm">Legend:</h5>
+          <div className="flex flex-wrap gap-4 text-sm justify-center">
+            {!isSubmitted ? (
+              <>
+                <div className="flex items-center">
+                  <span className="w-4 h-4 bg-yellow-100 border border-yellow-200 rounded-sm mr-2"></span>
+                  <span className="text-gray-600">Hover to select</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="w-4 h-4 bg-blue-400 rounded-sm mr-2"></span>
+                  <span className="text-gray-600">Selected</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center">
+                  <span className="w-4 h-4 bg-green-200 rounded-sm mr-2"></span>
+                  <span className="text-gray-600">Correct answer</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="w-4 h-4 bg-green-600 rounded-sm mr-2"></span>
+                  <span className="text-gray-600">Your correct selection</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="w-4 h-4 bg-red-500 rounded-sm mr-2"></span>
+                  <span className="text-gray-600">
+                    Your incorrect selection
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
 
         {!isSubmitted ? (
           <div className="mt-4">
@@ -298,18 +353,21 @@ export function StoriesGrammar() {
                             charIndex,
                           );
 
-                          let className = "cursor-pointer select-none";
+                          let className =
+                            "cursor-pointer select-none transition-colors duration-150";
 
                           if (!isSubmitted) {
                             if (isSelected) {
-                              className += " bg-blue-200";
+                              className +=
+                                " bg-blue-400 text-white rounded-sm shadow-sm";
                             } else {
-                              className += " hover:bg-gray-100";
+                              className +=
+                                " hover:bg-yellow-100 hover:shadow-sm rounded-sm";
                             }
                           } else {
                             // Show correct answers in light green
                             if (isCorrectAnswerPosition(lineIndex, charIndex)) {
-                              className += " bg-green-200";
+                              className += " bg-green-200 rounded-sm";
                             }
 
                             // Overlay user selections with their result
@@ -319,8 +377,8 @@ export function StoriesGrammar() {
                             );
                             if (userResult) {
                               className += userResult.correct
-                                ? " bg-green-600 text-white" // Dark green for correct selection
-                                : " bg-red-500 text-white"; // Red for incorrect selection
+                                ? " bg-green-600 text-white rounded-sm shadow-sm" // Dark green for correct selection
+                                : " bg-red-500 text-white rounded-sm shadow-sm"; // Red for incorrect selection
                             }
                           }
 

@@ -24,8 +24,8 @@ List all stories.
 }
 ```
 
-### GET `/api/stories/{id}/audio`
-Reading page with audio.
+### GET `/api/stories/{id}/story-with-audio`
+Story with audio.
 
 **Response:**
 ```json

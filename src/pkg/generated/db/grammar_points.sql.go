@@ -140,7 +140,7 @@ const getStoryGrammarPoints = `-- name: GetStoryGrammarPoints :many
 SELECT grammar_point_id, name, description
 FROM grammar_points
 WHERE story_id = $1
-ORDER BY name
+ORDER BY grammar_point_id
 `
 
 type GetStoryGrammarPointsRow struct {

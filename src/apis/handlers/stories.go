@@ -26,16 +26,18 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 
 	// Individual page endpoints
 	router.HandleFunc("/{id}/metadata", h.GetStoryMetadata).Methods("GET", "OPTIONS")
-	router.HandleFunc("/{id}/audio", h.GetAudioPage).Methods("GET", "OPTIONS")
+	router.HandleFunc("/{id}/story-with-audio", h.GetAudioPage).Methods("GET", "OPTIONS")
 	router.HandleFunc("/{id}/vocab", h.GetVocabPage).Methods("GET", "OPTIONS")
 	router.HandleFunc("/{id}/grammar", h.GetGrammarPage).Methods("GET", "OPTIONS")
-	router.HandleFunc("/{id}/translate", h.GetTranslateData).Methods("GET", "OPTIONS")
+	router.HandleFunc("/{id}/translate", h.GetTranslateData).Methods("POST", "OPTIONS")
 
 	// Audio endpoints
 	router.HandleFunc("/{id}/audio/signed", h.GetSignedAudioURLs).Methods("GET", "OPTIONS")
 
 	// Vocabulary checking endpoint
 	router.HandleFunc("/{id}/check-vocab", h.CheckVocab).Methods("POST", "OPTIONS")
+	// Grammar checking endpoint
+	router.HandleFunc("/{id}/check-grammar", h.CheckGrammar).Methods("POST", "OPTIONS")
 }
 
 // GetStories returns JSON array of all stories

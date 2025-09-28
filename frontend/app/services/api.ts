@@ -41,18 +41,34 @@ export interface Line {
   has_vocab_or_grammar: boolean;
 }
 
+export interface GrammarLine {
+  text: string;
+  english_translation?: string;
+}
+
 export interface PageData {
   story_id: string;
   story_title: string;
   lines: Line[];
+  languageCode?: string;
+}
+
+export interface GrammarPageData {
+  story_id: string;
+  story_title: string;
+  lines: GrammarLine[];
+  languageCode?: string;
 }
 
 export interface VocabData extends PageData {
   vocab_bank: string[];
 }
 
-export interface GrammarData extends PageData {
+export interface GrammarData extends GrammarPageData {
+  grammar_point_id: number;
   grammar_point: string;
+  grammar_description?: string;
+  instances_count: number;
 }
 
 export interface TranslateData extends PageData {
@@ -107,9 +123,9 @@ export function useApiService() {
       return fetchAPI<StoriesResponse>("/stories");
     }, [fetchAPI]),
 
-    getStoryAudio: useCallback(
+    getStoryWithAudio: useCallback(
       (id: string): Promise<APIResponse<PageData>> => {
-        return fetchAPI<PageData>(`/stories/${id}/audio`);
+        return fetchAPI<PageData>(`/stories/${id}/story-with-audio`);
       },
       [fetchAPI],
     ),
@@ -135,8 +151,14 @@ export function useApiService() {
     ),
 
     getStoryGrammar: useCallback(
-      (id: string): Promise<APIResponse<GrammarData>> => {
-        return fetchAPI<GrammarData>(`/stories/${id}/grammar`);
+      (
+        id: string,
+        grammarPointId?: string,
+      ): Promise<APIResponse<GrammarData>> => {
+        const url = grammarPointId
+          ? `/stories/${id}/grammar?grammar_point_id=${grammarPointId}`
+          : `/stories/${id}/grammar`;
+        return fetchAPI<GrammarData>(url);
       },
       [fetchAPI],
     ),
@@ -175,6 +197,23 @@ export function useApiService() {
           method: "POST",
           body: JSON.stringify({
             answers: [{ line_number: lineNumber, answers: [answer] }],
+          }),
+        });
+      },
+      [fetchAPI],
+    ),
+
+    checkGrammar: useCallback(
+      (
+        id: string,
+        grammarPointId: number,
+        answers: Array<{ line_number: number; positions: number[] }>,
+      ): Promise<APIResponse<any>> => {
+        return fetchAPI(`/stories/${id}/check-grammar`, {
+          method: "POST",
+          body: JSON.stringify({
+            grammar_point_id: grammarPointId,
+            answers,
           }),
         });
       },

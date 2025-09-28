@@ -34,35 +34,50 @@ type AudioFile struct {
 
 // Line represents a story line in API responses
 type Line struct {
-	Text              []string       `json:"text"`
-	AudioFiles        []AudioFile    `json:"audio_files"`
-	SignedAudioURLs   map[int]string `json:"signed_audio_urls,omitempty"`
-	HasVocabOrGrammar bool           `json:"has_vocab_or_grammar"`
+	Text            []string       `json:"text"`
+	AudioFiles      []AudioFile    `json:"audio_files"`
+	SignedAudioURLs map[int]string `json:"signed_audio_urls,omitempty"`
+}
+
+// LineText represents line text without anything else
+type LineText struct {
+	Text string `json:"text"`
 }
 
 // PageData represents common page data structure
 type PageData struct {
 	StoryID    string `json:"story_id"`
 	StoryTitle string `json:"story_title"`
-	Lines      []Line `json:"lines"`
+}
+
+// AudioPageData extends PageData with lines containing audio
+type AudioPageData struct {
+	PageData
+	Lines []Line `json:"lines"`
 }
 
 // VocabPageData extends PageData with vocabulary bank
 type VocabPageData struct {
 	PageData
+	Lines     []Line   `json:"lines"`
 	VocabBank []string `json:"vocab_bank"`
 }
 
 // GrammarPageData extends PageData with grammar point
 type GrammarPageData struct {
 	PageData
-	GrammarPoint string `json:"grammar_point"`
+	Lines              []LineText `json:"lines"`
+	LanguageCode       string     `json:"languageCode"`
+	GrammarPointID     int        `json:"grammar_point_id"`
+	GrammarPoint       string     `json:"grammar_point"`
+	GrammarDescription string     `json:"grammar_description"`
+	InstancesCount     int        `json:"instances_count"`
 }
 
-// TranslationPageData extends PageData with  translation
+// TranslationPageData extends PageData with translation field
 type TranslationPageData struct {
 	PageData
-	Translation string `json:"translation"`
+	Lines []LineTranslation `json:"lines"`
 }
 
 // VocabAnswer represents vocabulary answer from client
@@ -101,8 +116,16 @@ type CheckVocabResponse struct {
 	Correct bool `json:"correct"`
 }
 
-// GrammarResult represents individual grammar check result with position info
-type GrammarResult struct {
+// GrammarInstance represents a grammar point instance in the story
+type GrammarInstance struct {
+	LineNumber   int    `json:"line_number"`
+	Position     [2]int `json:"position"`
+	Text         string `json:"text"`
+	UserSelected bool   `json:"user_selected"`
+}
+
+// UserSelection represents a user's selection with correctness
+type UserSelection struct {
 	LineNumber int    `json:"line_number"`
 	Position   [2]int `json:"position"`
 	Text       string `json:"text"`
@@ -111,16 +134,24 @@ type GrammarResult struct {
 
 // CheckGrammarResponse represents the response for grammar checking
 type CheckGrammarResponse struct {
-	Correct      int             `json:"correct"`
-	Wrong        int             `json:"wrong"`
-	TotalAnswers int             `json:"total_answers"`
-	Results      []GrammarResult `json:"results"`
+	Correct            int               `json:"correct"`
+	Wrong              int               `json:"wrong"`
+	TotalAnswers       int               `json:"total_answers"`
+	GrammarInstances   []GrammarInstance `json:"grammar_instances"`
+	UserSelections     []UserSelection   `json:"user_selections"`
+	NextGrammarPointID *int              `json:"next_grammar_point_id"`
 }
 
 // LineValidationError represents validation error with expected answer counts
 type LineValidationError struct {
 	Message         string      `json:"message"`
 	ExpectedAnswers map[int]int `json:"expected_answers"` // line number -> expected count
+}
+
+// LineTranslation extends LineText with translation
+type LineTranslation struct {
+	LineText
+	Translation *string `json:"translation,omitempty"`
 }
 
 // ConvertStoryToAPI converts models.Story to API Story format

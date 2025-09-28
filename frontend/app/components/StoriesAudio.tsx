@@ -24,7 +24,7 @@ export function StoriesAudio() {
       }
 
       try {
-        const response = await api.getStoryAudio(id);
+        const response = await api.getStoryWithAudio(id);
         if (response.success && response.data) {
           setPageData(response.data);
 

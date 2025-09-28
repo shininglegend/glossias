@@ -33,10 +33,12 @@ func (h *Handler) GetAudioPage(w http.ResponseWriter, r *http.Request) {
 
 	lines := h.transformLinesForAudio(*story)
 
-	data := types.PageData{
-		StoryID:    storyID,
-		StoryTitle: story.Metadata.Title["en"],
-		Lines:      lines,
+	data := types.AudioPageData{
+		PageData: types.PageData{
+			StoryID:    storyID,
+			StoryTitle: story.Metadata.Title["en"],
+		},
+		Lines: lines,
 	}
 
 	response := types.APIResponse{

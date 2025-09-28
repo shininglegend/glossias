@@ -39,8 +39,8 @@ func (h *Handler) GetVocabPage(w http.ResponseWriter, r *http.Request) {
 		PageData: types.PageData{
 			StoryID:    storyID,
 			StoryTitle: story.Metadata.Title["en"],
-			Lines:      lines,
 		},
+		Lines:     lines,
 		VocabBank: vocabBank,
 	}
 
@@ -79,8 +79,6 @@ func (h *Handler) generateVocabLines(story models.Story, id int) ([]types.Line, 
 			series = append(series, string(runes[lastEnd:]))
 		}
 
-		hasVocab := len(line.Vocabulary) > 0
-
 		// Convert audio files to API format (vocab_missing label only)
 		audioFiles := make([]types.AudioFile, 0)
 		for _, audio := range line.AudioFiles {
@@ -97,7 +95,6 @@ func (h *Handler) generateVocabLines(story models.Story, id int) ([]types.Line, 
 		lines[i] = types.Line{
 			Text:              series,
 			AudioFiles:        audioFiles,
-			HasVocabOrGrammar: hasVocab,
 		}
 	}
 

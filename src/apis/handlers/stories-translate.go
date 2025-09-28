@@ -1,17 +1,19 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"glossias/src/apis/types"
 	"glossias/src/auth"
 	"glossias/src/pkg/models"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/gorilla/mux"
 )
 
-// GetTranslateData returns JSON data for story page 4 (translation)
+// PostTranslateData returns JSON data for story page 4 (translation) for selected lines
 func (h *Handler) GetTranslateData(w http.ResponseWriter, r *http.Request) {
 	storyID := mux.Vars(r)["id"]
 	id, err := strconv.Atoi(storyID)
@@ -31,19 +33,19 @@ func (h *Handler) GetTranslateData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lines := h.processLinesForTranslation(*story, id)
-
-	// TODO: Translation field not yet implemented in StoryMetadata
-	// Return empty translation for now
-	translation := ""
+	lines, err := h.processLinesForTranslation(r.Context(), *story, id, nil)
+	if err != nil {
+		h.log.Error("Failed to process lines for translation", "error", err)
+		h.sendError(w, "Failed to process lines for translation", http.StatusInternalServerError)
+		return
+	}
 
 	data := types.TranslationPageData{
 		PageData: types.PageData{
 			StoryID:    storyID,
 			StoryTitle: story.Metadata.Title["en"],
-			Lines:      lines,
 		},
-		Translation: translation,
+		Lines: lines,
 	}
 
 	response := types.APIResponse{
@@ -54,16 +56,27 @@ func (h *Handler) GetTranslateData(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// processLinesForTranslation prepares lines for translation page (plain text with audio)
-func (h *Handler) processLinesForTranslation(story models.Story, id int) []types.Line {
-	lines := make([]types.Line, 0, len(story.Content.Lines))
+// processLinesForTranslation prepares lines for translation page
+func (h *Handler) processLinesForTranslation(ctx context.Context, story models.Story, id int, linesToTranslate []int) ([]types.LineTranslation, error) {
+	lines := make([]types.LineTranslation, 0, len(story.Content.Lines))
 
-	for _, dbLine := range story.Content.Lines {
-		lines = append(lines, types.Line{
-			Text:       []string{dbLine.Text},
-			AudioFiles: []types.AudioFile{}, // No audio files for page 4
-		})
+	translation, err := models.GetTranslationsByLanguage(ctx, id, "en")
+	if err != nil {
+		return nil, err
 	}
 
-	return lines
+	for i, dbLine := range story.Content.Lines {
+		if translation != nil && i < len(translation) {
+			if slices.Contains(linesToTranslate, i) {
+				lines = append(lines, types.LineTranslation{
+					LineText: types.LineText{
+						Text: dbLine.Text,
+					},
+					Translation: &translation[i].TranslationText,
+				})
+			}
+		}
+	}
+
+	return lines, nil
 }

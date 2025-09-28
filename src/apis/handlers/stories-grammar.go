@@ -21,6 +21,17 @@ func (h *Handler) GetGrammarPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Parse optional grammar_point_id query parameter
+	var targetGrammarPointID *int
+	if gpIDStr := r.URL.Query().Get("grammar_point_id"); gpIDStr != "" {
+		if gpID, err := strconv.Atoi(gpIDStr); err != nil {
+			h.sendError(w, "Invalid grammar_point_id format", http.StatusBadRequest)
+			return
+		} else {
+			targetGrammarPointID = &gpID
+		}
+	}
+
 	story, err := models.GetStoryData(r.Context(), id, auth.GetUserID(r))
 	if err == models.ErrNotFound {
 		h.sendError(w, "Story not found", http.StatusNotFound)
@@ -32,14 +43,57 @@ func (h *Handler) GetGrammarPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Send only the first grammar point instead of blank story
-	// For now, return blank lines - in the future this will iterate through grammar points
-	lines := make([]types.Line, len(story.Content.Lines))
+	// Get grammar points for the story
+	grammarPoints, err := models.GetStoryGrammarPoints(r.Context(), id)
+	if err != nil {
+		h.log.Error("Failed to fetch grammar points", "error", err)
+		h.sendError(w, "Failed to fetch grammar points", http.StatusInternalServerError)
+		return
+	}
+
+	// Find target grammar point
+	var selectedPoint *models.GrammarPoint
+	if targetGrammarPointID != nil {
+		// Find specific grammar point by ID
+		for _, gp := range grammarPoints {
+			if gp.ID == *targetGrammarPointID {
+				selectedPoint = &gp
+				break
+			}
+		}
+		if selectedPoint == nil {
+			h.sendError(w, "Grammar point not found", http.StatusNotFound)
+			return
+		}
+	} else if len(grammarPoints) > 0 {
+		// Use first grammar point if no specific ID provided
+		selectedPoint = &grammarPoints[0]
+	}
+
+	var grammarPointID int
+	var grammarPoint string
+	var grammarDescription string
+	var instancesCount int
+
+	if selectedPoint != nil {
+		grammarPointID = selectedPoint.ID
+		grammarPoint = selectedPoint.Name
+		grammarDescription = selectedPoint.Description
+
+		// Count instances of this grammar point in the story
+		for _, line := range story.Content.Lines {
+			for _, grammar := range line.Grammar {
+				if grammar.GrammarPointID != nil && *grammar.GrammarPointID == selectedPoint.ID {
+					instancesCount++
+				}
+			}
+		}
+	}
+
+	lines := make([]types.LineText, len(story.Content.Lines))
 	for i, line := range story.Content.Lines {
-		lines[i] = types.Line{
-			Text:              []string{line.Text},
-			AudioFiles:        []types.AudioFile{},
-			HasVocabOrGrammar: len(line.Grammar) > 0,
+		lines[i] = types.LineText{
+			Text: line.Text,
 		}
 	}
 
@@ -47,9 +101,13 @@ func (h *Handler) GetGrammarPage(w http.ResponseWriter, r *http.Request) {
 		PageData: types.PageData{
 			StoryID:    storyID,
 			StoryTitle: story.Metadata.Title["en"],
-			Lines:      lines,
 		},
-		GrammarPoint: "TODO: First grammar point name and description",
+		Lines:              lines,
+		LanguageCode:       story.Metadata.Description.Language,
+		GrammarPointID:     grammarPointID,
+		GrammarPoint:       grammarPoint,
+		GrammarDescription: grammarDescription,
+		InstancesCount:     instancesCount,
 	}
 
 	response := types.APIResponse{
@@ -113,11 +171,8 @@ func (h *Handler) CheckGrammar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Score the answers
-	correct := 0
-	wrong := 0
-	var results []types.GrammarResult
-
+	// Create user selection map for quick lookup
+	userSelections := make(map[int]map[int]bool) // lineNumber -> position -> selected
 	for _, answer := range req.Answers {
 		// Validate line number
 		if answer.LineNumber < 0 || answer.LineNumber >= len(story.Content.Lines) {
@@ -125,61 +180,98 @@ func (h *Handler) CheckGrammar(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		lineItems := grammarItemsMap[answer.LineNumber]
-		line := story.Content.Lines[answer.LineNumber]
-
-		// Check each position against grammar items on this line
+		if userSelections[answer.LineNumber] == nil {
+			userSelections[answer.LineNumber] = make(map[int]bool)
+		}
 		for _, pos := range answer.Positions {
-			found := false
-			for _, item := range lineItems {
-				if pos >= item.Position[0] && pos < item.Position[1] {
-					correct++
-					results = append(results, types.GrammarResult{
-						LineNumber: answer.LineNumber,
-						Position:   item.Position,
-						Text:       item.Text,
-						Correct:    true,
-					})
-					found = true
-					break
+			userSelections[answer.LineNumber][pos] = true
+		}
+	}
+
+	// Build grammar instances (all actual grammar points in the story)
+	var grammarInstances []types.GrammarInstance
+	correct := 0
+	wrong := 0
+
+	for lineNum, grammarItems := range grammarItemsMap {
+		for _, item := range grammarItems {
+			// Check if user selected this grammar item
+			userSelected := false
+			if lineSelections, exists := userSelections[lineNum]; exists {
+				for pos := range lineSelections {
+					if pos >= item.Position[0] && pos < item.Position[1] {
+						userSelected = true
+						break
+					}
 				}
 			}
-			if !found {
+
+			grammarInstances = append(grammarInstances, types.GrammarInstance{
+				LineNumber:   lineNum,
+				Position:     item.Position,
+				Text:         item.Text,
+				UserSelected: userSelected,
+			})
+
+			if userSelected {
+				correct++
+			} else {
 				wrong++
-				// For incorrect answers, we still need to show where they clicked
-				results = append(results, types.GrammarResult{
-					LineNumber: answer.LineNumber,
-					Position:   [2]int{pos, pos + 1}, // Single character position
-					Text:       string([]rune(line.Text)[pos : pos+1]),
-					Correct:    false,
-				})
 			}
 		}
+	}
 
-		// Add any missed grammar items from this line as incorrect
-		for _, item := range lineItems {
-			covered := false
-			for _, pos := range answer.Positions {
+	// Build user selections (what the user actually clicked)
+	var userSelectionResults []types.UserSelection
+	for lineNum, lineSelections := range userSelections {
+		line := story.Content.Lines[lineNum]
+		grammarItems := grammarItemsMap[lineNum]
+
+		for pos := range lineSelections {
+			// Check if this position matches any grammar item
+			isCorrect := false
+			matchedText := ""
+			matchedPosition := [2]int{pos, pos + 1}
+
+			for _, item := range grammarItems {
 				if pos >= item.Position[0] && pos < item.Position[1] {
-					covered = true
+					isCorrect = true
+					matchedText = item.Text
+					matchedPosition = item.Position
 					break
 				}
 			}
-			if !covered {
-				// This grammar item wasn't selected
-				results = append(results, types.GrammarResult{
-					LineNumber: answer.LineNumber,
-					Position:   item.Position,
-					Text:       item.Text,
-					Correct:    false,
-				})
+
+			if !isCorrect {
+				// Get the character the user clicked on
+				matchedText = string([]rune(line.Text)[pos : pos+1])
 			}
+
+			userSelectionResults = append(userSelectionResults, types.UserSelection{
+				LineNumber: lineNum,
+				Position:   matchedPosition,
+				Text:       matchedText,
+				Correct:    isCorrect,
+			})
 		}
 	}
 
 	// Ensure correct + wrong = total answers
 	if correct+wrong != totalExpected {
 		h.log.Error("Score calculation error", "correct", correct, "wrong", wrong, "expected", totalExpected)
+	}
+
+	// Find next grammar point
+	var nextGrammarPointID *int
+	grammarPoints, err := models.GetStoryGrammarPoints(r.Context(), id)
+	if err == nil {
+		// Find current grammar point index and get next one
+		for i, gp := range grammarPoints {
+			if gp.ID == req.GrammarPointID && i+1 < len(grammarPoints) {
+				nextGrammarPointID = &grammarPoints[i+1].ID
+				break
+			}
+		}
 	}
 
 	// Save scores if user is authenticated
@@ -219,10 +311,12 @@ func (h *Handler) CheckGrammar(w http.ResponseWriter, r *http.Request) {
 	response := types.APIResponse{
 		Success: true,
 		Data: types.CheckGrammarResponse{
-			Correct:      correct,
-			Wrong:        wrong,
-			TotalAnswers: totalExpected,
-			Results:      results,
+			Correct:            correct,
+			Wrong:              wrong,
+			TotalAnswers:       totalExpected,
+			GrammarInstances:   grammarInstances,
+			UserSelections:     userSelectionResults,
+			NextGrammarPointID: nextGrammarPointID,
 		},
 	}
 

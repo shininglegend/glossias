@@ -221,7 +221,7 @@ export function StoriesTranslate() {
                                 ? "bg-blue-100 border-2 border-blue-300"
                                 : "bg-gray-50"
                               : isSelected
-                                ? "bg-blue-200 border-2 dborder-blue-400"
+                                ? "bg-blue-200 border-2 border-blue-400"
                                 : "hover:bg-gray-100 border-2 border-transparent"
                           } ${isRTL ? "text-right" : "text-left"}`}
                           onClick={() => handleLineSelect(lineIndex)}

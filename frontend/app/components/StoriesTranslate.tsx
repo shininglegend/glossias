@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import { useApiService } from "../services/api";
+import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import type { PageData, TranslateData } from "../services/api";
 
 export function StoriesTranslate() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
   const navigate = useNavigate();
+  const { getNavigationGuidance } = useNavigationGuidance();
   const [pageData, setPageData] = useState<PageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,9 +47,9 @@ export function StoriesTranslate() {
     const fetchNextStep = async () => {
       if (!id) return;
       try {
-        const response = await api.getNavigationGuidance(id, "translate");
-        if (response.success && response.data) {
-          setNextStepName(response.data.displayName);
+        const guidance = await getNavigationGuidance(id, "translate");
+        if (guidance) {
+          setNextStepName(guidance.displayName);
         }
       } catch (error) {
         console.error("Failed to get navigation guidance:", error);
@@ -55,7 +57,7 @@ export function StoriesTranslate() {
     };
 
     fetchNextStep();
-  }, [id, api]);
+  }, [id, getNavigationGuidance]);
 
   if (loading) {
     return (
@@ -174,12 +176,12 @@ export function StoriesTranslate() {
             <button
               onClick={async () => {
                 try {
-                  const response = await api.getNavigationGuidance(
+                  const guidance = await getNavigationGuidance(
                     id!,
                     "translate",
                   );
-                  if (response.success && response.data) {
-                    navigate(`/stories/${id}/${response.data.nextPage}`);
+                  if (guidance) {
+                    navigate(`/stories/${id}/${guidance.nextPage}`);
                   }
                 } catch (error) {
                   console.error("Failed to get navigation guidance:", error);

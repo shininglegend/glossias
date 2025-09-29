@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import { useApiService } from "../services/api";
+import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import { useAuthenticatedFetch } from "../lib/authFetch";
 import type { VocabData } from "../services/api";
 
@@ -19,8 +20,9 @@ const lineHasVocab = (line: { text: string[] }): boolean => {
 export function StoriesVocab() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
-  const authenticatedFetch = useAuthenticatedFetch();
   const navigate = useNavigate();
+  const { getNavigationGuidance } = useNavigationGuidance();
+  const authenticatedFetch = useAuthenticatedFetch();
   const [pageData, setPageData] = useState<VocabData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +40,7 @@ export function StoriesVocab() {
   }>({});
   const [completedLines, setCompletedLines] = useState<Set<number>>(new Set());
   const [playedLines, setPlayedLines] = useState<Set<number>>(new Set());
+  const [checkingLines, setCheckingLines] = useState<Set<number>>(new Set());
   const [metadata, setMetadata] = useState<any>(null);
   const [prefetchedAudio, setPrefetchedAudio] = useState<
     Record<string, HTMLAudioElement>
@@ -134,9 +137,9 @@ export function StoriesVocab() {
     const fetchNextStep = async () => {
       if (!id) return;
       try {
-        const response = await api.getNavigationGuidance(id, "vocab");
-        if (response.success && response.data) {
-          setNextStepName(response.data.displayName);
+        const guidance = await getNavigationGuidance(id, "vocab");
+        if (guidance) {
+          setNextStepName(guidance.displayName);
         }
       } catch (error) {
         console.error("Failed to get navigation guidance:", error);
@@ -144,7 +147,7 @@ export function StoriesVocab() {
     };
 
     fetchNextStep();
-  }, [id, api]);
+  }, [id, getNavigationGuidance]);
 
   const stopAudio = () => {
     if (currentAudio) {
@@ -270,6 +273,8 @@ export function StoriesVocab() {
   const checkLineAnswer = async (lineIndex: number) => {
     if (!id || !selectedAnswers[lineIndex]) return;
 
+    setCheckingLines((prev) => new Set([...prev, lineIndex]));
+
     try {
       const response = await api.checkVocabLine(
         id,
@@ -295,6 +300,12 @@ export function StoriesVocab() {
       }
     } catch (err) {
       console.error("Failed to check answer:", err);
+    } finally {
+      setCheckingLines((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(lineIndex);
+        return newSet;
+      });
     }
   };
 
@@ -478,8 +489,13 @@ export function StoriesVocab() {
                                       onClick={() => checkLineAnswer(lineIndex)}
                                       className="check-button w-6 h-6 bg-blue-500 text-white border-none rounded-full cursor-pointer text-sm flex items-center justify-center transition-colors duration-200 hover:bg-blue-600"
                                       type="button"
+                                      disabled={checkingLines.has(lineIndex)}
                                     >
-                                      ✓
+                                      {checkingLines.has(lineIndex) ? (
+                                        <div className="animate-spin w-3 h-3 border border-white border-t-transparent rounded-full"></div>
+                                      ) : (
+                                        "✓"
+                                      )}
                                     </button>
                                   )}
                                 {result === false && (
@@ -543,12 +559,9 @@ export function StoriesVocab() {
               <button
                 onClick={async () => {
                   try {
-                    const response = await api.getNavigationGuidance(
-                      id!,
-                      "vocab",
-                    );
-                    if (response.success && response.data) {
-                      navigate(`/stories/${id}/${response.data.nextPage}`);
+                    const guidance = await getNavigationGuidance(id!, "vocab");
+                    if (guidance) {
+                      navigate(`/stories/${id}/${guidance.nextPage}`);
                     }
                   } catch (error) {
                     console.error("Failed to get navigation guidance:", error);

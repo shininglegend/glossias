@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useApiService } from "../services/api";
+import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import confetti from "canvas-confetti";
 
 interface ScoreData {
@@ -73,6 +74,7 @@ export function StoriesScore() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
   const navigate = useNavigate();
+  const { getNavigationGuidance } = useNavigationGuidance();
   const [scoreData, setScoreData] = useState<ScoreData | null>(null);
   const [incompleteData, setIncompleteData] =
     useState<IncompleteResponse | null>(null);
@@ -114,9 +116,9 @@ export function StoriesScore() {
     const fetchNextStep = async () => {
       if (!id) return;
       try {
-        const response = await api.getNavigationGuidance(id, "score");
-        if (response.success && response.data) {
-          setNextStepName(response.data.displayName);
+        const guidance = await getNavigationGuidance(id, "score");
+        if (guidance) {
+          setNextStepName(guidance.displayName);
         }
       } catch (error) {
         console.error("Failed to get navigation guidance:", error);
@@ -124,7 +126,7 @@ export function StoriesScore() {
     };
 
     fetchNextStep();
-  }, [id, api]);
+  }, [id, getNavigationGuidance]);
 
   // Fire confetti when data loads
   useEffect(() => {
@@ -266,9 +268,9 @@ export function StoriesScore() {
           <button
             onClick={async () => {
               try {
-                const response = await api.getNavigationGuidance(id!, "score");
-                if (response.success && response.data) {
-                  navigate(`/stories/${id}/${response.data.nextPage}`);
+                const guidance = await getNavigationGuidance(id!, "score");
+                if (guidance) {
+                  navigate(`/stories/${id}/${guidance.nextPage}`);
                 } else {
                   navigate("/");
                 }

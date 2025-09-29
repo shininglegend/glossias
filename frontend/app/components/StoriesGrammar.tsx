@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useSearchParams, useNavigate } from "react-router";
 import { useApiService } from "../services/api";
+import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import type { GrammarData } from "../services/api";
 
 interface ClickPosition {
@@ -33,6 +34,7 @@ export function StoriesGrammar() {
   const grammarPointId = searchParams.get("id");
   const api = useApiService();
   const navigate = useNavigate();
+  const { getNavigationGuidance } = useNavigationGuidance();
   const [pageData, setPageData] = useState<GrammarData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,9 +83,9 @@ export function StoriesGrammar() {
     const fetchNextStep = async () => {
       if (!id) return;
       try {
-        const response = await api.getNavigationGuidance(id, "grammar");
-        if (response.success && response.data) {
-          setNextStepName(response.data.displayName);
+        const guidance = await getNavigationGuidance(id, "grammar");
+        if (guidance) {
+          setNextStepName(guidance.displayName);
         }
       } catch (error) {
         console.error("Failed to get navigation guidance:", error);
@@ -91,7 +93,7 @@ export function StoriesGrammar() {
     };
 
     fetchNextStep();
-  }, [id, api]);
+  }, [id, getNavigationGuidance]);
 
   const handleTextClick = (lineIndex: number, charIndex: number) => {
     if (isSubmitted) return;
@@ -339,12 +341,12 @@ export function StoriesGrammar() {
                 <button
                   onClick={async () => {
                     try {
-                      const response = await api.getNavigationGuidance(
+                      const guidance = await getNavigationGuidance(
                         id!,
                         "grammar",
                       );
-                      if (response.success && response.data) {
-                        navigate(`/stories/${id}/${response.data.nextPage}`);
+                      if (guidance) {
+                        navigate(`/stories/${id}/${guidance.nextPage}`);
                       }
                     } catch (error) {
                       console.error(

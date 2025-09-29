@@ -39,6 +39,9 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/{id}/check-vocab", h.CheckVocab).Methods("POST", "OPTIONS")
 	// Grammar checking endpoint
 	router.HandleFunc("/{id}/check-grammar", h.CheckGrammar).Methods("POST", "OPTIONS")
+
+	// Navigation endpoint
+	router.HandleFunc("/{id}/next", h.Navigate).Methods("POST", "OPTIONS")
 }
 
 // GetStories returns JSON array of all stories

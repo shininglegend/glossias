@@ -246,14 +246,16 @@ export function useApiService() {
 
     getNavigationGuidance: useCallback(
       (
-        id: string,
-        userId: string,
+        storyId: string,
         currentPage: string,
       ): Promise<APIResponse<NavigationGuidanceResponse>> => {
-        return fetchAPI<NavigationGuidanceResponse>(`/stories/${id}/next`, {
-          method: "POST",
-          body: JSON.stringify({ userId, currentPage }),
-        });
+        return fetchAPI<NavigationGuidanceResponse>(
+          `/stories/${storyId}/next`,
+          {
+            method: "POST",
+            body: JSON.stringify({ currentPage }),
+          },
+        );
       },
       [fetchAPI],
     ),

@@ -34,7 +34,6 @@ export function StoryList() {
     try {
       const response = await api.getNavigationGuidance(
         storyId.toString(),
-        "placeholder-user-id",
         "list",
       );
       if (response.success && response.data) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router";
+import { useParams, useNavigate } from "react-router";
 import { useApiService } from "../services/api";
 import type { StoryMetadata } from "../services/api";
 
@@ -16,10 +16,12 @@ function isYouTubeUrl(url: string): boolean {
 export function StoriesVideo() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
+  const navigate = useNavigate();
   const [metadata, setMetadata] = useState<StoryMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [videoWatched, setVideoWatched] = useState(false);
+  const [nextStepName, setNextStepName] = useState<string>("Next Step");
 
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -46,6 +48,22 @@ export function StoriesVideo() {
     fetchMetadata();
   }, [id]);
 
+  useEffect(() => {
+    const fetchNextStep = async () => {
+      if (!id) return;
+      try {
+        const response = await api.getNavigationGuidance(id, "video");
+        if (response.success && response.data) {
+          setNextStepName(response.data.displayName);
+        }
+      } catch (error) {
+        console.error("Failed to get navigation guidance:", error);
+      }
+    };
+
+    fetchNextStep();
+  }, [id, api]);
+
   if (loading) {
     return (
       <div className="container">
@@ -58,7 +76,7 @@ export function StoriesVideo() {
     return (
       <div className="container">
         <p>Error: {error}</p>
-        <Link to="/">Back to Stories</Link>
+        <button onClick={() => navigate("/")}>Back to Stories</button>
       </div>
     );
   }
@@ -67,7 +85,7 @@ export function StoriesVideo() {
     return (
       <div className="container">
         <p>No story found</p>
-        <Link to="/">Back to Stories</Link>
+        <button onClick={() => navigate("/")}>Back to Stories</button>
       </div>
     );
   }
@@ -82,13 +100,22 @@ export function StoriesVideo() {
         </h1>
         <p>No video available for this story</p>
         <div className="text-center">
-          <Link
-            to={`/stories/${id}/vocab`}
+          <button
+            onClick={async () => {
+              try {
+                const response = await api.getNavigationGuidance(id!, "video");
+                if (response.success && response.data) {
+                  navigate(`/stories/${id}/${response.data.nextPage}`);
+                }
+              } catch (error) {
+                console.error("Failed to get navigation guidance:", error);
+              }
+            }}
             className="inline-flex items-center px-8 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 text-lg font-semibold transition-all duration-200 shadow-lg"
           >
-            <span>Skip to Vocabulary</span>
+            <span>Skip to {nextStepName}</span>
             <span className="material-icons ml-2">arrow_forward</span>
-          </Link>
+          </button>
         </div>
       </div>
     );
@@ -119,13 +146,25 @@ export function StoriesVideo() {
       <div className="max-w-4xl mx-auto px-5">
         {videoWatched && (
           <div className="text-center mb-8">
-            <Link
-              to={`/stories/${id}/vocab`}
+            <button
+              onClick={async () => {
+                try {
+                  const response = await api.getNavigationGuidance(
+                    id!,
+                    "video",
+                  );
+                  if (response.success && response.data) {
+                    navigate(`/stories/${id}/${response.data.nextPage}`);
+                  }
+                } catch (error) {
+                  console.error("Failed to get navigation guidance:", error);
+                }
+              }}
               className="inline-flex items-center px-8 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 text-lg font-semibold transition-all duration-200 shadow-lg"
             >
-              <span>Continue to Vocabulary</span>
+              <span>Continue to {nextStepName}</span>
               <span className="material-icons ml-2">arrow_forward</span>
-            </Link>
+            </button>
           </div>
         )}
         <div

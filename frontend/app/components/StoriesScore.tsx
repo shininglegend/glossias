@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router";
+import { useParams, useNavigate } from "react-router";
 import { useApiService } from "../services/api";
 import confetti from "canvas-confetti";
 
@@ -72,12 +72,14 @@ function formatTime(milliseconds: number): string {
 export function StoriesScore() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
+  const navigate = useNavigate();
   const [scoreData, setScoreData] = useState<ScoreData | null>(null);
   const [incompleteData, setIncompleteData] =
     useState<IncompleteResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confettiFired, setConfettiFired] = useState(false);
+  const [nextStepName, setNextStepName] = useState<string>("Back to Stories");
 
   useEffect(() => {
     const fetchScoreData = async () => {
@@ -108,6 +110,22 @@ export function StoriesScore() {
     fetchScoreData();
   }, [id]);
 
+  useEffect(() => {
+    const fetchNextStep = async () => {
+      if (!id) return;
+      try {
+        const response = await api.getNavigationGuidance(id, "score");
+        if (response.success && response.data) {
+          setNextStepName(response.data.displayName);
+        }
+      } catch (error) {
+        console.error("Failed to get navigation guidance:", error);
+      }
+    };
+
+    fetchNextStep();
+  }, [id, api]);
+
   // Fire confetti when data loads
   useEffect(() => {
     if (scoreData && !confettiFired) {
@@ -128,7 +146,7 @@ export function StoriesScore() {
     return (
       <div className="container">
         <p>Error: {error}</p>
-        <Link to="/">Back to Stories</Link>
+        <button onClick={() => navigate("/")}>Back to Stories</button>
       </div>
     );
   }
@@ -181,28 +199,28 @@ export function StoriesScore() {
                       </p>
                     </div>
                   </div>
-                  <Link
-                    to={`/stories/${id}/${activity.route}`}
+                  <button
+                    onClick={() => navigate(`/stories/${id}/${activity.route}`)}
                     className="inline-flex items-center px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-medium transition-all duration-200"
                   >
                     <span>
                       {activity.reason === "no_data" ? "Start" : "Continue"}
                     </span>
                     <span className="material-icons ml-2">arrow_forward</span>
-                  </Link>
+                  </button>
                 </div>
               </div>
             ))}
           </div>
 
           <div className="text-center mt-8">
-            <Link
-              to="/"
+            <button
+              onClick={() => navigate("/")}
               className="inline-flex items-center px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium transition-all duration-200"
             >
               <span>Back to Stories</span>
               <span className="material-icons ml-2">home</span>
-            </Link>
+            </button>
           </div>
         </div>
       </>
@@ -213,7 +231,7 @@ export function StoriesScore() {
     return (
       <div className="container">
         <p>No score data found</p>
-        <Link to="/">Back to Stories</Link>
+        <button onClick={() => navigate("/")}>Back to Stories</button>
       </div>
     );
   }
@@ -245,13 +263,25 @@ export function StoriesScore() {
         </div>
 
         <div className="text-center">
-          <Link
-            to="/"
+          <button
+            onClick={async () => {
+              try {
+                const response = await api.getNavigationGuidance(id!, "score");
+                if (response.success && response.data) {
+                  navigate(`/stories/${id}/${response.data.nextPage}`);
+                } else {
+                  navigate("/");
+                }
+              } catch (error) {
+                console.error("Failed to get navigation guidance:", error);
+                navigate("/");
+              }
+            }}
             className="inline-flex items-center px-8 py-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-lg font-semibold transition-all duration-200 shadow-lg"
           >
-            <span>Back to Stories</span>
+            <span>{nextStepName}</span>
             <span className="material-icons ml-2">home</span>
-          </Link>
+          </button>
         </div>
       </header>
 

@@ -84,6 +84,19 @@ DeleteAllUsersFromCourse(courseID int) error // Uses DeleteAllUsersFromCourse
 GetCoursesForUser(userID string) ([]UserCourse, error) // Uses GetCoursesForUser
 GetUsersForCourse(courseID int) ([]CourseUser, error) // Uses GetUsersForCourse
 
+Navigation Types:
+- PageType: string constants for "video", "vocab", "translate", "grammar", "score"
+- NavigationGuidanceRequest: {UserId, CurrentPage, StoryId}
+- NavigationGuidanceResponse: {NextPage}
+
+Navigation Operations:
+Navigate(storyID, currentPage, userID) (*NavigationGuidanceResponse, error) // Determines next page in learning flow
+getPageCompletionStatus(userID, storyID) (map[PageType]bool, error) // Checks completion for all page types
+isVocabCompleted(userID, storyID) (bool, error) // Vocab attempts + 5 seconds min time
+isGrammarCompleted(userID, storyID) (bool, error) // Grammar attempts + 5 seconds min time
+isTranslateCompleted(userID, storyID) (bool, error) // 5 seconds min time
+determineNextPage(currentPage, completionStatus) PageType // Navigation logic with video always visited
+
 Error Types:
 ErrNotFound, ErrInvalidStoryID, ErrInvalidLineNumber, ErrMissingStoryID,
 ErrInvalidWeekNumber, ErrMissingDayLetter, ErrTitleTooShort, ErrMissingAuthorID

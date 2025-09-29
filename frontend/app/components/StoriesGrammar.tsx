@@ -43,6 +43,7 @@ export function StoriesGrammar() {
     null,
   );
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [nextStepName, setNextStepName] = useState<string>("Next Step");
 
   useEffect(() => {
     const fetchPageData = async () => {
@@ -75,6 +76,22 @@ export function StoriesGrammar() {
 
     fetchPageData();
   }, [id, grammarPointId]);
+
+  useEffect(() => {
+    const fetchNextStep = async () => {
+      if (!id) return;
+      try {
+        const response = await api.getNavigationGuidance(id, "grammar");
+        if (response.success && response.data) {
+          setNextStepName(response.data.displayName);
+        }
+      } catch (error) {
+        console.error("Failed to get navigation guidance:", error);
+      }
+    };
+
+    fetchNextStep();
+  }, [id, api]);
 
   const handleTextClick = (lineIndex: number, charIndex: number) => {
     if (isSubmitted) return;
@@ -324,7 +341,6 @@ export function StoriesGrammar() {
                     try {
                       const response = await api.getNavigationGuidance(
                         id!,
-                        "placeholder-user-id",
                         "grammar",
                       );
                       if (response.success && response.data) {
@@ -339,7 +355,7 @@ export function StoriesGrammar() {
                   }}
                   className="inline-flex items-center px-8 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 text-lg font-semibold transition-all duration-200 shadow-lg"
                 >
-                  <span>Continue to Score</span>
+                  <span>Continue to {nextStepName}</span>
                   <span className="material-icons ml-2">arrow_forward</span>
                 </button>
               )}

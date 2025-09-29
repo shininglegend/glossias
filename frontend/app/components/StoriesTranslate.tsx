@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate, Link } from "react-router";
 import { useApiService } from "../services/api";
 import type { PageData, TranslateData } from "../services/api";
 
@@ -14,6 +14,7 @@ export function StoriesTranslate() {
   const [selectedLines, setSelectedLines] = useState<number[]>([]);
   const [translations, setTranslations] = useState<TranslateData | null>(null);
   const [translationLoading, setTranslationLoading] = useState(false);
+  const [nextStepName, setNextStepName] = useState<string>("Next Step");
 
   useEffect(() => {
     const fetchPageData = async () => {
@@ -39,6 +40,22 @@ export function StoriesTranslate() {
 
     fetchPageData();
   }, [id]);
+
+  useEffect(() => {
+    const fetchNextStep = async () => {
+      if (!id) return;
+      try {
+        const response = await api.getNavigationGuidance(id, "translate");
+        if (response.success && response.data) {
+          setNextStepName(response.data.displayName);
+        }
+      } catch (error) {
+        console.error("Failed to get navigation guidance:", error);
+      }
+    };
+
+    fetchNextStep();
+  }, [id, api]);
 
   if (loading) {
     return (
@@ -159,7 +176,6 @@ export function StoriesTranslate() {
                 try {
                   const response = await api.getNavigationGuidance(
                     id!,
-                    "placeholder-user-id",
                     "translate",
                   );
                   if (response.success && response.data) {
@@ -171,7 +187,7 @@ export function StoriesTranslate() {
               }}
               className="inline-flex items-center px-8 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 text-lg font-semibold transition-all duration-200 shadow-lg"
             >
-              <span>Continue to Grammar</span>
+              <span>Continue to {nextStepName}</span>
               <span className="material-icons ml-2">arrow_forward</span>
             </button>
           </div>

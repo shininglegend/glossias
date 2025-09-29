@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate, Link } from "react-router";
 import { useApiService } from "../services/api";
 import { useAuthenticatedFetch } from "../lib/authFetch";
 import type { VocabData } from "../services/api";
@@ -43,6 +43,7 @@ export function StoriesVocab() {
     Record<string, HTMLAudioElement>
   >({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [nextStepName, setNextStepName] = useState<string>("Next Step");
 
   const fetchAudioURLs = async () => {
     if (!id) return {};
@@ -128,6 +129,22 @@ export function StoriesVocab() {
 
     fetchPageData();
   }, [id]);
+
+  useEffect(() => {
+    const fetchNextStep = async () => {
+      if (!id) return;
+      try {
+        const response = await api.getNavigationGuidance(id, "vocab");
+        if (response.success && response.data) {
+          setNextStepName(response.data.displayName);
+        }
+      } catch (error) {
+        console.error("Failed to get navigation guidance:", error);
+      }
+    };
+
+    fetchNextStep();
+  }, [id, api]);
 
   const stopAudio = () => {
     if (currentAudio) {
@@ -497,7 +514,6 @@ export function StoriesVocab() {
                   try {
                     const response = await api.getNavigationGuidance(
                       id!,
-                      "placeholder-user-id",
                       "vocab",
                     );
                     if (response.success && response.data) {
@@ -509,7 +525,7 @@ export function StoriesVocab() {
                 }}
                 className="next-button inline-flex items-center gap-2 px-8 py-4 bg-green-500 text-white rounded-lg text-lg font-semibold transition-all duration-200 shadow-lg hover:bg-green-600"
               >
-                <span>Continue to Translation</span>
+                <span>Continue to {nextStepName}</span>
                 <span className="material-icons">arrow_forward</span>
               </button>
             </div>

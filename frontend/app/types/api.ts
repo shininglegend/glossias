@@ -92,18 +92,19 @@ export interface ApiError {
 }
 
 export interface NavigationGuidanceRequest {
+  storyId: string;
   userId: string;
   currentPage: PageType;
 }
 
 export interface NavigationGuidanceResponse {
   nextPage: PageType;
+  displayName: string;
 }
 
 export type PageType =
   | "list"
   | "video"
-  | "audio"
   | "vocab"
   | "translate"
   | "grammar"

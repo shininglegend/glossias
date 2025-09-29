@@ -14,6 +14,7 @@ import (
 var (
 	rateLimiters     = make(map[string]*rate.Limiter)
 	rateLimiterMutex sync.RWMutex
+	tokensPerSecond = 15
 )
 
 func getRateLimiter(ip string) *rate.Limiter {
@@ -23,7 +24,7 @@ func getRateLimiter(ip string) *rate.Limiter {
 
 	if !exists {
 		rateLimiterMutex.Lock()
-		limiter = rate.NewLimiter(rate.Every(time.Second), 10) // 10 requests per second
+		limiter = rate.NewLimiter(rate.Every(time.Second), tokensPerSecond) // 10 requests per second
 		rateLimiters[ip] = limiter
 		rateLimiterMutex.Unlock()
 	}

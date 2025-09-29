@@ -78,6 +78,36 @@ Make sure to deploy the output of `npm run build`
 
 This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
 
+## RTL Text Support
+
+When implementing new story pages, ensure proper handling of right-to-left (RTL) text indentation:
+
+1. Detect RTL languages: `["he", "ar", "fa", "ur"]`
+2. Process text for leading tabs and convert to padding
+3. Apply right padding for RTL text instead of left padding
+4. Example implementation pattern:
+
+```javascript
+const processTextForRTL = (text, isRTL) => {
+  if (!isRTL || typeof text !== "string") {
+    return { displayText: text, indentLevel: 0 };
+  }
+  
+  const leadingTabs = text.match(/^\t*/)?.[0] || "";
+  const tabCount = leadingTabs.length;
+  const textWithoutTabs = text.slice(tabCount);
+  
+  return {
+    displayText: textWithoutTabs,
+    indentLevel: tabCount,
+  };
+};
+
+// Apply padding: paddingRight: `${indentLevel * 2}em`
+```
+
+See `StoriesVocab.tsx` and `StoriesGrammar.tsx` for reference implementations.
+
 ---
 
 Built with ❤️ using React Router.

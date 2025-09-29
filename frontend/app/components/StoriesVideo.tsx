@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useApiService } from "../services/api";
+import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import type { StoryMetadata } from "../services/api";
 
 function getYouTubeEmbedUrl(url: string): string | null {
@@ -17,6 +18,7 @@ export function StoriesVideo() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
   const navigate = useNavigate();
+  const { getNavigationGuidance } = useNavigationGuidance();
   const [metadata, setMetadata] = useState<StoryMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,9 +54,9 @@ export function StoriesVideo() {
     const fetchNextStep = async () => {
       if (!id) return;
       try {
-        const response = await api.getNavigationGuidance(id, "video");
-        if (response.success && response.data) {
-          setNextStepName(response.data.displayName);
+        const guidance = await getNavigationGuidance(id, "video");
+        if (guidance) {
+          setNextStepName(guidance.displayName);
         }
       } catch (error) {
         console.error("Failed to get navigation guidance:", error);
@@ -62,7 +64,7 @@ export function StoriesVideo() {
     };
 
     fetchNextStep();
-  }, [id, api]);
+  }, [id, getNavigationGuidance]);
 
   if (loading) {
     return (
@@ -103,9 +105,9 @@ export function StoriesVideo() {
           <button
             onClick={async () => {
               try {
-                const response = await api.getNavigationGuidance(id!, "video");
-                if (response.success && response.data) {
-                  navigate(`/stories/${id}/${response.data.nextPage}`);
+                const guidance = await getNavigationGuidance(id!, "video");
+                if (guidance) {
+                  navigate(`/stories/${id}/${guidance.nextPage}`);
                 }
               } catch (error) {
                 console.error("Failed to get navigation guidance:", error);
@@ -136,8 +138,11 @@ export function StoriesVideo() {
             <span className="material-icons text-gray-600 mr-2 mt-1">info</span>
             <div>
               <p className="text-gray-700">
-                {metadata.description?.text ||
-                  "Watch the video to get familiar with the story before listening."}
+                {metadata.description?.text || ""}
+                <div>
+                  Watch the video to get familiar with the story before
+                  listening. The next button will appear when the story ends.
+                </div>
               </p>
             </div>
           </div>
@@ -149,12 +154,9 @@ export function StoriesVideo() {
             <button
               onClick={async () => {
                 try {
-                  const response = await api.getNavigationGuidance(
-                    id!,
-                    "video",
-                  );
-                  if (response.success && response.data) {
-                    navigate(`/stories/${id}/${response.data.nextPage}`);
+                  const guidance = await getNavigationGuidance(id!, "video");
+                  if (guidance) {
+                    navigate(`/stories/${id}/${guidance.nextPage}`);
                   }
                 } catch (error) {
                   console.error("Failed to get navigation guidance:", error);

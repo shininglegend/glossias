@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useSearchParams, useNavigate } from "react-router";
 import { useApiService } from "../services/api";
+import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import type { GrammarData } from "../services/api";
 
 interface ClickPosition {
@@ -33,6 +34,7 @@ export function StoriesGrammar() {
   const grammarPointId = searchParams.get("id");
   const api = useApiService();
   const navigate = useNavigate();
+  const { getNavigationGuidance } = useNavigationGuidance();
   const [pageData, setPageData] = useState<GrammarData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,9 +83,9 @@ export function StoriesGrammar() {
     const fetchNextStep = async () => {
       if (!id) return;
       try {
-        const response = await api.getNavigationGuidance(id, "grammar");
-        if (response.success && response.data) {
-          setNextStepName(response.data.displayName);
+        const guidance = await getNavigationGuidance(id, "grammar");
+        if (guidance) {
+          setNextStepName(guidance.displayName);
         }
       } catch (error) {
         console.error("Failed to get navigation guidance:", error);
@@ -91,7 +93,7 @@ export function StoriesGrammar() {
     };
 
     fetchNextStep();
-  }, [id, api]);
+  }, [id, getNavigationGuidance]);
 
   const handleTextClick = (lineIndex: number, charIndex: number) => {
     if (isSubmitted) return;
@@ -339,12 +341,12 @@ export function StoriesGrammar() {
                 <button
                   onClick={async () => {
                     try {
-                      const response = await api.getNavigationGuidance(
+                      const guidance = await getNavigationGuidance(
                         id!,
                         "grammar",
                       );
-                      if (response.success && response.data) {
-                        navigate(`/stories/${id}/${response.data.nextPage}`);
+                      if (guidance) {
+                        navigate(`/stories/${id}/${guidance.nextPage}`);
                       }
                     } catch (error) {
                       console.error(
@@ -372,6 +374,16 @@ export function StoriesGrammar() {
               const isRTL =
                 languageCode && RTL_LANGUAGES.includes(languageCode);
 
+              // Helper function for RTL indentation - keep original positions intact
+              const getIndentLevel = (text: string) => {
+                if (!isRTL || typeof text !== "string") {
+                  return 0;
+                }
+
+                const leadingTabs = text.match(/^\t*/)?.[0] || "";
+                return leadingTabs.length;
+              };
+
               return (
                 <div
                   className={isRTL ? "text-right" : "text-left"}
@@ -380,53 +392,70 @@ export function StoriesGrammar() {
                   {pageData.lines.map((line, lineIndex) => (
                     <div key={lineIndex} className="story-line inline">
                       <div className="line-content text-3xl inline">
-                        {line.text.split("").map((char, charIndex) => {
-                          const isSelected = isPositionSelected(
-                            lineIndex,
-                            charIndex,
+                        {(() => {
+                          const indentLevel = getIndentLevel(line.text);
+                          const firstNonTabIndex = Math.min(
+                            indentLevel,
+                            line.text.length - 1,
                           );
-
-                          let className =
-                            "cursor-pointer select-none transition-colors duration-150";
-
-                          if (!isSubmitted) {
-                            if (isSelected) {
-                              className +=
-                                " bg-blue-400 text-white rounded-sm shadow-sm";
-                            } else {
-                              className +=
-                                " hover:bg-yellow-100 hover:shadow-sm rounded-sm";
-                            }
-                          } else {
-                            // Show correct answers in light green
-                            if (isCorrectAnswerPosition(lineIndex, charIndex)) {
-                              className += " bg-green-200 rounded-sm";
-                            }
-
-                            // Overlay user selections with their result
-                            const userResult = getUserSelectionResult(
+                          return line.text.split("").map((char, charIndex) => {
+                            const isSelected = isPositionSelected(
                               lineIndex,
                               charIndex,
                             );
-                            if (userResult) {
-                              className += userResult.correct
-                                ? " bg-green-600 text-white rounded-sm shadow-sm" // Dark green for correct selection
-                                : " bg-red-500 text-white rounded-sm shadow-sm"; // Red for incorrect selection
-                            }
-                          }
 
-                          return (
-                            <span
-                              key={charIndex}
-                              className={className}
-                              onClick={() =>
-                                handleTextClick(lineIndex, charIndex)
+                            let className =
+                              "cursor-pointer select-none transition-colors duration-150";
+
+                            if (!isSubmitted) {
+                              if (isSelected) {
+                                className +=
+                                  " bg-blue-400 text-white rounded-sm shadow-sm";
+                              } else {
+                                className +=
+                                  " hover:bg-yellow-100 hover:shadow-sm rounded-sm";
                               }
-                            >
-                              {char}
-                            </span>
-                          );
-                        })}
+                            } else {
+                              // Show correct answers in light green
+                              if (
+                                isCorrectAnswerPosition(lineIndex, charIndex)
+                              ) {
+                                className += " bg-green-200 rounded-sm";
+                              }
+
+                              // Overlay user selections with their result
+                              const userResult = getUserSelectionResult(
+                                lineIndex,
+                                charIndex,
+                              );
+                              if (userResult) {
+                                className += userResult.correct
+                                  ? " bg-green-600 text-white rounded-sm shadow-sm" // Dark green for correct selection
+                                  : " bg-red-500 text-white rounded-sm shadow-sm"; // Red for incorrect selection
+                              }
+                            }
+
+                            return (
+                              <span
+                                key={charIndex}
+                                className={className}
+                                style={
+                                  indentLevel > 0 &&
+                                  charIndex === firstNonTabIndex
+                                    ? { paddingRight: `${indentLevel * 2}em` }
+                                    : {}
+                                }
+                                onClick={() =>
+                                  handleTextClick(lineIndex, charIndex)
+                                }
+                              >
+                                {char === "\t" && charIndex < indentLevel
+                                  ? ""
+                                  : char}
+                              </span>
+                            );
+                          });
+                        })()}
                       </div>
                     </div>
                   ))}

@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import { useApiService } from "../services/api";
+import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import type { PageData, TranslateData } from "../services/api";
 
 export function StoriesTranslate() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
   const navigate = useNavigate();
+  const { getNavigationGuidance } = useNavigationGuidance();
   const [pageData, setPageData] = useState<PageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,9 +47,9 @@ export function StoriesTranslate() {
     const fetchNextStep = async () => {
       if (!id) return;
       try {
-        const response = await api.getNavigationGuidance(id, "translate");
-        if (response.success && response.data) {
-          setNextStepName(response.data.displayName);
+        const guidance = await getNavigationGuidance(id, "translate");
+        if (guidance) {
+          setNextStepName(guidance.displayName);
         }
       } catch (error) {
         console.error("Failed to get navigation guidance:", error);
@@ -55,7 +57,7 @@ export function StoriesTranslate() {
     };
 
     fetchNextStep();
-  }, [id, api]);
+  }, [id, getNavigationGuidance]);
 
   if (loading) {
     return (
@@ -174,12 +176,12 @@ export function StoriesTranslate() {
             <button
               onClick={async () => {
                 try {
-                  const response = await api.getNavigationGuidance(
+                  const guidance = await getNavigationGuidance(
                     id!,
-                    "translate",
+                    "translate"
                   );
-                  if (response.success && response.data) {
-                    navigate(`/stories/${id}/${response.data.nextPage}`);
+                  if (guidance) {
+                    navigate(`/stories/${id}/${guidance.nextPage}`);
                   }
                 } catch (error) {
                   console.error("Failed to get navigation guidance:", error);
@@ -203,6 +205,22 @@ export function StoriesTranslate() {
               const isRTL =
                 languageCode && RTL_LANGUAGES.includes(languageCode);
 
+              // Helper function for RTL indentation
+              const processTextForRTL = (text: string) => {
+                if (!isRTL || typeof text !== "string") {
+                  return { displayText: text, indentLevel: 0 };
+                }
+
+                const leadingTabs = text.match(/^\t*/)?.[0] || "";
+                const tabCount = leadingTabs.length;
+                const textWithoutTabs = text.slice(tabCount);
+
+                return {
+                  displayText: textWithoutTabs,
+                  indentLevel: tabCount,
+                };
+              };
+
               return (
                 <div
                   className={isRTL ? "text-right" : "text-left"}
@@ -211,6 +229,9 @@ export function StoriesTranslate() {
                   {pageData.lines.map((line, lineIndex) => {
                     const isSelected = selectedLines.includes(lineIndex);
                     const translationIndex = selectedLines.indexOf(lineIndex);
+                    const lineText = line.text.join("");
+                    const { displayText, indentLevel } =
+                      processTextForRTL(lineText);
 
                     return (
                       <div key={lineIndex} className="story-line inline">
@@ -227,7 +248,15 @@ export function StoriesTranslate() {
                           onClick={() => handleLineSelect(lineIndex)}
                           dir={isRTL ? "rtl" : "ltr"}
                         >
-                          <span>{line.text}</span>
+                          <span
+                            style={
+                              indentLevel > 0
+                                ? { paddingRight: `${indentLevel * 2}em` }
+                                : {}
+                            }
+                          >
+                            {displayText}
+                          </span>
                         </div>
 
                         {translations && translationIndex >= 0 && (

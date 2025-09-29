@@ -14,7 +14,7 @@ export default function NavBar() {
   const { userInfo, loading } = useUserContext();
   const isAdmin = useMemo(
     () => location.pathname.startsWith("/admin"),
-    [location.pathname],
+    [location.pathname]
   );
 
   return (

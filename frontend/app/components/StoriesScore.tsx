@@ -239,7 +239,7 @@ export function StoriesScore() {
   }
 
   const overallScore = Math.round(
-    (scoreData.vocab_accuracy + scoreData.grammar_accuracy) / 2,
+    (scoreData.vocab_accuracy + scoreData.grammar_accuracy) / 2
   );
 
   return (

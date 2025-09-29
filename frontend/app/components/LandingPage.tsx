@@ -1,4 +1,3 @@
-import { Link } from "react-router";
 import { SignUpButton, SignInButton } from "@clerk/react-router";
 
 export function LandingPage() {

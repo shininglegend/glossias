@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import { useApiService } from "../services/api";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
@@ -28,7 +28,7 @@ export function StoriesVocab() {
   const [error, setError] = useState<string | null>(null);
   const [audioURLs, setAudioURLs] = useState<Record<string, string>>({});
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
-    null,
+    null
   );
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentLineIndex, setCurrentLineIndex] = useState(0);
@@ -52,7 +52,7 @@ export function StoriesVocab() {
     if (!id) return {};
     try {
       const response = await authenticatedFetch(
-        `/api/stories/${id}/audio/signed?label=complete`,
+        `/api/stories/${id}/audio/signed?label=complete`
       );
       if (!response.ok) return {};
       const data: AudioURLsResponse = await response.json();
@@ -279,7 +279,7 @@ export function StoriesVocab() {
       const response = await api.checkVocabLine(
         id,
         lineIndex,
-        selectedAnswers[lineIndex],
+        selectedAnswers[lineIndex]
       );
       if (response.success && response.data) {
         const isCorrect = response.data.correct;
@@ -457,7 +457,7 @@ export function StoriesVocab() {
                                   onChange={(e) =>
                                     handleAnswerChange(
                                       lineIndex,
-                                      e.target.value,
+                                      e.target.value
                                     )
                                   }
                                   disabled={isDisabled}
@@ -479,7 +479,7 @@ export function StoriesVocab() {
                                       >
                                         {word}
                                       </option>
-                                    ),
+                                    )
                                   )}
                                 </select>
                                 {selectedAnswers[lineIndex] &&

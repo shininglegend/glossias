@@ -178,7 +178,7 @@ export function StoriesTranslate() {
                 try {
                   const guidance = await getNavigationGuidance(
                     id!,
-                    "translate",
+                    "translate"
                   );
                   if (guidance) {
                     navigate(`/stories/${id}/${guidance.nextPage}`);

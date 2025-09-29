@@ -39,10 +39,10 @@ export function StoriesGrammar() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPositions, setSelectedPositions] = useState<ClickPosition[]>(
-    [],
+    []
   );
   const [checkResults, setCheckResults] = useState<CheckGrammarResponse | null>(
-    null,
+    null
   );
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
@@ -100,12 +100,12 @@ export function StoriesGrammar() {
 
     const newPosition = { lineNumber: lineIndex + 1, position: charIndex };
     const existingIndex = selectedPositions.findIndex(
-      (pos) => pos.lineNumber === lineIndex + 1 && pos.position === charIndex,
+      (pos) => pos.lineNumber === lineIndex + 1 && pos.position === charIndex
     );
 
     if (existingIndex >= 0) {
       setSelectedPositions((prev) =>
-        prev.filter((_, index) => index !== existingIndex),
+        prev.filter((_, index) => index !== existingIndex)
       );
     } else if (selectedPositions.length < (pageData?.instances_count || 0)) {
       setSelectedPositions((prev) => [...prev, newPosition]);
@@ -123,7 +123,7 @@ export function StoriesGrammar() {
     const answersByLine = selectedPositions.reduce(
       (acc, pos) => {
         const existing = acc.find(
-          (item) => item.line_number === pos.lineNumber,
+          (item) => item.line_number === pos.lineNumber
         );
         if (existing) {
           existing.positions.push(pos.position);
@@ -135,14 +135,14 @@ export function StoriesGrammar() {
         }
         return acc;
       },
-      [] as Array<{ line_number: number; positions: number[] }>,
+      [] as Array<{ line_number: number; positions: number[] }>
     );
 
     try {
       const result = await api.checkGrammar(
         id!,
         pageData.grammar_point_id,
-        answersByLine,
+        answersByLine
       );
 
       if (result.success) {
@@ -156,7 +156,7 @@ export function StoriesGrammar() {
 
   const isPositionSelected = (lineIndex: number, charIndex: number) => {
     return selectedPositions.some(
-      (pos) => pos.lineNumber === lineIndex + 1 && pos.position === charIndex,
+      (pos) => pos.lineNumber === lineIndex + 1 && pos.position === charIndex
     );
   };
 
@@ -166,7 +166,7 @@ export function StoriesGrammar() {
       (instance) =>
         instance.line_number === lineIndex + 1 &&
         charIndex >= instance.position[0] &&
-        charIndex <= instance.position[1],
+        charIndex <= instance.position[1]
     );
   };
 
@@ -176,7 +176,7 @@ export function StoriesGrammar() {
       (selection) =>
         selection.line_number === lineIndex + 1 &&
         charIndex >= selection.position[0] &&
-        charIndex <= selection.position[1],
+        charIndex <= selection.position[1]
     );
   };
 
@@ -343,7 +343,7 @@ export function StoriesGrammar() {
                     try {
                       const guidance = await getNavigationGuidance(
                         id!,
-                        "grammar",
+                        "grammar"
                       );
                       if (guidance) {
                         navigate(`/stories/${id}/${guidance.nextPage}`);
@@ -351,7 +351,7 @@ export function StoriesGrammar() {
                     } catch (error) {
                       console.error(
                         "Failed to get navigation guidance:",
-                        error,
+                        error
                       );
                     }
                   }}
@@ -397,7 +397,7 @@ export function StoriesGrammar() {
                           return line.text.split("").map((char, charIndex) => {
                             const isSelected = isPositionSelected(
                               lineIndex,
-                              charIndex,
+                              charIndex
                             );
 
                             let className =
@@ -422,7 +422,7 @@ export function StoriesGrammar() {
                               // Overlay user selections with their result
                               const userResult = getUserSelectionResult(
                                 lineIndex,
-                                charIndex,
+                                charIndex
                               );
                               if (userResult) {
                                 className += userResult.correct

@@ -21,7 +21,7 @@ export default function AdminUsers() {
   const [users, setUsers] = React.useState<User[]>([]);
   const [courses, setCourses] = React.useState<CourseType[]>([]);
   const [selectedCourse, setSelectedCourse] = React.useState<number | null>(
-    null,
+    null
   );
   const [loading, setLoading] = React.useState(true);
   const [showAddForm, setShowAddForm] = React.useState(false);
@@ -56,7 +56,7 @@ export default function AdminUsers() {
           `/api/admin/course-users/${selectedCourse}`,
           {
             headers: { Accept: "application/json" },
-          },
+          }
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
@@ -77,7 +77,7 @@ export default function AdminUsers() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email }),
-        },
+        }
       );
 
       if (!res.ok) {
@@ -101,7 +101,7 @@ export default function AdminUsers() {
         `/api/admin/course-users/${courseId}`,
         {
           headers: { Accept: "application/json" },
-        },
+        }
       );
       if (usersRes.ok) {
         const json = await usersRes.json();
@@ -132,7 +132,7 @@ export default function AdminUsers() {
         `/api/admin/course-users/${courseId}/users/${userId}`,
         {
           method: "DELETE",
-        },
+        }
       );
 
       if (!res.ok) {

@@ -203,6 +203,22 @@ export function StoriesTranslate() {
               const isRTL =
                 languageCode && RTL_LANGUAGES.includes(languageCode);
 
+              // Helper function for RTL indentation
+              const processTextForRTL = (text: string) => {
+                if (!isRTL || typeof text !== "string") {
+                  return { displayText: text, indentLevel: 0 };
+                }
+
+                const leadingTabs = text.match(/^\t*/)?.[0] || "";
+                const tabCount = leadingTabs.length;
+                const textWithoutTabs = text.slice(tabCount);
+
+                return {
+                  displayText: textWithoutTabs,
+                  indentLevel: tabCount,
+                };
+              };
+
               return (
                 <div
                   className={isRTL ? "text-right" : "text-left"}
@@ -211,6 +227,9 @@ export function StoriesTranslate() {
                   {pageData.lines.map((line, lineIndex) => {
                     const isSelected = selectedLines.includes(lineIndex);
                     const translationIndex = selectedLines.indexOf(lineIndex);
+                    const lineText = line.text.join("");
+                    const { displayText, indentLevel } =
+                      processTextForRTL(lineText);
 
                     return (
                       <div key={lineIndex} className="story-line inline">
@@ -227,7 +246,15 @@ export function StoriesTranslate() {
                           onClick={() => handleLineSelect(lineIndex)}
                           dir={isRTL ? "rtl" : "ltr"}
                         >
-                          <span>{line.text}</span>
+                          <span
+                            style={
+                              indentLevel > 0
+                                ? { paddingRight: `${indentLevel * 2}em` }
+                                : {}
+                            }
+                          >
+                            {displayText}
+                          </span>
                         </div>
 
                         {translations && translationIndex >= 0 && (

@@ -136,8 +136,11 @@ export function StoriesVideo() {
             <span className="material-icons text-gray-600 mr-2 mt-1">info</span>
             <div>
               <p className="text-gray-700">
-                {metadata.description?.text ||
-                  "Watch the video to get familiar with the story before listening."}
+                {metadata.description?.text || ""}
+                <p>
+                  Watch the video to get familiar with the story before
+                  listening. The next button will appear when the story ends.
+                </p>
               </p>
             </div>
           </div>
@@ -151,7 +154,7 @@ export function StoriesVideo() {
                 try {
                   const response = await api.getNavigationGuidance(
                     id!,
-                    "video",
+                    "video"
                   );
                   if (response.success && response.data) {
                     navigate(`/stories/${id}/${response.data.nextPage}`);

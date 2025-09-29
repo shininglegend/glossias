@@ -372,6 +372,16 @@ export function StoriesGrammar() {
               const isRTL =
                 languageCode && RTL_LANGUAGES.includes(languageCode);
 
+              // Helper function for RTL indentation - keep original positions intact
+              const getIndentLevel = (text: string) => {
+                if (!isRTL || typeof text !== "string") {
+                  return 0;
+                }
+
+                const leadingTabs = text.match(/^\t*/)?.[0] || "";
+                return leadingTabs.length;
+              };
+
               return (
                 <div
                   className={isRTL ? "text-right" : "text-left"}
@@ -380,53 +390,65 @@ export function StoriesGrammar() {
                   {pageData.lines.map((line, lineIndex) => (
                     <div key={lineIndex} className="story-line inline">
                       <div className="line-content text-3xl inline">
-                        {line.text.split("").map((char, charIndex) => {
-                          const isSelected = isPositionSelected(
-                            lineIndex,
-                            charIndex,
-                          );
-
-                          let className =
-                            "cursor-pointer select-none transition-colors duration-150";
-
-                          if (!isSubmitted) {
-                            if (isSelected) {
-                              className +=
-                                " bg-blue-400 text-white rounded-sm shadow-sm";
-                            } else {
-                              className +=
-                                " hover:bg-yellow-100 hover:shadow-sm rounded-sm";
-                            }
-                          } else {
-                            // Show correct answers in light green
-                            if (isCorrectAnswerPosition(lineIndex, charIndex)) {
-                              className += " bg-green-200 rounded-sm";
-                            }
-
-                            // Overlay user selections with their result
-                            const userResult = getUserSelectionResult(
+                        {(() => {
+                          const indentLevel = getIndentLevel(line.text);
+                          return line.text.split("").map((char, charIndex) => {
+                            const isSelected = isPositionSelected(
                               lineIndex,
                               charIndex,
                             );
-                            if (userResult) {
-                              className += userResult.correct
-                                ? " bg-green-600 text-white rounded-sm shadow-sm" // Dark green for correct selection
-                                : " bg-red-500 text-white rounded-sm shadow-sm"; // Red for incorrect selection
-                            }
-                          }
 
-                          return (
-                            <span
-                              key={charIndex}
-                              className={className}
-                              onClick={() =>
-                                handleTextClick(lineIndex, charIndex)
+                            let className =
+                              "cursor-pointer select-none transition-colors duration-150";
+
+                            if (!isSubmitted) {
+                              if (isSelected) {
+                                className +=
+                                  " bg-blue-400 text-white rounded-sm shadow-sm";
+                              } else {
+                                className +=
+                                  " hover:bg-yellow-100 hover:shadow-sm rounded-sm";
                               }
-                            >
-                              {char}
-                            </span>
-                          );
-                        })}
+                            } else {
+                              // Show correct answers in light green
+                              if (
+                                isCorrectAnswerPosition(lineIndex, charIndex)
+                              ) {
+                                className += " bg-green-200 rounded-sm";
+                              }
+
+                              // Overlay user selections with their result
+                              const userResult = getUserSelectionResult(
+                                lineIndex,
+                                charIndex,
+                              );
+                              if (userResult) {
+                                className += userResult.correct
+                                  ? " bg-green-600 text-white rounded-sm shadow-sm" // Dark green for correct selection
+                                  : " bg-red-500 text-white rounded-sm shadow-sm"; // Red for incorrect selection
+                              }
+                            }
+
+                            return (
+                              <span
+                                key={charIndex}
+                                className={className}
+                                style={
+                                  indentLevel > 0 && charIndex === 0
+                                    ? { paddingRight: `${indentLevel * 2}em` }
+                                    : {}
+                                }
+                                onClick={() =>
+                                  handleTextClick(lineIndex, charIndex)
+                                }
+                              >
+                                {char === "\t" && charIndex < indentLevel
+                                  ? ""
+                                  : char}
+                              </span>
+                            );
+                          });
+                        })()}
                       </div>
                     </div>
                   ))}

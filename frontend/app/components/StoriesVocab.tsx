@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import { useApiService } from "../services/api";
 import { useAuthenticatedFetch } from "../lib/authFetch";
@@ -382,6 +382,22 @@ export function StoriesVocab() {
               const isRTL =
                 languageCode && RTL_LANGUAGES.includes(languageCode);
 
+              // Helper function for RTL indentation
+              const processTextForRTL = (text: string) => {
+                if (!isRTL || typeof text !== "string") {
+                  return { displayText: text, indentLevel: 0 };
+                }
+
+                const leadingTabs = text.match(/^\t*/)?.[0] || "";
+                const tabCount = leadingTabs.length;
+                const textWithoutTabs = text.slice(tabCount);
+
+                return {
+                  displayText: textWithoutTabs,
+                  indentLevel: tabCount,
+                };
+              };
+
               return (
                 <div
                   className={isRTL ? "text-right" : "text-left"}
@@ -398,7 +414,11 @@ export function StoriesVocab() {
                     >
                       <div className="line-content text-3xl inline">
                         {line.text.map((text, textIndex) => {
-                          if (text === "%") {
+                          // Handle RTL indentation by converting leading tabs to padding
+                          const { displayText, indentLevel } =
+                            processTextForRTL(text);
+
+                          if (displayText === "%") {
                             const result = lineResults[lineIndex];
                             const isDisabled =
                               completedLines.has(lineIndex) ||
@@ -475,7 +495,18 @@ export function StoriesVocab() {
                               </span>
                             );
                           } else {
-                            return <span key={textIndex}>{text}</span>;
+                            return (
+                              <span
+                                key={textIndex}
+                                style={
+                                  indentLevel > 0
+                                    ? { paddingRight: `${indentLevel * 2}em` }
+                                    : {}
+                                }
+                              >
+                                {displayText}
+                              </span>
+                            );
                           }
                         })}
                       </div>

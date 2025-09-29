@@ -70,34 +70,47 @@ func (h *Logger) Handle(ctx context.Context, r slog.Record) error {
 		buf = append(buf, h.levelColor(r.Level)...)
 	}
 
-	// Build single line format
-	parts := make([]string, 0, 10)
-
+	// First line: time and level
+	firstLineParts := make([]string, 0, 2)
 	if !r.Time.IsZero() {
-		parts = append(parts, fmt.Sprintf("time=%s", r.Time.Format(time.RFC3339)))
+		firstLineParts = append(firstLineParts, fmt.Sprintf("time=%s", r.Time.Format(time.RFC3339)))
 	}
-	parts = append(parts, fmt.Sprintf("level=%s", r.Level.String()))
-	if r.PC != 0 {
-		fs := runtime.CallersFrames([]uintptr{r.PC})
-		f, _ := fs.Next()
-		parts = append(parts, fmt.Sprintf("source=%s:%d", f.File, f.Line))
-	}
-	parts = append(parts, fmt.Sprintf("msg=%q", r.Message))
+	firstLineParts = append(firstLineParts, fmt.Sprintf("level=%s", r.Level.String()))
 
-	r.Attrs(func(a slog.Attr) bool {
-		parts = append(parts, h.formatAttr(a))
-		return true
-	})
-
-	// Join all parts with spaces
-	for i, part := range parts {
+	// Join first line parts
+	for i, part := range firstLineParts {
 		if i > 0 {
 			buf = append(buf, ' ')
 		}
 		buf = append(buf, part...)
 	}
 
-	// Reset color and add newline
+	buf = append(buf, '\n')
+
+	// Second line: source, message, and attributes (indented, with color)
+	secondLineParts := make([]string, 0, 10)
+	if r.PC != 0 {
+		fs := runtime.CallersFrames([]uintptr{r.PC})
+		f, _ := fs.Next()
+		secondLineParts = append(secondLineParts, fmt.Sprintf("source=%s:%d", f.File, f.Line))
+	}
+	secondLineParts = append(secondLineParts, fmt.Sprintf("msg=%q", r.Message))
+
+	r.Attrs(func(a slog.Attr) bool {
+		secondLineParts = append(secondLineParts, h.formatAttr(a))
+		return true
+	})
+
+	// Add indented second line
+	buf = append(buf, "  "...) // 2 spaces indent
+	for i, part := range secondLineParts {
+		if i > 0 {
+			buf = append(buf, ' ')
+		}
+		buf = append(buf, part...)
+	}
+
+	// Reset color after second line
 	if h.opts.UseColors {
 		buf = append(buf, colorReset...)
 	}

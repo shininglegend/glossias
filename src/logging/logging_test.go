@@ -95,7 +95,8 @@ func TestLogger_Handle(t *testing.T) {
 				r := slog.NewRecord(fixedTime, slog.LevelInfo, "test message", 0)
 				return r
 			}(),
-			want: `time=2024-01-01T12:00:00Z level=INFO msg="test message"
+			want: `time=2024-01-01T12:00:00Z level=INFO
+  msg="test message"
 `,
 		},
 		{
@@ -105,7 +106,8 @@ func TestLogger_Handle(t *testing.T) {
 				r.AddAttrs(slog.String("key", "value"))
 				return r
 			}(),
-			want: `time=2024-01-01T12:00:00Z level=INFO msg="test message" key="value"
+			want: `time=2024-01-01T12:00:00Z level=INFO
+  msg="test message" key="value"
 `,
 		},
 	}

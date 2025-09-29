@@ -138,6 +138,7 @@ export default function Story({ storyId }: { storyId: number }) {
         <Line
           key={line.lineNumber}
           line={{ ...line, storyId: metadata?.storyId || storyId }}
+          languageCode={metadata?.languageCode}
           onSelect={handleAnnotation}
           completeAudioURL={completeAudioURLs[line.lineNumber.toString()]}
           incompleteAudioURL={incompleteAudioURLs[line.lineNumber.toString()]}

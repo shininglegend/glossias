@@ -114,11 +114,11 @@ func (q *Queries) GetAllUsersStoryVocabSummary(ctx context.Context, storyID int3
 }
 
 const getStoryGrammarScores = `-- name: GetStoryGrammarScores :many
-SELECT gs.user_id, gs.line_number, gs.grammar_item_id, gs.correct, gs.attempted_at,
+SELECT gs.user_id, gs.line_number, gs.grammar_point_id, gs.correct, gs.attempted_at,
        gi.text, gp.name as grammar_point_name, u.name as user_name, u.email
 FROM grammar_scores gs
-JOIN grammar_items gi ON gs.grammar_item_id = gi.id
-LEFT JOIN grammar_points gp ON gi.grammar_point_id = gp.grammar_point_id
+JOIN grammar_points gp ON gs.grammar_point_id = gp.grammar_point_id
+LEFT JOIN grammar_items gi ON gs.grammar_point_id = gi.grammar_point_id AND gs.story_id = gi.story_id AND gs.line_number = gi.line_number
 JOIN users u ON gs.user_id = u.user_id
 WHERE gs.story_id = $1
 ORDER BY gs.line_number, gs.attempted_at DESC
@@ -127,11 +127,11 @@ ORDER BY gs.line_number, gs.attempted_at DESC
 type GetStoryGrammarScoresRow struct {
 	UserID           string           `json:"user_id"`
 	LineNumber       int32            `json:"line_number"`
-	GrammarItemID    int32            `json:"grammar_item_id"`
+	GrammarPointID   int32            `json:"grammar_point_id"`
 	Correct          bool             `json:"correct"`
 	AttemptedAt      pgtype.Timestamp `json:"attempted_at"`
-	Text             string           `json:"text"`
-	GrammarPointName pgtype.Text      `json:"grammar_point_name"`
+	Text             pgtype.Text      `json:"text"`
+	GrammarPointName string           `json:"grammar_point_name"`
 	UserName         string           `json:"user_name"`
 	Email            string           `json:"email"`
 }
@@ -148,7 +148,7 @@ func (q *Queries) GetStoryGrammarScores(ctx context.Context, storyID int32) ([]G
 		if err := rows.Scan(
 			&i.UserID,
 			&i.LineNumber,
-			&i.GrammarItemID,
+			&i.GrammarPointID,
 			&i.Correct,
 			&i.AttemptedAt,
 			&i.Text,
@@ -219,10 +219,10 @@ func (q *Queries) GetStoryVocabScores(ctx context.Context, storyID int32) ([]Get
 }
 
 const getUserGrammarScores = `-- name: GetUserGrammarScores :many
-SELECT gs.line_number, gs.grammar_item_id, gs.correct, gs.attempted_at, gi.text, gp.name as grammar_point_name
+SELECT gs.line_number, gs.grammar_point_id, gs.correct, gs.attempted_at, gi.text, gp.name as grammar_point_name
 FROM grammar_scores gs
-JOIN grammar_items gi ON gs.grammar_item_id = gi.id
-LEFT JOIN grammar_points gp ON gi.grammar_point_id = gp.grammar_point_id
+JOIN grammar_points gp ON gs.grammar_point_id = gp.grammar_point_id
+LEFT JOIN grammar_items gi ON gs.grammar_point_id = gi.grammar_point_id AND gs.story_id = gi.story_id AND gs.line_number = gi.line_number
 WHERE gs.user_id = $1 AND gs.story_id = $2
 ORDER BY gs.line_number, gs.attempted_at DESC
 `
@@ -234,11 +234,11 @@ type GetUserGrammarScoresParams struct {
 
 type GetUserGrammarScoresRow struct {
 	LineNumber       int32            `json:"line_number"`
-	GrammarItemID    int32            `json:"grammar_item_id"`
+	GrammarPointID   int32            `json:"grammar_point_id"`
 	Correct          bool             `json:"correct"`
 	AttemptedAt      pgtype.Timestamp `json:"attempted_at"`
-	Text             string           `json:"text"`
-	GrammarPointName pgtype.Text      `json:"grammar_point_name"`
+	Text             pgtype.Text      `json:"text"`
+	GrammarPointName string           `json:"grammar_point_name"`
 }
 
 func (q *Queries) GetUserGrammarScores(ctx context.Context, arg GetUserGrammarScoresParams) ([]GetUserGrammarScoresRow, error) {
@@ -252,7 +252,7 @@ func (q *Queries) GetUserGrammarScores(ctx context.Context, arg GetUserGrammarSc
 		var i GetUserGrammarScoresRow
 		if err := rows.Scan(
 			&i.LineNumber,
-			&i.GrammarItemID,
+			&i.GrammarPointID,
 			&i.Correct,
 			&i.AttemptedAt,
 			&i.Text,
@@ -269,18 +269,18 @@ func (q *Queries) GetUserGrammarScores(ctx context.Context, arg GetUserGrammarSc
 }
 
 const getUserLatestGrammarScoresByLine = `-- name: GetUserLatestGrammarScoresByLine :many
-SELECT DISTINCT ON (gs.line_number, gs.grammar_item_id)
+SELECT DISTINCT ON (gs.line_number, gs.grammar_point_id)
     gs.line_number,
-    gs.grammar_item_id,
+    gs.grammar_point_id,
     gs.correct,
     gs.attempted_at,
     gi.text,
     gp.name as grammar_point_name
 FROM grammar_scores gs
-JOIN grammar_items gi ON gs.grammar_item_id = gi.id
-LEFT JOIN grammar_points gp ON gi.grammar_point_id = gp.grammar_point_id
+JOIN grammar_points gp ON gs.grammar_point_id = gp.grammar_point_id
+LEFT JOIN grammar_items gi ON gs.grammar_point_id = gi.grammar_point_id AND gs.story_id = gi.story_id AND gs.line_number = gi.line_number
 WHERE gs.user_id = $1 AND gs.story_id = $2
-ORDER BY gs.line_number, gs.grammar_item_id, gs.attempted_at DESC
+ORDER BY gs.line_number, gs.grammar_point_id, gs.attempted_at DESC
 `
 
 type GetUserLatestGrammarScoresByLineParams struct {
@@ -290,11 +290,11 @@ type GetUserLatestGrammarScoresByLineParams struct {
 
 type GetUserLatestGrammarScoresByLineRow struct {
 	LineNumber       int32            `json:"line_number"`
-	GrammarItemID    int32            `json:"grammar_item_id"`
+	GrammarPointID   int32            `json:"grammar_point_id"`
 	Correct          bool             `json:"correct"`
 	AttemptedAt      pgtype.Timestamp `json:"attempted_at"`
-	Text             string           `json:"text"`
-	GrammarPointName pgtype.Text      `json:"grammar_point_name"`
+	Text             pgtype.Text      `json:"text"`
+	GrammarPointName string           `json:"grammar_point_name"`
 }
 
 func (q *Queries) GetUserLatestGrammarScoresByLine(ctx context.Context, arg GetUserLatestGrammarScoresByLineParams) ([]GetUserLatestGrammarScoresByLineRow, error) {
@@ -308,7 +308,7 @@ func (q *Queries) GetUserLatestGrammarScoresByLine(ctx context.Context, arg GetU
 		var i GetUserLatestGrammarScoresByLineRow
 		if err := rows.Scan(
 			&i.LineNumber,
-			&i.GrammarItemID,
+			&i.GrammarPointID,
 			&i.Correct,
 			&i.AttemptedAt,
 			&i.Text,
@@ -483,7 +483,7 @@ func (q *Queries) GetUserVocabScores(ctx context.Context, arg GetUserVocabScores
 }
 
 const saveGrammarIncorrectAnswer = `-- name: SaveGrammarIncorrectAnswer :exec
-INSERT INTO grammar_incorrect_answers (user_id, story_id, line_number, grammar_item_id, selected_line, selected_positions)
+INSERT INTO grammar_incorrect_answers (user_id, story_id, line_number, grammar_point_id, selected_line, selected_positions)
 VALUES ($1, $2, $3, $4, $5, $6)
 `
 
@@ -491,7 +491,7 @@ type SaveGrammarIncorrectAnswerParams struct {
 	UserID            string  `json:"user_id"`
 	StoryID           int32   `json:"story_id"`
 	LineNumber        int32   `json:"line_number"`
-	GrammarItemID     int32   `json:"grammar_item_id"`
+	GrammarPointID    int32   `json:"grammar_point_id"`
 	SelectedLine      int32   `json:"selected_line"`
 	SelectedPositions []int32 `json:"selected_positions"`
 }
@@ -501,7 +501,7 @@ func (q *Queries) SaveGrammarIncorrectAnswer(ctx context.Context, arg SaveGramma
 		arg.UserID,
 		arg.StoryID,
 		arg.LineNumber,
-		arg.GrammarItemID,
+		arg.GrammarPointID,
 		arg.SelectedLine,
 		arg.SelectedPositions,
 	)
@@ -509,16 +509,16 @@ func (q *Queries) SaveGrammarIncorrectAnswer(ctx context.Context, arg SaveGramma
 }
 
 const saveGrammarScore = `-- name: SaveGrammarScore :exec
-INSERT INTO grammar_scores (user_id, story_id, line_number, grammar_item_id, correct)
+INSERT INTO grammar_scores (user_id, story_id, line_number, grammar_point_id, correct)
 VALUES ($1, $2, $3, $4, $5)
 `
 
 type SaveGrammarScoreParams struct {
-	UserID        string `json:"user_id"`
-	StoryID       int32  `json:"story_id"`
-	LineNumber    int32  `json:"line_number"`
-	GrammarItemID int32  `json:"grammar_item_id"`
-	Correct       bool   `json:"correct"`
+	UserID         string `json:"user_id"`
+	StoryID        int32  `json:"story_id"`
+	LineNumber     int32  `json:"line_number"`
+	GrammarPointID int32  `json:"grammar_point_id"`
+	Correct        bool   `json:"correct"`
 }
 
 func (q *Queries) SaveGrammarScore(ctx context.Context, arg SaveGrammarScoreParams) error {
@@ -526,7 +526,7 @@ func (q *Queries) SaveGrammarScore(ctx context.Context, arg SaveGrammarScorePara
 		arg.UserID,
 		arg.StoryID,
 		arg.LineNumber,
-		arg.GrammarItemID,
+		arg.GrammarPointID,
 		arg.Correct,
 	)
 	return err

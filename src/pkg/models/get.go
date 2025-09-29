@@ -63,7 +63,7 @@ func GetStoryData(ctx context.Context, id int, userID string) (*Story, error) {
 	storyWithDesc, err := queries.GetStoryWithDescription(ctx, int32(id))
 	if err == nil {
 		if storyWithDesc.LanguageCode.Valid && storyWithDesc.DescriptionText.Valid {
-			story.Metadata.Description.Language = storyWithDesc.LanguageCode.String
+			story.Metadata.Language = storyWithDesc.LanguageCode.String
 			story.Metadata.Description.Text = storyWithDesc.DescriptionText.String
 		}
 	}

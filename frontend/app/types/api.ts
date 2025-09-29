@@ -16,6 +16,7 @@ export interface StoryMetadata {
   grammarPoints: GrammarPoint[];
   description: Description;
   videoUrl?: string;
+  languageCode: string; // 2-letter Unicode language code
 }
 
 export interface Author {
@@ -24,7 +25,6 @@ export interface Author {
 }
 
 export interface Description {
-  language: string; // 2-letter Unicode language code
   text: string;
 }
 
@@ -45,7 +45,6 @@ export interface StoryLine {
   footnotes: Footnote[];
   audioFiles: AudioFile[];
   storyId?: number;
-  languageCode?: string;
 }
 
 export interface AudioFile {
@@ -98,7 +97,7 @@ export const createAnnotationRequest = (
   text: string,
   start: number,
   end: number,
-  data?: { text?: string; lexicalForm?: string; grammarPointId?: number },
+  data?: { text?: string; lexicalForm?: string; grammarPointId?: number }
 ): AnnotationRequest => {
   const request: AnnotationRequest = {
     lineNumber,

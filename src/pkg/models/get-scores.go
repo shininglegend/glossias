@@ -9,7 +9,7 @@ import (
 
 // GetUserGrammarScores retrieves grammar scores for a user and story
 func GetUserGrammarScores(ctx context.Context, userID string, storyID int) (map[int]bool, error) {
-	scores, err := queries.GetUserLatestGrammarScoresByLine(ctx, db.GetUserLatestGrammarScoresByLineParams{
+	scores, err := queries.GetUserGrammarScores(ctx, db.GetUserGrammarScoresParams{
 		UserID:  userID,
 		StoryID: int32(storyID),
 	})
@@ -17,13 +17,19 @@ func GetUserGrammarScores(ctx context.Context, userID string, storyID int) (map[
 		return nil, err
 	}
 
-	result := make(map[int]bool)
+	// Calculate overall accuracy from all attempts
+	totalAttempts := len(scores)
+	correctAttempts := 0
 	for _, score := range scores {
-		lineNum := int(score.LineNumber)
-		// If line already has a score recorded, only update if this one is more recent
-		if _, exists := result[lineNum]; !exists || score.Correct {
-			result[lineNum] = score.Correct
+		if score.Correct {
+			correctAttempts++
 		}
+	}
+
+	result := make(map[int]bool)
+	if totalAttempts > 0 {
+		// Use line 0 to represent overall accuracy for the story
+		result[0] = float64(correctAttempts)/float64(totalAttempts) >= 0.5
 	}
 
 	return result, nil
@@ -31,7 +37,7 @@ func GetUserGrammarScores(ctx context.Context, userID string, storyID int) (map[
 
 // GetUserVocabScores retrieves vocabulary scores for a user and story
 func GetUserVocabScores(ctx context.Context, userID string, storyID int) (map[int]bool, error) {
-	scores, err := queries.GetUserLatestVocabScoresByLine(ctx, db.GetUserLatestVocabScoresByLineParams{
+	scores, err := queries.GetUserVocabScores(ctx, db.GetUserVocabScoresParams{
 		UserID:  userID,
 		StoryID: int32(storyID),
 	})
@@ -39,13 +45,19 @@ func GetUserVocabScores(ctx context.Context, userID string, storyID int) (map[in
 		return nil, err
 	}
 
-	result := make(map[int]bool)
+	// Calculate overall accuracy from all attempts
+	totalAttempts := len(scores)
+	correctAttempts := 0
 	for _, score := range scores {
-		lineNum := int(score.LineNumber)
-		// If line already has a score recorded, only update if this one is more recent
-		if _, exists := result[lineNum]; !exists || score.Correct {
-			result[lineNum] = score.Correct
+		if score.Correct {
+			correctAttempts++
 		}
+	}
+
+	result := make(map[int]bool)
+	if totalAttempts > 0 {
+		// Use line 0 to represent overall accuracy for the story
+		result[0] = float64(correctAttempts)/float64(totalAttempts) >= 0.5
 	}
 
 	return result, nil

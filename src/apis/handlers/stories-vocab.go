@@ -39,7 +39,7 @@ func (h *Handler) GetVocabPage(w http.ResponseWriter, r *http.Request) {
 		PageData: types.PageData{
 			StoryID:    storyID,
 			StoryTitle: story.Metadata.Title["en"],
-			Language:   story.Metadata.Description.Language,
+			Language:   story.Metadata.Language,
 		},
 		Lines:     lines,
 		VocabBank: vocabBank,

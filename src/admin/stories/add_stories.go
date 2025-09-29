@@ -118,9 +118,9 @@ func (h *Handler) processAddStory(req AddStoryRequest) (*models.Story, error) {
 				Name: req.AuthorName,
 			},
 			Description: models.Description{
-				Language: req.LanguageCode,
-				Text:     req.DescriptionText,
+				Text: req.DescriptionText,
 			},
+			Language:     req.LanguageCode,
 			CourseID:     &req.CourseID,
 			LastRevision: &updateTime,
 		},

@@ -65,11 +65,11 @@ func SaveGrammarScore(ctx context.Context, userID string, storyID int, lineNumbe
 	// Save score for each grammar item on this line
 	for _, item := range grammarItems {
 		err := queries.SaveGrammarScore(ctx, db.SaveGrammarScoreParams{
-			UserID:        userID,
-			StoryID:       int32(storyID),
-			LineNumber:    int32(lineNumber),
-			GrammarItemID: item.ID,
-			Correct:       correct,
+			UserID:         userID,
+			StoryID:        int32(storyID),
+			LineNumber:     int32(lineNumber),
+			GrammarPointID: item.ID,
+			Correct:        correct,
 		})
 		if err != nil {
 			return err
@@ -118,11 +118,11 @@ func SaveGrammarScoresForPoint(ctx context.Context, userID string, storyID int, 
 			for _, item := range grammarItems {
 				if item.GrammarPointID.Valid && int(item.GrammarPointID.Int32) == grammarPointID {
 					err := queries.SaveGrammarScore(ctx, db.SaveGrammarScoreParams{
-						UserID:        userID,
-						StoryID:       int32(storyID),
-						LineNumber:    int32(lineNumber),
-						GrammarItemID: item.ID,
-						Correct:       correct,
+						UserID:         userID,
+						StoryID:        int32(storyID),
+						LineNumber:     int32(lineNumber),
+						GrammarPointID: item.ID,
+						Correct:        correct,
 					})
 					if err != nil {
 						return err
@@ -173,11 +173,11 @@ func SaveCorrectGrammarItems(ctx context.Context, userID string, storyID, gramma
 					// Check if this item index is in the correct list
 					if slices.Contains(itemIndices, itemIndex) {
 						err := queries.SaveGrammarScore(ctx, db.SaveGrammarScoreParams{
-							UserID:        userID,
-							StoryID:       int32(storyID),
-							LineNumber:    int32(lineNumber),
-							GrammarItemID: dbItem.ID,
-							Correct:       true,
+							UserID:         userID,
+							StoryID:        int32(storyID),
+							LineNumber:     int32(lineNumber),
+							GrammarPointID: dbItem.ID,
+							Correct:        true,
 						})
 						if err != nil {
 							return err
@@ -200,11 +200,11 @@ func SaveCorrectAnswers(ctx context.Context, userID string, storyID, grammarPoin
 	return withTransaction(func() error {
 		for _, correctAnswer := range correctAnswers {
 			err := queries.SaveGrammarScore(ctx, db.SaveGrammarScoreParams{
-				UserID:        userID,
-				StoryID:       int32(storyID),
-				LineNumber:    int32(correctAnswer.LineNumber),
-				GrammarItemID: int32(grammarPointID),
-				Correct:       true,
+				UserID:         userID,
+				StoryID:        int32(storyID),
+				LineNumber:     int32(correctAnswer.LineNumber),
+				GrammarPointID: int32(grammarPointID),
+				Correct:        true,
 			})
 			if err != nil {
 				return err
@@ -226,7 +226,7 @@ func SaveIncorrectAnswers(ctx context.Context, userID string, storyID, grammarPo
 				UserID:            userID,
 				StoryID:           int32(storyID),
 				LineNumber:        int32(incorrectAnswer.LineNumber),
-				GrammarItemID:     int32(grammarPointID),
+				GrammarPointID:    int32(grammarPointID),
 				SelectedLine:      int32(incorrectAnswer.LineNumber),
 				SelectedPositions: []int32{int32(incorrectAnswer.Position)},
 			})

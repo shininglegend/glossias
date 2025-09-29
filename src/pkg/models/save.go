@@ -81,10 +81,10 @@ func saveStoryComponents(ctx context.Context, story *Story) error {
 	}
 
 	// Save description using SQLC
-	if story.Metadata.Description.Text != "" || story.Metadata.Description.Language != "" {
+	if story.Metadata.Description.Text != "" || story.Metadata.Language != "" {
 		if err := queries.UpsertStoryDescription(ctx, db.UpsertStoryDescriptionParams{
 			StoryID:         int32(story.Metadata.StoryID),
-			LanguageCode:    story.Metadata.Description.Language,
+			LanguageCode:    story.Metadata.Language,
 			DescriptionText: story.Metadata.Description.Text,
 		}); err != nil {
 			return err
@@ -106,9 +106,9 @@ func saveLines(ctx context.Context, storyID int, lines []StoryLine) error {
 func saveLine(ctx context.Context, storyID int, line *StoryLine) error {
 	// Save line using SQLC
 	err := queries.UpsertStoryLine(ctx, db.UpsertStoryLineParams{
-		StoryID:            int32(storyID),
-		LineNumber:         int32(line.LineNumber),
-		Text:               line.Text,
+		StoryID:    int32(storyID),
+		LineNumber: int32(line.LineNumber),
+		Text:       line.Text,
 	})
 	if err != nil {
 		return err

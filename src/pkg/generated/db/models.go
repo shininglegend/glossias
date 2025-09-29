@@ -57,7 +57,7 @@ type GrammarIncorrectAnswer struct {
 	UserID            string           `json:"user_id"`
 	StoryID           int32            `json:"story_id"`
 	LineNumber        int32            `json:"line_number"`
-	GrammarItemID     int32            `json:"grammar_item_id"`
+	GrammarPointID    int32            `json:"grammar_point_id"`
 	SelectedLine      int32            `json:"selected_line"`
 	SelectedPositions []int32          `json:"selected_positions"`
 	AttemptedAt       pgtype.Timestamp `json:"attempted_at"`
@@ -82,13 +82,13 @@ type GrammarPoint struct {
 }
 
 type GrammarScore struct {
-	ScoreID       int32            `json:"score_id"`
-	UserID        string           `json:"user_id"`
-	StoryID       int32            `json:"story_id"`
-	LineNumber    int32            `json:"line_number"`
-	GrammarItemID int32            `json:"grammar_item_id"`
-	Correct       bool             `json:"correct"`
-	AttemptedAt   pgtype.Timestamp `json:"attempted_at"`
+	ScoreID        int32            `json:"score_id"`
+	UserID         string           `json:"user_id"`
+	StoryID        int32            `json:"story_id"`
+	LineNumber     int32            `json:"line_number"`
+	GrammarPointID int32            `json:"grammar_point_id"`
+	Correct        bool             `json:"correct"`
+	AttemptedAt    pgtype.Timestamp `json:"attempted_at"`
 }
 
 type LineAudioFile struct {

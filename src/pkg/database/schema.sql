@@ -116,11 +116,12 @@ CREATE TABLE IF NOT EXISTS vocabulary_items (
     FOREIGN KEY (story_id, line_number) REFERENCES story_lines (story_id, line_number) ON DELETE CASCADE
 );
 
+-- This stores the actual instances of a grammar point in a story.
 CREATE TABLE IF NOT EXISTS grammar_items (
     id SERIAL PRIMARY KEY,
     story_id INTEGER,
     line_number INTEGER,
-    grammar_point_id INTEGER REFERENCES grammar_points (grammar_point_id) ON DELETE SET NULL,
+    grammar_point_id INTEGER REFERENCES grammar_points (grammar_point_id) ON DELETE CASCADE,
     text TEXT NOT NULL,
     position_start INTEGER NOT NULL,
     position_end INTEGER NOT NULL,
@@ -190,7 +191,7 @@ CREATE TABLE IF NOT EXISTS grammar_scores (
     user_id TEXT NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
     story_id INTEGER NOT NULL REFERENCES stories (story_id) ON DELETE CASCADE,
     line_number INTEGER NOT NULL,
-    grammar_item_id INTEGER NOT NULL REFERENCES grammar_items (id) ON DELETE CASCADE,
+    grammar_point_id INTEGER NOT NULL REFERENCES grammar_points (grammar_point_id) ON DELETE CASCADE,
     correct BOOLEAN NOT NULL,
     attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (story_id, line_number) REFERENCES story_lines (story_id, line_number) ON DELETE CASCADE
@@ -214,7 +215,7 @@ CREATE TABLE IF NOT EXISTS grammar_incorrect_answers (
     user_id TEXT NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
     story_id INTEGER NOT NULL REFERENCES stories (story_id) ON DELETE CASCADE,
     line_number INTEGER NOT NULL,
-    grammar_item_id INTEGER NOT NULL REFERENCES grammar_items (id) ON DELETE CASCADE,
+    grammar_point_id INTEGER NOT NULL REFERENCES grammar_points (grammar_point_id) ON DELETE CASCADE,
     selected_line INTEGER NOT NULL,
     selected_positions INTEGER[] NOT NULL,
     attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -15,6 +15,7 @@ import type { StoryLine, GrammarPoint } from "../../types/api";
 
 interface Props {
   line: StoryLine;
+  languageCode?: string;
   completeAudioURL?: string;
   incompleteAudioURL?: string;
   storyGrammarPoints?: GrammarPoint[];
@@ -30,6 +31,7 @@ interface Props {
 
 export default function Line({
   line,
+  languageCode,
   completeAudioURL,
   incompleteAudioURL,
   storyGrammarPoints = [],
@@ -247,7 +249,7 @@ export default function Line({
   };
 
   const RTL_LANGUAGES = ["he", "ar", "fa", "ur"];
-  const isRTL = line.languageCode && RTL_LANGUAGES.includes(line.languageCode);
+  const isRTL = languageCode && RTL_LANGUAGES.includes(languageCode);
 
   return (
     <div className={`story-line flex items-start gap-2`}>
@@ -272,7 +274,7 @@ export default function Line({
           vocabulary={line.vocabulary}
           grammar={line.grammar}
           grammarPoints={storyGrammarPoints}
-          languageCode={line.languageCode}
+          languageCode={languageCode}
           onSelect={handleSelect}
         />
       </div>

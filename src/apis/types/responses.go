@@ -114,7 +114,8 @@ type VocabResult struct {
 
 // CheckVocabResponse represents the response for vocab checking
 type CheckVocabResponse struct {
-	Correct bool `json:"correct"`
+	Results    []bool `json:"results"`    // Individual results for each vocab item
+	AllCorrect bool   `json:"allCorrect"` // Whether all items are correct
 }
 
 // GrammarInstance represents a grammar point instance in the story

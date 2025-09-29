@@ -1,32 +1,50 @@
 .stories-list {
-    display: grid;
-    gap: 1.5rem;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
 }
 
 .story-item {
-    background: white;
-    border-radius: 0.5rem;
-    padding: 1.5rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background: white;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .story-item h2 {
-    margin-bottom: 1rem;
-    font-size: 1.25rem;
-    color: var(--text);
+  margin-bottom: 1rem;
+  font-size: 1.25rem;
+  color: var(--text);
 }
 
 .story-item a {
-    display: inline-block;
-    padding: 0.5rem 1rem;
-    background: var(--primary);
-    color: white;
-    text-decoration: none;
-    border-radius: 0.25rem;
-    transition: background-color 0.2s;
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  background: var(--primary);
+  color: white;
+  text-decoration: none;
+  border-radius: 0.25rem;
+  transition: background-color 0.2s;
 }
 
 .story-item a:hover {
-    background: var(--primary-hover);
+  background: var(--primary-hover);
+}
+
+.start-reading-button {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  background: var(--primary);
+  color: white;
+  text-decoration: none;
+  border-radius: 0.25rem;
+  transition: background-color 0.2s;
+  border: none;
+  cursor: pointer;
+  font-size: inherit;
+  font-family: inherit;
+}
+
+.start-reading-button:hover {
+  background: var(--primary-hover);
 }

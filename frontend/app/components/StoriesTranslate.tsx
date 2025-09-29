@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router";
+import { useParams, useNavigate } from "react-router";
 import { useApiService } from "../services/api";
 import type { PageData, TranslateData } from "../services/api";
 
 export function StoriesTranslate() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
+  const navigate = useNavigate();
   const [pageData, setPageData] = useState<PageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -153,13 +154,26 @@ export function StoriesTranslate() {
 
         {translations && (
           <div className="text-center mt-4">
-            <Link
-              to={`/stories/${id}/grammar`}
+            <button
+              onClick={async () => {
+                try {
+                  const response = await api.getNavigationGuidance(
+                    id!,
+                    "placeholder-user-id",
+                    "translate",
+                  );
+                  if (response.success && response.data) {
+                    navigate(`/stories/${id}/${response.data.nextPage}`);
+                  }
+                } catch (error) {
+                  console.error("Failed to get navigation guidance:", error);
+                }
+              }}
               className="inline-flex items-center px-8 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 text-lg font-semibold transition-all duration-200 shadow-lg"
             >
               <span>Continue to Grammar</span>
               <span className="material-icons ml-2">arrow_forward</span>
-            </Link>
+            </button>
           </div>
         )}
       </header>

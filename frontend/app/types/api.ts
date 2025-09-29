@@ -91,13 +91,31 @@ export interface ApiError {
   error: string;
 }
 
+export interface NavigationGuidanceRequest {
+  userId: string;
+  currentPage: PageType;
+}
+
+export interface NavigationGuidanceResponse {
+  nextPage: PageType;
+}
+
+export type PageType =
+  | "list"
+  | "video"
+  | "audio"
+  | "vocab"
+  | "translate"
+  | "grammar"
+  | "score";
+
 export const createAnnotationRequest = (
   lineNumber: number,
   type: AnnotationType,
   text: string,
   start: number,
   end: number,
-  data?: { text?: string; lexicalForm?: string; grammarPointId?: number }
+  data?: { text?: string; lexicalForm?: string; grammarPointId?: number },
 ): AnnotationRequest => {
   const request: AnnotationRequest = {
     lineNumber,

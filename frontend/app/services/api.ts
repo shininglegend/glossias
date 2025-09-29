@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useAuthenticatedFetch } from "../lib/authFetch";
+import type { NavigationGuidanceResponse } from "../types/api";
 
 const API_BASE = "/api";
 
@@ -239,6 +240,20 @@ export function useApiService() {
     getStoryScore: useCallback(
       (id: string): Promise<APIResponse<any>> => {
         return fetchAPI(`/stories/${id}/scores`);
+      },
+      [fetchAPI],
+    ),
+
+    getNavigationGuidance: useCallback(
+      (
+        id: string,
+        userId: string,
+        currentPage: string,
+      ): Promise<APIResponse<NavigationGuidanceResponse>> => {
+        return fetchAPI<NavigationGuidanceResponse>(`/stories/${id}/next`, {
+          method: "POST",
+          body: JSON.stringify({ userId, currentPage }),
+        });
       },
       [fetchAPI],
     ),

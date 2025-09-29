@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link, useSearchParams } from "react-router";
+import { useParams, Link, useSearchParams, useNavigate } from "react-router";
 import { useApiService } from "../services/api";
 import type { GrammarData } from "../services/api";
 
@@ -32,6 +32,7 @@ export function StoriesGrammar() {
   const [searchParams] = useSearchParams();
   const grammarPointId = searchParams.get("id");
   const api = useApiService();
+  const navigate = useNavigate();
   const [pageData, setPageData] = useState<GrammarData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -318,13 +319,29 @@ export function StoriesGrammar() {
                   <span className="material-icons ml-2">arrow_forward</span>
                 </Link>
               ) : (
-                <Link
-                  to={`/stories/${id}/score`}
+                <button
+                  onClick={async () => {
+                    try {
+                      const response = await api.getNavigationGuidance(
+                        id!,
+                        "placeholder-user-id",
+                        "grammar",
+                      );
+                      if (response.success && response.data) {
+                        navigate(`/stories/${id}/${response.data.nextPage}`);
+                      }
+                    } catch (error) {
+                      console.error(
+                        "Failed to get navigation guidance:",
+                        error,
+                      );
+                    }
+                  }}
                   className="inline-flex items-center px-8 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 text-lg font-semibold transition-all duration-200 shadow-lg"
                 >
                   <span>Continue to Score</span>
                   <span className="material-icons ml-2">arrow_forward</span>
-                </Link>
+                </button>
               )}
             </div>
           </div>

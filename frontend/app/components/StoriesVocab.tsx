@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, Link } from "react-router";
+import { useParams, useNavigate } from "react-router";
 import { useApiService } from "../services/api";
 import { useAuthenticatedFetch } from "../lib/authFetch";
 import type { VocabData } from "../services/api";
+
 import "./StoriesVocab.css";
 
 interface AudioURLsResponse {
@@ -19,6 +20,7 @@ export function StoriesVocab() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
   const authenticatedFetch = useAuthenticatedFetch();
+  const navigate = useNavigate();
   const [pageData, setPageData] = useState<VocabData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -490,13 +492,26 @@ export function StoriesVocab() {
               </h3>
             </div>
             <div className="mt-5">
-              <Link
-                to={`/stories/${id}/translate`}
-                className="next-button inline-flex items-center gap-2 px-8 py-4 bg-green-500 text-white no-underline rounded-lg text-lg font-semibold transition-all duration-200 shadow-lg hover:bg-green-600"
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await api.getNavigationGuidance(
+                      id!,
+                      "placeholder-user-id",
+                      "vocab",
+                    );
+                    if (response.success && response.data) {
+                      navigate(`/stories/${id}/${response.data.nextPage}`);
+                    }
+                  } catch (error) {
+                    console.error("Failed to get navigation guidance:", error);
+                  }
+                }}
+                className="next-button inline-flex items-center gap-2 px-8 py-4 bg-green-500 text-white rounded-lg text-lg font-semibold transition-all duration-200 shadow-lg hover:bg-green-600"
               >
                 <span>Continue to Translation</span>
                 <span className="material-icons">arrow_forward</span>
-              </Link>
+              </button>
             </div>
           </div>
         )}

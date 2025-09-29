@@ -193,12 +193,17 @@ export function useApiService() {
       checkVocabLine: (
         id: string,
         lineNumber: number,
-        answer: string,
-      ): Promise<APIResponse<{ correct: boolean }>> => {
+        answers: string[],
+      ): Promise<
+        APIResponse<{
+          results: boolean[];
+          allCorrect: boolean;
+        }>
+      > => {
         return fetchAPI(`/stories/${id}/check-vocab`, {
           method: "POST",
           body: JSON.stringify({
-            answers: [{ line_number: lineNumber, answers: [answer] }],
+            answers: [{ line_number: lineNumber, answers }],
           }),
         });
       },

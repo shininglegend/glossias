@@ -71,7 +71,7 @@ func GetUser(ctx context.Context, userID string) (*User, error) {
 	}, nil
 }
 
-// CanUserAccessCourse checks if user can access a specific course
+// CanUserAccessCourse checks if user can access a specific course (non-admin)
 func CanUserAccessCourse(ctx context.Context, userID string, courseID int32) bool {
 	canAccess, err := queries.CanUserAccessCourse(ctx, db.CanUserAccessCourseParams{
 		UserID:   userID,
@@ -81,7 +81,7 @@ func CanUserAccessCourse(ctx context.Context, userID string, courseID int32) boo
 }
 
 // IsUserAdmin checks if user is admin of any course or super admin
-func IsUserAdmin(ctx context.Context, userID string) bool {
+func IsUserAnyAdmin(ctx context.Context, userID string) bool {
 	// Check if super admin
 	user, err := queries.GetUser(ctx, userID)
 	if err == nil && user.IsSuperAdmin.Bool {
@@ -94,7 +94,23 @@ func IsUserAdmin(ctx context.Context, userID string) bool {
 }
 
 // IsUserCourseAdmin checks if user is admin of a specific course
-func IsUserCourseAdmin(ctx context.Context, userID string, courseID int32) bool {
+func IsUserOnlyCourseAdmin(ctx context.Context, userID string, courseID int32) bool {
+	isAdmin, err := queries.IsUserCourseAdmin(ctx, db.IsUserCourseAdminParams{
+		CourseID: courseID,
+		UserID:   userID,
+	})
+	return err == nil && isAdmin
+}
+
+// IsUserCourseOrSuperAdmin checks if user is admin of a specific course or super admin
+func IsUserCourseOrSuperAdmin(ctx context.Context, userID string, courseID int32) bool {
+	// Check if super admin
+	user, err := queries.GetUser(ctx, userID)
+	if err == nil && user.IsSuperAdmin.Bool {
+		return true
+	}
+
+	// Check if course admin
 	isAdmin, err := queries.IsUserCourseAdmin(ctx, db.IsUserCourseAdminParams{
 		CourseID: courseID,
 		UserID:   userID,

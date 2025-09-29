@@ -33,7 +33,7 @@ DELETE FROM grammar_points WHERE grammar_point_id = $1;
 SELECT grammar_point_id, name, description
 FROM grammar_points
 WHERE story_id = $1
-ORDER BY name;
+ORDER BY grammar_point_id;
 
 -- name: GetStoriesWithGrammarPoint :many
 SELECT s.story_id, s.week_number, s.day_letter, s.video_url, s.last_revision, s.author_id, s.author_name, s.course_id

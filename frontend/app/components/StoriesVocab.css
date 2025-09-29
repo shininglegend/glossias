@@ -1,0 +1,47 @@
+/* Custom styles that can't be achieved with Tailwind alone */
+
+.story-lines {
+  line-height: 2.2;
+}
+
+.story-line {
+  transition: background-color 0.3s;
+}
+
+.vocab-container {
+  position: relative;
+}
+
+.vocab-select {
+  transition: all 0.2s;
+}
+
+.vocab-select:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.check-button {
+  position: absolute;
+  right: -30px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.error-indicator {
+  position: absolute;
+  right: -30px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.success-indicator {
+  position: absolute;
+  right: -30px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.next-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 8px -1px rgba(0, 0, 0, 0.15);
+}

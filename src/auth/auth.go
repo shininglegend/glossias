@@ -26,6 +26,7 @@ func Middleware(logger *slog.Logger) mux.MiddlewareFunc {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Expose-Headers", "X-Tracking-ID")
 
 			// Handle preflight OPTIONS request
 			if r.Method == "OPTIONS" {
@@ -33,8 +34,9 @@ func Middleware(logger *slog.Logger) mux.MiddlewareFunc {
 				return
 			}
 
-			// Extract and validate JWT token for API routes (except health)
-			if strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/health" {
+			// Extract and validate JWT token for API routes (except health and time tracking)
+			if strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/health" &&
+				!strings.HasPrefix(r.URL.Path, "/api/time-tracking") {
 				userID, err := extractAndValidateUser(r, logger)
 				if err != nil {
 					logger.Error("auth failed", "error", err, "path", r.URL.Path)
@@ -153,18 +155,35 @@ func extractAndValidateUser(r *http.Request, logger *slog.Logger) (string, error
 }
 
 // GetUserID extracts user ID from request context
-func GetUserID(r *http.Request) (string, bool) {
+func GetUserIDWithOk(r *http.Request) (string, bool) {
 	userID, ok := r.Context().Value(UserIDKey).(string)
 	return userID, ok
 }
 
-// HasPermission checks if user has permission to access a course
-func HasPermission(ctx context.Context, userID string, courseID int32) bool {
-	// return models.CanUserAccessCourse(ctx, userID, courseID)
-	return true
+func GetUserID(r *http.Request) string {
+	userID, ok := r.Context().Value(UserIDKey).(string)
+	if !ok {
+		return ""
+	}
+	return userID
 }
 
-// IsAdmin checks if user is admin of any course or super admin
-func IsAdmin(ctx context.Context, userID string) bool {
-	return models.IsUserAdmin(ctx, userID)
+// HasPermission checks if user has permission to access a course (non-admin)
+func HasReadPermission(ctx context.Context, userID string, courseID int32) bool {
+	return models.CanUserAccessCourse(ctx, userID, courseID)
+}
+
+// IsAnyAdmin checks if user is admin of any course or super admin
+func IsAnyAdmin(ctx context.Context, userID string) bool {
+	return models.IsUserAnyAdmin(ctx, userID)
+}
+
+// IsCourseOrSuperAdmin checks if user is admin of one single course or super admin
+func IsCourseOrSuperAdmin(ctx context.Context, userID string, courseID int32) bool {
+	return models.IsUserCourseOrSuperAdmin(ctx, userID, courseID)
+}
+
+// IsCourseAddmin checks if user is admin of one single course (no super admin override)
+func IsCourseAdmin(ctx context.Context, userID string, courseID int32) bool {
+	return models.IsUserOnlyCourseAdmin(ctx, userID, courseID)
 }

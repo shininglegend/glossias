@@ -1,58 +1,101 @@
-/* changed: enable Tailwind */
 @import "tailwindcss";
 
-/* Minimal styles to avoid conflicts with existing CSS */
+/* =============================================================================
+   CSS CUSTOM PROPERTIES
+   ============================================================================= */
 
-/* [moved from annotator/src/styles/AnnotatedText.css and Story.css] */
-.annotated-text .vocab-highlight {
-  color: #ff6b00;
-  cursor: help;
+:root {
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --background: #f8fafc;
+  --text: #1e293b;
 }
-.annotated-text .grammar-highlight {
-  text-underline-offset: 3px;
-  cursor: help;
+
+/* =============================================================================
+   BASE STYLES
+   ============================================================================= */
+
+* {
+  box-sizing: border-box;
+  font-family: "Inter, 'Noto Sans', 'Segoe UI', sans-serif";
 }
-.story-container {
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+    Cantarell, sans-serif;
+  background-color: var(--background);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-}
-.story-line {
-  display: flex;
-  gap: 0.75rem;
-  align-items: flex-start;
-}
-.line-number {
-  color: #888;
-  min-width: 2rem;
-  text-align: right;
-}
-.annotation-menu button {
-  display: block;
-  width: 100%;
-  margin: 0.25rem 0;
-}
-.footnotes-section {
-  margin-top: 3rem;
-  padding-top: 2rem;
-  border-top: 1px solid #eee;
-}
-.footnote {
-  margin-bottom: 1rem;
-  padding: 1rem;
-  background-color: #f8f9fa;
-  border-radius: 6px;
 }
 
-/* --- NAVIGATION --- */
+/* =============================================================================
+   LAYOUT COMPONENTS
+   ============================================================================= */
+
+.container {
+  width: 100%;
+  max-width: 1024px;
+  margin: 0 auto;
+  padding: 1rem;
+  align-items: center;
+}
+
+/* =============================================================================
+   HEADER COMPONENT
+   ============================================================================= */
+
+header {
+  width: 100%;
+  margin: 0 auto;
+  padding: 5px 1rem 5px 1rem;
+  text-align: center;
+}
+
+header h1 {
+  font-size: 2rem;
+  color: var(--text);
+  margin-bottom: 1rem;
+}
+
+header h2 {
+  font-size: 1.5rem;
+  color: var(--text);
+  margin-bottom: 1rem;
+}
+
+header p {
+  font-size: 1.125rem;
+  color: var(--text);
+  opacity: 0.9;
+  max-width: 600px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+header hr {
+  margin: 0.5rem auto;
+  width: 50%;
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* =============================================================================
+   NAVIGATION COMPONENTS
+   ============================================================================= */
+
 .navbar {
   position: sticky;
   top: 0;
   z-index: 50;
-  background: #0f172a; /* slate-900 */
+  background: #0f172a;
   color: white;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
+
 .navbar-inner {
   display: flex;
   align-items: center;
@@ -62,37 +105,312 @@
   max-width: 1200px;
   margin: 0 auto;
 }
+
 .navbar-brand {
   font-weight: 700;
   color: white;
   text-decoration: none;
 }
+
 .nav-links {
   display: inline-flex;
   gap: 0.5rem;
 }
+
 .nav-link {
-  color: #cbd5e1; /* slate-300 */
+  color: #cbd5e1;
   text-decoration: none;
   padding: 0.375rem 0.5rem;
   border-radius: 0.375rem;
 }
+
 .nav-link:hover {
   color: white;
   background: rgba(255, 255, 255, 0.06);
 }
+
 .nav-link.active {
   color: white;
-  background: rgba(59, 130, 246, 0.2); /* blue-500 @20% */
+  background: rgba(59, 130, 246, 0.2);
 }
+
 .subnav {
-  background: #111827; /* gray-900 */
+  background: #111827;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
+
 .subnav-inner {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0.5rem 1rem;
   display: flex;
   gap: 0.5rem;
+}
+
+/* =============================================================================
+   STORY COMPONENTS
+   ============================================================================= */
+
+.story-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.story-line {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.line-number {
+  color: #888;
+  min-width: 2rem;
+  text-align: right;
+}
+
+.footnotes-section {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid #eee;
+}
+
+.footnote {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+}
+
+.line {
+  display: flex;
+  justify-content: right;
+  padding: 0.1rem;
+  background-color: white;
+  border-radius: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.line:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.story-text {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 2rem;
+  gap: 1rem;
+  font-family: "SBL Hebrew", "Helvetica Neue", Helvetica, sans-serif;
+  color: var(--text);
+}
+
+.audio-button {
+  background-color: var(--primary);
+  color: white;
+  border: none;
+  padding: 0.5rem;
+  margin-left: 5%;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.audio-button:hover {
+  background-color: var(--primary-hover);
+  transform: scale(1.05);
+}
+
+.audio-button[data-playing="true"] {
+  background-color: #22c55e;
+  animation: pulse 2s infinite;
+  content: "pause";
+}
+
+.audio-button .material-icons {
+  font-size: 24px;
+  transition: all 0.2s ease;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* =============================================================================
+   ANNOTATION COMPONENTS
+   ============================================================================= */
+
+.annotated-text .vocab-highlight {
+  color: #ff6b00;
+  cursor: help;
+}
+
+.annotated-text .grammar-highlight {
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+.annotation-menu button {
+  display: block;
+  width: 100%;
+  margin: 0.25rem 0;
+}
+
+.highlighted-text {
+  background-color: rgba(255, 255, 0, 0.3);
+  cursor: pointer;
+}
+
+.annotation-panel {
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
+.annotation-item {
+  position: relative;
+}
+
+.annotation-item:hover .delete-btn {
+  opacity: 1;
+}
+
+.delete-btn {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.vocab-highlight {
+  color: #ff6b00;
+  cursor: help;
+}
+
+.grammar-highlight {
+  text-decoration: underline wavy #4a5568;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+.vocab-highlight.grammar-highlight {
+  color: #ff6b00;
+  text-decoration: underline wavy #4a5568;
+}
+
+.tooltip {
+  position: absolute;
+  background: white;
+  border: 1px solid #ddd;
+  padding: 8px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  display: none;
+}
+
+.modal-enter {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.modal-leave {
+  animation: fadeOut 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.notification-enter {
+  animation: slideIn 0.3s ease-out;
+}
+
+.notification-leave {
+  animation: slideOut 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* =============================================================================
+   RESPONSIVE BREAKPOINTS
+   ============================================================================= */
+
+@media (max-width: 640px) {
+  .container {
+    padding: 0.5rem;
+  }
+
+  header {
+    padding: 1.5rem 0.5rem;
+  }
+
+  header h1 {
+    font-size: 1.75rem;
+  }
+
+  header p {
+    font-size: 1rem;
+  }
+
+  .line {
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+
+  .line span {
+    margin-right: 0;
+    margin-bottom: 0.5rem;
+  }
+}
+
+/* =============================================================================
+   DARK MODE SUPPORT
+   ============================================================================= */
+
+@media (prefers-color-scheme: dark) {
+  header hr {
+    border-top-color: rgba(255, 255, 255, 0.1);
+  }
 }

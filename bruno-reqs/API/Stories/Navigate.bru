@@ -1,0 +1,21 @@
+meta {
+  name: Navigate
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseURL}}/api/stories/5/next
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "currentPage": "translate"
+  }
+}
+
+settings {
+  encodeUrl: true
+}

@@ -1,0 +1,28 @@
+meta {
+  name: Grammar Next
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseURL}}/api/stories/{{adminStoryId}}/grammar?grammar_point_id={{nextGrammarPointId}}
+  body: none
+  auth: inherit
+}
+
+params:query {
+  grammar_point_id: {{nextGrammarPointId}}
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const responseData = res.getBody();
+    if (responseData.success && responseData.data) {
+      bru.setVar("currentGrammarPointId", responseData.data.grammar_point_id);
+    }
+  }
+}
+
+settings {
+  encodeUrl: true
+}

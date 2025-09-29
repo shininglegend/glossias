@@ -34,11 +34,3 @@ SELECT EXISTS(
     SELECT 1 FROM course_admins
     WHERE user_id = $1
 ) as is_admin;
-
--- name: CanUserAccessCourse :one
-SELECT EXISTS(
-    SELECT 1 FROM users u
-    LEFT JOIN course_admins ca ON u.user_id = ca.user_id
-    WHERE u.user_id = $1
-    AND (u.is_super_admin = true OR ca.course_id = $2)
-) as can_access;

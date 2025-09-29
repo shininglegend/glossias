@@ -50,12 +50,7 @@ func (h *Handler) addStoryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate course access
-	userID, ok := auth.GetUserID(r)
-	if !ok || userID == "" {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-	if !models.IsUserSuperAdmin(ctx, userID) && !models.IsUserCourseAdmin(ctx, userID, int32(req.CourseID)) {
+	if !auth.IsCourseOrSuperAdmin(ctx, auth.GetUserID(r), int32(req.CourseID)) {
 		http.Error(w, "Forbidden: not a course admin", http.StatusForbidden)
 		return
 	}
@@ -123,9 +118,9 @@ func (h *Handler) processAddStory(req AddStoryRequest) (*models.Story, error) {
 				Name: req.AuthorName,
 			},
 			Description: models.Description{
-				Language: req.LanguageCode,
-				Text:     req.DescriptionText,
+				Text: req.DescriptionText,
 			},
+			Language:     req.LanguageCode,
 			CourseID:     &req.CourseID,
 			LastRevision: &updateTime,
 		},

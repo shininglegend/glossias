@@ -4,6 +4,7 @@ package stories
 import (
 	"encoding/json"
 	"fmt"
+	"glossias/src/auth"
 	"glossias/src/pkg/models"
 	"net/http"
 	"strconv"
@@ -26,24 +27,29 @@ func (h *Handler) editStoryHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid story ID", http.StatusBadRequest)
 		return
 	}
+	authUserID, ok := auth.GetUserIDWithOk(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
 	switch r.Method {
 	case http.MethodGet:
-		h.handleGetStory(w, r, storyID)
+		h.handleGetStory(w, r, storyID, authUserID)
 	case http.MethodPut:
-		h.handleUpdateStory(w, r, storyID)
+		h.handleUpdateStory(w, r, storyID, authUserID)
 	case http.MethodPost:
 		h.addStoryHandler(w, r)
 	case http.MethodDelete:
-		h.deleteStoryHandler(w, r)
+		h.deleteStoryHandler(w, r, authUserID)
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
-func (h *Handler) handleGetStory(w http.ResponseWriter, r *http.Request, storyID int) {
+func (h *Handler) handleGetStory(w http.ResponseWriter, r *http.Request, storyID int, userID string) {
 	// Fetch story from database
-	story, err := models.GetStoryData(r.Context(), storyID)
+	story, err := models.GetStoryData(r.Context(), storyID, userID)
 	if err != nil {
 		if err == models.ErrNotFound {
 			http.Error(w, "Story not found", http.StatusNotFound)
@@ -60,11 +66,17 @@ func (h *Handler) handleGetStory(w http.ResponseWriter, r *http.Request, storyID
 	})
 }
 
-func (h *Handler) handleUpdateStory(w http.ResponseWriter, r *http.Request, storyID int) {
+func (h *Handler) handleUpdateStory(w http.ResponseWriter, r *http.Request, storyID int, userID string) {
 	// Parse request body
 	story := models.Story{}
 	if err := json.NewDecoder(r.Body).Decode(&story); err != nil || story.Metadata.StoryID == 0 {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	// Validate user permissions
+	if !models.IsUserCourseOrSuperAdmin(r.Context(), userID, int32(*story.Metadata.CourseID)) {
+		http.Error(w, "Forbidden: not a course admin", http.StatusForbidden)
 		return
 	}
 
@@ -88,7 +100,6 @@ func (h *Handler) handleUpdateStory(w http.ResponseWriter, r *http.Request, stor
 	}
 
 	// Return success response
-
 	json.NewEncoder(w).Encode(EditStoryResponse{
 		Success: true,
 		Story:   &story,

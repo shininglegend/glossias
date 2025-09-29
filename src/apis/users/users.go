@@ -40,7 +40,7 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 
 func (h *Handler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	// Get user ID from request context (set by auth middleware)
-	userID, ok := auth.GetUserID(r)
+	userID, ok := auth.GetUserIDWithOk(r)
 	if !ok {
 		h.log.Warn("user info requested without user ID")
 		h.sendError(w, "Unauthorized", http.StatusUnauthorized)

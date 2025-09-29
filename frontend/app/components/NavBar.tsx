@@ -6,20 +6,21 @@ import {
   UserButton,
   SignInButton,
 } from "@clerk/react-router";
-import { useUserContext } from "../contexts/UserContext";
+import { useUserContext, isUserAdminOfCourses } from "../contexts/UserContext";
+import Button from "./ui/Button";
 
 export default function NavBar() {
   const location = useLocation();
   const { userInfo, loading } = useUserContext();
   const isAdmin = useMemo(
     () => location.pathname.startsWith("/admin"),
-    [location.pathname]
+    [location.pathname],
   );
 
   return (
     <header className="sticky top-0 z-50 bg-slate-900 text-white border-b border-white/10">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-        <NavLink to="/" className="font-bold tracking-tight">
+        <NavLink to="/" className="font-bold tracking-tight text-3xl">
           Glossias
         </NavLink>
 
@@ -27,11 +28,15 @@ export default function NavBar() {
           <NavItem to="/" end>
             Home
           </NavItem>
-          <NavItem to="/admin">Admin</NavItem>
+          {isUserAdminOfCourses(userInfo) && (
+            <NavItem to="/admin">Admin</NavItem>
+          )}
           {/* User management */}
           <UserButton />
           <SignedOut>
-            <SignInButton />
+            <SignInButton>
+              <Button className="button">Sign In</Button>
+            </SignInButton>
           </SignedOut>
           <SignedIn>
             {userInfo && !loading && (
@@ -67,6 +72,7 @@ export default function NavBar() {
             {userInfo?.is_super_admin && (
               <NavItem to="/admin/courses">Courses</NavItem>
             )}
+            <NavItem to="/admin/users">Users</NavItem>
             <NavItem to="/admin/stories/add">Add Story</NavItem>
           </div>
         </div>

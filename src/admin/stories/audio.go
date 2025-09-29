@@ -45,7 +45,7 @@ func (h *Handler) requestAudioUploadURL(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Admin authentication check
-	userID, ok := auth.GetUserID(r)
+	userID, ok := auth.GetUserIDWithOk(r)
 	if !ok || !models.CanUserEditStory(r.Context(), userID, int32(req.StoryID)) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -141,7 +141,7 @@ func (h *Handler) audioDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Admin authentication check
-	userID, ok := auth.GetUserID(r)
+	userID, ok := auth.GetUserIDWithOk(r)
 	if !ok || !models.CanUserEditStory(r.Context(), userID, int32(req.StoryID)) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -185,7 +185,7 @@ func (h *Handler) confirmAudioUploadHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Admin authentication check for confirm step
-	userID, ok := auth.GetUserID(r)
+	userID, ok := auth.GetUserIDWithOk(r)
 	if !ok || !models.CanUserEditStory(r.Context(), userID, int32(req.StoryID)) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return

@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from "react";
-import { Link } from "react-router";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router";
 import { useApiService } from "../services/api";
 import type { Story } from "../services/api";
+import "./StoryList.css";
 
 export function StoryList() {
   const api = useApiService();
+  const navigate = useNavigate();
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +29,20 @@ export function StoryList() {
 
     fetchStories();
   }, []);
+
+  const handleStartReading = async (storyId: number) => {
+    try {
+      const response = await api.getNavigationGuidance(
+        storyId.toString(),
+        "list",
+      );
+      if (response.success && response.data) {
+        navigate(`/stories/${storyId}/${response.data.nextPage}`);
+      }
+    } catch (error) {
+      console.error("Failed to get navigation guidance:", error);
+    }
+  };
 
   if (loading) {
     return (
@@ -60,7 +76,12 @@ export function StoryList() {
                 Week {story.week_number}
                 {story.day_letter}
               </p>
-              <Link to={`/stories/${story.id}/page1`}>Start Reading</Link>
+              <button
+                onClick={() => handleStartReading(story.id)}
+                className="start-reading-button"
+              >
+                Start Reading
+              </button>
             </div>
           ))}
         </div>

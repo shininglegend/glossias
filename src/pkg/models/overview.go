@@ -15,8 +15,8 @@ Core Types:
 - GrammarPoint: {ID, Name, Description}
 
 Database Functions (SQLC-based):
-GetStoryData(id int) (*Story, error) // Full story with all components
-GetAllStories(language string) ([]Story, error) // Basic story list
+GetStoryData(id int, userID string) (*Story, error) // Full story with all components
+GetAllStories(language string, userID string) ([]Story, error) // Basic story list
 GetLineAnnotations(storyID, lineNumber int) (*StoryLine, error)
 GetStoryAnnotations(storyID int) (map[int]*StoryLine, error)
 GetLineText(storyID, lineNumber int) (string, error)
@@ -62,13 +62,40 @@ ClearLineAnnotations(storyID, lineNumber int) error // Uses raw SQL for complex 
 Delete Operations (SQLC-based):
 Delete(storyID int) error // Uses StoryExists, DeleteStory, and component delete functions
 
+Score Operations:
+SaveVocabScore(ctx context.Context, userID string, storyID int, lineNumber int, correct bool, incorrectAnswer string) error
+SaveGrammarScore(ctx context.Context, userID string, storyID int, lineNumber int, correct bool, selectedLine int, selectedPositions []int) error
+SaveGrammarScoresForPoint(ctx context.Context, userID string, storyID int, grammarPointID int, lineScores map[int]bool, incorrectAnswers map[int]struct{SelectedLine int; SelectedPositions []int}) error // Multi-line grammar point scoring
+GetUserVocabScores(ctx context.Context, userID string, storyID int) (map[int]bool, error) // Returns map[lineNumber]correct
+GetUserGrammarScores(ctx context.Context, userID string, storyID int) (map[int]bool, error) // Returns map[lineNumber]correct
+
 User Operations (SQLC-based):
 UpsertUser(userID, email, name string) (*User, error) // Uses UpsertUser
 GetUser(userID string) (*User, error) // Uses GetUser
-CanUserAccessCourse(userID string, courseID int32) bool // Uses CanUserAccessCourse
+CanUserAccessCourse(userID string, courseID int32) bool // Whether a user is a course member
 IsUserAdmin(userID string) bool // Uses GetUser and IsUserAdminOfAnyCourse
 IsUserCourseAdmin(userID string, courseID int32) bool // Uses IsUserCourseAdmin
 GetUserCourseAdminRights(userID string) ([]CourseAdminRight, error) // Uses GetUserCourseAdminRights
+
+Course User Operations (SQLC-based):
+AddUserToCourseByEmail(email string, courseID int) error // Uses GetUserByEmail, AddUserToCourse
+RemoveUserFromCourse(courseID int, userID string) error // Uses RemoveUserFromCourse
+DeleteAllUsersFromCourse(courseID int) error // Uses DeleteAllUsersFromCourse
+GetCoursesForUser(userID string) ([]UserCourse, error) // Uses GetCoursesForUser
+GetUsersForCourse(courseID int) ([]CourseUser, error) // Uses GetUsersForCourse
+
+Navigation Types:
+- PageType: string constants for "video", "vocab", "translate", "grammar", "score"
+- NavigationGuidanceRequest: {UserId, CurrentPage, StoryId}
+- NavigationGuidanceResponse: {NextPage}
+
+Navigation Operations:
+Navigate(storyID, currentPage, userID) (*NavigationGuidanceResponse, error) // Determines next page in learning flow
+getPageCompletionStatus(userID, storyID) (map[PageType]bool, error) // Checks completion for all page types
+isVocabCompleted(userID, storyID) (bool, error) // Vocab attempts + 5 seconds min time
+isGrammarCompleted(userID, storyID) (bool, error) // Grammar attempts + 5 seconds min time
+isTranslateCompleted(userID, storyID) (bool, error) // 5 seconds min time
+determineNextPage(currentPage, completionStatus) PageType // Navigation logic with video always visited
 
 Error Types:
 ErrNotFound, ErrInvalidStoryID, ErrInvalidLineNumber, ErrMissingStoryID,

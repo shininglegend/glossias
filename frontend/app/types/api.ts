@@ -15,6 +15,8 @@ export interface StoryMetadata {
   author: Author;
   grammarPoints: GrammarPoint[];
   description: Description;
+  videoUrl?: string;
+  languageCode: string; // 2-letter Unicode language code
 }
 
 export interface Author {
@@ -23,7 +25,6 @@ export interface Author {
 }
 
 export interface Description {
-  language: string; // 2-letter Unicode language code
   text: string;
 }
 
@@ -44,7 +45,6 @@ export interface StoryLine {
   footnotes: Footnote[];
   audioFiles: AudioFile[];
   storyId?: number;
-  languageCode?: string;
 }
 
 export interface AudioFile {
@@ -90,6 +90,25 @@ export type AnnotationType = "vocab" | "grammar" | "footnote";
 export interface ApiError {
   error: string;
 }
+
+export interface NavigationGuidanceRequest {
+  storyId: string;
+  userId: string;
+  currentPage: PageType;
+}
+
+export interface NavigationGuidanceResponse {
+  nextPage: PageType;
+  displayName: string;
+}
+
+export type PageType =
+  | "list"
+  | "video"
+  | "vocab"
+  | "translate"
+  | "grammar"
+  | "score";
 
 export const createAnnotationRequest = (
   lineNumber: number,

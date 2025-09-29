@@ -30,6 +30,14 @@ CREATE TABLE IF NOT EXISTS course_admins (
     PRIMARY KEY (course_id, user_id)
 );
 
+-- Course users junction table - assigns users to courses without admin privileges
+CREATE TABLE IF NOT EXISTS course_users (
+    course_id INTEGER REFERENCES courses (course_id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users (user_id) ON DELETE CASCADE,
+    enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (course_id, user_id)
+);
+
 -- Grammar points table - each point belongs to a specific story
 CREATE TABLE IF NOT EXISTS grammar_points (
     grammar_point_id SERIAL PRIMARY KEY,
@@ -108,11 +116,12 @@ CREATE TABLE IF NOT EXISTS vocabulary_items (
     FOREIGN KEY (story_id, line_number) REFERENCES story_lines (story_id, line_number) ON DELETE CASCADE
 );
 
+-- This stores the actual instances of a grammar point in a story.
 CREATE TABLE IF NOT EXISTS grammar_items (
     id SERIAL PRIMARY KEY,
     story_id INTEGER,
     line_number INTEGER,
-    grammar_point_id INTEGER REFERENCES grammar_points (grammar_point_id) ON DELETE SET NULL,
+    grammar_point_id INTEGER REFERENCES grammar_points (grammar_point_id) ON DELETE CASCADE,
     text TEXT NOT NULL,
     position_start INTEGER NOT NULL,
     position_end INTEGER NOT NULL,
@@ -132,3 +141,93 @@ CREATE TABLE IF NOT EXISTS footnote_references (
     reference TEXT NOT NULL,
     PRIMARY KEY (footnote_id, reference)
 );
+
+-- User time tracking table
+CREATE TABLE IF NOT EXISTS user_time_tracking (
+    tracking_id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+    route TEXT NOT NULL,
+    story_id INTEGER REFERENCES stories (story_id) ON DELETE SET NULL,
+    started_at TIMESTAMP NOT NULL,
+    ended_at TIMESTAMP,
+    total_time_seconds INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for efficient querying by user and date
+CREATE INDEX IF NOT EXISTS idx_time_tracking_user_date ON user_time_tracking (user_id, started_at);
+
+-- Anonymous user time tracking table (separate to prevent database bloat)
+CREATE TABLE IF NOT EXISTS anonymous_time_tracking (
+    tracking_id SERIAL PRIMARY KEY,
+    session_id TEXT NOT NULL, -- Browser fingerprint or session identifier
+    route TEXT NOT NULL,
+    story_id INTEGER REFERENCES stories (story_id) ON DELETE SET NULL,
+    started_at TIMESTAMP NOT NULL,
+    ended_at TIMESTAMP,
+    total_time_seconds INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for efficient querying and cleanup
+CREATE INDEX IF NOT EXISTS idx_anonymous_time_tracking_date ON anonymous_time_tracking (created_at);
+CREATE INDEX IF NOT EXISTS idx_anonymous_time_tracking_session ON anonymous_time_tracking (session_id, started_at);
+
+-- Vocabulary scores table
+CREATE TABLE IF NOT EXISTS vocab_correct_answers (
+    score_id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+    story_id INTEGER NOT NULL REFERENCES stories (story_id) ON DELETE CASCADE,
+    line_number INTEGER NOT NULL,
+    vocab_item_id INTEGER NOT NULL REFERENCES vocabulary_items (id) ON DELETE CASCADE,
+    attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (story_id, line_number) REFERENCES story_lines (story_id, line_number) ON DELETE CASCADE
+);
+
+-- Grammar scores table
+CREATE TABLE IF NOT EXISTS grammar_correct_answers (
+    score_id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+    story_id INTEGER NOT NULL REFERENCES stories (story_id) ON DELETE CASCADE,
+    line_number INTEGER NOT NULL,
+    grammar_point_id INTEGER NOT NULL REFERENCES grammar_points (grammar_point_id) ON DELETE CASCADE,
+    attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (story_id, line_number) REFERENCES story_lines (story_id, line_number) ON DELETE CASCADE
+);
+
+-- Incorrect vocabulary answers table
+CREATE TABLE IF NOT EXISTS vocab_incorrect_answers (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+    story_id INTEGER NOT NULL REFERENCES stories (story_id) ON DELETE CASCADE,
+    line_number INTEGER NOT NULL,
+    vocab_item_id INTEGER NOT NULL REFERENCES vocabulary_items (id) ON DELETE CASCADE,
+    incorrect_answer TEXT NOT NULL,
+    attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (story_id, line_number) REFERENCES story_lines (story_id, line_number) ON DELETE CASCADE
+);
+
+-- Incorrect grammar answers table
+CREATE TABLE IF NOT EXISTS grammar_incorrect_answers (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+    story_id INTEGER NOT NULL REFERENCES stories (story_id) ON DELETE CASCADE,
+    line_number INTEGER NOT NULL,
+    grammar_point_id INTEGER NOT NULL REFERENCES grammar_points (grammar_point_id) ON DELETE CASCADE,
+    selected_line INTEGER NOT NULL,
+    selected_positions INTEGER[] NOT NULL,
+    attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (story_id, line_number) REFERENCES story_lines (story_id, line_number) ON DELETE CASCADE
+);
+
+-- Indexes for efficient score querying
+CREATE INDEX IF NOT EXISTS idx_vocab_correct_answers_user_story ON vocab_correct_answers (user_id, story_id);
+CREATE INDEX IF NOT EXISTS idx_vocab_correct_answers_story ON vocab_correct_answers (story_id);
+CREATE INDEX IF NOT EXISTS idx_vocab_correct_answers_user ON vocab_correct_answers (user_id);
+CREATE INDEX IF NOT EXISTS idx_grammar_correct_answers_user_story ON grammar_correct_answers (user_id, story_id);
+CREATE INDEX IF NOT EXISTS idx_grammar_correct_answers_story ON grammar_correct_answers (story_id);
+CREATE INDEX IF NOT EXISTS idx_grammar_correct_answers_user ON grammar_correct_answers (user_id);
+
+-- Indexes for incorrect answers
+CREATE INDEX IF NOT EXISTS idx_vocab_incorrect_user_story ON vocab_incorrect_answers (user_id, story_id);
+CREATE INDEX IF NOT EXISTS idx_grammar_incorrect_user_story ON grammar_incorrect_answers (user_id, story_id);

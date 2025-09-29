@@ -14,7 +14,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func (h *Handler) deleteStoryHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) deleteStoryHandler(w http.ResponseWriter, r *http.Request, userID string) {
 	vars := mux.Vars(r)
 	storyID, err := strconv.Atoi(vars["id"])
 	if err != nil {
@@ -22,8 +22,14 @@ func (h *Handler) deleteStoryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate user permissions
+	if !models.IsUserCourseOrSuperAdmin(r.Context(), userID, int32(storyID)) {
+		http.Error(w, "Forbidden: not a course admin", http.StatusForbidden)
+		return
+	}
+
 	// First fetch the story data for logging
-	story, err := models.GetStoryData(r.Context(), storyID)
+	story, err := models.GetStoryData(r.Context(), storyID, userID)
 	if err != nil {
 		if err == models.ErrNotFound {
 			writeJSONError(w, "Story not found", http.StatusNotFound)

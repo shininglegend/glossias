@@ -100,10 +100,10 @@ func EditStoryMetadata(ctx context.Context, storyID int, metadata StoryMetadata)
 			return err
 		}
 
-		if metadata.Description.Text != "" || metadata.Description.Language != "" {
+		if metadata.Description.Text != "" || metadata.Language != "" {
 			err := queries.UpsertStoryDescription(ctx, db.UpsertStoryDescriptionParams{
 				StoryID:         int32(storyID),
-				LanguageCode:    metadata.Description.Language,
+				LanguageCode:    metadata.Language,
 				DescriptionText: metadata.Description.Text,
 			})
 			if err != nil {

@@ -197,7 +197,7 @@ function TranslationLineEditor({
         {/* Hebrew text (left side) */}
         <div>
           <div
-            className="p-2 bg-gray-50 rounded text-sm min-h-[32px] text-right"
+            className="p-2 bg-gray-50 rounded text-md min-h-[32px] text-right"
             dir="rtl"
           >
             {translation.hebrew}

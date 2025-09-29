@@ -25,16 +25,23 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	}).Methods("GET", "OPTIONS")
 
 	// Individual page endpoints
-	router.HandleFunc("/{id}/page1", h.GetPage1).Methods("GET", "OPTIONS")
-	router.HandleFunc("/{id}/page2", h.GetPage2).Methods("GET", "OPTIONS")
-	router.HandleFunc("/{id}/page3", h.GetPage3).Methods("GET", "OPTIONS")
-	router.HandleFunc("/{id}/page4", h.GetPage4).Methods("GET", "OPTIONS")
+	router.HandleFunc("/{id}/metadata", h.GetStoryMetadata).Methods("GET", "OPTIONS")
+	router.HandleFunc("/{id}/story-with-audio", h.GetAudioPage).Methods("GET", "OPTIONS")
+	router.HandleFunc("/{id}/vocab", h.GetVocabPage).Methods("GET", "OPTIONS")
+	router.HandleFunc("/{id}/grammar", h.GetGrammarPage).Methods("GET", "OPTIONS")
+	router.HandleFunc("/{id}/translate", h.GetTranslateData).Methods("POST", "OPTIONS")
+	router.HandleFunc("/{id}/scores", h.GetScoresData).Methods("GET", "OPTIONS")
 
 	// Audio endpoints
 	router.HandleFunc("/{id}/audio/signed", h.GetSignedAudioURLs).Methods("GET", "OPTIONS")
 
 	// Vocabulary checking endpoint
 	router.HandleFunc("/{id}/check-vocab", h.CheckVocab).Methods("POST", "OPTIONS")
+	// Grammar checking endpoint
+	router.HandleFunc("/{id}/check-grammar", h.CheckGrammar).Methods("POST", "OPTIONS")
+
+	// Navigation endpoint
+	router.HandleFunc("/{id}/next", h.Navigate).Methods("POST", "OPTIONS")
 }
 
 // GetStories returns JSON array of all stories
@@ -43,7 +50,7 @@ func (h *Handler) GetStories(w http.ResponseWriter, r *http.Request) {
 	lang := r.URL.Query().Get("lang")
 
 	// Fetch stories from database
-	dbStories, err := models.GetAllStories(r.Context(), lang)
+	dbStories, err := models.GetAllStories(r.Context(), lang, auth.GetUserID(r))
 	if err != nil {
 		h.log.Error("Failed to fetch stories from database", "error", err)
 		h.sendError(w, "Failed to fetch stories", http.StatusInternalServerError)
@@ -74,15 +81,8 @@ func (h *Handler) GetSignedAudioURLs(w http.ResponseWriter, r *http.Request) {
 	// Get label filter from query parameters
 	label := r.URL.Query().Get("label")
 
-	// Get user ID from request context
-	userID, ok := auth.GetUserID(r)
-	if !ok {
-		h.sendError(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	// Generate signed URLs (expires in 4 hours)
-	signedURLs, err := models.GetSignedAudioURLsForStory(r.Context(), id, userID, label, expiresInSeconds)
+	signedURLs, err := models.GetSignedAudioURLsForStory(r.Context(), id, auth.GetUserID(r), label, expiresInSeconds)
 	if err == models.ErrNotFound {
 		h.sendError(w, "Story or audio files not found.", http.StatusNotFound)
 		return

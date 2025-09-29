@@ -8,6 +8,9 @@
 *.so
 *.dylib
 
+# Old static directory
+_old_static/*
+
 # Test binary, built with `go test -c`
 *.test
 

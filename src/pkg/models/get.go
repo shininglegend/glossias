@@ -13,7 +13,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func GetStoryData(ctx context.Context, id int) (*Story, error) {
+func GetStoryData(ctx context.Context, id int, userID string) (*Story, error) {
 	story := NewStory()
 
 	// Get main story data
@@ -23,6 +23,14 @@ func GetStoryData(ctx context.Context, id int) (*Story, error) {
 			return nil, ErrNotFound
 		}
 		return nil, err
+	}
+
+	// Check if user has access to this story
+	if dbStory.CourseID.Valid {
+		courseID := int32(dbStory.CourseID.Int32)
+		if !CanUserAccessCourse(ctx, userID, courseID) {
+			return nil, ErrNotFound
+		}
 	}
 
 	// Convert DB story to model story
@@ -55,7 +63,7 @@ func GetStoryData(ctx context.Context, id int) (*Story, error) {
 	storyWithDesc, err := queries.GetStoryWithDescription(ctx, int32(id))
 	if err == nil {
 		if storyWithDesc.LanguageCode.Valid && storyWithDesc.DescriptionText.Valid {
-			story.Metadata.Description.Language = storyWithDesc.LanguageCode.String
+			story.Metadata.Language = storyWithDesc.LanguageCode.String
 			story.Metadata.Description.Text = storyWithDesc.DescriptionText.String
 		}
 	}
@@ -422,9 +430,11 @@ func withTransaction(fn func() error) error {
 	return fn()
 }
 
-func GetAllStories(ctx context.Context, language string) ([]Story, error) {
-
-	basicStories, err := queries.GetAllStoriesBasic(ctx, language)
+func GetAllStories(ctx context.Context, language string, userID string) ([]Story, error) {
+	basicStories, err := queries.GetAllStoriesForUser(ctx, db.GetAllStoriesForUserParams{
+		LanguageCode: language,
+		UserID:       userID,
+	})
 	if err != nil {
 		return nil, err
 	}

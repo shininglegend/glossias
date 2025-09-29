@@ -31,27 +31,6 @@ func (q *Queries) AddCourseAdmin(ctx context.Context, arg AddCourseAdminParams) 
 	return i, err
 }
 
-const canUserAccessCourse = `-- name: CanUserAccessCourse :one
-SELECT EXISTS(
-    SELECT 1 FROM users u
-    LEFT JOIN course_admins ca ON u.user_id = ca.user_id
-    WHERE u.user_id = $1
-    AND (u.is_super_admin = true OR ca.course_id = $2)
-) as can_access
-`
-
-type CanUserAccessCourseParams struct {
-	UserID   string `json:"user_id"`
-	CourseID int32  `json:"course_id"`
-}
-
-func (q *Queries) CanUserAccessCourse(ctx context.Context, arg CanUserAccessCourseParams) (bool, error) {
-	row := q.db.QueryRow(ctx, canUserAccessCourse, arg.UserID, arg.CourseID)
-	var can_access bool
-	err := row.Scan(&can_access)
-	return can_access, err
-}
-
 const getCourseAdmins = `-- name: GetCourseAdmins :many
 SELECT ca.course_id, ca.user_id, ca.assigned_at, u.email, u.name
 FROM course_admins ca

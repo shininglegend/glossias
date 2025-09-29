@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useAuthenticatedFetch } from "../lib/authFetch";
+import type { NavigationGuidanceResponse } from "../types/api";
 
 const API_BASE = "/api";
 
@@ -10,6 +11,20 @@ export interface Story {
   title: string;
   week_number: number;
   day_letter: string;
+}
+
+export interface Description {
+  language: string;
+  text: string;
+}
+
+export interface StoryMetadata {
+  storyId: number;
+  weekNumber: number;
+  dayLetter: string;
+  title?: string | { [key: string]: string };
+  description?: Description;
+  videoUrl?: string;
 }
 
 export interface AudioFile {
@@ -24,25 +39,48 @@ export interface Line {
   english_translation?: string;
   audio_files: AudioFile[];
   signed_audio_urls?: { [key: number]: string };
-  has_vocab_or_grammar: boolean;
+}
+
+export interface GrammarLine {
+  text: string;
+  english_translation?: string;
 }
 
 export interface PageData {
   story_id: string;
   story_title: string;
   lines: Line[];
+  language: string;
 }
 
-export interface Page2Data extends PageData {
+export interface GrammarPageData {
+  story_id: string;
+  story_title: string;
+  lines: GrammarLine[];
+  language: string;
+}
+
+export interface VocabData extends PageData {
   vocab_bank: string[];
 }
 
-export interface Page3Data extends PageData {
+export interface GrammarData extends GrammarPageData {
+  grammar_point_id: number;
   grammar_point: string;
+  grammar_description?: string;
+  instances_count: number;
 }
 
-export interface Page4Data extends PageData {
+export interface TranslationLine {
+  text: string;
   translation: string;
+}
+
+export interface TranslateData {
+  story_id: string;
+  story_title: string;
+  language: string;
+  lines: TranslationLine[];
 }
 
 export interface APIResponse<T = any> {
@@ -93,38 +131,49 @@ export function useApiService() {
       return fetchAPI<StoriesResponse>("/stories");
     }, [fetchAPI]),
 
-    getStoryPage1: useCallback(
+    getStoryWithAudio: useCallback(
       (id: string): Promise<APIResponse<PageData>> => {
-        return fetchAPI<PageData>(`/stories/${id}/page1`);
+        return fetchAPI<PageData>(`/stories/${id}/story-with-audio`);
       },
       [fetchAPI],
     ),
 
     getSignedAudioURLs: useCallback(
-      (storyId: string, label?: string): Promise<APIResponse<{ [key: number]: string }>> => {
-        const params = label ? `?label=${encodeURIComponent(label)}` : '';
-        return fetchAPI<{ [key: number]: string }>(`/stories/${storyId}/audio/signed${params}`);
+      (
+        storyId: string,
+        label?: string,
+      ): Promise<APIResponse<{ [key: number]: string }>> => {
+        const params = label ? `?label=${encodeURIComponent(label)}` : "";
+        return fetchAPI<{ [key: number]: string }>(
+          `/stories/${storyId}/audio/signed${params}`,
+        );
       },
       [fetchAPI],
     ),
 
-    getStoryPage2: useCallback(
-      (id: string): Promise<APIResponse<Page2Data>> => {
-        return fetchAPI<Page2Data>(`/stories/${id}/page2`);
+    getStoryVocab: useCallback(
+      (id: string): Promise<APIResponse<VocabData>> => {
+        return fetchAPI<VocabData>(`/stories/${id}/vocab`);
       },
       [fetchAPI],
     ),
 
-    getStoryPage3: useCallback(
-      (id: string): Promise<APIResponse<Page3Data>> => {
-        return fetchAPI<Page3Data>(`/stories/${id}/page3`);
+    getStoryGrammar: useCallback(
+      (
+        id: string,
+        grammarPointId?: string,
+      ): Promise<APIResponse<GrammarData>> => {
+        const url = grammarPointId
+          ? `/stories/${id}/grammar?grammar_point_id=${grammarPointId}`
+          : `/stories/${id}/grammar`;
+        return fetchAPI<GrammarData>(url);
       },
       [fetchAPI],
     ),
 
-    getStoryPage4: useCallback(
-      (id: string): Promise<APIResponse<Page4Data>> => {
-        return fetchAPI<Page4Data>(`/stories/${id}/page4`);
+    getStoryMetadata: useCallback(
+      (id: string): Promise<APIResponse<StoryMetadata>> => {
+        return fetchAPI<StoryMetadata>(`/stories/${id}/metadata`);
       },
       [fetchAPI],
     ),
@@ -135,6 +184,78 @@ export function useApiService() {
           method: "POST",
           body: JSON.stringify({ answers }),
         });
+      },
+      [fetchAPI],
+    ),
+
+    checkVocabLine: useCallback(
+      (
+        id: string,
+        lineNumber: number,
+        answer: string,
+      ): Promise<APIResponse<{ correct: boolean }>> => {
+        return fetchAPI(`/stories/${id}/check-vocab`, {
+          method: "POST",
+          body: JSON.stringify({
+            answers: [{ line_number: lineNumber, answers: [answer] }],
+          }),
+        });
+      },
+      [fetchAPI],
+    ),
+
+    checkGrammar: useCallback(
+      (
+        id: string,
+        grammarPointId: number,
+        answers: Array<{ line_number: number; positions: number[] }>,
+      ): Promise<APIResponse<any>> => {
+        return fetchAPI(`/stories/${id}/check-grammar`, {
+          method: "POST",
+          body: JSON.stringify({
+            grammar_point_id: grammarPointId,
+            answers,
+          }),
+        });
+      },
+      [fetchAPI],
+    ),
+
+    getTranslations: useCallback(
+      (
+        id: string,
+        lineNumbers: number[],
+      ): Promise<APIResponse<TranslateData>> => {
+        const lines = lineNumbers.map((n) => n + 1).join(","); // Convert to 1-based indexing
+        return fetchAPI<TranslateData>(
+          `/stories/${id}/translate?lines=[${lines}]`,
+          {
+            method: "POST",
+          },
+        );
+      },
+      [fetchAPI],
+    ),
+
+    getStoryScore: useCallback(
+      (id: string): Promise<APIResponse<any>> => {
+        return fetchAPI(`/stories/${id}/scores`);
+      },
+      [fetchAPI],
+    ),
+
+    getNavigationGuidance: useCallback(
+      (
+        storyId: string,
+        currentPage: string,
+      ): Promise<APIResponse<NavigationGuidanceResponse>> => {
+        return fetchAPI<NavigationGuidanceResponse>(
+          `/stories/${storyId}/next`,
+          {
+            method: "POST",
+            body: JSON.stringify({ currentPage }),
+          },
+        );
       },
       [fetchAPI],
     ),

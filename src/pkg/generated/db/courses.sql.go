@@ -48,6 +48,41 @@ func (q *Queries) DeleteCourse(ctx context.Context, courseID int32) error {
 	return err
 }
 
+const getAdminCoursesForUser = `-- name: GetAdminCoursesForUser :many
+SELECT c.course_id, c.course_number, c.name, c.description, c.created_at, c.updated_at
+FROM courses c
+JOIN course_admins ca ON c.course_id = ca.course_id
+WHERE ca.user_id = $1
+ORDER BY c.course_number
+`
+
+func (q *Queries) GetAdminCoursesForUser(ctx context.Context, userID string) ([]Course, error) {
+	rows, err := q.db.Query(ctx, getAdminCoursesForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Course{}
+	for rows.Next() {
+		var i Course
+		if err := rows.Scan(
+			&i.CourseID,
+			&i.CourseNumber,
+			&i.Name,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getCourse = `-- name: GetCourse :one
 SELECT course_id, course_number, name, description, created_at, updated_at
 FROM courses
@@ -86,41 +121,6 @@ func (q *Queries) GetCourseByNumber(ctx context.Context, courseNumber string) (C
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const getCoursesForUser = `-- name: GetCoursesForUser :many
-SELECT c.course_id, c.course_number, c.name, c.description, c.created_at, c.updated_at
-FROM courses c
-JOIN course_admins ca ON c.course_id = ca.course_id
-WHERE ca.user_id = $1
-ORDER BY c.course_number
-`
-
-func (q *Queries) GetCoursesForUser(ctx context.Context, userID string) ([]Course, error) {
-	rows, err := q.db.Query(ctx, getCoursesForUser, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Course{}
-	for rows.Next() {
-		var i Course
-		if err := rows.Scan(
-			&i.CourseID,
-			&i.CourseNumber,
-			&i.Name,
-			&i.Description,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listCourses = `-- name: ListCourses :many

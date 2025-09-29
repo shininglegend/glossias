@@ -8,6 +8,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AnonymousTimeTracking struct {
+	TrackingID       int32            `json:"tracking_id"`
+	SessionID        string           `json:"session_id"`
+	Route            string           `json:"route"`
+	StoryID          pgtype.Int4      `json:"story_id"`
+	StartedAt        pgtype.Timestamp `json:"started_at"`
+	EndedAt          pgtype.Timestamp `json:"ended_at"`
+	TotalTimeSeconds pgtype.Int4      `json:"total_time_seconds"`
+	CreatedAt        pgtype.Timestamp `json:"created_at"`
+}
+
 type Course struct {
 	CourseID     int32            `json:"course_id"`
 	CourseNumber string           `json:"course_number"`
@@ -23,6 +34,12 @@ type CourseAdmin struct {
 	AssignedAt pgtype.Timestamp `json:"assigned_at"`
 }
 
+type CourseUser struct {
+	CourseID   int32            `json:"course_id"`
+	UserID     string           `json:"user_id"`
+	EnrolledAt pgtype.Timestamp `json:"enrolled_at"`
+}
+
 type Footnote struct {
 	ID           int32       `json:"id"`
 	StoryID      pgtype.Int4 `json:"story_id"`
@@ -33,6 +50,26 @@ type Footnote struct {
 type FootnoteReference struct {
 	FootnoteID int32  `json:"footnote_id"`
 	Reference  string `json:"reference"`
+}
+
+type GrammarCorrectAnswer struct {
+	ScoreID        int32            `json:"score_id"`
+	UserID         string           `json:"user_id"`
+	StoryID        int32            `json:"story_id"`
+	LineNumber     int32            `json:"line_number"`
+	GrammarPointID int32            `json:"grammar_point_id"`
+	AttemptedAt    pgtype.Timestamp `json:"attempted_at"`
+}
+
+type GrammarIncorrectAnswer struct {
+	ID                int32            `json:"id"`
+	UserID            string           `json:"user_id"`
+	StoryID           int32            `json:"story_id"`
+	LineNumber        int32            `json:"line_number"`
+	GrammarPointID    int32            `json:"grammar_point_id"`
+	SelectedLine      int32            `json:"selected_line"`
+	SelectedPositions []int32          `json:"selected_positions"`
+	AttemptedAt       pgtype.Timestamp `json:"attempted_at"`
 }
 
 type GrammarItem struct {
@@ -106,6 +143,36 @@ type User struct {
 	IsSuperAdmin pgtype.Bool      `json:"is_super_admin"`
 	CreatedAt    pgtype.Timestamp `json:"created_at"`
 	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+type UserTimeTracking struct {
+	TrackingID       int32            `json:"tracking_id"`
+	UserID           string           `json:"user_id"`
+	Route            string           `json:"route"`
+	StoryID          pgtype.Int4      `json:"story_id"`
+	StartedAt        pgtype.Timestamp `json:"started_at"`
+	EndedAt          pgtype.Timestamp `json:"ended_at"`
+	TotalTimeSeconds pgtype.Int4      `json:"total_time_seconds"`
+	CreatedAt        pgtype.Timestamp `json:"created_at"`
+}
+
+type VocabCorrectAnswer struct {
+	ScoreID     int32            `json:"score_id"`
+	UserID      string           `json:"user_id"`
+	StoryID     int32            `json:"story_id"`
+	LineNumber  int32            `json:"line_number"`
+	VocabItemID int32            `json:"vocab_item_id"`
+	AttemptedAt pgtype.Timestamp `json:"attempted_at"`
+}
+
+type VocabIncorrectAnswer struct {
+	ID              int32            `json:"id"`
+	UserID          string           `json:"user_id"`
+	StoryID         int32            `json:"story_id"`
+	LineNumber      int32            `json:"line_number"`
+	VocabItemID     int32            `json:"vocab_item_id"`
+	IncorrectAnswer string           `json:"incorrect_answer"`
+	AttemptedAt     pgtype.Timestamp `json:"attempted_at"`
 }
 
 type VocabularyItem struct {

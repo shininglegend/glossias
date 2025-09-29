@@ -24,10 +24,20 @@ WHERE story_id = $1;
 DELETE FROM stories WHERE story_id = $1;
 
 -- name: GetAllStoriesBasic :many
-SELECT DISTINCT s.story_id, s.week_number, s.day_letter, st.title
+SELECT DISTINCT s.story_id, s.week_number, s.day_letter, st.title, s.course_id
 FROM stories s
 JOIN story_titles st ON s.story_id = st.story_id
 WHERE st.language_code = $1 OR $1 = ''
+ORDER BY s.week_number, s.day_letter;
+
+-- name: GetAllStoriesForUser :many
+SELECT DISTINCT s.story_id, s.week_number, s.day_letter, st.title, s.course_id
+FROM stories s
+JOIN story_titles st ON s.story_id = st.story_id
+LEFT JOIN course_users cu ON s.course_id = cu.course_id AND cu.user_id = $2
+LEFT JOIN course_admins ca ON s.course_id = ca.course_id AND ca.user_id = $2
+WHERE (st.language_code = $1 OR $1 = '')
+  AND (s.course_id IS NULL OR cu.user_id IS NOT NULL OR ca.user_id IS NOT NULL)
 ORDER BY s.week_number, s.day_letter;
 
 -- name: GetAllStoriesWithTitles :many

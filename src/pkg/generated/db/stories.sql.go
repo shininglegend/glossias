@@ -90,7 +90,7 @@ func (q *Queries) GetAllStories(ctx context.Context) ([]Story, error) {
 }
 
 const getAllStoriesBasic = `-- name: GetAllStoriesBasic :many
-SELECT DISTINCT s.story_id, s.week_number, s.day_letter, st.title
+SELECT DISTINCT s.story_id, s.week_number, s.day_letter, st.title, s.course_id
 FROM stories s
 JOIN story_titles st ON s.story_id = st.story_id
 WHERE st.language_code = $1 OR $1 = ''
@@ -98,10 +98,11 @@ ORDER BY s.week_number, s.day_letter
 `
 
 type GetAllStoriesBasicRow struct {
-	StoryID    int32  `json:"story_id"`
-	WeekNumber int32  `json:"week_number"`
-	DayLetter  string `json:"day_letter"`
-	Title      string `json:"title"`
+	StoryID    int32       `json:"story_id"`
+	WeekNumber int32       `json:"week_number"`
+	DayLetter  string      `json:"day_letter"`
+	Title      string      `json:"title"`
+	CourseID   pgtype.Int4 `json:"course_id"`
 }
 
 func (q *Queries) GetAllStoriesBasic(ctx context.Context, languageCode string) ([]GetAllStoriesBasicRow, error) {
@@ -118,6 +119,57 @@ func (q *Queries) GetAllStoriesBasic(ctx context.Context, languageCode string) (
 			&i.WeekNumber,
 			&i.DayLetter,
 			&i.Title,
+			&i.CourseID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllStoriesForUser = `-- name: GetAllStoriesForUser :many
+SELECT DISTINCT s.story_id, s.week_number, s.day_letter, st.title, s.course_id
+FROM stories s
+JOIN story_titles st ON s.story_id = st.story_id
+LEFT JOIN course_users cu ON s.course_id = cu.course_id AND cu.user_id = $2
+LEFT JOIN course_admins ca ON s.course_id = ca.course_id AND ca.user_id = $2
+WHERE (st.language_code = $1 OR $1 = '')
+  AND (s.course_id IS NULL OR cu.user_id IS NOT NULL OR ca.user_id IS NOT NULL)
+ORDER BY s.week_number, s.day_letter
+`
+
+type GetAllStoriesForUserParams struct {
+	LanguageCode string `json:"language_code"`
+	UserID       string `json:"user_id"`
+}
+
+type GetAllStoriesForUserRow struct {
+	StoryID    int32       `json:"story_id"`
+	WeekNumber int32       `json:"week_number"`
+	DayLetter  string      `json:"day_letter"`
+	Title      string      `json:"title"`
+	CourseID   pgtype.Int4 `json:"course_id"`
+}
+
+func (q *Queries) GetAllStoriesForUser(ctx context.Context, arg GetAllStoriesForUserParams) ([]GetAllStoriesForUserRow, error) {
+	rows, err := q.db.Query(ctx, getAllStoriesForUser, arg.LanguageCode, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetAllStoriesForUserRow{}
+	for rows.Next() {
+		var i GetAllStoriesForUserRow
+		if err := rows.Scan(
+			&i.StoryID,
+			&i.WeekNumber,
+			&i.DayLetter,
+			&i.Title,
+			&i.CourseID,
 		); err != nil {
 			return nil, err
 		}

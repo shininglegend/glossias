@@ -1,0 +1,19 @@
+meta {
+  name: Translate
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseURL}}/api/stories/5/translate?lines=[1,2,5,4,7]
+  body: none
+  auth: inherit
+}
+
+params:query {
+  lines: [1,2,5,4,7]
+}
+
+settings {
+  encodeUrl: true
+}

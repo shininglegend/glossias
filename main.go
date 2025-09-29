@@ -64,6 +64,7 @@ func main() {
 	r := mux.NewRouter()
 
 	// Setup middleware if needed
+	r.Use(auth.RateLimitMiddleware(logger))
 	r.Use(auth.Middleware(logger))
 	r.Use(loggingMiddleware(logger))
 
@@ -83,6 +84,12 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status": "healthy"}`))
 	}).Methods("GET", "OPTIONS")
+
+	// Time tracking API (no auth required)
+	timeTrackingHandler := apis.NewTimeTrackingHandler(logger)
+	timeTrackingRouter := r.PathPrefix("/api").Subrouter()
+	timeTrackingRouter.Use(jsonMiddleware())
+	timeTrackingHandler.RegisterRoutes(timeTrackingRouter)
 
 	// API handlers
 	apiHandler := apis.NewHandler(logger)
@@ -105,6 +112,7 @@ func main() {
 		}
 	}
 	apiRouter.Use(jsonMiddleware())
+	apiRouter.Use(apis.TimeTrackingMiddleware(logger))
 	apiHandler.RegisterRoutes(apiRouter)
 
 	// Admin API mounted under /api/admin/*

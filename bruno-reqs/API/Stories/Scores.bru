@@ -1,0 +1,15 @@
+meta {
+  name: Scores
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseURL}}/api/stories/5/scores
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+}

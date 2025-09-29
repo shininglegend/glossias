@@ -1,0 +1,40 @@
+meta {
+  name: Check Grammar
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseURL}}/api/stories/5/check-grammar
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "grammar_point_id": 16,
+    "answers": [
+      {
+        "line_number": 0,
+        "positions": [5, 12, 20]
+      }
+  //     {
+  //       "line_number": 1,
+  //       "positions": [8]
+  //     }
+    ]
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 200) {
+    const responseData = res.getBody();
+    if (responseData.success && responseData.data && responseData.data.next_grammar_point_id) {
+      bru.setVar("nextGrammarPointId", responseData.data.next_grammar_point_id);
+    }
+  }
+}
+
+settings {
+  encodeUrl: true
+}

@@ -29,7 +29,7 @@ RETURNING course_id, course_number, name, description, created_at, updated_at;
 -- name: DeleteCourse :exec
 DELETE FROM courses WHERE course_id = $1;
 
--- name: GetCoursesForUser :many
+-- name: GetAdminCoursesForUser :many
 SELECT c.course_id, c.course_number, c.name, c.description, c.created_at, c.updated_at
 FROM courses c
 JOIN course_admins ca ON c.course_id = ca.course_id

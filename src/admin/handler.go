@@ -9,6 +9,7 @@ import (
 
 	"glossias/src/admin/courses"
 	"glossias/src/admin/stories"
+	adminusers "glossias/src/admin/users"
 
 	"github.com/gorilla/mux"
 )
@@ -17,6 +18,7 @@ type Handler struct {
 	log     *slog.Logger
 	stories *stories.Handler
 	courses *courses.Handler
+	users   *adminusers.Handler
 }
 
 func NewHandler(log *slog.Logger) *Handler {
@@ -24,6 +26,7 @@ func NewHandler(log *slog.Logger) *Handler {
 		log:     log,
 		stories: stories.NewHandler(log),
 		courses: courses.NewHandler(log),
+		users:   adminusers.NewHandler(log),
 	}
 }
 
@@ -35,12 +38,13 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	// Register all admin routes beneath the provided base router
 	h.stories.RegisterRoutes(r)
 	h.courses.RegisterRoutes(r)
+	h.users.RegisterRoutes(r)
 }
 
 func (h *Handler) adminAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Get user ID from request context (set by auth middleware)
-		userID, ok := auth.GetUserID(r)
+		userID, ok := auth.GetUserIDWithOk(r)
 		if !ok {
 			h.log.Warn("admin access attempted without user ID", "path", r.URL.Path)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -48,7 +52,7 @@ func (h *Handler) adminAuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Check if user is admin (super admin or course admin)
-		if !auth.IsAdmin(r.Context(), userID) {
+		if !auth.IsAnyAdmin(r.Context(), userID) {
 			h.log.Warn("admin access denied", "user_id", userID, "path", r.URL.Path)
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
@@ -66,7 +70,7 @@ func (h *Handler) adminAuthMiddleware(next http.Handler) http.Handler {
 			}
 
 			// Check if user has access to this specific course
-			if !auth.HasPermission(r.Context(), userID, int32(courseID)) {
+			if !auth.IsCourseAdmin(r.Context(), userID, int32(courseID)) {
 				h.log.Warn("course access denied", "user_id", userID, "course_id", courseID, "path", r.URL.Path)
 				http.Error(w, "Course access forbidden", http.StatusForbidden)
 				return

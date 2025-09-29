@@ -18,13 +18,13 @@ const (
 
 // Common validation errors
 var (
-	ErrMissingStoryID    = errors.New("missing story ID")
-	ErrInvalidWeekNumber = errors.New("invalid week number")
-	ErrMissingDayLetter  = errors.New("missing day letter")
-	ErrTitleTooShort     = errors.New("title too short")
-	ErrMissingAuthorID   = errors.New("missing author ID")
+	ErrMissingStoryID       = errors.New("missing story ID")
+	ErrInvalidWeekNumber    = errors.New("invalid week number")
+	ErrMissingDayLetter     = errors.New("missing day letter")
+	ErrTitleTooShort        = errors.New("title too short")
+	ErrMissingAuthorID      = errors.New("missing author ID")
 	ErrMissingGrammarPoints = errors.New("at least one grammar point is required")
-	ErrNotFound          = errors.New("story not found")
+	ErrNotFound             = errors.New("story not found")
 )
 
 var queries *db.Queries
@@ -85,6 +85,7 @@ type StoryMetadata struct {
 	CourseID      *int              `json:"courseId,omitempty"`
 	LastRevision  *time.Time        `json:"lastRevision,omitempty"`
 	GrammarPoints []GrammarPoint    `json:"grammarPoints"`
+	Language      string            `json:"languageCode,omitempty"`
 }
 
 type Author struct {
@@ -93,8 +94,7 @@ type Author struct {
 }
 
 type Description struct {
-	Language string `json:"language"`
-	Text     string `json:"text"`
+	Text string `json:"text"`
 }
 
 type StoryContent struct {

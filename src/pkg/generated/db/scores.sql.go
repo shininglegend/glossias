@@ -16,9 +16,8 @@ SELECT
     COALESCE(gca.user_id, gia.user_id) as user_id,
     u.name as user_name,
     u.email,
-    COUNT(DISTINCT gca.grammar_point_id) as correct_answers,
-    COUNT(DISTINCT gia.grammar_point_id) as incorrect_answers,
-    COUNT(DISTINCT COALESCE(gca.grammar_point_id, gia.grammar_point_id)) as total_attempts
+    COUNT(gca.grammar_point_id) as correct_answers,
+    COUNT(gia.grammar_point_id) as incorrect_answers
 FROM grammar_correct_answers gca
 FULL OUTER JOIN grammar_incorrect_answers gia ON gca.user_id = gia.user_id AND gca.story_id = gia.story_id
 JOIN users u ON COALESCE(gca.user_id, gia.user_id) = u.user_id
@@ -33,7 +32,6 @@ type GetAllUsersStoryGrammarSummaryRow struct {
 	Email            string `json:"email"`
 	CorrectAnswers   int64  `json:"correct_answers"`
 	IncorrectAnswers int64  `json:"incorrect_answers"`
-	TotalAttempts    int64  `json:"total_attempts"`
 }
 
 func (q *Queries) GetAllUsersStoryGrammarSummary(ctx context.Context, storyID int32) ([]GetAllUsersStoryGrammarSummaryRow, error) {
@@ -51,7 +49,6 @@ func (q *Queries) GetAllUsersStoryGrammarSummary(ctx context.Context, storyID in
 			&i.Email,
 			&i.CorrectAnswers,
 			&i.IncorrectAnswers,
-			&i.TotalAttempts,
 		); err != nil {
 			return nil, err
 		}
@@ -68,9 +65,8 @@ SELECT
     COALESCE(vca.user_id, via.user_id) as user_id,
     u.name as user_name,
     u.email,
-    COUNT(DISTINCT vca.vocab_item_id) as correct_answers,
-    COUNT(DISTINCT via.vocab_item_id) as incorrect_answers,
-    COUNT(DISTINCT COALESCE(vca.vocab_item_id, via.vocab_item_id)) as total_attempts
+    COUNT(vca.vocab_item_id) as correct_answers,
+    COUNT(via.vocab_item_id) as incorrect_answers
 FROM vocab_correct_answers vca
 FULL OUTER JOIN vocab_incorrect_answers via ON vca.user_id = via.user_id AND vca.story_id = via.story_id
 JOIN users u ON COALESCE(vca.user_id, via.user_id) = u.user_id
@@ -85,7 +81,6 @@ type GetAllUsersStoryVocabSummaryRow struct {
 	Email            string `json:"email"`
 	CorrectAnswers   int64  `json:"correct_answers"`
 	IncorrectAnswers int64  `json:"incorrect_answers"`
-	TotalAttempts    int64  `json:"total_attempts"`
 }
 
 func (q *Queries) GetAllUsersStoryVocabSummary(ctx context.Context, storyID int32) ([]GetAllUsersStoryVocabSummaryRow, error) {
@@ -103,7 +98,6 @@ func (q *Queries) GetAllUsersStoryVocabSummary(ctx context.Context, storyID int3
 			&i.Email,
 			&i.CorrectAnswers,
 			&i.IncorrectAnswers,
-			&i.TotalAttempts,
 		); err != nil {
 			return nil, err
 		}
@@ -371,9 +365,8 @@ func (q *Queries) GetUserLatestVocabScoresByLine(ctx context.Context, arg GetUse
 
 const getUserStoryGrammarSummary = `-- name: GetUserStoryGrammarSummary :one
 SELECT
-    COUNT(DISTINCT gca.grammar_point_id) as correct_count,
-    COUNT(DISTINCT gia.grammar_point_id) as incorrect_count,
-    COUNT(DISTINCT COALESCE(gca.grammar_point_id, gia.grammar_point_id)) as total_attempted
+    COUNT(gca.grammar_point_id) as correct_count,
+    COUNT(gia.grammar_point_id) as incorrect_count
 FROM grammar_correct_answers gca
 FULL OUTER JOIN grammar_incorrect_answers gia ON gca.user_id = gia.user_id AND gca.story_id = gia.story_id AND gca.grammar_point_id = gia.grammar_point_id
 WHERE COALESCE(gca.user_id, gia.user_id) = $1 AND COALESCE(gca.story_id, gia.story_id) = $2
@@ -387,21 +380,19 @@ type GetUserStoryGrammarSummaryParams struct {
 type GetUserStoryGrammarSummaryRow struct {
 	CorrectCount   int64 `json:"correct_count"`
 	IncorrectCount int64 `json:"incorrect_count"`
-	TotalAttempted int64 `json:"total_attempted"`
 }
 
 func (q *Queries) GetUserStoryGrammarSummary(ctx context.Context, arg GetUserStoryGrammarSummaryParams) (GetUserStoryGrammarSummaryRow, error) {
 	row := q.db.QueryRow(ctx, getUserStoryGrammarSummary, arg.UserID, arg.StoryID)
 	var i GetUserStoryGrammarSummaryRow
-	err := row.Scan(&i.CorrectCount, &i.IncorrectCount, &i.TotalAttempted)
+	err := row.Scan(&i.CorrectCount, &i.IncorrectCount)
 	return i, err
 }
 
 const getUserStoryVocabSummary = `-- name: GetUserStoryVocabSummary :one
 SELECT
-    COUNT(DISTINCT vca.vocab_item_id) as correct_count,
-    COUNT(DISTINCT via.vocab_item_id) as incorrect_count,
-    COUNT(DISTINCT COALESCE(vca.vocab_item_id, via.vocab_item_id)) as total_attempted
+    COUNT(vca.vocab_item_id) as correct_count,
+    COUNT(via.vocab_item_id) as incorrect_count
 FROM vocab_correct_answers vca
 FULL OUTER JOIN vocab_incorrect_answers via ON vca.user_id = via.user_id AND vca.story_id = via.story_id AND vca.vocab_item_id = via.vocab_item_id
 WHERE COALESCE(vca.user_id, via.user_id) = $1 AND COALESCE(vca.story_id, via.story_id) = $2
@@ -415,13 +406,12 @@ type GetUserStoryVocabSummaryParams struct {
 type GetUserStoryVocabSummaryRow struct {
 	CorrectCount   int64 `json:"correct_count"`
 	IncorrectCount int64 `json:"incorrect_count"`
-	TotalAttempted int64 `json:"total_attempted"`
 }
 
 func (q *Queries) GetUserStoryVocabSummary(ctx context.Context, arg GetUserStoryVocabSummaryParams) (GetUserStoryVocabSummaryRow, error) {
 	row := q.db.QueryRow(ctx, getUserStoryVocabSummary, arg.UserID, arg.StoryID)
 	var i GetUserStoryVocabSummaryRow
-	err := row.Scan(&i.CorrectCount, &i.IncorrectCount, &i.TotalAttempted)
+	err := row.Scan(&i.CorrectCount, &i.IncorrectCount)
 	return i, err
 }
 

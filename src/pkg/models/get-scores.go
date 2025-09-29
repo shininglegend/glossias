@@ -15,9 +15,10 @@ func GetUserGrammarScores(ctx context.Context, userID string, storyID int) (map[
 	}
 
 	result := make(map[int]bool)
-	if summary.TotalAttempted > 0 {
+	totalAttempted := summary.CorrectCount + summary.IncorrectCount
+	if totalAttempted > 0 {
 		// Use line 0 to represent overall accuracy for the story
-		result[0] = float64(summary.CorrectCount)/float64(summary.TotalAttempted) >= 0.5
+		result[0] = float64(summary.CorrectCount)/float64(totalAttempted) >= 0.5
 	}
 
 	return result, nil
@@ -31,9 +32,10 @@ func GetUserVocabScores(ctx context.Context, userID string, storyID int) (map[in
 	}
 
 	result := make(map[int]bool)
-	if summary.TotalAttempted > 0 {
+	totalAttempted := summary.CorrectCount + summary.IncorrectCount
+	if totalAttempted > 0 {
 		// Use line 0 to represent overall accuracy for the story
-		result[0] = float64(summary.CorrectCount)/float64(summary.TotalAttempted) >= 0.5
+		result[0] = float64(summary.CorrectCount)/float64(totalAttempted) >= 0.5
 	}
 
 	return result, nil
@@ -41,7 +43,6 @@ func GetUserVocabScores(ctx context.Context, userID string, storyID int) (map[in
 
 // UserStoryVocabSummary represents vocabulary summary data
 type UserStoryVocabSummary struct {
-	TotalAttempted int64
 	CorrectCount   int64
 	IncorrectCount int64
 }
@@ -57,7 +58,6 @@ func GetUserStoryVocabSummary(ctx context.Context, userID string, storyID int32)
 	}
 
 	return &UserStoryVocabSummary{
-		TotalAttempted: result.TotalAttempted,
 		CorrectCount:   result.CorrectCount,
 		IncorrectCount: result.IncorrectCount,
 	}, nil
@@ -65,7 +65,6 @@ func GetUserStoryVocabSummary(ctx context.Context, userID string, storyID int32)
 
 // UserStoryGrammarSummary represents grammar summary data
 type UserStoryGrammarSummary struct {
-	TotalAttempted int64
 	CorrectCount   int64
 	IncorrectCount int64
 }
@@ -81,7 +80,6 @@ func GetUserStoryGrammarSummary(ctx context.Context, userID string, storyID int3
 	}
 
 	return &UserStoryGrammarSummary{
-		TotalAttempted: result.TotalAttempted,
 		CorrectCount:   result.CorrectCount,
 		IncorrectCount: result.IncorrectCount,
 	}, nil

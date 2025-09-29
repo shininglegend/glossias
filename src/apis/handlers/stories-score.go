@@ -70,8 +70,9 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var vocabAccuracy float64
-	if vocabSummary.TotalAttempted > 0 {
-		vocabAccuracy = float64(vocabSummary.CorrectCount) / float64(vocabSummary.TotalAttempted) * 100
+	vocabTotal := vocabSummary.CorrectCount + vocabSummary.IncorrectCount
+	if vocabTotal > 0 {
+		vocabAccuracy = float64(vocabSummary.CorrectCount) / float64(vocabTotal) * 100
 	}
 
 	// Get grammar accuracy
@@ -83,8 +84,9 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var grammarAccuracy float64
-	if grammarSummary.TotalAttempted > 0 {
-		grammarAccuracy = float64(grammarSummary.CorrectCount) / float64(grammarSummary.TotalAttempted) * 100
+	grammarTotal := grammarSummary.CorrectCount + grammarSummary.IncorrectCount
+	if grammarTotal > 0 {
+		grammarAccuracy = float64(grammarSummary.CorrectCount) / float64(grammarTotal) * 100
 	}
 
 	// Get time tracking data
@@ -100,7 +102,7 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 	const minTimeSeconds = 5
 
 	// Check vocab
-	if vocabSummary.TotalAttempted == 0 {
+	if vocabTotal == 0 {
 		missingActivities = append(missingActivities, MissingActivity{
 			Activity:    "vocab",
 			DisplayName: "Vocabulary",
@@ -117,7 +119,7 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check grammar
-	if grammarSummary.TotalAttempted == 0 {
+	if grammarTotal == 0 {
 		missingActivities = append(missingActivities, MissingActivity{
 			Activity:    "grammar",
 			DisplayName: "Grammar",

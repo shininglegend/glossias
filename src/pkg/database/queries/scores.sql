@@ -52,18 +52,16 @@ ORDER BY gs.line_number, gs.attempted_at DESC;
 
 -- name: GetUserStoryVocabSummary :one
 SELECT
-    COUNT(DISTINCT vca.vocab_item_id) as correct_count,
-    COUNT(DISTINCT via.vocab_item_id) as incorrect_count,
-    COUNT(DISTINCT COALESCE(vca.vocab_item_id, via.vocab_item_id)) as total_attempted
+    COUNT(vca.vocab_item_id) as correct_count,
+    COUNT(via.vocab_item_id) as incorrect_count
 FROM vocab_correct_answers vca
 FULL OUTER JOIN vocab_incorrect_answers via ON vca.user_id = via.user_id AND vca.story_id = via.story_id AND vca.vocab_item_id = via.vocab_item_id
 WHERE COALESCE(vca.user_id, via.user_id) = $1 AND COALESCE(vca.story_id, via.story_id) = $2;
 
 -- name: GetUserStoryGrammarSummary :one
 SELECT
-    COUNT(DISTINCT gca.grammar_point_id) as correct_count,
-    COUNT(DISTINCT gia.grammar_point_id) as incorrect_count,
-    COUNT(DISTINCT COALESCE(gca.grammar_point_id, gia.grammar_point_id)) as total_attempted
+    COUNT(gca.grammar_point_id) as correct_count,
+    COUNT(gia.grammar_point_id) as incorrect_count
 FROM grammar_correct_answers gca
 FULL OUTER JOIN grammar_incorrect_answers gia ON gca.user_id = gia.user_id AND gca.story_id = gia.story_id AND gca.grammar_point_id = gia.grammar_point_id
 WHERE COALESCE(gca.user_id, gia.user_id) = $1 AND COALESCE(gca.story_id, gia.story_id) = $2;
@@ -73,9 +71,8 @@ SELECT
     COALESCE(vca.user_id, via.user_id) as user_id,
     u.name as user_name,
     u.email,
-    COUNT(DISTINCT vca.vocab_item_id) as correct_answers,
-    COUNT(DISTINCT via.vocab_item_id) as incorrect_answers,
-    COUNT(DISTINCT COALESCE(vca.vocab_item_id, via.vocab_item_id)) as total_attempts
+    COUNT(vca.vocab_item_id) as correct_answers,
+    COUNT(via.vocab_item_id) as incorrect_answers
 FROM vocab_correct_answers vca
 FULL OUTER JOIN vocab_incorrect_answers via ON vca.user_id = via.user_id AND vca.story_id = via.story_id
 JOIN users u ON COALESCE(vca.user_id, via.user_id) = u.user_id
@@ -88,9 +85,8 @@ SELECT
     COALESCE(gca.user_id, gia.user_id) as user_id,
     u.name as user_name,
     u.email,
-    COUNT(DISTINCT gca.grammar_point_id) as correct_answers,
-    COUNT(DISTINCT gia.grammar_point_id) as incorrect_answers,
-    COUNT(DISTINCT COALESCE(gca.grammar_point_id, gia.grammar_point_id)) as total_attempts
+    COUNT(gca.grammar_point_id) as correct_answers,
+    COUNT(gia.grammar_point_id) as incorrect_answers
 FROM grammar_correct_answers gca
 FULL OUTER JOIN grammar_incorrect_answers gia ON gca.user_id = gia.user_id AND gca.story_id = gia.story_id
 JOIN users u ON COALESCE(gca.user_id, gia.user_id) = u.user_id

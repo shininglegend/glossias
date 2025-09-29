@@ -13,16 +13,17 @@ import (
 
 const getAllUsersStoryGrammarSummary = `-- name: GetAllUsersStoryGrammarSummary :many
 SELECT
-    gs.user_id,
+    COALESCE(gca.user_id, gia.user_id) as user_id,
     u.name as user_name,
     u.email,
-    COUNT(*) as total_attempts,
-    COUNT(CASE WHEN gs.correct = true THEN 1 END) as correct_answers,
-    COUNT(CASE WHEN gs.correct = false THEN 1 END) as incorrect_answers
-FROM grammar_scores gs
-JOIN users u ON gs.user_id = u.user_id
-WHERE gs.story_id = $1
-GROUP BY gs.user_id, u.name, u.email
+    COUNT(DISTINCT gca.grammar_point_id) as correct_answers,
+    COUNT(DISTINCT gia.grammar_point_id) as incorrect_answers,
+    COUNT(DISTINCT COALESCE(gca.grammar_point_id, gia.grammar_point_id)) as total_attempts
+FROM grammar_correct_answers gca
+FULL OUTER JOIN grammar_incorrect_answers gia ON gca.user_id = gia.user_id AND gca.story_id = gia.story_id
+JOIN users u ON COALESCE(gca.user_id, gia.user_id) = u.user_id
+WHERE COALESCE(gca.story_id, gia.story_id) = $1
+GROUP BY COALESCE(gca.user_id, gia.user_id), u.name, u.email
 ORDER BY u.name
 `
 
@@ -30,9 +31,9 @@ type GetAllUsersStoryGrammarSummaryRow struct {
 	UserID           string `json:"user_id"`
 	UserName         string `json:"user_name"`
 	Email            string `json:"email"`
-	TotalAttempts    int64  `json:"total_attempts"`
 	CorrectAnswers   int64  `json:"correct_answers"`
 	IncorrectAnswers int64  `json:"incorrect_answers"`
+	TotalAttempts    int64  `json:"total_attempts"`
 }
 
 func (q *Queries) GetAllUsersStoryGrammarSummary(ctx context.Context, storyID int32) ([]GetAllUsersStoryGrammarSummaryRow, error) {
@@ -48,9 +49,9 @@ func (q *Queries) GetAllUsersStoryGrammarSummary(ctx context.Context, storyID in
 			&i.UserID,
 			&i.UserName,
 			&i.Email,
-			&i.TotalAttempts,
 			&i.CorrectAnswers,
 			&i.IncorrectAnswers,
+			&i.TotalAttempts,
 		); err != nil {
 			return nil, err
 		}
@@ -64,16 +65,17 @@ func (q *Queries) GetAllUsersStoryGrammarSummary(ctx context.Context, storyID in
 
 const getAllUsersStoryVocabSummary = `-- name: GetAllUsersStoryVocabSummary :many
 SELECT
-    vs.user_id,
+    COALESCE(vca.user_id, via.user_id) as user_id,
     u.name as user_name,
     u.email,
-    COUNT(*) as total_attempts,
-    COUNT(CASE WHEN vs.correct = true THEN 1 END) as correct_answers,
-    COUNT(CASE WHEN vs.correct = false THEN 1 END) as incorrect_answers
-FROM vocab_scores vs
-JOIN users u ON vs.user_id = u.user_id
-WHERE vs.story_id = $1
-GROUP BY vs.user_id, u.name, u.email
+    COUNT(DISTINCT vca.vocab_item_id) as correct_answers,
+    COUNT(DISTINCT via.vocab_item_id) as incorrect_answers,
+    COUNT(DISTINCT COALESCE(vca.vocab_item_id, via.vocab_item_id)) as total_attempts
+FROM vocab_correct_answers vca
+FULL OUTER JOIN vocab_incorrect_answers via ON vca.user_id = via.user_id AND vca.story_id = via.story_id
+JOIN users u ON COALESCE(vca.user_id, via.user_id) = u.user_id
+WHERE COALESCE(vca.story_id, via.story_id) = $1
+GROUP BY COALESCE(vca.user_id, via.user_id), u.name, u.email
 ORDER BY u.name
 `
 
@@ -81,9 +83,9 @@ type GetAllUsersStoryVocabSummaryRow struct {
 	UserID           string `json:"user_id"`
 	UserName         string `json:"user_name"`
 	Email            string `json:"email"`
-	TotalAttempts    int64  `json:"total_attempts"`
 	CorrectAnswers   int64  `json:"correct_answers"`
 	IncorrectAnswers int64  `json:"incorrect_answers"`
+	TotalAttempts    int64  `json:"total_attempts"`
 }
 
 func (q *Queries) GetAllUsersStoryVocabSummary(ctx context.Context, storyID int32) ([]GetAllUsersStoryVocabSummaryRow, error) {
@@ -99,9 +101,9 @@ func (q *Queries) GetAllUsersStoryVocabSummary(ctx context.Context, storyID int3
 			&i.UserID,
 			&i.UserName,
 			&i.Email,
-			&i.TotalAttempts,
 			&i.CorrectAnswers,
 			&i.IncorrectAnswers,
+			&i.TotalAttempts,
 		); err != nil {
 			return nil, err
 		}
@@ -114,9 +116,9 @@ func (q *Queries) GetAllUsersStoryVocabSummary(ctx context.Context, storyID int3
 }
 
 const getStoryGrammarScores = `-- name: GetStoryGrammarScores :many
-SELECT gs.user_id, gs.line_number, gs.grammar_point_id, gs.correct, gs.attempted_at,
+SELECT gs.user_id, gs.line_number, gs.grammar_point_id, gs.attempted_at,
        gi.text, gp.name as grammar_point_name, u.name as user_name, u.email
-FROM grammar_scores gs
+FROM grammar_correct_answers gs
 JOIN grammar_points gp ON gs.grammar_point_id = gp.grammar_point_id
 LEFT JOIN grammar_items gi ON gs.grammar_point_id = gi.grammar_point_id AND gs.story_id = gi.story_id AND gs.line_number = gi.line_number
 JOIN users u ON gs.user_id = u.user_id
@@ -128,7 +130,6 @@ type GetStoryGrammarScoresRow struct {
 	UserID           string           `json:"user_id"`
 	LineNumber       int32            `json:"line_number"`
 	GrammarPointID   int32            `json:"grammar_point_id"`
-	Correct          bool             `json:"correct"`
 	AttemptedAt      pgtype.Timestamp `json:"attempted_at"`
 	Text             pgtype.Text      `json:"text"`
 	GrammarPointName string           `json:"grammar_point_name"`
@@ -149,7 +150,6 @@ func (q *Queries) GetStoryGrammarScores(ctx context.Context, storyID int32) ([]G
 			&i.UserID,
 			&i.LineNumber,
 			&i.GrammarPointID,
-			&i.Correct,
 			&i.AttemptedAt,
 			&i.Text,
 			&i.GrammarPointName,
@@ -167,9 +167,9 @@ func (q *Queries) GetStoryGrammarScores(ctx context.Context, storyID int32) ([]G
 }
 
 const getStoryVocabScores = `-- name: GetStoryVocabScores :many
-SELECT vs.user_id, vs.line_number, vs.vocab_item_id, vs.correct, vs.attempted_at,
+SELECT vs.user_id, vs.line_number, vs.vocab_item_id, vs.attempted_at,
        vi.word, vi.lexical_form, u.name as user_name, u.email
-FROM vocab_scores vs
+FROM vocab_correct_answers vs
 JOIN vocabulary_items vi ON vs.vocab_item_id = vi.id
 JOIN users u ON vs.user_id = u.user_id
 WHERE vs.story_id = $1
@@ -180,7 +180,6 @@ type GetStoryVocabScoresRow struct {
 	UserID      string           `json:"user_id"`
 	LineNumber  int32            `json:"line_number"`
 	VocabItemID int32            `json:"vocab_item_id"`
-	Correct     bool             `json:"correct"`
 	AttemptedAt pgtype.Timestamp `json:"attempted_at"`
 	Word        string           `json:"word"`
 	LexicalForm string           `json:"lexical_form"`
@@ -201,7 +200,6 @@ func (q *Queries) GetStoryVocabScores(ctx context.Context, storyID int32) ([]Get
 			&i.UserID,
 			&i.LineNumber,
 			&i.VocabItemID,
-			&i.Correct,
 			&i.AttemptedAt,
 			&i.Word,
 			&i.LexicalForm,
@@ -219,8 +217,8 @@ func (q *Queries) GetStoryVocabScores(ctx context.Context, storyID int32) ([]Get
 }
 
 const getUserGrammarScores = `-- name: GetUserGrammarScores :many
-SELECT gs.line_number, gs.grammar_point_id, gs.correct, gs.attempted_at, gi.text, gp.name as grammar_point_name
-FROM grammar_scores gs
+SELECT gs.line_number, gs.grammar_point_id, gs.attempted_at, gi.text, gp.name as grammar_point_name
+FROM grammar_correct_answers gs
 JOIN grammar_points gp ON gs.grammar_point_id = gp.grammar_point_id
 LEFT JOIN grammar_items gi ON gs.grammar_point_id = gi.grammar_point_id AND gs.story_id = gi.story_id AND gs.line_number = gi.line_number
 WHERE gs.user_id = $1 AND gs.story_id = $2
@@ -235,7 +233,6 @@ type GetUserGrammarScoresParams struct {
 type GetUserGrammarScoresRow struct {
 	LineNumber       int32            `json:"line_number"`
 	GrammarPointID   int32            `json:"grammar_point_id"`
-	Correct          bool             `json:"correct"`
 	AttemptedAt      pgtype.Timestamp `json:"attempted_at"`
 	Text             pgtype.Text      `json:"text"`
 	GrammarPointName string           `json:"grammar_point_name"`
@@ -253,7 +250,6 @@ func (q *Queries) GetUserGrammarScores(ctx context.Context, arg GetUserGrammarSc
 		if err := rows.Scan(
 			&i.LineNumber,
 			&i.GrammarPointID,
-			&i.Correct,
 			&i.AttemptedAt,
 			&i.Text,
 			&i.GrammarPointName,
@@ -272,11 +268,10 @@ const getUserLatestGrammarScoresByLine = `-- name: GetUserLatestGrammarScoresByL
 SELECT DISTINCT ON (gs.line_number, gs.grammar_point_id)
     gs.line_number,
     gs.grammar_point_id,
-    gs.correct,
     gs.attempted_at,
     gi.text,
     gp.name as grammar_point_name
-FROM grammar_scores gs
+FROM grammar_correct_answers gs
 JOIN grammar_points gp ON gs.grammar_point_id = gp.grammar_point_id
 LEFT JOIN grammar_items gi ON gs.grammar_point_id = gi.grammar_point_id AND gs.story_id = gi.story_id AND gs.line_number = gi.line_number
 WHERE gs.user_id = $1 AND gs.story_id = $2
@@ -291,7 +286,6 @@ type GetUserLatestGrammarScoresByLineParams struct {
 type GetUserLatestGrammarScoresByLineRow struct {
 	LineNumber       int32            `json:"line_number"`
 	GrammarPointID   int32            `json:"grammar_point_id"`
-	Correct          bool             `json:"correct"`
 	AttemptedAt      pgtype.Timestamp `json:"attempted_at"`
 	Text             pgtype.Text      `json:"text"`
 	GrammarPointName string           `json:"grammar_point_name"`
@@ -309,7 +303,6 @@ func (q *Queries) GetUserLatestGrammarScoresByLine(ctx context.Context, arg GetU
 		if err := rows.Scan(
 			&i.LineNumber,
 			&i.GrammarPointID,
-			&i.Correct,
 			&i.AttemptedAt,
 			&i.Text,
 			&i.GrammarPointName,
@@ -328,11 +321,10 @@ const getUserLatestVocabScoresByLine = `-- name: GetUserLatestVocabScoresByLine 
 SELECT DISTINCT ON (vs.line_number, vs.vocab_item_id)
     vs.line_number,
     vs.vocab_item_id,
-    vs.correct,
     vs.attempted_at,
     vi.word,
     vi.lexical_form
-FROM vocab_scores vs
+FROM vocab_correct_answers vs
 JOIN vocabulary_items vi ON vs.vocab_item_id = vi.id
 WHERE vs.user_id = $1 AND vs.story_id = $2
 ORDER BY vs.line_number, vs.vocab_item_id, vs.attempted_at DESC
@@ -346,7 +338,6 @@ type GetUserLatestVocabScoresByLineParams struct {
 type GetUserLatestVocabScoresByLineRow struct {
 	LineNumber  int32            `json:"line_number"`
 	VocabItemID int32            `json:"vocab_item_id"`
-	Correct     bool             `json:"correct"`
 	AttemptedAt pgtype.Timestamp `json:"attempted_at"`
 	Word        string           `json:"word"`
 	LexicalForm string           `json:"lexical_form"`
@@ -364,7 +355,6 @@ func (q *Queries) GetUserLatestVocabScoresByLine(ctx context.Context, arg GetUse
 		if err := rows.Scan(
 			&i.LineNumber,
 			&i.VocabItemID,
-			&i.Correct,
 			&i.AttemptedAt,
 			&i.Word,
 			&i.LexicalForm,
@@ -381,11 +371,12 @@ func (q *Queries) GetUserLatestVocabScoresByLine(ctx context.Context, arg GetUse
 
 const getUserStoryGrammarSummary = `-- name: GetUserStoryGrammarSummary :one
 SELECT
-    COUNT(*) as total_attempts,
-    COUNT(CASE WHEN gs.correct = true THEN 1 END) as correct_answers,
-    COUNT(CASE WHEN gs.correct = false THEN 1 END) as incorrect_answers
-FROM grammar_scores gs
-WHERE gs.user_id = $1 AND gs.story_id = $2
+    COUNT(DISTINCT gca.grammar_point_id) as correct_count,
+    COUNT(DISTINCT gia.grammar_point_id) as incorrect_count,
+    COUNT(DISTINCT COALESCE(gca.grammar_point_id, gia.grammar_point_id)) as total_attempted
+FROM grammar_correct_answers gca
+FULL OUTER JOIN grammar_incorrect_answers gia ON gca.user_id = gia.user_id AND gca.story_id = gia.story_id AND gca.grammar_point_id = gia.grammar_point_id
+WHERE COALESCE(gca.user_id, gia.user_id) = $1 AND COALESCE(gca.story_id, gia.story_id) = $2
 `
 
 type GetUserStoryGrammarSummaryParams struct {
@@ -394,25 +385,26 @@ type GetUserStoryGrammarSummaryParams struct {
 }
 
 type GetUserStoryGrammarSummaryRow struct {
-	TotalAttempts    int64 `json:"total_attempts"`
-	CorrectAnswers   int64 `json:"correct_answers"`
-	IncorrectAnswers int64 `json:"incorrect_answers"`
+	CorrectCount   int64 `json:"correct_count"`
+	IncorrectCount int64 `json:"incorrect_count"`
+	TotalAttempted int64 `json:"total_attempted"`
 }
 
 func (q *Queries) GetUserStoryGrammarSummary(ctx context.Context, arg GetUserStoryGrammarSummaryParams) (GetUserStoryGrammarSummaryRow, error) {
 	row := q.db.QueryRow(ctx, getUserStoryGrammarSummary, arg.UserID, arg.StoryID)
 	var i GetUserStoryGrammarSummaryRow
-	err := row.Scan(&i.TotalAttempts, &i.CorrectAnswers, &i.IncorrectAnswers)
+	err := row.Scan(&i.CorrectCount, &i.IncorrectCount, &i.TotalAttempted)
 	return i, err
 }
 
 const getUserStoryVocabSummary = `-- name: GetUserStoryVocabSummary :one
 SELECT
-    COUNT(*) as total_attempts,
-    COUNT(CASE WHEN vs.correct = true THEN 1 END) as correct_answers,
-    COUNT(CASE WHEN vs.correct = false THEN 1 END) as incorrect_answers
-FROM vocab_scores vs
-WHERE vs.user_id = $1 AND vs.story_id = $2
+    COUNT(DISTINCT vca.vocab_item_id) as correct_count,
+    COUNT(DISTINCT via.vocab_item_id) as incorrect_count,
+    COUNT(DISTINCT COALESCE(vca.vocab_item_id, via.vocab_item_id)) as total_attempted
+FROM vocab_correct_answers vca
+FULL OUTER JOIN vocab_incorrect_answers via ON vca.user_id = via.user_id AND vca.story_id = via.story_id AND vca.vocab_item_id = via.vocab_item_id
+WHERE COALESCE(vca.user_id, via.user_id) = $1 AND COALESCE(vca.story_id, via.story_id) = $2
 `
 
 type GetUserStoryVocabSummaryParams struct {
@@ -421,21 +413,21 @@ type GetUserStoryVocabSummaryParams struct {
 }
 
 type GetUserStoryVocabSummaryRow struct {
-	TotalAttempts    int64 `json:"total_attempts"`
-	CorrectAnswers   int64 `json:"correct_answers"`
-	IncorrectAnswers int64 `json:"incorrect_answers"`
+	CorrectCount   int64 `json:"correct_count"`
+	IncorrectCount int64 `json:"incorrect_count"`
+	TotalAttempted int64 `json:"total_attempted"`
 }
 
 func (q *Queries) GetUserStoryVocabSummary(ctx context.Context, arg GetUserStoryVocabSummaryParams) (GetUserStoryVocabSummaryRow, error) {
 	row := q.db.QueryRow(ctx, getUserStoryVocabSummary, arg.UserID, arg.StoryID)
 	var i GetUserStoryVocabSummaryRow
-	err := row.Scan(&i.TotalAttempts, &i.CorrectAnswers, &i.IncorrectAnswers)
+	err := row.Scan(&i.CorrectCount, &i.IncorrectCount, &i.TotalAttempted)
 	return i, err
 }
 
 const getUserVocabScores = `-- name: GetUserVocabScores :many
-SELECT vs.line_number, vs.vocab_item_id, vs.correct, vs.attempted_at, vi.word, vi.lexical_form
-FROM vocab_scores vs
+SELECT vs.line_number, vs.vocab_item_id, vs.attempted_at, vi.word, vi.lexical_form
+FROM vocab_correct_answers vs
 JOIN vocabulary_items vi ON vs.vocab_item_id = vi.id
 WHERE vs.user_id = $1 AND vs.story_id = $2
 ORDER BY vs.line_number, vs.attempted_at DESC
@@ -449,7 +441,6 @@ type GetUserVocabScoresParams struct {
 type GetUserVocabScoresRow struct {
 	LineNumber  int32            `json:"line_number"`
 	VocabItemID int32            `json:"vocab_item_id"`
-	Correct     bool             `json:"correct"`
 	AttemptedAt pgtype.Timestamp `json:"attempted_at"`
 	Word        string           `json:"word"`
 	LexicalForm string           `json:"lexical_form"`
@@ -467,7 +458,6 @@ func (q *Queries) GetUserVocabScores(ctx context.Context, arg GetUserVocabScores
 		if err := rows.Scan(
 			&i.LineNumber,
 			&i.VocabItemID,
-			&i.Correct,
 			&i.AttemptedAt,
 			&i.Word,
 			&i.LexicalForm,
@@ -509,8 +499,8 @@ func (q *Queries) SaveGrammarIncorrectAnswer(ctx context.Context, arg SaveGramma
 }
 
 const saveGrammarScore = `-- name: SaveGrammarScore :exec
-INSERT INTO grammar_scores (user_id, story_id, line_number, grammar_point_id, correct)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO grammar_correct_answers (user_id, story_id, line_number, grammar_point_id)
+VALUES ($1, $2, $3, $4)
 `
 
 type SaveGrammarScoreParams struct {
@@ -518,7 +508,6 @@ type SaveGrammarScoreParams struct {
 	StoryID        int32  `json:"story_id"`
 	LineNumber     int32  `json:"line_number"`
 	GrammarPointID int32  `json:"grammar_point_id"`
-	Correct        bool   `json:"correct"`
 }
 
 func (q *Queries) SaveGrammarScore(ctx context.Context, arg SaveGrammarScoreParams) error {
@@ -527,7 +516,6 @@ func (q *Queries) SaveGrammarScore(ctx context.Context, arg SaveGrammarScorePara
 		arg.StoryID,
 		arg.LineNumber,
 		arg.GrammarPointID,
-		arg.Correct,
 	)
 	return err
 }
@@ -558,8 +546,8 @@ func (q *Queries) SaveVocabIncorrectAnswer(ctx context.Context, arg SaveVocabInc
 
 const saveVocabScore = `-- name: SaveVocabScore :exec
 
-INSERT INTO vocab_scores (user_id, story_id, line_number, vocab_item_id, correct)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO vocab_correct_answers (user_id, story_id, line_number, vocab_item_id)
+VALUES ($1, $2, $3, $4)
 `
 
 type SaveVocabScoreParams struct {
@@ -567,7 +555,6 @@ type SaveVocabScoreParams struct {
 	StoryID     int32  `json:"story_id"`
 	LineNumber  int32  `json:"line_number"`
 	VocabItemID int32  `json:"vocab_item_id"`
-	Correct     bool   `json:"correct"`
 }
 
 // Score management queries
@@ -577,7 +564,6 @@ func (q *Queries) SaveVocabScore(ctx context.Context, arg SaveVocabScoreParams) 
 		arg.StoryID,
 		arg.LineNumber,
 		arg.VocabItemID,
-		arg.Correct,
 	)
 	return err
 }

@@ -52,6 +52,15 @@ type FootnoteReference struct {
 	Reference  string `json:"reference"`
 }
 
+type GrammarCorrectAnswer struct {
+	ScoreID        int32            `json:"score_id"`
+	UserID         string           `json:"user_id"`
+	StoryID        int32            `json:"story_id"`
+	LineNumber     int32            `json:"line_number"`
+	GrammarPointID int32            `json:"grammar_point_id"`
+	AttemptedAt    pgtype.Timestamp `json:"attempted_at"`
+}
+
 type GrammarIncorrectAnswer struct {
 	ID                int32            `json:"id"`
 	UserID            string           `json:"user_id"`
@@ -79,16 +88,6 @@ type GrammarPoint struct {
 	Name           string           `json:"name"`
 	Description    pgtype.Text      `json:"description"`
 	CreatedAt      pgtype.Timestamp `json:"created_at"`
-}
-
-type GrammarScore struct {
-	ScoreID        int32            `json:"score_id"`
-	UserID         string           `json:"user_id"`
-	StoryID        int32            `json:"story_id"`
-	LineNumber     int32            `json:"line_number"`
-	GrammarPointID int32            `json:"grammar_point_id"`
-	Correct        bool             `json:"correct"`
-	AttemptedAt    pgtype.Timestamp `json:"attempted_at"`
 }
 
 type LineAudioFile struct {
@@ -157,6 +156,15 @@ type UserTimeTracking struct {
 	CreatedAt        pgtype.Timestamp `json:"created_at"`
 }
 
+type VocabCorrectAnswer struct {
+	ScoreID     int32            `json:"score_id"`
+	UserID      string           `json:"user_id"`
+	StoryID     int32            `json:"story_id"`
+	LineNumber  int32            `json:"line_number"`
+	VocabItemID int32            `json:"vocab_item_id"`
+	AttemptedAt pgtype.Timestamp `json:"attempted_at"`
+}
+
 type VocabIncorrectAnswer struct {
 	ID              int32            `json:"id"`
 	UserID          string           `json:"user_id"`
@@ -165,16 +173,6 @@ type VocabIncorrectAnswer struct {
 	VocabItemID     int32            `json:"vocab_item_id"`
 	IncorrectAnswer string           `json:"incorrect_answer"`
 	AttemptedAt     pgtype.Timestamp `json:"attempted_at"`
-}
-
-type VocabScore struct {
-	ScoreID     int32            `json:"score_id"`
-	UserID      string           `json:"user_id"`
-	StoryID     int32            `json:"story_id"`
-	LineNumber  int32            `json:"line_number"`
-	VocabItemID int32            `json:"vocab_item_id"`
-	Correct     bool             `json:"correct"`
-	AttemptedAt pgtype.Timestamp `json:"attempted_at"`
 }
 
 type VocabularyItem struct {

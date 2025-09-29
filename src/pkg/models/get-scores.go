@@ -9,27 +9,15 @@ import (
 
 // GetUserGrammarScores retrieves grammar scores for a user and story
 func GetUserGrammarScores(ctx context.Context, userID string, storyID int) (map[int]bool, error) {
-	scores, err := queries.GetUserGrammarScores(ctx, db.GetUserGrammarScoresParams{
-		UserID:  userID,
-		StoryID: int32(storyID),
-	})
+	summary, err := GetUserStoryGrammarSummary(ctx, userID, int32(storyID))
 	if err != nil {
 		return nil, err
 	}
 
-	// Calculate overall accuracy from all attempts
-	totalAttempts := len(scores)
-	correctAttempts := 0
-	for _, score := range scores {
-		if score.Correct {
-			correctAttempts++
-		}
-	}
-
 	result := make(map[int]bool)
-	if totalAttempts > 0 {
+	if summary.TotalAttempted > 0 {
 		// Use line 0 to represent overall accuracy for the story
-		result[0] = float64(correctAttempts)/float64(totalAttempts) >= 0.5
+		result[0] = float64(summary.CorrectCount)/float64(summary.TotalAttempted) >= 0.5
 	}
 
 	return result, nil
@@ -37,27 +25,15 @@ func GetUserGrammarScores(ctx context.Context, userID string, storyID int) (map[
 
 // GetUserVocabScores retrieves vocabulary scores for a user and story
 func GetUserVocabScores(ctx context.Context, userID string, storyID int) (map[int]bool, error) {
-	scores, err := queries.GetUserVocabScores(ctx, db.GetUserVocabScoresParams{
-		UserID:  userID,
-		StoryID: int32(storyID),
-	})
+	summary, err := GetUserStoryVocabSummary(ctx, userID, int32(storyID))
 	if err != nil {
 		return nil, err
 	}
 
-	// Calculate overall accuracy from all attempts
-	totalAttempts := len(scores)
-	correctAttempts := 0
-	for _, score := range scores {
-		if score.Correct {
-			correctAttempts++
-		}
-	}
-
 	result := make(map[int]bool)
-	if totalAttempts > 0 {
+	if summary.TotalAttempted > 0 {
 		// Use line 0 to represent overall accuracy for the story
-		result[0] = float64(correctAttempts)/float64(totalAttempts) >= 0.5
+		result[0] = float64(summary.CorrectCount)/float64(summary.TotalAttempted) >= 0.5
 	}
 
 	return result, nil
@@ -65,9 +41,9 @@ func GetUserVocabScores(ctx context.Context, userID string, storyID int) (map[in
 
 // UserStoryVocabSummary represents vocabulary summary data
 type UserStoryVocabSummary struct {
-	TotalAttempts    int64
-	CorrectAnswers   int64
-	IncorrectAnswers int64
+	TotalAttempted int64
+	CorrectCount   int64
+	IncorrectCount int64
 }
 
 // GetUserStoryVocabSummary retrieves vocabulary summary for a user and story
@@ -81,17 +57,17 @@ func GetUserStoryVocabSummary(ctx context.Context, userID string, storyID int32)
 	}
 
 	return &UserStoryVocabSummary{
-		TotalAttempts:    result.TotalAttempts,
-		CorrectAnswers:   result.CorrectAnswers,
-		IncorrectAnswers: result.IncorrectAnswers,
+		TotalAttempted: result.TotalAttempted,
+		CorrectCount:   result.CorrectCount,
+		IncorrectCount: result.IncorrectCount,
 	}, nil
 }
 
 // UserStoryGrammarSummary represents grammar summary data
 type UserStoryGrammarSummary struct {
-	TotalAttempts    int64
-	CorrectAnswers   int64
-	IncorrectAnswers int64
+	TotalAttempted int64
+	CorrectCount   int64
+	IncorrectCount int64
 }
 
 // GetUserStoryGrammarSummary retrieves grammar summary for a user and story
@@ -105,9 +81,9 @@ func GetUserStoryGrammarSummary(ctx context.Context, userID string, storyID int3
 	}
 
 	return &UserStoryGrammarSummary{
-		TotalAttempts:    result.TotalAttempts,
-		CorrectAnswers:   result.CorrectAnswers,
-		IncorrectAnswers: result.IncorrectAnswers,
+		TotalAttempted: result.TotalAttempted,
+		CorrectCount:   result.CorrectCount,
+		IncorrectCount: result.IncorrectCount,
 	}, nil
 }
 

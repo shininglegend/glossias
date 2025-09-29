@@ -269,16 +269,13 @@ func saveUserScores(ctx context.Context, userID string, storyID, grammarPointID 
 		Position   int
 	}
 
-	fmt.Printf("[DEBUG] Processing %d user answer lines\n", len(answers))
-
 	// Loop over user's answers
 	for _, answer := range answers {
-		fmt.Printf("[DEBUG] Processing line %d with positions: %v\n", answer.LineNumber, answer.Positions)
+
 
 		correctItemsForLine, hasCorrectItems := correctGrammarMap[answer.LineNumber]
 		if !hasCorrectItems {
 			// Line has no correct grammar points - all answers are incorrect
-			fmt.Printf("[DEBUG] Line %d has no correct items - all %d positions incorrect\n", answer.LineNumber, len(answer.Positions))
 			for _, pos := range answer.Positions {
 				incorrectAnswers = append(incorrectAnswers, struct {
 					LineNumber int
@@ -293,17 +290,12 @@ func saveUserScores(ctx context.Context, userID string, storyID, grammarPointID 
 			remainingCorrectItems := make([]models.GrammarItem, len(correctItemsForLine))
 			copy(remainingCorrectItems, correctItemsForLine)
 
-			fmt.Printf("[DEBUG] Line %d has %d correct items to match against\n", answer.LineNumber, len(remainingCorrectItems))
-
 			for _, userPos := range answer.Positions {
 				matched := false
 
 				// Check if this position matches any remaining correct item
 				for i, correctItem := range remainingCorrectItems {
 					if userPos >= correctItem.Position[0] && userPos < correctItem.Position[1] {
-						fmt.Printf("[DEBUG] Position %d matches correct item '%s' [%d,%d)\n",
-							userPos, correctItem.Text, correctItem.Position[0], correctItem.Position[1])
-
 						// Add to correct answers
 						correctAnswers = append(correctAnswers, struct {
 							LineNumber int
@@ -323,7 +315,6 @@ func saveUserScores(ctx context.Context, userID string, storyID, grammarPointID 
 				}
 
 				if !matched {
-					fmt.Printf("[DEBUG] Position %d on line %d is incorrect\n", userPos, answer.LineNumber)
 					incorrectAnswers = append(incorrectAnswers, struct {
 						LineNumber int
 						Position   int
@@ -335,8 +326,6 @@ func saveUserScores(ctx context.Context, userID string, storyID, grammarPointID 
 			}
 		}
 	}
-
-	fmt.Printf("[DEBUG] Final results: %d correct, %d incorrect\n", len(correctAnswers), len(incorrectAnswers))
 
 	// Save correct answers
 	if len(correctAnswers) > 0 {

@@ -95,10 +95,7 @@ func TestLogger_Handle(t *testing.T) {
 				r := slog.NewRecord(fixedTime, slog.LevelInfo, "test message", 0)
 				return r
 			}(),
-			want: `time: 2024-01-01T12:00:00Z
-level: INFO
-msg: "test message"
----
+			want: `time=2024-01-01T12:00:00Z level=INFO msg="test message"
 `,
 		},
 		{
@@ -108,11 +105,7 @@ msg: "test message"
 				r.AddAttrs(slog.String("key", "value"))
 				return r
 			}(),
-			want: `time: 2024-01-01T12:00:00Z
-level: INFO
-msg: "test message"
-key: "value"
----
+			want: `time=2024-01-01T12:00:00Z level=INFO msg="test message" key="value"
 `,
 		},
 	}
@@ -255,11 +248,11 @@ func TestLogger_Integration(t *testing.T) {
 
 	// Verify expected content
 	expectedFields := []string{
-		"time:", "level: INFO",
-		"msg: \"test message\"",
-		"string: \"value\"",
-		"number: 42",
-		"bool: true",
+		"time=", "level=INFO",
+		"msg=\"test message\"",
+		"string=\"value\"",
+		"number=42",
+		"bool=true",
 	}
 
 	for _, field := range expectedFields {

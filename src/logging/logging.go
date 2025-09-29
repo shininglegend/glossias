@@ -70,28 +70,38 @@ func (h *Logger) Handle(ctx context.Context, r slog.Record) error {
 		buf = append(buf, h.levelColor(r.Level)...)
 	}
 
+	// Build single line format
+	parts := make([]string, 0, 10)
+
 	if !r.Time.IsZero() {
-		buf = h.appendAttr(buf, slog.Time(slog.TimeKey, r.Time), 0)
+		parts = append(parts, fmt.Sprintf("time=%s", r.Time.Format(time.RFC3339)))
 	}
-	buf = h.appendAttr(buf, slog.Any(slog.LevelKey, r.Level), 0)
+	parts = append(parts, fmt.Sprintf("level=%s", r.Level.String()))
 	if r.PC != 0 {
 		fs := runtime.CallersFrames([]uintptr{r.PC})
 		f, _ := fs.Next()
-		buf = h.appendAttr(buf, slog.String(slog.SourceKey, fmt.Sprintf("%s:%d", f.File, f.Line)), 0)
+		parts = append(parts, fmt.Sprintf("source=%s:%d", f.File, f.Line))
 	}
-	buf = h.appendAttr(buf, slog.String(slog.MessageKey, r.Message), 0)
-	indentLevel := 0
+	parts = append(parts, fmt.Sprintf("msg=%q", r.Message))
+
 	r.Attrs(func(a slog.Attr) bool {
-		buf = h.appendAttr(buf, a, indentLevel)
+		parts = append(parts, h.formatAttr(a))
 		return true
 	})
 
-	// Reset color before divider
+	// Join all parts with spaces
+	for i, part := range parts {
+		if i > 0 {
+			buf = append(buf, ' ')
+		}
+		buf = append(buf, part...)
+	}
+
+	// Reset color and add newline
 	if h.opts.UseColors {
 		buf = append(buf, colorReset...)
 	}
-
-	buf = append(buf, "---\n"...)
+	buf = append(buf, '\n')
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -134,6 +144,38 @@ func (h *Logger) appendAttr(buf []byte, a slog.Attr, indentLevel int) []byte {
 		buf = fmt.Appendf(buf, "%s: %s\n", a.Key, a.Value)
 	}
 	return buf
+}
+
+// formatAttr formats an attribute for single-line output
+func (h *Logger) formatAttr(a slog.Attr) string {
+	a.Value = a.Value.Resolve()
+	if a.Equal(slog.Attr{}) {
+		return ""
+	}
+
+	switch a.Value.Kind() {
+	case slog.KindString:
+		return fmt.Sprintf("%s=%q", a.Key, a.Value.String())
+	case slog.KindTime:
+		return fmt.Sprintf("%s=%s", a.Key, a.Value.Time().Format(time.RFC3339))
+	case slog.KindGroup:
+		attrs := a.Value.Group()
+		if len(attrs) == 0 {
+			return ""
+		}
+		var parts []string
+		for _, ga := range attrs {
+			if formatted := h.formatAttr(ga); formatted != "" {
+				parts = append(parts, formatted)
+			}
+		}
+		if a.Key != "" {
+			return fmt.Sprintf("%s={%s}", a.Key, fmt.Sprintf("%s", parts))
+		}
+		return fmt.Sprintf("%s", parts)
+	default:
+		return fmt.Sprintf("%s=%v", a.Key, a.Value)
+	}
 }
 
 func (h *Logger) withGroupOrAttrs(goa groupOrAttrs) *Logger {

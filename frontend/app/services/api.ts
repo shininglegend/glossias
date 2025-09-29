@@ -235,5 +235,12 @@ export function useApiService() {
       },
       [fetchAPI],
     ),
+
+    getStoryScore: useCallback(
+      (id: string): Promise<APIResponse<any>> => {
+        return fetchAPI(`/stories/${id}/scores`);
+      },
+      [fetchAPI],
+    ),
   };
 }

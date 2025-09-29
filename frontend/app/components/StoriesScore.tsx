@@ -3,7 +3,6 @@ import { useParams, Link } from "react-router";
 import { useApiService } from "../services/api";
 import confetti from "canvas-confetti";
 
-// Placeholder interfaces - replace when APIs exist
 interface ScoreData {
   story_title: string;
   total_time_seconds: number;
@@ -13,6 +12,20 @@ interface ScoreData {
   grammar_time_seconds: number;
   translation_time_seconds: number;
   video_time_seconds: number;
+}
+
+interface MissingActivity {
+  activity: string;
+  display_name: string;
+  route: string;
+  reason: string; // "no_data" or "insufficient_time"
+}
+
+interface IncompleteResponse {
+  complete: false;
+  story_title: string;
+  missing_activities: MissingActivity[];
+  message: string;
 }
 
 function fireConfetti() {
@@ -59,6 +72,8 @@ export function StoriesScore() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
   const [scoreData, setScoreData] = useState<ScoreData | null>(null);
+  const [incompleteData, setIncompleteData] =
+    useState<IncompleteResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confettiFired, setConfettiFired] = useState(false);
@@ -72,21 +87,16 @@ export function StoriesScore() {
       }
 
       try {
-        // Placeholder data - replace with actual API call when available
-        await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate API delay
-
-        const mockData: ScoreData = {
-          story_title: "Sample Story Title",
-          total_time_seconds: 847,
-          vocab_accuracy: 85,
-          vocab_time_seconds: 234,
-          grammar_accuracy: 92,
-          grammar_time_seconds: 156,
-          translation_time_seconds: 189,
-          video_time_seconds: 268,
-        };
-
-        setScoreData(mockData);
+        const response = await api.getStoryScore(id);
+        if (response.success && response.data) {
+          if ("complete" in response.data && response.data.complete === false) {
+            setIncompleteData(response.data);
+          } else {
+            setScoreData(response.data as ScoreData);
+          }
+        } else {
+          setError(response.error || "Failed to fetch score data");
+        }
       } catch (err) {
         setError("Failed to fetch score data");
       } finally {
@@ -119,6 +129,82 @@ export function StoriesScore() {
         <p>Error: {error}</p>
         <Link to="/">Back to Stories</Link>
       </div>
+    );
+  }
+
+  if (incompleteData) {
+    return (
+      <>
+        <header>
+          <h1>{incompleteData.story_title}</h1>
+          <h2>Complete Your Activities</h2>
+
+          <div className="bg-yellow-50 border border-yellow-300 p-6 mb-4 rounded-lg text-center">
+            <div className="flex items-center justify-center mb-4">
+              <span className="material-icons text-yellow-600 mr-2 text-2xl">
+                warning
+              </span>
+              <div>
+                <p className="text-yellow-700 text-lg font-medium">
+                  {incompleteData.message}
+                </p>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="max-w-4xl mx-auto px-5">
+          <div className="space-y-4">
+            {incompleteData.missing_activities.map((activity, index) => (
+              <div
+                key={index}
+                className="bg-white border-2 border-orange-200 rounded-lg p-6"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <span className="material-icons text-orange-600 mr-3 text-2xl">
+                      {activity.activity === "vocab"
+                        ? "quiz"
+                        : activity.activity === "grammar"
+                          ? "school"
+                          : "translate"}
+                    </span>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-800">
+                        {activity.display_name}
+                      </h3>
+                      <p className="text-gray-600">
+                        {activity.reason === "no_data"
+                          ? "Not started yet"
+                          : "Needs more time spent"}
+                      </p>
+                    </div>
+                  </div>
+                  <Link
+                    to={`/stories/${id}/${activity.route}`}
+                    className="inline-flex items-center px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-medium transition-all duration-200"
+                  >
+                    <span>
+                      {activity.reason === "no_data" ? "Start" : "Continue"}
+                    </span>
+                    <span className="material-icons ml-2">arrow_forward</span>
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="text-center mt-8">
+            <Link
+              to="/"
+              className="inline-flex items-center px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium transition-all duration-200"
+            >
+              <span>Back to Stories</span>
+              <span className="material-icons ml-2">home</span>
+            </Link>
+          </div>
+        </div>
+      </>
     );
   }
 
@@ -191,7 +277,7 @@ export function StoriesScore() {
                         : "text-red-600"
                   }`}
                 >
-                  {scoreData.vocab_accuracy}%
+                  {Math.round(scoreData.vocab_accuracy)}%
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -235,7 +321,7 @@ export function StoriesScore() {
                         : "text-red-600"
                   }`}
                 >
-                  {scoreData.grammar_accuracy}%
+                  {Math.round(scoreData.grammar_accuracy)}%
                 </span>
               </div>
               <div className="flex justify-between items-center">

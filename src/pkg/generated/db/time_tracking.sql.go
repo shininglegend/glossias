@@ -303,6 +303,40 @@ func (q *Queries) GetTimeEntryByID(ctx context.Context, trackingID int32) (UserT
 	return i, err
 }
 
+const getUserStoryTimeTracking = `-- name: GetUserStoryTimeTracking :one
+SELECT
+    COALESCE(SUM(CASE WHEN route LIKE '%vocab%' THEN total_time_seconds END), 0) as vocab_time_seconds,
+    COALESCE(SUM(CASE WHEN route LIKE '%grammar%' THEN total_time_seconds END), 0) as grammar_time_seconds,
+    COALESCE(SUM(CASE WHEN route LIKE '%translate%' THEN total_time_seconds END), 0) as translation_time_seconds,
+    COALESCE(SUM(CASE WHEN route LIKE '%audio%' OR route LIKE '%video%' THEN total_time_seconds END), 0) as video_time_seconds
+FROM user_time_tracking
+WHERE user_id = $1 AND story_id = $2 AND ended_at IS NOT NULL
+`
+
+type GetUserStoryTimeTrackingParams struct {
+	UserID  string      `json:"user_id"`
+	StoryID pgtype.Int4 `json:"story_id"`
+}
+
+type GetUserStoryTimeTrackingRow struct {
+	VocabTimeSeconds       interface{} `json:"vocab_time_seconds"`
+	GrammarTimeSeconds     interface{} `json:"grammar_time_seconds"`
+	TranslationTimeSeconds interface{} `json:"translation_time_seconds"`
+	VideoTimeSeconds       interface{} `json:"video_time_seconds"`
+}
+
+func (q *Queries) GetUserStoryTimeTracking(ctx context.Context, arg GetUserStoryTimeTrackingParams) (GetUserStoryTimeTrackingRow, error) {
+	row := q.db.QueryRow(ctx, getUserStoryTimeTracking, arg.UserID, arg.StoryID)
+	var i GetUserStoryTimeTrackingRow
+	err := row.Scan(
+		&i.VocabTimeSeconds,
+		&i.GrammarTimeSeconds,
+		&i.TranslationTimeSeconds,
+		&i.VideoTimeSeconds,
+	)
+	return i, err
+}
+
 const updateAnonymousTimeEntry = `-- name: UpdateAnonymousTimeEntry :one
 UPDATE anonymous_time_tracking
 SET ended_at = $2, total_time_seconds = $3

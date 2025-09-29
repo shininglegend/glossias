@@ -73,3 +73,12 @@ WHERE tracking_id = $1;
 -- name: DeleteOldAnonymousEntries :exec
 DELETE FROM anonymous_time_tracking
 WHERE created_at < $1;
+
+-- name: GetUserStoryTimeTracking :one
+SELECT
+    COALESCE(SUM(CASE WHEN route LIKE '%vocab%' THEN total_time_seconds END), 0) as vocab_time_seconds,
+    COALESCE(SUM(CASE WHEN route LIKE '%grammar%' THEN total_time_seconds END), 0) as grammar_time_seconds,
+    COALESCE(SUM(CASE WHEN route LIKE '%translate%' THEN total_time_seconds END), 0) as translation_time_seconds,
+    COALESCE(SUM(CASE WHEN route LIKE '%audio%' OR route LIKE '%video%' THEN total_time_seconds END), 0) as video_time_seconds
+FROM user_time_tracking
+WHERE user_id = $1 AND story_id = $2 AND ended_at IS NOT NULL;

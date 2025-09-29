@@ -38,7 +38,11 @@ class TimeTracker {
     return null;
   }
 
-  async endTracking(getToken: () => Promise<string | null>, trackingId?: number, useBeacon = false) {
+  async endTracking(
+    getToken: () => Promise<string | null>,
+    trackingId?: number,
+    useBeacon = false,
+  ) {
     const id = trackingId || this.currentTrackingId;
     if (!id) return;
 
@@ -105,27 +109,37 @@ const globalTracker = new TimeTracker();
 export function useTimeTracking() {
   const { getToken } = useAuth();
   const hasStartedRef = useRef(false);
+  const pendingStartRef = useRef<Promise<number | null> | null>(null);
 
   const startTracking = useCallback(
     async (route?: string) => {
       if (hasStartedRef.current) return globalTracker.getCurrentTrackingId();
+      if (pendingStartRef.current) return await pendingStartRef.current;
+
       hasStartedRef.current = true;
-      return await globalTracker.startTracking(getToken, route);
+      const startPromise = globalTracker.startTracking(getToken, route);
+      pendingStartRef.current = startPromise;
+
+      const result = await startPromise;
+      pendingStartRef.current = null;
+      return result;
     },
-    [getToken]
+    [getToken],
   );
 
   const endTracking = useCallback(
     async (trackingId?: number) => {
       hasStartedRef.current = false;
+      pendingStartRef.current = null;
       return await globalTracker.endTracking(getToken, trackingId);
     },
-    [getToken]
+    [getToken],
   );
 
   useEffect(() => {
     return () => {
       hasStartedRef.current = false;
+      pendingStartRef.current = null;
       globalTracker.endTracking(getToken);
     };
   }, [getToken]);

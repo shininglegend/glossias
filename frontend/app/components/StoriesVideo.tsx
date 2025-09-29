@@ -24,9 +24,10 @@ export function StoriesVideo() {
   const [error, setError] = useState<string | null>(null);
   const [videoWatched, setVideoWatched] = useState(false);
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
+  const [guidanceCache, setGuidanceCache] = useState<any>(null);
 
   useEffect(() => {
-    const fetchMetadata = async () => {
+    const fetchMetadataAndGuidance = async () => {
       if (!id) {
         setError("Story ID is required");
         setLoading(false);
@@ -34,11 +35,20 @@ export function StoriesVideo() {
       }
 
       try {
-        const response = await api.getStoryMetadata(id);
-        if (response.success && response.data) {
-          setMetadata(response.data);
+        const [metadataResponse, guidance] = await Promise.all([
+          api.getStoryMetadata(id),
+          getNavigationGuidance(id, "video"),
+        ]);
+
+        if (metadataResponse.success && metadataResponse.data) {
+          setMetadata(metadataResponse.data);
         } else {
-          setError(response.error || "Failed to fetch story metadata");
+          setError(metadataResponse.error || "Failed to fetch story metadata");
+        }
+
+        if (guidance) {
+          setNextStepName(guidance.displayName);
+          setGuidanceCache(guidance);
         }
       } catch (err) {
         setError("Failed to fetch story metadata");
@@ -47,23 +57,7 @@ export function StoriesVideo() {
       }
     };
 
-    fetchMetadata();
-  }, [id]);
-
-  useEffect(() => {
-    const fetchNextStep = async () => {
-      if (!id) return;
-      try {
-        const guidance = await getNavigationGuidance(id, "video");
-        if (guidance) {
-          setNextStepName(guidance.displayName);
-        }
-      } catch (error) {
-        console.error("Failed to get navigation guidance:", error);
-      }
-    };
-
-    fetchNextStep();
+    fetchMetadataAndGuidance();
   }, [id, getNavigationGuidance]);
 
   if (loading) {
@@ -105,7 +99,8 @@ export function StoriesVideo() {
           <button
             onClick={async () => {
               try {
-                const guidance = await getNavigationGuidance(id!, "video");
+                const guidance =
+                  guidanceCache || (await getNavigationGuidance(id!, "video"));
                 if (guidance) {
                   navigate(`/stories/${id}/${guidance.nextPage}`);
                 }
@@ -154,7 +149,9 @@ export function StoriesVideo() {
             <button
               onClick={async () => {
                 try {
-                  const guidance = await getNavigationGuidance(id!, "video");
+                  const guidance =
+                    guidanceCache ||
+                    (await getNavigationGuidance(id!, "video"));
                   if (guidance) {
                     navigate(`/stories/${id}/${guidance.nextPage}`);
                   }

@@ -52,7 +52,7 @@ func (h *Handler) adminAuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Check if user is admin (super admin or course admin)
-		if !auth.IsAdmin(r.Context(), userID) {
+		if !auth.IsAnyAdmin(r.Context(), userID) {
 			h.log.Warn("admin access denied", "user_id", userID, "path", r.URL.Path)
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
@@ -70,7 +70,7 @@ func (h *Handler) adminAuthMiddleware(next http.Handler) http.Handler {
 			}
 
 			// Check if user has access to this specific course
-			if !auth.HasPermission(r.Context(), userID, int32(courseID)) {
+			if !auth.IsCourseAdmin(r.Context(), userID, int32(courseID)) {
 				h.log.Warn("course access denied", "user_id", userID, "course_id", courseID, "path", r.URL.Path)
 				http.Error(w, "Course access forbidden", http.StatusForbidden)
 				return

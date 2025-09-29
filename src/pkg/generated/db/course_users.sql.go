@@ -26,6 +26,28 @@ func (q *Queries) AddUserToCourse(ctx context.Context, arg AddUserToCourseParams
 	return err
 }
 
+const canUserAccessCourse = `-- name: CanUserAccessCourse :one
+SELECT EXISTS(
+    SELECT 1 FROM users u
+    LEFT JOIN course_admins ca ON u.user_id = ca.user_id
+    LEFT JOIN course_users cu ON u.user_id = cu.user_id
+    WHERE u.user_id = $1
+    AND (u.is_super_admin = true OR ca.course_id = $2 OR cu.course_id = $2)
+) as can_access
+`
+
+type CanUserAccessCourseParams struct {
+	UserID   string `json:"user_id"`
+	CourseID int32  `json:"course_id"`
+}
+
+func (q *Queries) CanUserAccessCourse(ctx context.Context, arg CanUserAccessCourseParams) (bool, error) {
+	row := q.db.QueryRow(ctx, canUserAccessCourse, arg.UserID, arg.CourseID)
+	var can_access bool
+	err := row.Scan(&can_access)
+	return can_access, err
+}
+
 const deleteAllUsersFromCourse = `-- name: DeleteAllUsersFromCourse :exec
 DELETE FROM course_users
 WHERE course_id = $1

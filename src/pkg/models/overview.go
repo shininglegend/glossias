@@ -72,7 +72,7 @@ GetUserGrammarScores(ctx context.Context, userID string, storyID int) (map[int]b
 User Operations (SQLC-based):
 UpsertUser(userID, email, name string) (*User, error) // Uses UpsertUser
 GetUser(userID string) (*User, error) // Uses GetUser
-CanUserAccessCourse(userID string, courseID int32) bool // Uses CanUserAccessCourse
+CanUserAccessCourse(userID string, courseID int32) bool // Whether a user is a course member
 IsUserAdmin(userID string) bool // Uses GetUser and IsUserAdminOfAnyCourse
 IsUserCourseAdmin(userID string, courseID int32) bool // Uses IsUserCourseAdmin
 GetUserCourseAdminRights(userID string) ([]CourseAdminRight, error) // Uses GetUserCourseAdminRights

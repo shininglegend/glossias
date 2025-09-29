@@ -23,3 +23,12 @@ FROM users u
 JOIN course_users cu ON u.user_id = cu.user_id
 WHERE cu.course_id = $1
 ORDER BY u.name;
+
+-- name: CanUserAccessCourse :one
+SELECT EXISTS(
+    SELECT 1 FROM users u
+    LEFT JOIN course_admins ca ON u.user_id = ca.user_id
+    LEFT JOIN course_users cu ON u.user_id = cu.user_id
+    WHERE u.user_id = $1
+    AND (u.is_super_admin = true OR ca.course_id = $2 OR cu.course_id = $2)
+) as can_access;

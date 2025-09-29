@@ -168,13 +168,22 @@ func GetUserID(r *http.Request) string {
 	return userID
 }
 
-// HasPermission checks if user has permission to access a course
-func HasPermission(ctx context.Context, userID string, courseID int32) bool {
-	// return models.CanUserAccessCourse(ctx, userID, courseID)
-	return true
+// HasPermission checks if user has permission to access a course (non-admin)
+func HasReadPermission(ctx context.Context, userID string, courseID int32) bool {
+	return models.CanUserAccessCourse(ctx, userID, courseID)
 }
 
-// IsAdmin checks if user is admin of any course or super admin
-func IsAdmin(ctx context.Context, userID string) bool {
-	return models.IsUserAdmin(ctx, userID)
+// IsAnyAdmin checks if user is admin of any course or super admin
+func IsAnyAdmin(ctx context.Context, userID string) bool {
+	return models.IsUserAnyAdmin(ctx, userID)
+}
+
+// IsCourseOrSuperAdmin checks if user is admin of one single course or super admin
+func IsCourseOrSuperAdmin(ctx context.Context, userID string, courseID int32) bool {
+	return models.IsUserCourseOrSuperAdmin(ctx, userID, courseID)
+}
+
+// IsCourseAddmin checks if user is admin of one single course (no super admin override)
+func IsCourseAdmin(ctx context.Context, userID string, courseID int32) bool {
+	return models.IsUserOnlyCourseAdmin(ctx, userID, courseID)
 }

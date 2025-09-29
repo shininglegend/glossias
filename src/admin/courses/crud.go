@@ -107,7 +107,7 @@ func (h *Handler) handleCourseGet(w http.ResponseWriter, r *http.Request, course
 	}
 
 	// Check if user has access to this course
-	if !auth.HasPermission(r.Context(), userID, courseID) {
+	if !auth.HasReadPermission(r.Context(), userID, courseID) {
 		http.Error(w, "Access denied", http.StatusForbidden)
 		return
 	}

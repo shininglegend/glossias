@@ -431,7 +431,6 @@ func withTransaction(fn func() error) error {
 }
 
 func GetAllStories(ctx context.Context, language string, userID string) ([]Story, error) {
-
 	basicStories, err := queries.GetAllStoriesForUser(ctx, db.GetAllStoriesForUserParams{
 		LanguageCode: language,
 		UserID:       userID,

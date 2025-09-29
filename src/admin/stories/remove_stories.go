@@ -23,7 +23,7 @@ func (h *Handler) deleteStoryHandler(w http.ResponseWriter, r *http.Request, use
 	}
 
 	// Validate user permissions
-	if !models.IsUserSuperAdmin(r.Context(), userID) && !models.IsUserCourseAdmin(r.Context(), userID, int32(storyID)) {
+	if !models.IsUserCourseOrSuperAdmin(r.Context(), userID, int32(storyID)) {
 		http.Error(w, "Forbidden: not a course admin", http.StatusForbidden)
 		return
 	}

@@ -63,7 +63,7 @@ func (h *Handler) GetUsersForCourse(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Check if user is admin of this course or super admin
-	if !models.IsUserSuperAdmin(ctx, userID) && !models.IsUserCourseAdmin(ctx, userID, int32(courseID)) {
+	if !models.IsUserCourseOrSuperAdmin(ctx, userID, int32(courseID)) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
@@ -82,7 +82,7 @@ func (h *Handler) GetUsersForCourse(w http.ResponseWriter, r *http.Request) {
 		role := "student"
 		if models.IsUserSuperAdmin(r.Context(), user.UserID) {
 			role = "super_admin"
-		} else if models.IsUserCourseAdmin(r.Context(), user.UserID, int32(courseID)) {
+		} else if models.IsUserOnlyCourseAdmin(r.Context(), user.UserID, int32(courseID)) {
 			role = "course_admin"
 		}
 
@@ -119,7 +119,7 @@ func (h *Handler) AddUserToCourse(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Check if user is admin of this course or super admin
-	if !models.IsUserSuperAdmin(ctx, userID) && !models.IsUserCourseAdmin(ctx, userID, int32(courseID)) {
+	if !models.IsUserCourseOrSuperAdmin(ctx, userID, int32(courseID)) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
@@ -184,7 +184,7 @@ func (h *Handler) RemoveUserFromCourse(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Check if user is admin of this course or super admin
-	if !models.IsUserSuperAdmin(ctx, userID) && !models.IsUserCourseAdmin(ctx, userID, int32(courseID)) {
+	if !models.IsUserCourseOrSuperAdmin(ctx, userID, int32(courseID)) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}

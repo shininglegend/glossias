@@ -30,7 +30,7 @@ func (h *Handler) handleCourseAdminsList(w http.ResponseWriter, r *http.Request,
 	}
 
 	// Check if user has access to this course
-	if !auth.HasPermission(r.Context(), userID, courseID) {
+	if !auth.IsCourseAdmin(r.Context(), userID, courseID) {
 		http.Error(w, "Access denied", http.StatusForbidden)
 		return
 	}
@@ -137,7 +137,7 @@ func (h *Handler) handleCourseAdminRemove(w http.ResponseWriter, r *http.Request
 	}
 
 	// Check if user is actually a course admin
-	if !models.IsUserCourseAdmin(r.Context(), targetUserID, courseID) {
+	if !models.IsUserOnlyCourseAdmin(r.Context(), targetUserID, courseID) {
 		http.Error(w, "User is not an admin of this course", http.StatusNotFound)
 		return
 	}

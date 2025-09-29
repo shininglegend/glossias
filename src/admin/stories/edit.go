@@ -75,7 +75,7 @@ func (h *Handler) handleUpdateStory(w http.ResponseWriter, r *http.Request, stor
 	}
 
 	// Validate user permissions
-	if !models.IsUserSuperAdmin(r.Context(), userID) && !models.IsUserCourseAdmin(r.Context(), userID, int32(*story.Metadata.CourseID)) {
+	if !models.IsUserCourseOrSuperAdmin(r.Context(), userID, int32(*story.Metadata.CourseID)) {
 		http.Error(w, "Forbidden: not a course admin", http.StatusForbidden)
 		return
 	}

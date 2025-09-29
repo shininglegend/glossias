@@ -126,7 +126,7 @@ export function StoriesVideo() {
             ? metadata.title
             : metadata.title?.en || "Story"}
         </h1>
-        <h2>Step 0: Watch the story video</h2>
+        <h2>Watch the story video</h2>
 
         <div className="bg-gray-50 border border-gray-300 p-4 mb-4 rounded-lg text-center">
           <div className="flex items-start justify-center">

@@ -14,7 +14,7 @@ export const StoryHeader: React.FC<StoryHeaderProps> = ({
   return (
     <header>
       <h1>{storyTitle}</h1>
-      <h2>Step 1: Vocabulary Practice</h2>
+      <h2>Vocabulary Practice</h2>
 
       <div className="bg-gray-50 border border-gray-300 p-4 mb-4 rounded-lg text-center">
         <div className="flex items-start justify-center">

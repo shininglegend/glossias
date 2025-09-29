@@ -152,7 +152,7 @@ export function StoriesVocab() {
 
       if (response.success && response.data) {
         const individualResults = response.data.results || [];
-        const allCorrect = response.data.allCorrect || response.data.correct;
+        const allCorrect = response.data.allCorrect;
 
         // Update results for each vocab item individually
         const newResults: { [key: string]: boolean | null } = {};

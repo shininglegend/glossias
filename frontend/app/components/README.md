@@ -5,7 +5,7 @@
 ### Header Section
 - `<header>` contains title, step indicator, instructions, and action buttons
 - `<h1>` for story title
-- `<h2>` for step indicator (e.g., "Step 1: Vocabulary Practice")
+- `<h2>` for step indicator (e.g., "Vocabulary Practice")
 - Instructions in gray info box with icon
 - Primary action buttons in header when applicable
 

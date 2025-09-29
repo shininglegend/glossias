@@ -101,6 +101,8 @@ func (h *Handler) Navigate(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
+	h.log.Info("Navigation determined", "userID", userID, "storyID", storyID, "currentPage", req.CurrentPage, "nextPage", nextPage.Path)
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }

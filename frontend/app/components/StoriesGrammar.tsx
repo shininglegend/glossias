@@ -210,7 +210,7 @@ export function StoriesGrammar() {
     <>
       <header>
         <h1>{pageData.story_title}</h1>
-        <h2>Step 3: Grammar Focus</h2>
+        <h2>Grammar Focus</h2>
         <div className="bg-gray-50 border border-gray-300 p-4 mb-4 rounded-lg text-center">
           <div className="flex items-start justify-center">
             <span className="material-icons text-gray-600 mr-2 mt-1">info</span>

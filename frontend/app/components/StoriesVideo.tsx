@@ -139,10 +139,10 @@ export function StoriesVideo() {
             <div>
               <p className="text-gray-700">
                 {metadata.description?.text || ""}
-                <p>
+                <div>
                   Watch the video to get familiar with the story before
                   listening. The next button will appear when the story ends.
-                </p>
+                </div>
               </p>
             </div>
           </div>

@@ -172,6 +172,12 @@ func (h *Handler) CheckVocab(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Get original line text if all correct
+	var originalLine string
+	if allCorrect {
+		originalLine = line.Text
+	}
+
 	// Save score if available
 	userID := auth.GetUserID(r)
 	if userID != "" {
@@ -188,8 +194,9 @@ func (h *Handler) CheckVocab(w http.ResponseWriter, r *http.Request) {
 	response := types.APIResponse{
 		Success: true,
 		Data: types.CheckVocabResponse{
-			Results:    results,    // Individual results for each vocab item
-			AllCorrect: allCorrect, // Explicit field for overall correctness
+			Results:      results,      // Individual results for each vocab item
+			AllCorrect:   allCorrect,   // Explicit field for overall correctness
+			OriginalLine: originalLine, // Original line text when all correct
 		},
 	}
 

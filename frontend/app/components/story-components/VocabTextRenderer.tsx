@@ -11,6 +11,7 @@ interface VocabTextRendererProps {
   checkingLines: Set<number>;
   isCurrentLine: boolean;
   isRTL: boolean;
+  originalLine?: string;
   onAnswerChange: (vocabKey: string, value: string) => void;
   onCheckAnswer: (vocabKey: string) => void;
 }
@@ -47,6 +48,7 @@ export const VocabTextRenderer: React.FC<VocabTextRendererProps> = ({
   checkingLines,
   isCurrentLine,
   isRTL,
+  originalLine,
   onAnswerChange,
   onCheckAnswer,
 }) => {
@@ -58,11 +60,26 @@ export const VocabTextRenderer: React.FC<VocabTextRendererProps> = ({
   const totalVocabOnLine = line.text.filter((t) => t === "%").length;
   const lineVocabKeys = Array.from(
     { length: totalVocabOnLine },
-    (_, i) => `${lineIndex}-${i}`,
+    (_, i) => `${lineIndex}-${i}`
   );
   const allVocabAnswered = lineVocabKeys.every(
-    (key) => selectedAnswers[key] && selectedAnswers[key].trim() !== "",
+    (key) => selectedAnswers[key] && selectedAnswers[key].trim() !== ""
   );
+
+  // If line is completed and we have the original text, display it
+  if (completedLines.has(lineIndex) && originalLine) {
+    const { displayText, indentLevel } = processTextForRTL(originalLine, isRTL);
+    return (
+      <div className="line-content text-3xl inline">
+        <span
+          className={isRTL ? `rtl-indent-${indentLevel}` : ""}
+          style={isRTL ? {} : { marginLeft: `${indentLevel * 1.5}rem` }}
+        >
+          {displayText}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="line-content text-3xl inline">

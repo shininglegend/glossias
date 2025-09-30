@@ -13,6 +13,7 @@ interface StoryLineProps {
   isCurrentLine: boolean;
   isRTL: boolean;
   prefetchedAudio: Record<string, HTMLAudioElement>;
+  originalLine?: string;
   onAnswerChange: (vocabKey: string, value: string) => void;
   onCheckAnswer: (vocabKey: string) => void;
   onPlayLineAudio: (lineIndex: number) => void;
@@ -35,6 +36,7 @@ export const StoryLine: React.FC<StoryLineProps> = ({
   isCurrentLine,
   isRTL,
   prefetchedAudio,
+  originalLine,
   onAnswerChange,
   onCheckAnswer,
   onPlayLineAudio,
@@ -64,6 +66,7 @@ export const StoryLine: React.FC<StoryLineProps> = ({
         checkingLines={checkingLines}
         isCurrentLine={isCurrentLine}
         isRTL={isRTL}
+        originalLine={originalLine}
         onAnswerChange={onAnswerChange}
         onCheckAnswer={onCheckAnswer}
       />

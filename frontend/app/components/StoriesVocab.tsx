@@ -38,6 +38,9 @@ export function StoriesVocab() {
     [key: string]: boolean | null;
   }>({});
   const [completedLines, setCompletedLines] = useState<Set<number>>(new Set());
+  const [originalLines, setOriginalLines] = useState<Record<number, string>>(
+    {}
+  );
   const [playedLines, setPlayedLines] = useState<Set<number>>(new Set());
   const [checkingLines, setCheckingLines] = useState<Set<number>>(new Set());
   const [currentLineIndex, setCurrentLineIndex] = useState(0);
@@ -51,7 +54,7 @@ export function StoriesVocab() {
     if (!id) return {};
     try {
       const response = await authenticatedFetch(
-        `/api/stories/${id}/audio/signed?label=complete`,
+        `/api/stories/${id}/audio/signed?label=complete`
       );
       if (!response.ok) return {};
       const data: AudioURLsResponse = await response.json();
@@ -167,6 +170,13 @@ export function StoriesVocab() {
 
         if (allCorrect) {
           setCompletedLines((prev) => new Set([...prev, lineIndex]));
+          // Store original line if provided
+          if (response.data?.originalLine) {
+            setOriginalLines((prev) => ({
+              ...prev,
+              [lineIndex]: response.data!.originalLine!,
+            }));
+          }
           // Continue playing audio from next line
           setTimeout(() => {
             audioPlayer.playNextLineFromIndex(lineIndex);
@@ -269,6 +279,7 @@ export function StoriesVocab() {
                   isCurrentLine={currentLineIndex === lineIndex && isPlaying}
                   isRTL={!!isRTL}
                   prefetchedAudio={audioPlayer.prefetchedAudio}
+                  originalLine={originalLines[lineIndex]}
                   onAnswerChange={handleAnswerChange}
                   onCheckAnswer={checkLineAnswer}
                   onPlayLineAudio={audioPlayer.playLineAudio}

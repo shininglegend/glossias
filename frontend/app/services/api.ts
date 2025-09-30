@@ -96,13 +96,13 @@ interface StoriesResponse {
 export function useApiService() {
   const authenticatedFetch = useAuthenticatedFetch();
   const pendingRequests = useRef<Map<string, Promise<APIResponse<any>>>>(
-    new Map(),
+    new Map()
   );
 
   const fetchAPI = useCallback(
     async <T>(
       endpoint: string,
-      options?: RequestInit,
+      options?: RequestInit
     ): Promise<APIResponse<T>> => {
       const requestKey = `${endpoint}:${JSON.stringify(options || {})}`;
 
@@ -142,7 +142,7 @@ export function useApiService() {
       pendingRequests.current.set(requestKey, requestPromise);
       return await requestPromise;
     },
-    [authenticatedFetch],
+    [authenticatedFetch]
   );
 
   return useMemo(
@@ -157,11 +157,11 @@ export function useApiService() {
 
       getSignedAudioURLs: (
         storyId: string,
-        label?: string,
+        label?: string
       ): Promise<APIResponse<{ [key: number]: string }>> => {
         const params = label ? `?label=${encodeURIComponent(label)}` : "";
         return fetchAPI<{ [key: number]: string }>(
-          `/stories/${storyId}/audio/signed${params}`,
+          `/stories/${storyId}/audio/signed${params}`
         );
       },
 
@@ -171,7 +171,7 @@ export function useApiService() {
 
       getStoryGrammar: (
         id: string,
-        grammarPointId?: string,
+        grammarPointId?: string
       ): Promise<APIResponse<GrammarData>> => {
         const url = grammarPointId
           ? `/stories/${id}/grammar?grammar_point_id=${grammarPointId}`
@@ -193,11 +193,12 @@ export function useApiService() {
       checkVocabLine: (
         id: string,
         lineNumber: number,
-        answers: string[],
+        answers: string[]
       ): Promise<
         APIResponse<{
           results: boolean[];
           allCorrect: boolean;
+          originalLine?: string;
         }>
       > => {
         return fetchAPI(`/stories/${id}/check-vocab`, {
@@ -211,7 +212,7 @@ export function useApiService() {
       checkGrammar: (
         id: string,
         grammarPointId: number,
-        answers: Array<{ line_number: number; positions: number[] }>,
+        answers: Array<{ line_number: number; positions: number[] }>
       ): Promise<APIResponse<any>> => {
         return fetchAPI(`/stories/${id}/check-grammar`, {
           method: "POST",
@@ -224,14 +225,14 @@ export function useApiService() {
 
       getTranslations: (
         id: string,
-        lineNumbers: number[],
+        lineNumbers: number[]
       ): Promise<APIResponse<TranslateData>> => {
         const lines = lineNumbers.map((n) => n + 1).join(","); // Convert to 1-based indexing
         return fetchAPI<TranslateData>(
           `/stories/${id}/translate?lines=[${lines}]`,
           {
             method: "POST",
-          },
+          }
         );
       },
 
@@ -241,17 +242,17 @@ export function useApiService() {
 
       getNavigationGuidance: (
         storyId: string,
-        currentPage: string,
+        currentPage: string
       ): Promise<APIResponse<NavigationGuidanceResponse>> => {
         return fetchAPI<NavigationGuidanceResponse>(
           `/stories/${storyId}/next`,
           {
             method: "POST",
             body: JSON.stringify({ currentPage }),
-          },
+          }
         );
       },
     }),
-    [fetchAPI],
+    [fetchAPI]
   );
 }

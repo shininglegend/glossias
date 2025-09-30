@@ -45,6 +45,7 @@ export function StoriesGrammar() {
     null,
   );
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false);
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
 
   useEffect(() => {
@@ -138,6 +139,7 @@ export function StoriesGrammar() {
       [] as Array<{ line_number: number; positions: number[] }>,
     );
 
+    setIsSubmittingAnswer(true);
     try {
       const result = await api.checkGrammar(
         id!,
@@ -151,6 +153,8 @@ export function StoriesGrammar() {
       }
     } catch (err) {
       console.error("Failed to submit answers:", err);
+    } finally {
+      setIsSubmittingAnswer(false);
     }
   };
 
@@ -283,15 +287,25 @@ export function StoriesGrammar() {
           <div className="mt-4">
             <button
               onClick={submitAnswers}
-              disabled={selectedPositions.length !== pageData.instances_count}
+              disabled={
+                selectedPositions.length !== pageData.instances_count ||
+                isSubmittingAnswer
+              }
               className={`px-6 py-3 rounded-lg font-medium ${
-                selectedPositions.length === pageData.instances_count
+                selectedPositions.length === pageData.instances_count &&
+                !isSubmittingAnswer
                   ? "bg-blue-500 text-white hover:bg-blue-600"
                   : "bg-gray-300 text-gray-500 cursor-not-allowed"
               }`}
             >
-              Check Answers ({selectedPositions.length}/
-              {pageData.instances_count})
+              {isSubmittingAnswer ? (
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Checking...
+                </div>
+              ) : (
+                `Check Answers (${selectedPositions.length}/${pageData.instances_count})`
+              )}
             </button>
           </div>
         ) : (

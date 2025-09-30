@@ -34,6 +34,7 @@ export function StoryList() {
   }, []);
 
   const handleStoryClick = async (storyId: number) => {
+    setLoadingStory(storyId);
     try {
       const guidance = await getNavigationGuidance(storyId.toString(), "list");
       if (guidance) {
@@ -41,6 +42,8 @@ export function StoryList() {
       }
     } catch (error) {
       console.error("Failed to get navigation guidance:", error);
+    } finally {
+      setLoadingStory(null);
     }
   };
 

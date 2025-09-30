@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"glossias/src/pkg/cache"
 	"glossias/src/pkg/database"
 	"glossias/src/pkg/generated/db"
 	"time"
@@ -31,6 +32,8 @@ var queries *db.Queries
 var rawConn any
 var storageClient *storage_go.Client
 var storageBaseURL string
+var cacheInstance *cache.Cache
+var keyBuilder *cache.KeyBuilder
 
 func SetDB(d any) {
 	if d == nil {
@@ -67,6 +70,19 @@ func SetStorageClient(url, apiKey string) {
 		return
 	}
 	fmt.Printf("Storage client initialized with URL: %s\n", url)
+}
+
+// SetCache initializes the cache instance
+func SetCache() error {
+	cacheConfig := cache.DefaultConfig()
+	var err error
+	cacheInstance, err = cache.New(cacheConfig)
+	if err != nil {
+		return fmt.Errorf("failed to initialize cache: %w", err)
+	}
+	keyBuilder = cache.NewKeyBuilder()
+	fmt.Println("Cache initialized successfully")
+	return nil
 }
 
 type Story struct {

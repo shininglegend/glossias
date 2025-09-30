@@ -11,7 +11,7 @@ import (
 )
 
 func SaveNewStory(ctx context.Context, story *Story) error {
-	return withTransaction(func() error {
+	err := withTransaction(func() error {
 		// Create story using SQLC
 		courseID := pgtype.Int4{Valid: false}
 		if story.Metadata.CourseID != nil {
@@ -33,6 +33,13 @@ func SaveNewStory(ctx context.Context, story *Story) error {
 		story.Metadata.StoryID = int(result.StoryID)
 		return saveStoryComponents(ctx, story)
 	})
+
+	// Invalidate cache after successful save
+	if err == nil {
+		InvalidateStoryMetadata(story.Metadata.StoryID)
+	}
+
+	return err
 }
 
 func SaveStoryData(ctx context.Context, storyID int, story *Story) error {
@@ -44,7 +51,7 @@ func SaveStoryData(ctx context.Context, storyID int, story *Story) error {
 		return ErrNotFound
 	}
 
-	return withTransaction(func() error {
+	err = withTransaction(func() error {
 		// Update story using SQLC
 		courseID := pgtype.Int4{Valid: false}
 		if story.Metadata.CourseID != nil {
@@ -66,6 +73,13 @@ func SaveStoryData(ctx context.Context, storyID int, story *Story) error {
 
 		return saveStoryComponents(ctx, story)
 	})
+
+	// Invalidate cache after successful save
+	if err == nil {
+		InvalidateStoryMetadata(storyID)
+	}
+
+	return err
 }
 
 func saveStoryComponents(ctx context.Context, story *Story) error {

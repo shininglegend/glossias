@@ -191,10 +191,6 @@ func (kb *KeyBuilder) StoryData(storyID int) string {
 	return fmt.Sprintf("story:%d", storyID)
 }
 
-// AllStories builds a cache key for all stories (no user ID)
-func (kb *KeyBuilder) AllStories(language string) string {
-	return fmt.Sprintf("stories:lang:%s", language)
-}
 
 // UserVocabScores builds a cache key for user vocabulary scores
 func (kb *KeyBuilder) UserVocabScores(userID string, storyID int) string {

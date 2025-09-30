@@ -222,12 +222,7 @@ func TestKeyBuilder(t *testing.T) {
 		t.Errorf("Expected %s, got %s", expected, storyKey)
 	}
 
-	// Test all stories key
-	allStoriesKey := kb.AllStories("en")
-	expected = "stories:lang:en"
-	if allStoriesKey != expected {
-		t.Errorf("Expected %s, got %s", expected, allStoriesKey)
-	}
+	// Note: AllStories key removed for security reasons
 
 	// Test user access key
 	accessKey := kb.UserAccess("user456", 123)

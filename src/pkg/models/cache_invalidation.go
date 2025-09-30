@@ -69,16 +69,11 @@ func InvalidateUserStoryCache(userID string, storyID int) {
 	fmt.Printf("Invalidated all user cache for user %s, story %d\n", userID, storyID)
 }
 
-// InvalidateAllStoriesCache removes cached story list data
+// InvalidateAllStoriesCache - No longer needed since we don't cache story lists
+// Story lists are user-specific due to access controls, so caching would be a security risk
 func InvalidateAllStoriesCache(language string) {
-	if cacheInstance == nil || keyBuilder == nil {
-		return
-	}
-
-	cacheKey := keyBuilder.AllStories(language)
-	_ = cacheInstance.Delete(cacheKey)
-
-	fmt.Printf("Invalidated stories list cache for language %s\n", language)
+	// No-op: We don't cache story lists for security reasons
+	fmt.Printf("Story list cache invalidation skipped for language %s (not cached for security)\n", language)
 }
 
 // ClearAllCache removes all cached data

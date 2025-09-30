@@ -561,20 +561,8 @@ func withTransaction(fn func() error) error {
 }
 
 func GetAllStories(ctx context.Context, language string, userID string) ([]Story, error) {
-	// Try cache first if available (no user ID in key)
-	if cacheInstance != nil && keyBuilder != nil {
-		cacheKey := keyBuilder.AllStories(language)
-		var stories []Story
-		err := cacheInstance.GetOrSetJSON(cacheKey, &stories, func() (any, error) {
-			return getAllStoriesFromDB(ctx, language, userID)
-		})
-		if err != nil {
-			return nil, err
-		}
-		return stories, nil
-	}
-
-	// Fallback to direct DB access
+	// Don't cache "all stories" - this is user-specific due to access controls
+	// Individual stories are cached separately in GetStoryData
 	return getAllStoriesFromDB(ctx, language, userID)
 }
 

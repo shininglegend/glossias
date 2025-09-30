@@ -15,8 +15,8 @@ Core Types:
 - GrammarPoint: {ID, Name, Description}
 
 Database Functions (SQLC-based):
-GetStoryData(id int, userID string) (*Story, error) // Full story with all components
-GetAllStories(language string, userID string) ([]Story, error) // Basic story list
+GetStoryData(id int, userID string) (*Story, error) // Full story with all components (cached)
+GetAllStories(language string, userID string) ([]Story, error) // Basic story list (NOT cached - user-specific access controls)
 GetLineAnnotations(storyID, lineNumber int) (*StoryLine, error)
 GetStoryAnnotations(storyID int) (map[int]*StoryLine, error)
 GetLineText(storyID, lineNumber int) (string, error)

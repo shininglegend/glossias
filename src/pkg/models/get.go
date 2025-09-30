@@ -13,7 +13,101 @@ import (
 	_ "github.com/lib/pq"
 )
 
+// checkUserAccessWithCache checks if a user has access to a story with caching
+func checkUserAccessWithCache(userID string, storyID int, checkFunc func() (bool, error)) (bool, error) {
+	if cacheInstance == nil || keyBuilder == nil {
+		// Fallback to direct check if cache not available
+		return checkFunc()
+	}
+
+	cacheKey := keyBuilder.UserAccess(userID, storyID)
+
+	// Try to get from cache first
+	if data, err := cacheInstance.Get(cacheKey); err == nil {
+		// Cache hit - return cached access result
+		return string(data) == "true", nil
+	}
+
+	// Cache miss - check access and cache result
+	hasAccess, err := checkFunc()
+	if err != nil {
+		return false, err
+	}
+
+	// Cache the result (ignore cache errors)
+	accessStr := "false"
+	if hasAccess {
+		accessStr = "true"
+	}
+	_ = cacheInstance.Set(cacheKey, []byte(accessStr))
+
+	return hasAccess, nil
+}
+
 func GetStoryData(ctx context.Context, id int, userID string) (*Story, error) {
+	// Check user access first (with caching)
+	if cacheInstance != nil && keyBuilder != nil {
+		hasAccess, err := checkUserAccessWithCache(userID, id, func() (bool, error) {
+			// Check if user has access to this story
+			dbStory, err := queries.GetStory(ctx, int32(id))
+			if err != nil {
+				if err == sql.ErrNoRows || err == pgx.ErrNoRows {
+					return false, ErrNotFound
+				}
+				return false, err
+			}
+
+			// Check course access if story has course
+			if dbStory.CourseID.Valid {
+				courseID := int32(dbStory.CourseID.Int32)
+				return CanUserAccessCourse(ctx, userID, courseID), nil
+			}
+			return true, nil // No course restriction
+		})
+		if err != nil {
+			return nil, err
+		}
+		if !hasAccess {
+			return nil, ErrNotFound
+		}
+	} else {
+		// Fallback to direct access check
+		dbStory, err := queries.GetStory(ctx, int32(id))
+		if err != nil {
+			if err == sql.ErrNoRows || err == pgx.ErrNoRows {
+				return nil, ErrNotFound
+			}
+			return nil, err
+		}
+
+		// Check if user has access to this story
+		if dbStory.CourseID.Valid {
+			courseID := int32(dbStory.CourseID.Int32)
+			if !CanUserAccessCourse(ctx, userID, courseID) {
+				return nil, ErrNotFound
+			}
+		}
+	}
+
+	// Try cache for story data (no user ID in key)
+	if cacheInstance != nil && keyBuilder != nil {
+		cacheKey := keyBuilder.StoryData(id)
+		var story Story
+		err := cacheInstance.GetOrSetJSON(cacheKey, &story, func() (any, error) {
+			return getStoryDataFromDB(ctx, id, userID)
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &story, nil
+	}
+
+	// Fallback to direct DB access
+	return getStoryDataFromDB(ctx, id, userID)
+}
+
+// getStoryDataFromDB performs the actual database operations for GetStoryData
+func getStoryDataFromDB(ctx context.Context, id int, userID string) (*Story, error) {
 	story := NewStory()
 
 	// Get main story data
@@ -180,7 +274,25 @@ func getStoryLines(ctx context.Context, storyID int) ([]StoryLine, error) {
 
 // GetLineAnnotations retrieves all annotations for a specific line
 func GetLineAnnotations(ctx context.Context, storyID int, lineNumber int) (*StoryLine, error) {
+	// Try cache first if available
+	if cacheInstance != nil && keyBuilder != nil {
+		cacheKey := keyBuilder.LineAnnotations(storyID, lineNumber)
+		var line StoryLine
+		err := cacheInstance.GetOrSetJSON(cacheKey, &line, func() (any, error) {
+			return getLineAnnotationsFromDB(ctx, storyID, lineNumber)
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &line, nil
+	}
 
+	// Fallback to direct DB access
+	return getLineAnnotationsFromDB(ctx, storyID, lineNumber)
+}
+
+// getLineAnnotationsFromDB performs the actual database operations for GetLineAnnotations
+func getLineAnnotationsFromDB(ctx context.Context, storyID int, lineNumber int) (*StoryLine, error) {
 	line := &StoryLine{
 		LineNumber: lineNumber,
 		Vocabulary: []VocabularyItem{}, // init as empty arrays
@@ -264,7 +376,25 @@ func GetLineAnnotations(ctx context.Context, storyID int, lineNumber int) (*Stor
 
 // GetStoryAnnotations retrieves all annotations for a story grouped by line
 func GetStoryAnnotations(ctx context.Context, storyID int) (map[int]*StoryLine, error) {
+	// Try cache first if available
+	if cacheInstance != nil && keyBuilder != nil {
+		cacheKey := keyBuilder.StoryAnnotations(storyID)
+		var annotations map[int]*StoryLine
+		err := cacheInstance.GetOrSetJSON(cacheKey, &annotations, func() (any, error) {
+			return getStoryAnnotationsFromDB(ctx, storyID)
+		})
+		if err != nil {
+			return nil, err
+		}
+		return annotations, nil
+	}
 
+	// Fallback to direct DB access
+	return getStoryAnnotationsFromDB(ctx, storyID)
+}
+
+// getStoryAnnotationsFromDB performs the actual database operations for GetStoryAnnotations
+func getStoryAnnotationsFromDB(ctx context.Context, storyID int) (map[int]*StoryLine, error) {
 	// Verify story exists
 	exists, err := queries.StoryExists(ctx, int32(storyID))
 	if err != nil {
@@ -431,6 +561,25 @@ func withTransaction(fn func() error) error {
 }
 
 func GetAllStories(ctx context.Context, language string, userID string) ([]Story, error) {
+	// Try cache first if available (no user ID in key)
+	if cacheInstance != nil && keyBuilder != nil {
+		cacheKey := keyBuilder.AllStories(language)
+		var stories []Story
+		err := cacheInstance.GetOrSetJSON(cacheKey, &stories, func() (any, error) {
+			return getAllStoriesFromDB(ctx, language, userID)
+		})
+		if err != nil {
+			return nil, err
+		}
+		return stories, nil
+	}
+
+	// Fallback to direct DB access
+	return getAllStoriesFromDB(ctx, language, userID)
+}
+
+// getAllStoriesFromDB performs the actual database operations for GetAllStories
+func getAllStoriesFromDB(ctx context.Context, language string, userID string) ([]Story, error) {
 	basicStories, err := queries.GetAllStoriesForUser(ctx, db.GetAllStoriesForUserParams{
 		LanguageCode: language,
 		UserID:       userID,

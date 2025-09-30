@@ -52,6 +52,11 @@ func main() {
 		logger.Warn("STORAGE_URL or STORAGE_API_KEY environment variable not set, storage operations will fail")
 	}
 	models.SetStorageClient(storageUrl, storageKey)
+	// Initialize cache
+	if err := models.SetCache(); err != nil {
+		logger.Error("Failed to initialize cache", "error", err)
+		os.Exit(1)
+	}
 
 	// Clerk stuff
 	clerk_key := os.Getenv("CLERK_SECRET_KEY")

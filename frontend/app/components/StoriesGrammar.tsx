@@ -89,12 +89,28 @@ export function StoriesGrammar() {
           setNextStepName(guidance.displayName);
         }
       } catch (error) {
-        console.error("Failed to get navigation guidance:", error);
+        console.error("Failed to fetch next step name:", error);
       }
     };
 
     fetchNextStep();
   }, [id, getNavigationGuidance]);
+
+  useEffect(() => {
+    // Warm up serverless function to avoid cold start delay
+    if (!pageData || !id) return;
+
+    const warmUpApi = async () => {
+      try {
+        // Make a dummy call to warm up the serverless environment
+        await fetch("/api/null", { method: "POST" }).catch(() => {});
+      } catch {
+        // Silently fail warming
+      }
+    };
+
+    warmUpApi();
+  }, [pageData, id]);
 
   const handleTextClick = (lineIndex: number, charIndex: number) => {
     if (isSubmitted) return;
@@ -121,6 +137,8 @@ export function StoriesGrammar() {
     )
       return;
 
+    setIsSubmittingAnswer(true);
+
     const answersByLine = selectedPositions.reduce(
       (acc, pos) => {
         const existing = acc.find(
@@ -138,8 +156,6 @@ export function StoriesGrammar() {
       },
       [] as Array<{ line_number: number; positions: number[] }>,
     );
-
-    setIsSubmittingAnswer(true);
     try {
       const result = await api.checkGrammar(
         id!,

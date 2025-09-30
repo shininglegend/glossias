@@ -3,7 +3,6 @@ package models
 import (
 	"context"
 	"database/sql"
-	"fmt"
 
 	"glossias/src/pkg/generated/db"
 
@@ -128,7 +127,6 @@ func GetStoryGrammarPoints(ctx context.Context, storyID int) ([]GrammarPoint, er
 	}
 
 	grammarPoints := make([]GrammarPoint, 0, len(results))
-	fmt.Println("Found ", len(results), " grammar points")
 	for _, result := range results {
 		grammarPoints = append(grammarPoints, GrammarPoint{
 			ID:          int(result.GrammarPointID),

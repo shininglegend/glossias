@@ -7,7 +7,6 @@ import (
 	"glossias/src/apis/types"
 	"glossias/src/auth"
 	"glossias/src/pkg/models"
-	"log"
 	"net/http"
 	"strconv"
 
@@ -83,21 +82,13 @@ func (h *Handler) GetGrammarPage(w http.ResponseWriter, r *http.Request) {
 		grammarDescription = selectedPoint.Description
 
 		// Count instances of this grammar point in the story
-		log.Printf("DEBUG: Looking for grammar point ID %d in story with %d lines", selectedPoint.ID, len(story.Content.Lines))
-		for lineIdx, line := range story.Content.Lines {
-			log.Printf("DEBUG: Line %d has %d grammar items", lineIdx, len(line.Grammar))
-			for grammarIdx, grammar := range line.Grammar {
-				log.Printf("DEBUG: Line %d, Grammar %d - GrammarPointID: %v", lineIdx, grammarIdx, grammar.GrammarPointID)
-				if grammar.GrammarPointID != nil {
-					log.Printf("DEBUG: Comparing %d == %d", *grammar.GrammarPointID, selectedPoint.ID)
-					if *grammar.GrammarPointID == selectedPoint.ID {
-						instancesCount++
-						log.Printf("DEBUG: Match found! instancesCount now: %d", instancesCount)
-					}
+		for _, line := range story.Content.Lines {
+			for _, grammar := range line.Grammar {
+				if grammar.GrammarPointID != nil && *grammar.GrammarPointID == selectedPoint.ID {
+					instancesCount++
 				}
 			}
 		}
-		log.Printf("DEBUG: Final instancesCount: %d", instancesCount)
 	}
 
 	lines := make([]types.LineText, len(story.Content.Lines))
@@ -280,6 +271,7 @@ func saveUserScores(ctx context.Context, userID string, storyID, grammarPointID 
 
 	// Loop over user's answers
 	for _, answer := range answers {
+
 
 		correctItemsForLine, hasCorrectItems := correctGrammarMap[answer.LineNumber]
 		if !hasCorrectItems {

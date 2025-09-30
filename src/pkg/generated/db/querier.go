@@ -40,6 +40,8 @@ type Querier interface {
 	CreateStory(ctx context.Context, arg CreateStoryParams) (CreateStoryRow, error)
 	// Time tracking queries
 	CreateTimeEntry(ctx context.Context, arg CreateTimeEntryParams) (UserTimeTracking, error)
+	// Translation requests management queries
+	CreateTranslationRequest(ctx context.Context, arg CreateTranslationRequestParams) (TranslationRequest, error)
 	// User management queries
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateVocabularyItem(ctx context.Context, arg CreateVocabularyItemParams) (int32, error)
@@ -71,6 +73,7 @@ type Querier interface {
 	DeleteStoryDescriptions(ctx context.Context, storyID int32) error
 	DeleteStoryLine(ctx context.Context, arg DeleteStoryLineParams) error
 	DeleteStoryTitles(ctx context.Context, storyID int32) error
+	DeleteTranslationRequest(ctx context.Context, arg DeleteTranslationRequestParams) error
 	DeleteUser(ctx context.Context, userID string) error
 	DeleteVocabularyItem(ctx context.Context, id int32) error
 	DeleteVocabularyItems(ctx context.Context, arg DeleteVocabularyItemsParams) error
@@ -124,11 +127,14 @@ type Querier interface {
 	GetStoryTitle(ctx context.Context, arg GetStoryTitleParams) (string, error)
 	// Story titles
 	GetStoryTitles(ctx context.Context, storyID int32) ([]StoryTitle, error)
+	GetStoryTranslationRequests(ctx context.Context, storyID int32) ([]TranslationRequest, error)
 	GetStoryVocabScores(ctx context.Context, storyID int32) ([]GetStoryVocabScoresRow, error)
 	GetStoryWithDescription(ctx context.Context, storyID int32) (GetStoryWithDescriptionRow, error)
 	GetTimeEntriesForStory(ctx context.Context, storyID pgtype.Int4) ([]UserTimeTracking, error)
 	GetTimeEntriesForUser(ctx context.Context, userID string) ([]UserTimeTracking, error)
 	GetTimeEntryByID(ctx context.Context, trackingID int32) (UserTimeTracking, error)
+	GetTranslationRequest(ctx context.Context, arg GetTranslationRequestParams) (TranslationRequest, error)
+	GetTranslationRequestByID(ctx context.Context, requestID int32) (TranslationRequest, error)
 	GetTranslationsByLanguage(ctx context.Context, arg GetTranslationsByLanguageParams) ([]GetTranslationsByLanguageRow, error)
 	GetUser(ctx context.Context, userID string) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
@@ -139,6 +145,7 @@ type Querier interface {
 	GetUserStoryGrammarSummary(ctx context.Context, arg GetUserStoryGrammarSummaryParams) (GetUserStoryGrammarSummaryRow, error)
 	GetUserStoryTimeTracking(ctx context.Context, arg GetUserStoryTimeTrackingParams) (GetUserStoryTimeTrackingRow, error)
 	GetUserStoryVocabSummary(ctx context.Context, arg GetUserStoryVocabSummaryParams) (GetUserStoryVocabSummaryRow, error)
+	GetUserTranslationRequests(ctx context.Context, userID string) ([]TranslationRequest, error)
 	GetUserVocabScores(ctx context.Context, arg GetUserVocabScoresParams) ([]GetUserVocabScoresRow, error)
 	GetUsersForCourse(ctx context.Context, courseID int32) ([]GetUsersForCourseRow, error)
 	GetVocabularyItems(ctx context.Context, arg GetVocabularyItemsParams) ([]VocabularyItem, error)
@@ -157,6 +164,7 @@ type Querier interface {
 	// Score management queries
 	SaveVocabScore(ctx context.Context, arg SaveVocabScoreParams) error
 	StoryExists(ctx context.Context, storyID int32) (bool, error)
+	TranslationRequestExists(ctx context.Context, arg TranslationRequestExistsParams) (bool, error)
 	UpdateAnonymousTimeEntry(ctx context.Context, arg UpdateAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
 	UpdateAudioFile(ctx context.Context, arg UpdateAudioFileParams) (LineAudioFile, error)
 	UpdateCourse(ctx context.Context, arg UpdateCourseParams) (Course, error)

@@ -151,11 +151,13 @@ func loggingMiddleware(logger *slog.Logger) mux.MiddlewareFunc {
 			// Wrap ResponseWriter to capture status code
 			ww := &responseWriter{ResponseWriter: w, status: 200}
 			next.ServeHTTP(ww, r)
-			logger.Info("request completed",
-				"method", r.Method,
-				"path", r.URL.Path,
-				"status", ww.status,
-				"requester", r.RemoteAddr)
+			if r.URL.Path != "/api/health" {
+				logger.Info("request completed",
+					"method", r.Method,
+					"path", r.URL.Path,
+					"status", ww.status,
+					"requester", r.RemoteAddr)
+			}
 		})
 	}
 }

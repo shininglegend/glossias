@@ -12,9 +12,15 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 export function useNavigationGuidance() {
   const api = useApiService();
   const cache = useRef<Map<string, CachedGuidance>>(new Map());
+  const pendingRequests = useRef<
+    Map<string, Promise<NavigationGuidanceResponse | null>>
+  >(new Map());
 
   const getNavigationGuidance = useCallback(
-    async (storyId: string, currentPage: string): Promise<NavigationGuidanceResponse | null> => {
+    async (
+      storyId: string,
+      currentPage: string,
+    ): Promise<NavigationGuidanceResponse | null> => {
       const cacheKey = `${storyId}-${currentPage}`;
       const now = Date.now();
 
@@ -24,31 +30,49 @@ export function useNavigationGuidance() {
         return cached.data;
       }
 
-      try {
-        const response = await api.getNavigationGuidance(storyId, currentPage);
-        if (response.success && response.data) {
-          // Cache the result
-          cache.current.set(cacheKey, {
-            data: response.data,
-            timestamp: now
-          });
-          return response.data;
-        }
-        return null;
-      } catch (error) {
-        console.error("Failed to get navigation guidance:", error);
-        return null;
+      // Check for pending request
+      const pending = pendingRequests.current.get(cacheKey);
+      if (pending) {
+        return await pending;
       }
+
+      // Create new request
+      const requestPromise = (async () => {
+        try {
+          const response = await api.getNavigationGuidance(
+            storyId,
+            currentPage,
+          );
+          if (response.success && response.data) {
+            // Cache the result
+            cache.current.set(cacheKey, {
+              data: response.data,
+              timestamp: now,
+            });
+            return response.data;
+          }
+          return null;
+        } catch (error) {
+          console.error("Failed to get navigation guidance:", error);
+          return null;
+        } finally {
+          pendingRequests.current.delete(cacheKey);
+        }
+      })();
+
+      pendingRequests.current.set(cacheKey, requestPromise);
+      return await requestPromise;
     },
-    [api]
+    [api],
   );
 
   const clearCache = useCallback(() => {
     cache.current.clear();
+    pendingRequests.current.clear();
   }, []);
 
   return {
     getNavigationGuidance,
-    clearCache
+    clearCache,
   };
 }

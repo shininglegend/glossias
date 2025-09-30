@@ -24,9 +24,10 @@ export function StoriesVideo() {
   const [error, setError] = useState<string | null>(null);
   const [videoWatched, setVideoWatched] = useState(false);
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
+  const [guidanceCache, setGuidanceCache] = useState<any>(null);
 
   useEffect(() => {
-    const fetchMetadata = async () => {
+    const fetchMetadataAndGuidance = async () => {
       if (!id) {
         setError("Story ID is required");
         setLoading(false);
@@ -34,11 +35,20 @@ export function StoriesVideo() {
       }
 
       try {
-        const response = await api.getStoryMetadata(id);
-        if (response.success && response.data) {
-          setMetadata(response.data);
+        const [metadataResponse, guidance] = await Promise.all([
+          api.getStoryMetadata(id),
+          getNavigationGuidance(id, "video"),
+        ]);
+
+        if (metadataResponse.success && metadataResponse.data) {
+          setMetadata(metadataResponse.data);
         } else {
-          setError(response.error || "Failed to fetch story metadata");
+          setError(metadataResponse.error || "Failed to fetch story metadata");
+        }
+
+        if (guidance) {
+          setNextStepName(guidance.displayName);
+          setGuidanceCache(guidance);
         }
       } catch (err) {
         setError("Failed to fetch story metadata");
@@ -47,23 +57,7 @@ export function StoriesVideo() {
       }
     };
 
-    fetchMetadata();
-  }, [id]);
-
-  useEffect(() => {
-    const fetchNextStep = async () => {
-      if (!id) return;
-      try {
-        const guidance = await getNavigationGuidance(id, "video");
-        if (guidance) {
-          setNextStepName(guidance.displayName);
-        }
-      } catch (error) {
-        console.error("Failed to get navigation guidance:", error);
-      }
-    };
-
-    fetchNextStep();
+    fetchMetadataAndGuidance();
   }, [id, getNavigationGuidance]);
 
   if (loading) {
@@ -105,7 +99,8 @@ export function StoriesVideo() {
           <button
             onClick={async () => {
               try {
-                const guidance = await getNavigationGuidance(id!, "video");
+                const guidance =
+                  guidanceCache || (await getNavigationGuidance(id!, "video"));
                 if (guidance) {
                   navigate(`/stories/${id}/${guidance.nextPage}`);
                 }
@@ -131,17 +126,20 @@ export function StoriesVideo() {
             ? metadata.title
             : metadata.title?.en || "Story"}
         </h1>
-        <h2>Step 0: Watch the story video</h2>
+        <h2>Watch the story video</h2>
 
-        <div className="bg-gray-50 border border-gray-300 p-4 mb-4 rounded-lg text-center">
+        <div className="bg-gray-50 border-2 border-yellow-400 p-4 mb-4 rounded-lg text-center">
           <div className="flex items-start justify-center">
             <span className="material-icons text-gray-600 mr-2 mt-1">info</span>
             <div>
               <p className="text-gray-700">
                 {metadata.description?.text || ""}
                 <div>
-                  Watch the video to get familiar with the story before
-                  listening. The next button will appear when the story ends.
+                  <strong>
+                    Please watch the entire video before continuing.
+                  </strong>{" "}
+                  This will help you get familiar with the story before the
+                  other exercises.
                 </div>
               </p>
             </div>
@@ -149,26 +147,6 @@ export function StoriesVideo() {
         </div>
       </header>
       <div className="max-w-4xl mx-auto px-5">
-        {videoWatched && (
-          <div className="text-center mb-8">
-            <button
-              onClick={async () => {
-                try {
-                  const guidance = await getNavigationGuidance(id!, "video");
-                  if (guidance) {
-                    navigate(`/stories/${id}/${guidance.nextPage}`);
-                  }
-                } catch (error) {
-                  console.error("Failed to get navigation guidance:", error);
-                }
-              }}
-              className="inline-flex items-center px-8 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 text-lg font-semibold transition-all duration-200 shadow-lg"
-            >
-              <span>Continue to {nextStepName}</span>
-              <span className="material-icons ml-2">arrow_forward</span>
-            </button>
-          </div>
-        )}
         <div
           className="video-container"
           style={{
@@ -183,9 +161,6 @@ export function StoriesVideo() {
               src={getYouTubeEmbedUrl(metadata.videoUrl) || ""}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
-              onLoad={() => {
-                setTimeout(() => setVideoWatched(true), 30000);
-              }}
               style={{
                 width: "100%",
                 height: "100%",
@@ -213,6 +188,25 @@ export function StoriesVideo() {
               Your browser does not support the video tag.
             </video>
           )}
+        </div>
+        <div className="text-center mt-8">
+          <button
+            onClick={async () => {
+              try {
+                const guidance =
+                  guidanceCache || (await getNavigationGuidance(id!, "video"));
+                if (guidance) {
+                  navigate(`/stories/${id}/${guidance.nextPage}`);
+                }
+              } catch (error) {
+                console.error("Failed to get navigation guidance:", error);
+              }
+            }}
+            className="inline-flex items-center px-6 py-3 bg-gray-400 text-gray-700 rounded-lg hover:bg-gray-500 hover:text-white text-base font-normal transition-all duration-200 shadow-sm"
+          >
+            <span>Continue to {nextStepName}</span>
+            <span className="material-icons ml-2">arrow_forward</span>
+          </button>
         </div>
       </div>
     </>

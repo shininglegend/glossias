@@ -51,7 +51,7 @@ func (h *TimeTrackingHandler) startTimeTracking(w http.ResponseWriter, r *http.R
 		if clientIP == "" {
 			clientIP = r.RemoteAddr
 		}
-		h.logger.Warn("time tracking start without user", "ip", clientIP)
+		h.logger.Info("time tracking start without user", "ip", clientIP)
 		userID = "anonymous"
 	}
 

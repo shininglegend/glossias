@@ -1,6 +1,6 @@
 // API service for connecting to backend endpoints
 
-import { useCallback } from "react";
+import { useCallback, useRef, useMemo } from "react";
 import { useAuthenticatedFetch } from "../lib/authFetch";
 import type { NavigationGuidanceResponse } from "../types/api";
 
@@ -95,120 +95,124 @@ interface StoriesResponse {
 
 export function useApiService() {
   const authenticatedFetch = useAuthenticatedFetch();
+  const pendingRequests = useRef<Map<string, Promise<APIResponse<any>>>>(
+    new Map()
+  );
 
   const fetchAPI = useCallback(
     async <T>(
       endpoint: string,
-      options?: RequestInit,
+      options?: RequestInit
     ): Promise<APIResponse<T>> => {
-      try {
-        const response = await authenticatedFetch(`${API_BASE}${endpoint}`, {
-          headers: {
-            "Content-Type": "application/json",
-            ...options?.headers,
-          },
-          ...options,
-        });
+      const requestKey = `${endpoint}:${JSON.stringify(options || {})}`;
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        return await response.json();
-      } catch (error) {
-        console.error("API request failed:", error);
-        return {
-          success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
+      // Check for pending request
+      const pending = pendingRequests.current.get(requestKey);
+      if (pending) {
+        return (await pending) as APIResponse<T>;
       }
+
+      // Create new request
+      const requestPromise = (async (): Promise<APIResponse<T>> => {
+        try {
+          const response = await authenticatedFetch(`${API_BASE}${endpoint}`, {
+            headers: {
+              "Content-Type": "application/json",
+              ...options?.headers,
+            },
+            ...options,
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          return await response.json();
+        } catch (error) {
+          console.error("API request failed:", error);
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : "Unknown error",
+          };
+        } finally {
+          pendingRequests.current.delete(requestKey);
+        }
+      })();
+
+      pendingRequests.current.set(requestKey, requestPromise);
+      return await requestPromise;
     },
-    [authenticatedFetch],
+    [authenticatedFetch]
   );
 
-  return {
-    getStories: useCallback((): Promise<APIResponse<StoriesResponse>> => {
-      return fetchAPI<StoriesResponse>("/stories");
-    }, [fetchAPI]),
+  return useMemo(
+    () => ({
+      getStories: (): Promise<APIResponse<StoriesResponse>> => {
+        return fetchAPI<StoriesResponse>("/stories");
+      },
 
-    getStoryWithAudio: useCallback(
-      (id: string): Promise<APIResponse<PageData>> => {
+      getStoryWithAudio: (id: string): Promise<APIResponse<PageData>> => {
         return fetchAPI<PageData>(`/stories/${id}/story-with-audio`);
       },
-      [fetchAPI],
-    ),
 
-    getSignedAudioURLs: useCallback(
-      (
+      getSignedAudioURLs: (
         storyId: string,
-        label?: string,
+        label?: string
       ): Promise<APIResponse<{ [key: number]: string }>> => {
         const params = label ? `?label=${encodeURIComponent(label)}` : "";
         return fetchAPI<{ [key: number]: string }>(
-          `/stories/${storyId}/audio/signed${params}`,
+          `/stories/${storyId}/audio/signed${params}`
         );
       },
-      [fetchAPI],
-    ),
 
-    getStoryVocab: useCallback(
-      (id: string): Promise<APIResponse<VocabData>> => {
+      getStoryVocab: (id: string): Promise<APIResponse<VocabData>> => {
         return fetchAPI<VocabData>(`/stories/${id}/vocab`);
       },
-      [fetchAPI],
-    ),
 
-    getStoryGrammar: useCallback(
-      (
+      getStoryGrammar: (
         id: string,
-        grammarPointId?: string,
+        grammarPointId?: string
       ): Promise<APIResponse<GrammarData>> => {
         const url = grammarPointId
           ? `/stories/${id}/grammar?grammar_point_id=${grammarPointId}`
           : `/stories/${id}/grammar`;
         return fetchAPI<GrammarData>(url);
       },
-      [fetchAPI],
-    ),
 
-    getStoryMetadata: useCallback(
-      (id: string): Promise<APIResponse<StoryMetadata>> => {
+      getStoryMetadata: (id: string): Promise<APIResponse<StoryMetadata>> => {
         return fetchAPI<StoryMetadata>(`/stories/${id}/metadata`);
       },
-      [fetchAPI],
-    ),
 
-    checkVocab: useCallback(
-      (id: string, answers: any[]): Promise<APIResponse<any>> => {
+      checkVocab: (id: string, answers: any[]): Promise<APIResponse<any>> => {
         return fetchAPI(`/stories/${id}/check-vocab`, {
           method: "POST",
           body: JSON.stringify({ answers }),
         });
       },
-      [fetchAPI],
-    ),
 
-    checkVocabLine: useCallback(
-      (
+      checkVocabLine: (
         id: string,
         lineNumber: number,
-        answer: string,
-      ): Promise<APIResponse<{ correct: boolean }>> => {
+        answers: string[]
+      ): Promise<
+        APIResponse<{
+          results: boolean[];
+          allCorrect: boolean;
+          originalLine?: string;
+        }>
+      > => {
         return fetchAPI(`/stories/${id}/check-vocab`, {
           method: "POST",
           body: JSON.stringify({
-            answers: [{ line_number: lineNumber, answers: [answer] }],
+            answers: [{ line_number: lineNumber, answers }],
           }),
         });
       },
-      [fetchAPI],
-    ),
 
-    checkGrammar: useCallback(
-      (
+      checkGrammar: (
         id: string,
         grammarPointId: number,
-        answers: Array<{ line_number: number; positions: number[] }>,
+        answers: Array<{ line_number: number; positions: number[] }>
       ): Promise<APIResponse<any>> => {
         return fetchAPI(`/stories/${id}/check-grammar`, {
           method: "POST",
@@ -218,46 +222,37 @@ export function useApiService() {
           }),
         });
       },
-      [fetchAPI],
-    ),
 
-    getTranslations: useCallback(
-      (
+      getTranslations: (
         id: string,
-        lineNumbers: number[],
+        lineNumbers: number[]
       ): Promise<APIResponse<TranslateData>> => {
         const lines = lineNumbers.map((n) => n + 1).join(","); // Convert to 1-based indexing
         return fetchAPI<TranslateData>(
           `/stories/${id}/translate?lines=[${lines}]`,
           {
             method: "POST",
-          },
+          }
         );
       },
-      [fetchAPI],
-    ),
 
-    getStoryScore: useCallback(
-      (id: string): Promise<APIResponse<any>> => {
+      getStoryScore: (id: string): Promise<APIResponse<any>> => {
         return fetchAPI(`/stories/${id}/scores`);
       },
-      [fetchAPI],
-    ),
 
-    getNavigationGuidance: useCallback(
-      (
+      getNavigationGuidance: (
         storyId: string,
-        currentPage: string,
+        currentPage: string
       ): Promise<APIResponse<NavigationGuidanceResponse>> => {
         return fetchAPI<NavigationGuidanceResponse>(
           `/stories/${storyId}/next`,
           {
             method: "POST",
             body: JSON.stringify({ currentPage }),
-          },
+          }
         );
       },
-      [fetchAPI],
-    ),
-  };
+    }),
+    [fetchAPI]
+  );
 }

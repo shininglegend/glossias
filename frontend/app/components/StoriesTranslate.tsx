@@ -115,7 +115,7 @@ export function StoriesTranslate() {
     <>
       <header>
         <h1>{pageData.story_title}</h1>
-        <h2>Step 2: Translation</h2>
+        <h2>Translation</h2>
 
         <div className="bg-gray-50 border border-gray-300 p-4 mb-4 rounded-lg text-center">
           <div className="flex items-start justify-center">

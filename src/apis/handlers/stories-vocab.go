@@ -156,13 +156,26 @@ func (h *Handler) CheckVocab(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if all answers are correct
+	// Check each answer individually and track results
+	results := make([]bool, len(answer.Answers))
 	allCorrect := true
 	for i, userAnswer := range answer.Answers {
-		if i >= len(line.Vocabulary) || userAnswer != line.Vocabulary[i].LexicalForm {
+		if i >= len(line.Vocabulary) {
+			results[i] = false
 			allCorrect = false
-			break
+		} else {
+			isCorrect := userAnswer == line.Vocabulary[i].LexicalForm
+			results[i] = isCorrect
+			if !isCorrect {
+				allCorrect = false
+			}
 		}
+	}
+
+	// Get original line text if all correct
+	var originalLine string
+	if allCorrect {
+		originalLine = line.Text
 	}
 
 	// Save score if available
@@ -181,7 +194,9 @@ func (h *Handler) CheckVocab(w http.ResponseWriter, r *http.Request) {
 	response := types.APIResponse{
 		Success: true,
 		Data: types.CheckVocabResponse{
-			Correct: allCorrect,
+			Results:      results,      // Individual results for each vocab item
+			AllCorrect:   allCorrect,   // Explicit field for overall correctness
+			OriginalLine: originalLine, // Original line text when all correct
 		},
 	}
 

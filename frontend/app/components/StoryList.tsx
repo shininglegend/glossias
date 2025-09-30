@@ -20,6 +20,12 @@ export function StoryList() {
         const response = await api.getStories();
         if (response.success && response.data) {
           setStories(response.data.stories);
+          // Preload navigation guidance to avoid cold starts
+          response.data.stories.forEach((story) => {
+            getNavigationGuidance(story.id.toString(), "list").catch(() => {
+              // Silently fail preloading
+            });
+          });
         } else {
           setError(response.error || "Failed to fetch stories");
         }
@@ -31,9 +37,10 @@ export function StoryList() {
     };
 
     fetchStories();
-  }, []);
+  }, [getNavigationGuidance]);
 
   const handleStoryClick = async (storyId: number) => {
+    setLoadingStory(storyId);
     try {
       const guidance = await getNavigationGuidance(storyId.toString(), "list");
       if (guidance) {
@@ -41,6 +48,8 @@ export function StoryList() {
       }
     } catch (error) {
       console.error("Failed to get navigation guidance:", error);
+    } finally {
+      setLoadingStory(null);
     }
   };
 

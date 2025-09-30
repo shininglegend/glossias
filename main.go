@@ -117,7 +117,6 @@ func main() {
 		}
 	}
 	apiRouter.Use(jsonMiddleware())
-	apiRouter.Use(apis.TimeTrackingMiddleware(logger))
 	apiHandler.RegisterRoutes(apiRouter)
 
 	// Admin API mounted under /api/admin/*

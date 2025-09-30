@@ -1,19 +1,10 @@
 package apis
 
 import (
-	"context"
-	"glossias/src/auth"
-	"glossias/src/pkg/models"
-	"log/slog"
 	"net/http"
-	"strconv"
 
 	"github.com/gorilla/mux"
 )
-
-type contextKey string
-
-const TrackingIDKey contextKey = "tracking_id"
 
 var allowedHosts = map[string]bool{
 	// "http://localhost:3000": true,
@@ -45,45 +36,6 @@ func CORSMiddleware() mux.MiddlewareFunc {
 				w.WriteHeader(http.StatusOK)
 				return
 			}
-
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-// TimeTrackingMiddleware tracks API request starts
-func TimeTrackingMiddleware(logger *slog.Logger) mux.MiddlewareFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Get user ID from context (set by auth middleware)
-			userID, ok := auth.GetUserIDWithOk(r)
-
-			// Skip tracking if no user ID available
-			if !ok || userID == "" {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			route := r.URL.Path
-			storyID := models.ExtractStoryIDFromRoute(route)
-
-			clientIP := r.Header.Get("X-Forwarded-For")
-			if clientIP == "" {
-				clientIP = r.RemoteAddr
-			}
-
-			// Start time tracking
-			trackingID, err := models.StartTimeTracking(context.Background(), userID, route, storyID, clientIP)
-			if err != nil {
-				logger.Error("failed to create time entry", "error", err)
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			// Add tracking ID to both header and context for response body
-			w.Header().Set("X-Tracking-ID", strconv.Itoa(int(trackingID)))
-			ctx := context.WithValue(r.Context(), TrackingIDKey, trackingID)
-			r = r.WithContext(ctx)
 
 			next.ServeHTTP(w, r)
 		})

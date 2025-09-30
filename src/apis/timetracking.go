@@ -95,7 +95,6 @@ func (h *TimeTrackingHandler) endTimeTracking(w http.ResponseWriter, r *http.Req
 		if clientIP == "" {
 			clientIP = r.RemoteAddr
 		}
-		h.logger.Warn("time tracking end without user", "ip", clientIP)
 	}
 
 	var trackingID int32

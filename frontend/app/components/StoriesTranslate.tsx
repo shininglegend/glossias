@@ -17,8 +17,6 @@ export function StoriesTranslate() {
   const [translations, setTranslations] = useState<TranslateData | null>(null);
   const [translationLoading, setTranslationLoading] = useState(false);
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
-  const [showLinesMismatchWarning, setShowLinesMismatchWarning] =
-    useState(false);
 
   useEffect(() => {
     const fetchPageData = async () => {
@@ -105,15 +103,6 @@ export function StoriesTranslate() {
       const response = await api.getTranslations(id, selectedLines);
       if (response.success && response.data) {
         setTranslations(response.data);
-
-        // Check if returned lines match requested lines
-        const requestedIndices = selectedLines.map((i) => i + 1).sort(); // Convert to 1-indexed
-        const returnedIndicesSorted = [...response.data.returned_lines].sort();
-
-        const linesDiffer = !requestedIndices.every(
-          (line, index) => line === returnedIndicesSorted[index],
-        );
-        setShowLinesMismatchWarning(linesDiffer);
       }
     } catch (err) {
       console.error("Failed to get translations:", err);
@@ -169,21 +158,16 @@ export function StoriesTranslate() {
           </div>
         )}
 
-        {showLinesMismatchWarning && translations && (
+        {translations && (
           <div className="bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded-lg mb-4">
             <div className="flex items-center mb-3">
               <span className="material-icons text-yellow-600 mr-2">
-                warning
+                translate
               </span>
               <h3 className="text-xl font-bold text-yellow-900">
-                Different Lines Returned
+                Translations
               </h3>
             </div>
-            <p className="text-yellow-800">
-              You have already requested translations for this story, so your
-              previously requested lines are being shown instead of your current
-              selection.
-            </p>
           </div>
         )}
 
@@ -194,7 +178,7 @@ export function StoriesTranslate() {
                 try {
                   const guidance = await getNavigationGuidance(
                     id!,
-                    "translate",
+                    "translate"
                   );
                   if (guidance) {
                     navigate(`/stories/${id}/${guidance.nextPage}`);
@@ -244,10 +228,7 @@ export function StoriesTranslate() {
                 >
                   {pageData.lines.map((line, lineIndex) => {
                     const isSelected = selectedLines.includes(lineIndex);
-                    const currentLineNumber = lineIndex + 1; // Convert to 1-indexed
-                    const translationData = translations?.lines.find(
-                      (t) => t.line_number === currentLineNumber,
-                    );
+                    const translationIndex = selectedLines.indexOf(lineIndex);
                     const lineText = line.text.join("");
                     const { displayText, indentLevel } =
                       processTextForRTL(lineText);
@@ -257,11 +238,9 @@ export function StoriesTranslate() {
                         <div
                           className={`line-content text-3xl rounded-lg cursor-pointer transition-colors duration-150 ${
                             translations
-                              ? translationData
+                              ? isSelected
                                 ? "bg-blue-100 border-2 border-blue-300"
-                                : isSelected
-                                  ? "bg-blue-200 border-2 border-blue-400"
-                                  : "bg-gray-50"
+                                : "bg-gray-50"
                               : isSelected
                                 ? "bg-blue-200 border-2 border-blue-400"
                                 : "hover:bg-gray-100 border-2 border-transparent"
@@ -280,13 +259,13 @@ export function StoriesTranslate() {
                           </span>
                         </div>
 
-                        {translationData && (
+                        {translations && translationIndex >= 0 && (
                           <div
                             className="mt-2 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg text-left"
                             dir="ltr"
                           >
                             <p className="text-lg text-yellow-800">
-                              {translationData.translation}
+                              {translations.lines[translationIndex].translation}
                             </p>
                           </div>
                         )}

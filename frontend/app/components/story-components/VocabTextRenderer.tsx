@@ -16,6 +16,11 @@ interface VocabTextRendererProps {
   onCheckAnswer: (vocabKey: string) => void;
 }
 
+// Helper function to check if a line contains vocabulary placeholders
+const lineHasVocab = (line: { text: string[] }): boolean => {
+  return line.text.includes("%");
+};
+
 // Helper function for RTL indentation
 const processTextForRTL = (text: string, isRTL: boolean) => {
   if (!isRTL || typeof text !== "string") {
@@ -40,9 +45,12 @@ export const VocabTextRenderer: React.FC<VocabTextRendererProps> = ({
   lineResults,
   completedLines,
   playedLines,
+  checkingLines,
+  isCurrentLine,
   isRTL,
   originalLine,
   onAnswerChange,
+  onCheckAnswer,
 }) => {
   let vocabIndex = 0; // Track vocab items within this line
   const isDisabled =
@@ -53,6 +61,9 @@ export const VocabTextRenderer: React.FC<VocabTextRendererProps> = ({
   const lineVocabKeys = Array.from(
     { length: totalVocabOnLine },
     (_, i) => `${lineIndex}-${i}`
+  );
+  const allVocabAnswered = lineVocabKeys.every(
+    (key) => selectedAnswers[key] && selectedAnswers[key].trim() !== ""
   );
 
   // If line is completed and we have the original text, display it
@@ -101,7 +112,7 @@ export const VocabTextRenderer: React.FC<VocabTextRendererProps> = ({
                 }
               >
                 <option value="">
-                  {!playedLines.has(lineIndex) ? "---" : "choose"}
+                  {!playedLines.has(lineIndex) ? "-" : "___"}
                 </option>
                 {vocabBank.map((word, wordIndex) => (
                   <option
@@ -113,7 +124,23 @@ export const VocabTextRenderer: React.FC<VocabTextRendererProps> = ({
                   </option>
                 ))}
               </select>
-
+              {allVocabAnswered &&
+                !completedLines.has(lineIndex) &&
+                playedLines.has(lineIndex) &&
+                vocabIndex === 1 && ( // Only show button on first vocab item
+                  <button
+                    onClick={() => onCheckAnswer(vocabKey)}
+                    className="check-button w-6 h-6 bg-blue-500 text-white border-none rounded-full cursor-pointer text-sm flex items-center justify-center transition-colors duration-200 hover:bg-blue-600"
+                    type="button"
+                    disabled={checkingLines.has(lineIndex)}
+                  >
+                    {checkingLines.has(lineIndex) ? (
+                      <div className="animate-spin w-3 h-3 border border-white border-t-transparent rounded-full"></div>
+                    ) : (
+                      "✓"
+                    )}
+                  </button>
+                )}
               {result === false && (
                 <span className="error-indicator text-red-500 text-lg font-bold">
                   ✗

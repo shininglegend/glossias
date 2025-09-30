@@ -97,8 +97,9 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check for missing data
+	// Check for missing or insufficient data
 	var missingActivities []MissingActivity
+	const minTimeSeconds = 5
 
 	// Check vocab
 	if vocabTotal == 0 {
@@ -107,6 +108,13 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 			DisplayName: "Vocabulary",
 			Route:       "vocab",
 			Reason:      "no_data",
+		})
+	} else if timeData.VocabTimeSeconds < minTimeSeconds {
+		missingActivities = append(missingActivities, MissingActivity{
+			Activity:    "vocab",
+			DisplayName: "Vocabulary",
+			Route:       "vocab",
+			Reason:      "insufficient_time",
 		})
 	}
 
@@ -118,21 +126,22 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 			Route:       "grammar",
 			Reason:      "no_data",
 		})
+	} else if timeData.GrammarTimeSeconds < minTimeSeconds {
+		missingActivities = append(missingActivities, MissingActivity{
+			Activity:    "grammar",
+			DisplayName: "Grammar",
+			Route:       "grammar",
+			Reason:      "insufficient_time",
+		})
 	}
 
-	// Check translation completion
-	translationCompleted, err := models.TranslationRequestExists(r.Context(), userID, id)
-	if err != nil {
-		h.log.Error("Failed to check translation completion", "error", err, "storyID", id, "userID", userID)
-		h.sendError(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-	if !translationCompleted {
+	// Check translation
+	if timeData.TranslationTimeSeconds < minTimeSeconds {
 		missingActivities = append(missingActivities, MissingActivity{
 			Activity:    "translation",
 			DisplayName: "Translation",
 			Route:       "translate",
-			Reason:      "no_data",
+			Reason:      "insufficient_time",
 		})
 	}
 

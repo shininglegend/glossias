@@ -1,26 +1,25 @@
+import { useAuth } from "@clerk/react-router";
 import { useCallback, useRef, useEffect } from "react";
-import { useAuthenticatedFetch } from "./authFetch";
 
 class TimeTracker {
   private currentTrackingId: number | null = null;
   private cleanup: (() => void) | null = null;
 
-  async startTracking(
-    authenticatedFetch: (
-      input: RequestInfo,
-      init?: RequestInit,
-    ) => Promise<Response>,
-    route?: string,
-  ) {
+  async startTracking(getToken: () => Promise<string | null>, route?: string) {
+    const token = await getToken();
+    const headers = new Headers();
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    headers.set("Content-Type", "application/json");
+
     const currentRoute = route || window.location.pathname;
     const storyId = currentRoute.includes("/stories/")
       ? parseInt(currentRoute.split("/stories/")[1]) || null
       : null;
 
     try {
-      const response = await authenticatedFetch("/api/time-tracking/start", {
+      const response = await fetch("/api/time-tracking/start", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           route: currentRoute,
           story_id: storyId,
@@ -30,7 +29,7 @@ class TimeTracker {
       if (response.ok) {
         const data = await response.json();
         this.currentTrackingId = data.tracking_id;
-        this.setupPageLeaveTracking(authenticatedFetch);
+        this.setupPageLeaveTracking(getToken);
         return data.tracking_id;
       }
     } catch (error) {
@@ -40,10 +39,7 @@ class TimeTracker {
   }
 
   async endTracking(
-    authenticatedFetch: (
-      input: RequestInfo,
-      init?: RequestInit,
-    ) => Promise<Response>,
+    getToken: () => Promise<string | null>,
     trackingId?: number,
     useBeacon = false,
   ) {
@@ -51,13 +47,20 @@ class TimeTracker {
     if (!id) return;
 
     if (useBeacon && navigator.sendBeacon) {
+      const token = await getToken();
       const formData = new FormData();
       formData.append("tracking_id", id.toString());
+      if (token) formData.append("authorization", `Bearer ${token}`);
       navigator.sendBeacon("/api/time-tracking/end", formData);
     } else {
+      const token = await getToken();
+      const headers = new Headers();
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+      headers.set("Content-Type", "application/json");
+
       fetch("/api/time-tracking/end", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ tracking_id: id }),
       }).catch(() => {}); // Fire and forget
     }
@@ -68,17 +71,11 @@ class TimeTracker {
     }
   }
 
-  private setupPageLeaveTracking(
-    authenticatedFetch: (
-      input: RequestInfo,
-      init?: RequestInit,
-    ) => Promise<Response>,
-  ) {
+  private setupPageLeaveTracking(getToken: () => Promise<string | null>) {
     if (!this.currentTrackingId) return;
 
     const trackingId = this.currentTrackingId;
-    const handlePageLeave = () =>
-      this.endTracking(authenticatedFetch, trackingId, true);
+    const handlePageLeave = () => this.endTracking(getToken, trackingId, true);
 
     window.addEventListener("beforeunload", handlePageLeave);
     window.addEventListener("pagehide", handlePageLeave);
@@ -110,7 +107,7 @@ class TimeTracker {
 const globalTracker = new TimeTracker();
 
 export function useTimeTracking() {
-  const authenticatedFetch = useAuthenticatedFetch();
+  const { getToken } = useAuth();
   const hasStartedRef = useRef(false);
   const pendingStartRef = useRef<Promise<number | null> | null>(null);
 
@@ -120,35 +117,32 @@ export function useTimeTracking() {
       if (pendingStartRef.current) return await pendingStartRef.current;
 
       hasStartedRef.current = true;
-      const startPromise = globalTracker.startTracking(
-        authenticatedFetch,
-        route,
-      );
+      const startPromise = globalTracker.startTracking(getToken, route);
       pendingStartRef.current = startPromise;
 
       const result = await startPromise;
       pendingStartRef.current = null;
       return result;
     },
-    [authenticatedFetch],
+    [getToken],
   );
 
   const endTracking = useCallback(
     async (trackingId?: number) => {
       hasStartedRef.current = false;
       pendingStartRef.current = null;
-      return await globalTracker.endTracking(authenticatedFetch, trackingId);
+      return await globalTracker.endTracking(getToken, trackingId);
     },
-    [authenticatedFetch],
+    [getToken],
   );
 
   useEffect(() => {
     return () => {
       hasStartedRef.current = false;
       pendingStartRef.current = null;
-      globalTracker.endTracking(authenticatedFetch);
+      globalTracker.endTracking(getToken);
     };
-  }, [authenticatedFetch]);
+  }, [getToken]);
 
   return { startTracking, endTracking };
 }

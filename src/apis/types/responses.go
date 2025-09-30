@@ -78,8 +78,7 @@ type GrammarPageData struct {
 // TranslationPageData extends PageData with translation field
 type TranslationPageData struct {
 	PageData
-	Lines         []LineTranslation `json:"lines"`
-	ReturnedLines []int             `json:"returned_lines"`
+	Lines []LineTranslation `json:"lines"`
 }
 
 // VocabAnswer represents vocabulary answer from client
@@ -156,7 +155,6 @@ type LineValidationError struct {
 type LineTranslation struct {
 	LineText
 	Translation *string `json:"translation,omitempty"`
-	LineNumber  int     `json:"line_number"`
 }
 
 // ConvertStoryToAPI converts models.Story to API Story format

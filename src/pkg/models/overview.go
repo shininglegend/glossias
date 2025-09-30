@@ -29,11 +29,6 @@ GetTranslationsByLanguage(storyID int, languageCode string) ([]LineTranslation, 
 DeleteLineTranslation(storyID, lineNumber int, languageCode string) error
 DeleteStoryTranslations(storyID int) error
 
-Translation Request Operations:
-GetTranslationRequest(userID string, storyID int) (*TranslationRequest, error)
-CreateTranslationRequest(userID string, storyID int, requestedLines []int) (*TranslationRequest, error)
-TranslationRequestExists(userID string, storyID int) (bool, error)
-
 Grammar Point Operations:
 CreateGrammarPoint(storyID int, name, description string) (*GrammarPoint, error)
 GetGrammarPoint(grammarPointID int) (*GrammarPoint, error)

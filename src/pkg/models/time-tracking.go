@@ -78,8 +78,7 @@ func StartTimeTracking(ctx context.Context, userID, route string, storyID *int32
 			return 0, err
 		}
 
-		// Return negative ID for anonymous tracking to avoid collision with user IDs
-		return -entry.TrackingID, nil
+		return entry.TrackingID, nil
 	}
 
 	// Authenticated user logic
@@ -123,37 +122,32 @@ func StartTimeTracking(ctx context.Context, userID, route string, storyID *int32
 
 // EndTimeTrackingByID updates a time tracking entry with end time and duration using tracking ID
 // If the entry is already ended, updates with the later end time
-// Handles both authenticated and anonymous tracking using ID sign (negative = anonymous)
+// Handles both authenticated and anonymous tracking
 func EndTimeTrackingByID(ctx context.Context, trackingID int32) error {
-	if trackingID < 0 {
-		// Anonymous tracking (negative ID)
-		realID := -trackingID
-		anonEntry, err := queries.GetAnonymousTimeEntryByID(ctx, realID)
-		if err != nil {
-			return err
-		}
-
+	// Try authenticated table first
+	entry, err := queries.GetTimeEntryByID(ctx, trackingID)
+	if err == nil {
 		endTime := time.Now()
-		totalSeconds := int32(endTime.Sub(anonEntry.StartedAt.Time).Seconds())
+		totalSeconds := int32(endTime.Sub(entry.StartedAt.Time).Seconds())
 
-		_, err = queries.UpdateAnonymousTimeEntry(ctx, db.UpdateAnonymousTimeEntryParams{
-			TrackingID:       realID,
+		_, err = queries.UpdateTimeEntry(ctx, db.UpdateTimeEntryParams{
+			TrackingID:       trackingID,
 			EndedAt:          pgtype.Timestamp{Time: endTime, Valid: true},
 			TotalTimeSeconds: pgtype.Int4{Int32: totalSeconds, Valid: true},
 		})
 		return err
 	}
 
-	// Authenticated user tracking (positive ID)
-	entry, err := queries.GetTimeEntryByID(ctx, trackingID)
+	// Try anonymous table
+	anonEntry, err := queries.GetAnonymousTimeEntryByID(ctx, trackingID)
 	if err != nil {
-		return err
+		return err // Not found in either table
 	}
 
 	endTime := time.Now()
-	totalSeconds := int32(endTime.Sub(entry.StartedAt.Time).Seconds())
+	totalSeconds := int32(endTime.Sub(anonEntry.StartedAt.Time).Seconds())
 
-	_, err = queries.UpdateTimeEntry(ctx, db.UpdateTimeEntryParams{
+	_, err = queries.UpdateAnonymousTimeEntry(ctx, db.UpdateAnonymousTimeEntryParams{
 		TrackingID:       trackingID,
 		EndedAt:          pgtype.Timestamp{Time: endTime, Valid: true},
 		TotalTimeSeconds: pgtype.Int4{Int32: totalSeconds, Valid: true},

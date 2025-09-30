@@ -36,7 +36,7 @@ func Middleware(logger *slog.Logger) mux.MiddlewareFunc {
 
 			// Extract and validate JWT token for API routes (except health and time tracking)
 			if strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/health" &&
-				!strings.HasPrefix(r.URL.Path, "/api/time-tracking/end") {
+				!strings.HasPrefix(r.URL.Path, "/api/time-tracking") {
 				userID, err := extractAndValidateUser(r, logger)
 				if err != nil {
 					logger.Error("auth failed", "error", err, "path", r.URL.Path)

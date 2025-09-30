@@ -2,6 +2,7 @@ package apis
 
 import (
 	"encoding/json"
+	"fmt"
 	"glossias/src/auth"
 	"glossias/src/pkg/models"
 	"log/slog"
@@ -51,7 +52,7 @@ func (h *TimeTrackingHandler) startTimeTracking(w http.ResponseWriter, r *http.R
 		if clientIP == "" {
 			clientIP = r.RemoteAddr
 		}
-		h.logger.Info("time tracking start without user", "ip", clientIP)
+		h.logger.Warn("time tracking start without user", "ip", clientIP)
 		userID = "anonymous"
 	}
 
@@ -95,7 +96,6 @@ func (h *TimeTrackingHandler) endTimeTracking(w http.ResponseWriter, r *http.Req
 		if clientIP == "" {
 			clientIP = r.RemoteAddr
 		}
-		h.logger.Warn("time tracking end without user", "ip", clientIP)
 	}
 
 	var trackingID int32
@@ -112,11 +112,15 @@ func (h *TimeTrackingHandler) endTimeTracking(w http.ResponseWriter, r *http.Req
 		}
 		trackingID = req.TrackingID
 	} else {
-		// Handle FormData from beacon
-		if err := r.ParseForm(); err != nil {
-			h.logger.Error("failed to parse form", "error", err)
-			http.Error(w, "Invalid form data", http.StatusBadRequest)
-			return
+		// Handle FormData from beacon - try multipart first, then regular form
+		if err := r.ParseMultipartForm(32 << 20); err != nil { // 32MB max
+			fmt.Println("Failed to parse multipart form: ", err)
+			// If multipart fails, try regular form parsing
+			if err := r.ParseForm(); err != nil {
+				h.logger.Error("failed to parse form data", "error", err)
+				http.Error(w, "Invalid form data", http.StatusBadRequest)
+				return
+			}
 		}
 
 		trackingIDStr := r.FormValue("tracking_id")

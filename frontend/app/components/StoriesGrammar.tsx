@@ -45,6 +45,7 @@ export function StoriesGrammar() {
     null,
   );
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false);
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
 
   useEffect(() => {
@@ -88,12 +89,28 @@ export function StoriesGrammar() {
           setNextStepName(guidance.displayName);
         }
       } catch (error) {
-        console.error("Failed to get navigation guidance:", error);
+        console.error("Failed to fetch next step name:", error);
       }
     };
 
     fetchNextStep();
   }, [id, getNavigationGuidance]);
+
+  useEffect(() => {
+    // Warm up serverless function to avoid cold start delay
+    if (!pageData || !id) return;
+
+    const warmUpApi = async () => {
+      try {
+        // Make a dummy call to warm up the serverless environment
+        await fetch("/api/health", { method: "GET" }).catch(() => {});
+      } catch {
+        // Silently fail warming
+      }
+    };
+
+    warmUpApi();
+  }, [pageData, id]);
 
   const handleTextClick = (lineIndex: number, charIndex: number) => {
     if (isSubmitted) return;
@@ -120,6 +137,8 @@ export function StoriesGrammar() {
     )
       return;
 
+    setIsSubmittingAnswer(true);
+
     const answersByLine = selectedPositions.reduce(
       (acc, pos) => {
         const existing = acc.find(
@@ -137,7 +156,6 @@ export function StoriesGrammar() {
       },
       [] as Array<{ line_number: number; positions: number[] }>,
     );
-
     try {
       const result = await api.checkGrammar(
         id!,
@@ -151,6 +169,8 @@ export function StoriesGrammar() {
       }
     } catch (err) {
       console.error("Failed to submit answers:", err);
+    } finally {
+      setIsSubmittingAnswer(false);
     }
   };
 
@@ -283,15 +303,25 @@ export function StoriesGrammar() {
           <div className="mt-4">
             <button
               onClick={submitAnswers}
-              disabled={selectedPositions.length !== pageData.instances_count}
+              disabled={
+                selectedPositions.length !== pageData.instances_count ||
+                isSubmittingAnswer
+              }
               className={`px-6 py-3 rounded-lg font-medium ${
-                selectedPositions.length === pageData.instances_count
+                selectedPositions.length === pageData.instances_count &&
+                !isSubmittingAnswer
                   ? "bg-blue-500 text-white hover:bg-blue-600"
                   : "bg-gray-300 text-gray-500 cursor-not-allowed"
               }`}
             >
-              Check Answers ({selectedPositions.length}/
-              {pageData.instances_count})
+              {isSubmittingAnswer ? (
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Checking...
+                </div>
+              ) : (
+                `Check Answers (${selectedPositions.length}/${pageData.instances_count})`
+              )}
             </button>
           </div>
         ) : (

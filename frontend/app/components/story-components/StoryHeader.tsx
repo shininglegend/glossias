@@ -36,7 +36,7 @@ export const StoryHeader: React.FC<StoryHeaderProps> = ({
         className={`inline-flex items-center gap-2 px-5 py-3 my-5 text-white border-none rounded-lg text-base cursor-pointer transition-colors duration-200 ${
           isPlaying
             ? "bg-red-500 hover:bg-red-600"
-            : "bg-blue-500 hover:bg-blue-600"
+            : "bg-green-500 hover:bg-green-600"
         }`}
         type="button"
       >

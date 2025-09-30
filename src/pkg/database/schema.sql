@@ -231,3 +231,16 @@ CREATE INDEX IF NOT EXISTS idx_grammar_correct_answers_user ON grammar_correct_a
 -- Indexes for incorrect answers
 CREATE INDEX IF NOT EXISTS idx_vocab_incorrect_user_story ON vocab_incorrect_answers (user_id, story_id);
 CREATE INDEX IF NOT EXISTS idx_grammar_incorrect_user_story ON grammar_incorrect_answers (user_id, story_id);
+
+-- Translation requests table - limits users to one translation request per story
+CREATE TABLE IF NOT EXISTS translation_requests (
+    request_id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+    story_id INTEGER NOT NULL REFERENCES stories (story_id) ON DELETE CASCADE,
+    requested_lines INTEGER[] NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, story_id)
+);
+
+-- Index for efficient querying
+CREATE INDEX IF NOT EXISTS idx_translation_requests_user_story ON translation_requests (user_id, story_id);

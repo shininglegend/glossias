@@ -136,6 +136,14 @@ type StoryTitle struct {
 	Title        string `json:"title"`
 }
 
+type TranslationRequest struct {
+	RequestID      int32            `json:"request_id"`
+	UserID         string           `json:"user_id"`
+	StoryID        int32            `json:"story_id"`
+	RequestedLines []int32          `json:"requested_lines"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+}
+
 type User struct {
 	UserID       string           `json:"user_id"`
 	Email        string           `json:"email"`

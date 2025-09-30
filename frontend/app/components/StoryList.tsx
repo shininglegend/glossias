@@ -78,29 +78,39 @@ export function StoryList() {
       </header>
       <main className="container">
         <div className="stories-list">
-          {stories.map((story) => (
-            <div key={story.id} className="story-item">
-              <h2>{story.title}</h2>
+          {stories.length === 0 ? (
+            <div className="story-item">
+              <h2>Welcome!</h2>
               <p>
-                Week {story.week_number}
-                {story.day_letter}
+                You're in! Please wait to be registered for a course so you can
+                access some stories.
               </p>
-              <button
-                onClick={() => handleStoryClick(story.id)}
-                className="start-reading-button"
-                disabled={loadingStory === story.id}
-              >
-                {loadingStory === story.id ? (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin w-4 h-4 border border-white border-t-transparent rounded-full"></div>
-                    Loading...
-                  </div>
-                ) : (
-                  "Start Reading"
-                )}
-              </button>
             </div>
-          ))}
+          ) : (
+            stories.map((story) => (
+              <div key={story.id} className="story-item">
+                <h2>{story.title}</h2>
+                <p>
+                  Week {story.week_number}
+                  {story.day_letter}
+                </p>
+                <button
+                  onClick={() => handleStoryClick(story.id)}
+                  className="start-reading-button"
+                  disabled={loadingStory === story.id}
+                >
+                  {loadingStory === story.id ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin w-4 h-4 border border-white border-t-transparent rounded-full"></div>
+                      Loading...
+                    </div>
+                  ) : (
+                    "Start Reading"
+                  )}
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </main>
     </>

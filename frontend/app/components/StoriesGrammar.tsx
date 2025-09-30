@@ -103,7 +103,7 @@ export function StoriesGrammar() {
     const warmUpApi = async () => {
       try {
         // Make a dummy call to warm up the serverless environment
-        await fetch("/api/null", { method: "POST" }).catch(() => {});
+        await fetch("/api/health", { method: "GET" }).catch(() => {});
       } catch {
         // Silently fail warming
       }

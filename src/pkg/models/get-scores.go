@@ -102,9 +102,10 @@ func GetUserStoryTimeTracking(ctx context.Context, userID string, storyID int32)
 	if err != nil {
 		return nil, err
 	}
+	// fmt.Println("Time spent: ", result)
 
-	// Convert interface{} to int, handling potential type conversions
-	convertToInt := func(v interface{}) int {
+	// Convert any to int, handling potential type conversions
+	convertToInt := func(v any) int {
 		if v == nil {
 			return 0
 		}

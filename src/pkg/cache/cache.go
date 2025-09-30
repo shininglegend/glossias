@@ -41,7 +41,7 @@ func DefaultConfig() Config {
 		LifeWindow:         6 * time.Hour,    // 30 minutes TTL for story data
 		CleanWindow:        5 * time.Minute,  // Clean every 5 minutes
 		MaxEntriesInWindow: 1000,             // Max 1000 entries per window
-		MaxEntrySize:       500,              // 500 bytes max per entry
+		MaxEntrySize:       50 * 1024,        // 50KB max per entry (increased from 500 bytes)
 		HardMaxCacheSize:   100,              // 100MB max cache size
 		OnRemove:           nil,              // No callback by default
 		AccessTTL:          15 * time.Minute, // 15 minutes TTL for access permissions

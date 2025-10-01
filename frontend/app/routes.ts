@@ -20,4 +20,5 @@ export default [
   ),
   route("admin/stories/:id/annotate", "routes/admin.stories.$id.annotate.tsx"),
   route("admin/users", "routes/admin.users.tsx"),
+  route("admin/system", "routes/admin.system.tsx"),
 ] satisfies RouteConfig;

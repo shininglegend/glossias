@@ -3,6 +3,7 @@ package admin
 
 import (
 	"glossias/src/auth"
+	"glossias/src/pkg/models"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -39,6 +40,9 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	h.stories.RegisterRoutes(r)
 	h.courses.RegisterRoutes(r)
 	h.users.RegisterRoutes(r)
+
+	// Cache management endpoint (super admin only)
+	r.HandleFunc("/cache/clear", h.clearCache).Methods("POST")
 }
 
 func (h *Handler) adminAuthMiddleware(next http.Handler) http.Handler {
@@ -79,4 +83,29 @@ func (h *Handler) adminAuthMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (h *Handler) clearCache(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.GetUserIDWithOk(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Restrict to super admins only
+	if !models.IsUserSuperAdmin(r.Context(), userID) {
+		h.log.Warn("cache clear denied - not super admin", "user_id", userID)
+		http.Error(w, "Forbidden - super admin required", http.StatusForbidden)
+		return
+	}
+
+	if err := models.ClearAllCache(); err != nil {
+		h.log.Error("failed to clear cache", "error", err, "user_id", userID)
+		http.Error(w, "Failed to clear cache", http.StatusInternalServerError)
+		return
+	}
+
+	h.log.Info("cache cleared by admin", "user_id", userID)
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Cache cleared successfully"))
 }

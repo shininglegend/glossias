@@ -194,13 +194,8 @@ export default function MetadataForm({
       <div className="md:col-span-2">
         <Label>Description Language</Label>
         <Input
-          value={meta.description.language}
-          onChange={(e) =>
-            update("description", {
-              ...meta.description,
-              language: e.target.value,
-            })
-          }
+          value={meta.languageCode}
+          onChange={(e) => update("languageCode", e.target.value)}
         />
       </div>
       <div className="md:col-span-2">

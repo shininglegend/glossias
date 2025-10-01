@@ -31,7 +31,7 @@ WHERE tracking_id = $1;
 -- name: GetActiveTimeEntry :one
 SELECT tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at
 FROM user_time_tracking
-WHERE user_id = $1 AND route = $2 AND story_id IS NOT DISTINCT FROM $3 AND ended_at IS NULL
+WHERE user_id = $1 AND route = $2 AND story_id IS NOT DISTINCT FROM $3
 ORDER BY started_at DESC
 LIMIT 1;
 
@@ -61,7 +61,7 @@ WHERE tracking_id = $1;
 -- name: GetActiveAnonymousTimeEntry :one
 SELECT tracking_id, session_id, route, story_id, started_at, ended_at, total_time_seconds, created_at
 FROM anonymous_time_tracking
-WHERE session_id = $1 AND route = $2 AND story_id IS NOT DISTINCT FROM $3 AND ended_at IS NULL
+WHERE session_id = $1 AND route = $2 AND story_id IS NOT DISTINCT FROM $3
 ORDER BY started_at DESC
 LIMIT 1;
 

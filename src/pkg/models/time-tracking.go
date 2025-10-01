@@ -14,6 +14,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const REUSE_THRESHOLD = 5 * time.Minute
+
 // generateSessionID creates a session ID for anonymous users using IP address
 func generateSessionID(ip string) string {
 	// Remove port if present
@@ -50,21 +52,23 @@ func StartTimeTracking(ctx context.Context, userID, route string, storyID *int32
 		})
 
 		if err == nil {
-			// Found active entry, check if it's within 5 minutes
-			if time.Since(activeEntry.StartedAt.Time) <= 5*time.Minute {
+			// Found existing entry, check if it's within threshold
+			if time.Since(activeEntry.StartedAt.Time) <= REUSE_THRESHOLD {
 				return activeEntry.TrackingID, nil
 			}
 
-			// Close old entry before creating new one
-			endTime := time.Now()
-			totalSeconds := int32(endTime.Sub(activeEntry.StartedAt.Time).Seconds())
-			err = queries.CloseAnonymousTimeEntry(ctx, db.CloseAnonymousTimeEntryParams{
-				TrackingID:       activeEntry.TrackingID,
-				EndedAt:          pgtype.Timestamp{Time: endTime, Valid: true},
-				TotalTimeSeconds: pgtype.Int4{Int32: totalSeconds, Valid: true},
-			})
-			if err != nil {
-				return 0, err
+			// Only close if not already closed
+			if !activeEntry.EndedAt.Valid {
+				endTime := time.Now()
+				totalSeconds := int32(endTime.Sub(activeEntry.StartedAt.Time).Seconds())
+				err = queries.CloseAnonymousTimeEntry(ctx, db.CloseAnonymousTimeEntryParams{
+					TrackingID:       activeEntry.TrackingID,
+					EndedAt:          pgtype.Timestamp{Time: endTime, Valid: true},
+					TotalTimeSeconds: pgtype.Int4{Int32: totalSeconds, Valid: true},
+				})
+				if err != nil {
+					return 0, err
+				}
 			}
 		}
 
@@ -90,21 +94,23 @@ func StartTimeTracking(ctx context.Context, userID, route string, storyID *int32
 	})
 
 	if err == nil {
-		// Found active entry, check if it's within 5 minutes
-		if time.Since(activeEntry.StartedAt.Time) <= 5*time.Minute {
+		// Found existing entry, check if it's within threshold
+		if time.Since(activeEntry.StartedAt.Time) <= REUSE_THRESHOLD {
 			return activeEntry.TrackingID, nil
 		}
 
-		// Close old entry before creating new one
-		endTime := time.Now()
-		totalSeconds := int32(endTime.Sub(activeEntry.StartedAt.Time).Seconds())
-		err = queries.CloseTimeEntry(ctx, db.CloseTimeEntryParams{
-			TrackingID:       activeEntry.TrackingID,
-			EndedAt:          pgtype.Timestamp{Time: endTime, Valid: true},
-			TotalTimeSeconds: pgtype.Int4{Int32: totalSeconds, Valid: true},
-		})
-		if err != nil {
-			return 0, err
+		// Only close if not already closed
+		if !activeEntry.EndedAt.Valid {
+			endTime := time.Now()
+			totalSeconds := int32(endTime.Sub(activeEntry.StartedAt.Time).Seconds())
+			err = queries.CloseTimeEntry(ctx, db.CloseTimeEntryParams{
+				TrackingID:       activeEntry.TrackingID,
+				EndedAt:          pgtype.Timestamp{Time: endTime, Valid: true},
+				TotalTimeSeconds: pgtype.Int4{Int32: totalSeconds, Valid: true},
+			})
+			if err != nil {
+				return 0, err
+			}
 		}
 	}
 

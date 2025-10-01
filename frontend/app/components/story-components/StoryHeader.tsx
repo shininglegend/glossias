@@ -22,7 +22,7 @@ export const StoryHeader: React.FC<StoryHeaderProps> = ({
           <div>
             <p className="text-gray-700 mb-2">
               Listen to the audio and fill in the blanks with the correct
-              vocabulary words.
+              vocabulary words (in their lexical form).
             </p>
             <p className="text-gray-700">
               Click the play button first, then select answers for the

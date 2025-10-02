@@ -34,6 +34,9 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	courses.HandleFunc("/{id:[0-9]+}/admins", h.listCourseAdminsHandler).Methods("GET", "OPTIONS")
 	courses.HandleFunc("/{id:[0-9]+}/admins", h.addCourseAdminHandler).Methods("POST", "OPTIONS")
 	courses.HandleFunc("/{id:[0-9]+}/admins/{user_id}", h.removeCourseAdminHandler).Methods("DELETE", "OPTIONS")
+
+	// Student performance endpoint
+	courses.HandleFunc("/{id:[0-9]+}/student-performance", h.studentPerformanceHandler).Methods("GET", "OPTIONS")
 }
 
 // Course CRUD handlers

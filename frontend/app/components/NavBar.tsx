@@ -74,6 +74,9 @@ export default function NavBar() {
             )}
             <NavItem to="/admin/users">Users</NavItem>
             <NavItem to="/admin/stories/add">Add Story</NavItem>
+            {isUserAdminOfCourses(userInfo) && (
+              <NavItem to="/admin/performance">Student Performance</NavItem>
+            )}
             {userInfo?.is_super_admin && (
               <NavItem to="/admin/system">System</NavItem>
             )}

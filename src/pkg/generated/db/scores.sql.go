@@ -109,6 +109,80 @@ func (q *Queries) GetAllUsersStoryVocabSummary(ctx context.Context, storyID int3
 	return items, nil
 }
 
+const getCourseStories = `-- name: GetCourseStories :many
+SELECT s.story_id, s.week_number, s.day_letter, st.title
+FROM stories s
+JOIN story_titles st ON s.story_id = st.story_id AND st.language_code = 'en'
+WHERE s.course_id = $1
+ORDER BY s.week_number, s.day_letter
+`
+
+type GetCourseStoriesRow struct {
+	StoryID    int32  `json:"story_id"`
+	WeekNumber int32  `json:"week_number"`
+	DayLetter  string `json:"day_letter"`
+	Title      string `json:"title"`
+}
+
+func (q *Queries) GetCourseStories(ctx context.Context, courseID pgtype.Int4) ([]GetCourseStoriesRow, error) {
+	rows, err := q.db.Query(ctx, getCourseStories, courseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetCourseStoriesRow{}
+	for rows.Next() {
+		var i GetCourseStoriesRow
+		if err := rows.Scan(
+			&i.StoryID,
+			&i.WeekNumber,
+			&i.DayLetter,
+			&i.Title,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCourseUsers = `-- name: GetCourseUsers :many
+SELECT u.user_id, u.name, u.email
+FROM users u
+JOIN course_users cu ON u.user_id = cu.user_id
+WHERE cu.course_id = $1
+ORDER BY u.name
+`
+
+type GetCourseUsersRow struct {
+	UserID string `json:"user_id"`
+	Name   string `json:"name"`
+	Email  string `json:"email"`
+}
+
+func (q *Queries) GetCourseUsers(ctx context.Context, courseID int32) ([]GetCourseUsersRow, error) {
+	rows, err := q.db.Query(ctx, getCourseUsers, courseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetCourseUsersRow{}
+	for rows.Next() {
+		var i GetCourseUsersRow
+		if err := rows.Scan(&i.UserID, &i.Name, &i.Email); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStoryGrammarScores = `-- name: GetStoryGrammarScores :many
 SELECT gs.user_id, gs.line_number, gs.grammar_point_id, gs.attempted_at,
        gi.text, gp.name as grammar_point_name, u.name as user_name, u.email
@@ -208,6 +282,32 @@ func (q *Queries) GetStoryVocabScores(ctx context.Context, storyID int32) ([]Get
 		return nil, err
 	}
 	return items, nil
+}
+
+const getUserGrammarAccuracyForStory = `-- name: GetUserGrammarAccuracyForStory :one
+SELECT
+    COUNT(CASE WHEN gca.grammar_point_id IS NOT NULL THEN 1 END) as correct_count,
+    COUNT(CASE WHEN gia.grammar_point_id IS NOT NULL THEN 1 END) as incorrect_count
+FROM grammar_correct_answers gca
+FULL OUTER JOIN grammar_incorrect_answers gia ON gca.user_id = gia.user_id AND gca.story_id = gia.story_id AND gca.grammar_point_id = gia.grammar_point_id
+WHERE COALESCE(gca.user_id, gia.user_id) = $1 AND COALESCE(gca.story_id, gia.story_id) = $2
+`
+
+type GetUserGrammarAccuracyForStoryParams struct {
+	UserID  string `json:"user_id"`
+	StoryID int32  `json:"story_id"`
+}
+
+type GetUserGrammarAccuracyForStoryRow struct {
+	CorrectCount   int64 `json:"correct_count"`
+	IncorrectCount int64 `json:"incorrect_count"`
+}
+
+func (q *Queries) GetUserGrammarAccuracyForStory(ctx context.Context, arg GetUserGrammarAccuracyForStoryParams) (GetUserGrammarAccuracyForStoryRow, error) {
+	row := q.db.QueryRow(ctx, getUserGrammarAccuracyForStory, arg.UserID, arg.StoryID)
+	var i GetUserGrammarAccuracyForStoryRow
+	err := row.Scan(&i.CorrectCount, &i.IncorrectCount)
+	return i, err
 }
 
 const getUserGrammarScores = `-- name: GetUserGrammarScores :many
@@ -411,6 +511,92 @@ type GetUserStoryVocabSummaryRow struct {
 func (q *Queries) GetUserStoryVocabSummary(ctx context.Context, arg GetUserStoryVocabSummaryParams) (GetUserStoryVocabSummaryRow, error) {
 	row := q.db.QueryRow(ctx, getUserStoryVocabSummary, arg.UserID, arg.StoryID)
 	var i GetUserStoryVocabSummaryRow
+	err := row.Scan(&i.CorrectCount, &i.IncorrectCount)
+	return i, err
+}
+
+const getUserTimeTrackingForStory = `-- name: GetUserTimeTrackingForStory :one
+SELECT
+    COALESCE(SUM(CASE WHEN route LIKE '%vocab%' THEN total_time_seconds END), 0) as vocab_time_seconds,
+    COALESCE(SUM(CASE WHEN route LIKE '%grammar%' THEN total_time_seconds END), 0) as grammar_time_seconds,
+    COALESCE(SUM(CASE WHEN route LIKE '%translate%' THEN total_time_seconds END), 0) as translation_time_seconds,
+    COALESCE(SUM(CASE WHEN route LIKE '%audio%' OR route LIKE '%video%' THEN total_time_seconds END), 0) as video_time_seconds,
+    COALESCE(SUM(total_time_seconds), 0) as total_time_seconds
+FROM user_time_tracking
+WHERE user_id = $1 AND story_id = $2 AND ended_at IS NOT NULL
+`
+
+type GetUserTimeTrackingForStoryParams struct {
+	UserID  string      `json:"user_id"`
+	StoryID pgtype.Int4 `json:"story_id"`
+}
+
+type GetUserTimeTrackingForStoryRow struct {
+	VocabTimeSeconds       interface{} `json:"vocab_time_seconds"`
+	GrammarTimeSeconds     interface{} `json:"grammar_time_seconds"`
+	TranslationTimeSeconds interface{} `json:"translation_time_seconds"`
+	VideoTimeSeconds       interface{} `json:"video_time_seconds"`
+	TotalTimeSeconds       interface{} `json:"total_time_seconds"`
+}
+
+func (q *Queries) GetUserTimeTrackingForStory(ctx context.Context, arg GetUserTimeTrackingForStoryParams) (GetUserTimeTrackingForStoryRow, error) {
+	row := q.db.QueryRow(ctx, getUserTimeTrackingForStory, arg.UserID, arg.StoryID)
+	var i GetUserTimeTrackingForStoryRow
+	err := row.Scan(
+		&i.VocabTimeSeconds,
+		&i.GrammarTimeSeconds,
+		&i.TranslationTimeSeconds,
+		&i.VideoTimeSeconds,
+		&i.TotalTimeSeconds,
+	)
+	return i, err
+}
+
+const getUserTranslationStatusForStory = `-- name: GetUserTranslationStatusForStory :one
+SELECT
+    EXISTS(SELECT 1 FROM translation_requests tr WHERE tr.user_id = $1 AND tr.story_id = $2) as completed,
+    COALESCE((SELECT tr2.requested_lines FROM translation_requests tr2 WHERE tr2.user_id = $1 AND tr2.story_id = $2), ARRAY[]::INTEGER[]) as requested_lines
+`
+
+type GetUserTranslationStatusForStoryParams struct {
+	UserID  string `json:"user_id"`
+	StoryID int32  `json:"story_id"`
+}
+
+type GetUserTranslationStatusForStoryRow struct {
+	Completed      bool        `json:"completed"`
+	RequestedLines interface{} `json:"requested_lines"`
+}
+
+func (q *Queries) GetUserTranslationStatusForStory(ctx context.Context, arg GetUserTranslationStatusForStoryParams) (GetUserTranslationStatusForStoryRow, error) {
+	row := q.db.QueryRow(ctx, getUserTranslationStatusForStory, arg.UserID, arg.StoryID)
+	var i GetUserTranslationStatusForStoryRow
+	err := row.Scan(&i.Completed, &i.RequestedLines)
+	return i, err
+}
+
+const getUserVocabAccuracyForStory = `-- name: GetUserVocabAccuracyForStory :one
+SELECT
+    COUNT(CASE WHEN vca.vocab_item_id IS NOT NULL THEN 1 END) as correct_count,
+    COUNT(CASE WHEN via.vocab_item_id IS NOT NULL THEN 1 END) as incorrect_count
+FROM vocab_correct_answers vca
+FULL OUTER JOIN vocab_incorrect_answers via ON vca.user_id = via.user_id AND vca.story_id = via.story_id AND vca.vocab_item_id = via.vocab_item_id
+WHERE COALESCE(vca.user_id, via.user_id) = $1 AND COALESCE(vca.story_id, via.story_id) = $2
+`
+
+type GetUserVocabAccuracyForStoryParams struct {
+	UserID  string `json:"user_id"`
+	StoryID int32  `json:"story_id"`
+}
+
+type GetUserVocabAccuracyForStoryRow struct {
+	CorrectCount   int64 `json:"correct_count"`
+	IncorrectCount int64 `json:"incorrect_count"`
+}
+
+func (q *Queries) GetUserVocabAccuracyForStory(ctx context.Context, arg GetUserVocabAccuracyForStoryParams) (GetUserVocabAccuracyForStoryRow, error) {
+	row := q.db.QueryRow(ctx, getUserVocabAccuracyForStory, arg.UserID, arg.StoryID)
+	var i GetUserVocabAccuracyForStoryRow
 	err := row.Scan(&i.CorrectCount, &i.IncorrectCount)
 	return i, err
 }

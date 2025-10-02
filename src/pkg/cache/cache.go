@@ -274,3 +274,11 @@ func (kb *KeyBuilder) LineAnnotations(storyID int, lineNumber int) string {
 func (kb *KeyBuilder) TimeTrackingSession(sessionID string) string {
 	return fmt.Sprintf("time_session:%s", sessionID)
 }
+
+// ActiveTimeTrackingSession builds a cache key for tracking the active session per user/route/story
+func (kb *KeyBuilder) ActiveTimeTrackingSession(userID, route string, storyID *int32) string {
+	if storyID != nil {
+		return fmt.Sprintf("active_time_session:user:%s:route:%s:story:%d", userID, route, *storyID)
+	}
+	return fmt.Sprintf("active_time_session:user:%s:route:%s", userID, route)
+}

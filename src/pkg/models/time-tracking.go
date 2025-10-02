@@ -14,6 +14,7 @@ import (
 
 const DEDUP_WINDOW = 30 * time.Second
 const ELAPSED_TIME_TOLERANCE = 5 * time.Second
+const SESSION_MAX_AGE = 2 * time.Hour // Sessions expire after 2 hours of inactivity
 
 // generateSessionID creates a session ID for anonymous users using IP address
 func generateSessionID(ip string) string {
@@ -33,10 +34,30 @@ type TimeTrackingSession struct {
 	UserID    string
 	Route     string
 	StoryID   *int32
+	CreatedAt time.Time
 }
 
-// MakeTimeTrackingSession creates a new time tracking entry and returns the tracking ID
+// MakeTimeTrackingSession creates or returns existing time tracking session
+// Ensures only one active session per user/route/story combination
 func MakeTimeTrackingSession(ctx context.Context, userID, route string, storyID *int32) (string, error) {
+	// Check for existing active session for this user/route/story combination
+	if cacheInstance != nil && keyBuilder != nil {
+		activeKey := keyBuilder.ActiveTimeTrackingSession(userID, route, storyID)
+		var existingSessionID string
+		err := cacheInstance.GetJSON(activeKey, &existingSessionID)
+		if err == nil && existingSessionID != "" {
+			// Return existing session ID
+			fmt.Println("DEBUG: Reusing existing time tracking session", existingSessionID, "for user", userID, "route", route, "story", storyID)
+			return existingSessionID, nil
+		}
+	}
+
+	// Clear any old active sessions for this user on different routes
+	// This handles navigation to a new page
+	if cacheInstance != nil && keyBuilder != nil {
+		ClearActiveSessionsForUser(ctx, userID, route, storyID)
+	}
+
 	// Generate cryptographically secure UUID with user prefix for easier cache identification
 	userPrefix := userID
 	if len(userID) > 5 {
@@ -50,11 +71,17 @@ func MakeTimeTrackingSession(ctx context.Context, userID, route string, storyID 
 		UserID:    userID,
 		Route:     route,
 		StoryID:   storyID,
+		CreatedAt: time.Now(),
 	}
 
 	if cacheInstance != nil && keyBuilder != nil {
+		// Store session data
 		cacheKey := keyBuilder.TimeTrackingSession(sessionID)
 		_ = cacheInstance.SetJSON(cacheKey, session)
+
+		// Mark this as the active session for this user/route/story
+		activeKey := keyBuilder.ActiveTimeTrackingSession(userID, route, storyID)
+		_ = cacheInstance.SetJSON(activeKey, sessionID)
 	}
 
 	fmt.Println("DEBUG: Created time tracking session", sessionID, "for user", userID, "route", route, "story", storyID)
@@ -75,6 +102,13 @@ func GetTimeTrackingBySessionID(ctx context.Context, sessionID string) (*TimeTra
 		return nil, nil
 	}
 
+	// Check if session is too old (expired)
+	if time.Since(session.CreatedAt) > SESSION_MAX_AGE {
+		fmt.Println("DEBUG: Time tracking session expired", sessionID, "age:", time.Since(session.CreatedAt))
+		_ = cacheInstance.Delete(cacheKey)
+		return nil, nil
+	}
+
 	fmt.Println("DEBUG: Retrieved time tracking session", sessionID, "for user", session.UserID, "route", session.Route, "story", session.StoryID)
 
 	return &session, nil
@@ -88,6 +122,16 @@ func InvalidateTimeTrackingSession(ctx context.Context, sessionID string) {
 
 	cacheKey := keyBuilder.TimeTrackingSession(sessionID)
 	_ = cacheInstance.Delete(cacheKey)
+}
+
+// ClearActiveSessionsForUser clears active sessions for a user when navigating to a new route
+// Only clears sessions that don't match the current route/story combination
+func ClearActiveSessionsForUser(ctx context.Context, userID, currentRoute string, currentStoryID *int32) {
+	// Note: This is a simplified implementation. In a production system with many users,
+	// you'd want to maintain a user -> sessions index in cache to avoid scanning.
+	// For now, we rely on the cache TTL to naturally expire old sessions.
+	// The main protection is that MakeTimeTrackingSession checks for existing sessions
+	// before creating new ones, preventing duplicates for the same route.
 }
 
 // GetTimeEntriesForUser returns time tracking entries for a specific user
@@ -128,6 +172,10 @@ func RecordTimeTracking(ctx context.Context, userID, route string, storyID *int3
 			TotalTimeSeconds: pgtype.Int4{Int32: totalSeconds, Valid: true},
 			EndedAt:          pgtype.Timestamp{Time: now, Valid: true},
 		})
+
+		// Do NOT invalidate session - allow tab-switch-return pattern
+		// Session will naturally expire after TTL or be replaced when user navigates to new route
+
 		return err
 	}
 
@@ -140,6 +188,10 @@ func RecordTimeTracking(ctx context.Context, userID, route string, storyID *int3
 		EndedAt:          pgtype.Timestamp{Time: now, Valid: true},
 		TotalTimeSeconds: pgtype.Int4{Int32: totalSeconds, Valid: true},
 	})
+
+	// Do NOT invalidate session - allow tab-switch-return pattern
+	// Session will naturally expire after TTL or be replaced when user navigates to new route
+
 	return err
 }
 

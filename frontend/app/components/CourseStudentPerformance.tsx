@@ -1,18 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router";
 import { useApiService } from "../services/api";
-
-interface Course {
-  course_id: number;
-  course_name: string;
-}
-
-interface Story {
-  story_id: number;
-  week_number: number;
-  day_letter: string;
-  title: string;
-}
+import type { Story } from "../types/api";
 
 interface StudentPerformanceData {
   user_id: string;
@@ -103,88 +92,120 @@ function formatAccuracy(accuracy: number): string {
 export function CourseStudentPerformance() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
-  const [allData, setAllData] = useState<StudentPerformanceData[]>([]);
+  const [performanceData, setPerformanceData] = useState<
+    StudentPerformanceData[]
+  >([]);
   const [stories, setStories] = useState<Story[]>([]);
   const [selectedStoryId, setSelectedStoryId] = useState<number | null>(null);
-  const [filteredData, setFilteredData] = useState<StudentPerformanceData[]>(
-    [],
-  );
-  const [loading, setLoading] = useState(true);
+  const [loadingStories, setLoadingStories] = useState(true);
+  const [loadingPerformance, setLoadingPerformance] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchStories = async () => {
       if (!id) {
         setError("Course ID is required");
-        setLoading(false);
+        setLoadingStories(false);
         return;
       }
 
       try {
-        const response = await api.getCourseStudentPerformance(id);
+        const response = await api.getCourseStories(id);
         if (response.success && response.data) {
-          setAllData(response.data);
-
-          // Extract unique stories
-          const storyMap = new Map<number, Story>();
-          response.data.forEach((item: StudentPerformanceData) => {
-            if (!storyMap.has(item.story_id)) {
-              storyMap.set(item.story_id, {
-                story_id: item.story_id,
-                week_number: 0,
-                day_letter: "",
-                title: item.story_title,
-              });
-            }
-          });
-          const uniqueStories = Array.from(storyMap.values()).sort((a, b) =>
-            a.title.localeCompare(b.title),
-          );
-          setStories(uniqueStories);
-
-          if (uniqueStories.length > 0) {
-            setSelectedStoryId(uniqueStories[0].story_id);
-          }
+          setStories(response.data);
         } else {
-          setError(
-            response.error || "Failed to fetch student performance data",
-          );
+          setError(response.error || "Failed to fetch course stories");
         }
       } catch (err) {
-        setError("Failed to fetch student performance data");
+        setError("Failed to fetch course stories");
       } finally {
-        setLoading(false);
+        setLoadingStories(false);
       }
     };
 
-    fetchData();
+    fetchStories();
   }, [id, api]);
 
   useEffect(() => {
-    if (selectedStoryId !== null) {
-      const filtered = allData.filter(
-        (item) => item.story_id === selectedStoryId,
-      );
-      // Sort by performance: 50% vocab + 50% grammar, ties by name
-      filtered.sort((a, b) => {
-        const scoreA = (a.vocab_accuracy + a.grammar_accuracy) / 2;
-        const scoreB = (b.vocab_accuracy + b.grammar_accuracy) / 2;
-        if (scoreB !== scoreA) {
-          return scoreB - scoreA; // Higher score first
-        }
-        return a.user_name.localeCompare(b.user_name); // Alphabetical tie-break
-      });
-      setFilteredData(filtered);
-    } else {
-      setFilteredData([]);
-    }
-  }, [selectedStoryId, allData]);
+    const fetchPerformance = async (attempt = 0) => {
+      if (!selectedStoryId) {
+        setPerformanceData([]);
+        return;
+      }
 
-  if (loading) {
+      setLoadingPerformance(true);
+      setError(null);
+      setRetryCount(attempt);
+
+      try {
+        const response = await api.getStoryStudentPerformance(
+          selectedStoryId.toString(),
+        );
+        if (response.success && response.data) {
+          setPerformanceData(response.data);
+        } else {
+          if (
+            response.error?.includes("504") ||
+            response.error?.includes("timeout")
+          ) {
+            if (attempt === 0) {
+              setError("Request timed out. Retrying...");
+              setTimeout(() => fetchPerformance(1), 1000);
+              return;
+            } else {
+              setError(
+                "Request timed out after retry. The server may be overloaded.",
+              );
+            }
+          } else {
+            setError(
+              response.error || "Failed to fetch student performance data",
+            );
+          }
+        }
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Unknown error";
+        if (
+          errorMessage.includes("504") ||
+          errorMessage.toLowerCase().includes("timeout")
+        ) {
+          if (attempt === 0) {
+            setError("Request timed out. Retrying...");
+            setTimeout(() => fetchPerformance(1), 1000);
+            return;
+          } else {
+            setError(
+              "Request timed out after retry. The server may be overloaded.",
+            );
+          }
+        } else {
+          setError("Failed to fetch student performance data");
+        }
+      } finally {
+        setLoadingPerformance(false);
+      }
+    };
+
+    fetchPerformance();
+  }, [selectedStoryId, api]);
+
+  // Sort performance data by performance score
+  const sortedPerformanceData = performanceData.slice().sort((a, b) => {
+    const scoreA = (a.vocab_accuracy + a.grammar_accuracy) / 2;
+    const scoreB = (b.vocab_accuracy + b.grammar_accuracy) / 2;
+    if (scoreB !== scoreA) {
+      return scoreB - scoreA; // Higher score first
+    }
+    return a.user_name.localeCompare(b.user_name); // Alphabetical tie-break
+  });
+
+  if (loadingStories) {
     return (
       <div className="container">
         <h1>Student Performance</h1>
-        <p>Loading student performance data...</p>
+        <p>Loading course stories...</p>
       </div>
     );
   }
@@ -203,7 +224,7 @@ export function CourseStudentPerformance() {
       <h1>Student Performance</h1>
 
       {stories.length === 0 ? (
-        <p>No student performance data found for this course.</p>
+        <p>No stories found for this course.</p>
       ) : (
         <div>
           <div className="mb-4">
@@ -213,32 +234,47 @@ export function CourseStudentPerformance() {
             <select
               id="story-select"
               value={selectedStoryId || ""}
-              onChange={(e) => setSelectedStoryId(Number(e.target.value))}
+              onChange={(e) =>
+                setSelectedStoryId(Number(e.target.value) || null)
+              }
               className="border border-gray-300 rounded px-3 py-2 w-full max-w-md"
             >
+              <option value="">-- Select a story --</option>
               {stories.map((story) => (
-                <option key={story.story_id} value={story.story_id}>
-                  {story.title}
+                <option
+                  key={story.metadata.storyId}
+                  value={story.metadata.storyId}
+                >
+                  {typeof story.metadata.title === 'string' 
+                    ? story.metadata.title 
+                    : story.metadata.title?.en || "Untitled"}
                 </option>
               ))}
             </select>
-            <button
-              onClick={() =>
-                downloadCSV(
-                  filteredData,
-                  stories.find((s) => s.story_id === selectedStoryId)?.title ||
-                    "story",
-                )
-              }
-              disabled={filteredData.length === 0}
-              className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              Download CSV
-            </button>
+            {selectedStoryId && (
+              <button
+                onClick={() => {
+                  const story = stories.find((s) => s.metadata.storyId === selectedStoryId);
+                  const title = story?.metadata.title;
+                  const titleStr = typeof title === 'string' 
+                    ? title 
+                    : (title as { [key: string]: string })?.en || "story";
+                  downloadCSV(sortedPerformanceData, titleStr);
+                }}
+                disabled={performanceData.length === 0}
+                className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                Download CSV
+              </button>
+            )}
           </div>
 
-          {filteredData.length === 0 ? (
-            <p>No performance data for the selected story.</p>
+          {!selectedStoryId ? (
+            <p>Please select a story to view performance data.</p>
+          ) : loadingPerformance ? (
+            <p>Loading performance data...</p>
+          ) : performanceData.length === 0 ? (
+            <p>No performance data found for the selected story.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse border border-gray-300 bg-white">
@@ -274,7 +310,7 @@ export function CourseStudentPerformance() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredData.map((student) => (
+                  {sortedPerformanceData.map((student) => (
                     <tr key={student.user_id} className="hover:bg-gray-50">
                       <td className="border border-gray-300 p-3">
                         <div>

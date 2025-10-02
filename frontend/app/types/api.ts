@@ -11,12 +11,12 @@ export interface StoryMetadata {
   storyId: number;
   weekNumber: number;
   dayLetter: string;
-  title?: string; // map[string]string
-  author: Author;
-  grammarPoints: GrammarPoint[];
-  description: Description;
+  title?: string | { [key: string]: string }; // Can be a string or language map
+  author?: Author;
+  grammarPoints?: GrammarPoint[];
+  description?: Description;
   videoUrl?: string;
-  languageCode: string; // 2-letter Unicode language code
+  languageCode?: string; // 2-letter Unicode language code
 }
 
 export interface Author {

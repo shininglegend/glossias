@@ -74,3 +74,35 @@ func (h *Handler) transformLinesForAudio(story models.Story) []types.Line {
 
 	return lines
 }
+
+// GetSignedAudioURLs returns signed URLs for audio files in a story
+func (h *Handler) GetSignedAudioURLs(w http.ResponseWriter, r *http.Request) {
+	storyID := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(storyID)
+	if err != nil {
+		h.sendError(w, "Invalid story ID format", http.StatusBadRequest)
+		return
+	}
+
+	// Get label filter from query parameters
+	label := r.URL.Query().Get("label")
+
+	// Generate signed URLs (expires in 4 hours)
+	signedURLs, err := models.GetSignedAudioURLsForStory(r.Context(), id, auth.GetUserID(r), label, expiresInSeconds)
+	if err == models.ErrNotFound {
+		h.sendError(w, "Story or audio files not found.", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		h.log.Error("Failed to generate signed audio URLs", "error", err)
+		h.sendError(w, "Failed to generate signed URLs", http.StatusInternalServerError)
+		return
+	}
+
+	response := types.APIResponse{
+		Success: true,
+		Data:    signedURLs,
+	}
+
+	json.NewEncoder(w).Encode(response)
+}

@@ -13,11 +13,11 @@ import (
 
 func (h *Handler) studentPerformanceHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	courseIDStr := vars["id"]
-	courseID, err := strconv.Atoi(courseIDStr)
+	storyIDStr := vars["id"]
+	storyID, err := strconv.Atoi(storyIDStr)
 	if err != nil {
-		h.log.Error("Invalid course ID", "course_id", courseIDStr, "error", err)
-		http.Error(w, "Invalid course ID", http.StatusBadRequest)
+		h.log.Error("Invalid story ID", "id", storyIDStr, "error", err)
+		http.Error(w, "Invalid story ID", http.StatusBadRequest)
 		return
 	}
 
@@ -28,17 +28,25 @@ func (h *Handler) studentPerformanceHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Get story course ID for permission check
+	courseID, err := models.GetStoryCourseID(r.Context(), int32(storyID))
+	if err != nil {
+		h.log.Error("Failed to get story course ID", "error", err, "story_id", storyID)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
 	// Check if user is course admin for this specific course
-	if !auth.IsCourseOrSuperAdmin(r.Context(), userID, int32(courseID)) {
-		h.log.Warn("student performance access denied", "user_id", userID, "course_id", courseID)
+	if !auth.IsCourseOrSuperAdmin(r.Context(), userID, courseID) {
+		h.log.Warn("student performance access denied", "user_id", userID, "story_id", storyID, "course_id", courseID)
 		http.Error(w, "Forbidden - course admin access required", http.StatusForbidden)
 		return
 	}
 
 	// Get student performance data
-	performanceData, err := models.GetCourseStudentPerformance(r.Context(), int32(courseID))
+	performanceData, err := models.GetStoryStudentPerformance(r.Context(), int32(storyID))
 	if err != nil {
-		h.log.Error("Failed to fetch course student performance", "error", err, "course_id", courseID)
+		h.log.Error("Failed to fetch story student performance", "error", err, "story_id", storyID)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}

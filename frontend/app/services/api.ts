@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useMemo } from "react";
 import { useAuthenticatedFetch } from "../lib/authFetch";
-import type { NavigationGuidanceResponse } from "../types/api";
+import type { NavigationGuidanceResponse, Story as CourseStory } from "../types/api";
 
 const API_BASE = "/api";
 
@@ -256,8 +256,14 @@ export function useApiService() {
       },
 
       // Admin endpoints
-      getCourseStudentPerformance: (courseId: string): Promise<APIResponse<any>> => {
-        return fetchAPI(`/admin/courses/${courseId}/student-performance`);
+      getCourseStories: (courseId: string): Promise<APIResponse<CourseStory[]>> => {
+        return fetchAPI<CourseStory[]>(`/stories/by-course/${courseId}`);
+      },
+
+      getStoryStudentPerformance: (
+        storyId: string,
+      ): Promise<APIResponse<any>> => {
+        return fetchAPI(`/admin/courses/${storyId}/student-performance`);
       },
     }),
     [fetchAPI],

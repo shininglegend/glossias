@@ -20,6 +20,7 @@ GetAllStories(language string, userID string) ([]Story, error) // Basic story li
 GetLineAnnotations(storyID, lineNumber int) (*StoryLine, error)
 GetStoryAnnotations(storyID int) (map[int]*StoryLine, error)
 GetLineText(storyID, lineNumber int) (string, error)
+GetStoriesForCourse(courseID int) ([]Stories, err) // Returns just the basic metadata
 
 Translation Operations:
 GetLineTranslation(storyID, lineNumber int, languageCode string) (string, error)

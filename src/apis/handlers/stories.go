@@ -42,6 +42,10 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 
 	// Navigation endpoint
 	router.HandleFunc("/{id}/next", h.Navigate).Methods("POST", "OPTIONS")
+
+	// List stories by course endpoint
+	router.HandleFunc("/by-course/{course_id}", h.GetCourseStories).Methods("GET", "OPTIONS")
+
 }
 
 // GetStories returns JSON array of all stories
@@ -69,34 +73,40 @@ func (h *Handler) GetStories(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// GetSignedAudioURLs returns signed URLs for audio files in a story
-func (h *Handler) GetSignedAudioURLs(w http.ResponseWriter, r *http.Request) {
-	storyID := mux.Vars(r)["id"]
-	id, err := strconv.Atoi(storyID)
+// Get stories by course returns a list of stories for a given course
+func (h *Handler) GetCourseStories(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	courseIDStr := vars["course_id"]
+	courseID, err := strconv.Atoi(courseIDStr)
 	if err != nil {
-		h.sendError(w, "Invalid story ID format", http.StatusBadRequest)
+		http.Error(w, "Invalid course ID", http.StatusBadRequest)
 		return
 	}
 
-	// Get label filter from query parameters
-	label := r.URL.Query().Get("label")
-
-	// Generate signed URLs (expires in 4 hours)
-	signedURLs, err := models.GetSignedAudioURLsForStory(r.Context(), id, auth.GetUserID(r), label, expiresInSeconds)
-	if err == models.ErrNotFound {
-		h.sendError(w, "Story or audio files not found.", http.StatusNotFound)
+	userID, ok := auth.GetUserIDWithOk(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+
+	// Check if user has read access to this course
+	if !auth.HasReadPermission(r.Context(), userID, int32(courseID)) {
+		http.Error(w, "Access denied", http.StatusForbidden)
+		return
+	}
+
+	stories, err := models.GetStoriesForCourse(r.Context(), courseID)
 	if err != nil {
-		h.log.Error("Failed to generate signed audio URLs", "error", err)
-		h.sendError(w, "Failed to generate signed URLs", http.StatusInternalServerError)
+		h.log.Error("Failed to get stories for course", "error", err, "course_id", courseID)
+		json.NewEncoder(w).Encode(types.APIResponse{
+			Success: false,
+			Error:   "Failed to get stories for course",
+		})
 		return
 	}
 
-	response := types.APIResponse{
+	json.NewEncoder(w).Encode(types.APIResponse{
 		Success: true,
-		Data:    signedURLs,
-	}
-
-	json.NewEncoder(w).Encode(response)
+		Data:    stories,
+	})
 }

@@ -2,10 +2,8 @@ package models
 
 import (
 	"context"
-	"crypto/md5"
 	"fmt"
 	"glossias/src/pkg/generated/db"
-	"net"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,19 +13,6 @@ import (
 const DEDUP_WINDOW = 30 * time.Second
 const ELAPSED_TIME_TOLERANCE = 5 * time.Second
 const SESSION_MAX_AGE = 2 * time.Hour // Sessions expire after 2 hours of inactivity
-
-// generateSessionID creates a session ID for anonymous users using IP address
-func generateSessionID(ip string) string {
-	// Remove port if present
-	host, _, err := net.SplitHostPort(ip)
-	if err != nil {
-		host = ip
-	}
-
-	// Hash the IP to create anonymous session ID
-	hash := md5.Sum([]byte(host + time.Now().Format("2006-01-02"))) // Daily rotation
-	return fmt.Sprintf("anon_%x", hash[:8])
-}
 
 type TimeTrackingSession struct {
 	SessionID string

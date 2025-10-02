@@ -175,11 +175,15 @@ func (s *Story) FromJSON(data []byte) error {
 // Custom marshaling for StoryMetadata to handle the ISO-8601 timestamp
 func (sm StoryMetadata) MarshalJSON() ([]byte, error) {
 	type Alias StoryMetadata // Avoid recursive MarshalJSON calls
+	var lastRevision string
+	if sm.LastRevision != nil {
+		lastRevision = sm.LastRevision.Format(time.RFC3339)
+	}
 	return json.Marshal(&struct {
 		LastRevision string `json:"lastRevision"`
 		*Alias
 	}{
-		LastRevision: sm.LastRevision.Format(time.RFC3339),
+		LastRevision: lastRevision,
 		Alias:        (*Alias)(&sm),
 	})
 }

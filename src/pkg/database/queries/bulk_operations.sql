@@ -14,8 +14,6 @@ VALUES ($1, $2, $3);
 INSERT INTO line_audio_files (story_id, line_number, file_path, file_bucket, label)
 VALUES ($1, $2, $3, $4, $5);
 
-
-
 -- name: BulkCreateLineTranslations :copyfrom
 INSERT INTO line_translations (story_id, line_number, language_code, translation_text)
 VALUES ($1, $2, $3, $4);

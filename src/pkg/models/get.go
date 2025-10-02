@@ -590,3 +590,29 @@ func getAllStoriesFromDB(ctx context.Context, language string, userID string) ([
 	}
 	return stories, nil
 }
+
+// Get stories for course doesn't use cache, but returns all available stories for a course
+// It returns just basic information
+func GetStoriesForCourse(ctx context.Context, courseID int) ([]Story, error) {
+	stories, err := queries.GetCourseStoriesWithTitles(ctx, db.GetCourseStoriesWithTitlesParams{
+		CourseID:     pgtype.Int4{Int32: int32(courseID), Valid: true},
+		LanguageCode: "en",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]Story, len(stories))
+	for i, story := range stories {
+		result[i] = Story{
+			Metadata: StoryMetadata{
+				StoryID:    int(story.StoryID),
+				WeekNumber: int(story.WeekNumber),
+				DayLetter:  story.DayLetter,
+				Title:      map[string]string{"en": story.Title},
+			},
+		}
+	}
+
+	return result, nil
+}

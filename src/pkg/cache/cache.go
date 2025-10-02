@@ -137,7 +137,6 @@ func (c *Cache) GetOrSet(key string, compute func() (any, error)) ([]byte, error
 func (c *Cache) GetOrSetJSON(key string, dest any, compute func() (any, error)) error {
 	// Try to get from cache first
 	if err := c.GetJSON(key, dest); err == nil {
-		fmt.Println("DEBUG: Cache hit for key:", key)
 		return nil
 	}
 

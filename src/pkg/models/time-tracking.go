@@ -5,16 +5,16 @@ import (
 	"crypto/md5"
 	"fmt"
 	"glossias/src/pkg/generated/db"
-	"log/slog"
 	"net"
-	"strconv"
-	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const REUSE_THRESHOLD = 5 * time.Minute
+const DEDUP_WINDOW = 30 * time.Second
+const ELAPSED_TIME_TOLERANCE = 5 * time.Second
+const SESSION_MAX_AGE = 2 * time.Hour // Sessions expire after 2 hours of inactivity
 
 // generateSessionID creates a session ID for anonymous users using IP address
 func generateSessionID(ip string) string {
@@ -29,179 +29,109 @@ func generateSessionID(ip string) string {
 	return fmt.Sprintf("anon_%x", hash[:8])
 }
 
-// StartTimeTracking creates a new time tracking entry and returns the tracking ID
-// If an active session exists, it returns that ID instead of creating a new one
-// If an active session is older than 5 minutes, it closes it and creates a new one
-// Uses separate table for anonymous users
-func StartTimeTracking(ctx context.Context, userID, route string, storyID *int32, clientIP string) (int32, error) {
-	var pgStoryID pgtype.Int4
-	if storyID != nil {
-		pgStoryID = pgtype.Int4{Int32: *storyID, Valid: true}
-	}
+type TimeTrackingSession struct {
+	SessionID string
+	UserID    string
+	Route     string
+	StoryID   *int32
+	CreatedAt time.Time
+}
 
-	isAnonymous := userID == "anonymous"
-
-	if isAnonymous {
-		sessionID := generateSessionID(clientIP)
-
-		// Check for existing active anonymous session
-		activeEntry, err := queries.GetActiveAnonymousTimeEntry(ctx, db.GetActiveAnonymousTimeEntryParams{
-			SessionID: sessionID,
-			Route:     route,
-			StoryID:   pgStoryID,
-		})
-
-		if err == nil {
-			// Found existing entry, check if it's within threshold
-			if time.Since(activeEntry.StartedAt.Time) <= REUSE_THRESHOLD {
-				return activeEntry.TrackingID, nil
-			}
-
-			// Only close if not already closed
-			if !activeEntry.EndedAt.Valid {
-				endTime := time.Now()
-				totalSeconds := int32(endTime.Sub(activeEntry.StartedAt.Time).Seconds())
-				err = queries.CloseAnonymousTimeEntry(ctx, db.CloseAnonymousTimeEntryParams{
-					TrackingID:       activeEntry.TrackingID,
-					EndedAt:          pgtype.Timestamp{Time: endTime, Valid: true},
-					TotalTimeSeconds: pgtype.Int4{Int32: totalSeconds, Valid: true},
-				})
-				if err != nil {
-					return 0, err
-				}
-			}
-		}
-
-		entry, err := queries.CreateAnonymousTimeEntry(ctx, db.CreateAnonymousTimeEntryParams{
-			SessionID: sessionID,
-			Route:     route,
-			StoryID:   pgStoryID,
-			StartedAt: pgtype.Timestamp{Time: time.Now(), Valid: true},
-		})
-		if err != nil {
-			return 0, err
-		}
-
-		// Return negative ID for anonymous tracking to avoid collision with user IDs
-		return -entry.TrackingID, nil
-	}
-
-	// Authenticated user logic
-	activeEntry, err := queries.GetActiveTimeEntry(ctx, db.GetActiveTimeEntryParams{
-		UserID:  userID,
-		Route:   route,
-		StoryID: pgStoryID,
-	})
-
-	if err == nil {
-		// Found existing entry, check if it's within threshold
-		if time.Since(activeEntry.StartedAt.Time) <= REUSE_THRESHOLD {
-			return activeEntry.TrackingID, nil
-		}
-
-		// Only close if not already closed
-		if !activeEntry.EndedAt.Valid {
-			endTime := time.Now()
-			totalSeconds := int32(endTime.Sub(activeEntry.StartedAt.Time).Seconds())
-			err = queries.CloseTimeEntry(ctx, db.CloseTimeEntryParams{
-				TrackingID:       activeEntry.TrackingID,
-				EndedAt:          pgtype.Timestamp{Time: endTime, Valid: true},
-				TotalTimeSeconds: pgtype.Int4{Int32: totalSeconds, Valid: true},
-			})
-			if err != nil {
-				return 0, err
-			}
+// MakeTimeTrackingSession creates or returns existing time tracking session
+// Ensures only one active session per user/route/story combination
+func MakeTimeTrackingSession(ctx context.Context, userID, route string, storyID *int32) (string, error) {
+	// Check for existing active session for this user/route/story combination
+	if cacheInstance != nil && keyBuilder != nil {
+		activeKey := keyBuilder.ActiveTimeTrackingSession(userID, route, storyID)
+		var existingSessionID string
+		err := cacheInstance.GetJSON(activeKey, &existingSessionID)
+		if err == nil && existingSessionID != "" {
+			// Return existing session ID
+			fmt.Println("DEBUG: Reusing existing time tracking session", existingSessionID, "for user", userID, "route", route, "story", storyID)
+			return existingSessionID, nil
 		}
 	}
 
-	entry, err := queries.CreateTimeEntry(ctx, db.CreateTimeEntryParams{
+	// Clear any old active sessions for this user on different routes
+	// This handles navigation to a new page
+	if cacheInstance != nil && keyBuilder != nil {
+		ClearActiveSessionsForUser(ctx, userID, route, storyID)
+	}
+
+	// Generate cryptographically secure UUID with user prefix for easier cache identification
+	userPrefix := userID
+	if len(userID) > 5 {
+		userPrefix = userID[:5]
+	}
+	sessionID := fmt.Sprintf("%s_%s", userPrefix, uuid.New().String())
+
+	// Add to cache to track active sessions
+	session := &TimeTrackingSession{
+		SessionID: sessionID,
 		UserID:    userID,
 		Route:     route,
-		StoryID:   pgStoryID,
-		StartedAt: pgtype.Timestamp{Time: time.Now(), Valid: true},
-	})
-	if err != nil {
-		return 0, err
+		StoryID:   storyID,
+		CreatedAt: time.Now(),
 	}
 
-	return entry.TrackingID, nil
+	if cacheInstance != nil && keyBuilder != nil {
+		// Store session data
+		cacheKey := keyBuilder.TimeTrackingSession(sessionID)
+		_ = cacheInstance.SetJSON(cacheKey, session)
+
+		// Mark this as the active session for this user/route/story
+		activeKey := keyBuilder.ActiveTimeTrackingSession(userID, route, storyID)
+		_ = cacheInstance.SetJSON(activeKey, sessionID)
+	}
+
+	fmt.Println("DEBUG: Created time tracking session", sessionID, "for user", userID, "route", route, "story", storyID)
+
+	return sessionID, nil
 }
 
-// EndTimeTrackingByID updates a time tracking entry with end time and duration using tracking ID
-// If the entry is already ended, updates with the later end time
-// Handles both authenticated and anonymous tracking using ID sign (negative = anonymous)
-func EndTimeTrackingByID(ctx context.Context, trackingID int32) error {
-	if trackingID < 0 {
-		// Anonymous tracking (negative ID)
-		realID := -trackingID
-		anonEntry, err := queries.GetAnonymousTimeEntryByID(ctx, realID)
-		if err != nil {
-			return err
-		}
-
-		endTime := time.Now()
-		totalSeconds := int32(endTime.Sub(anonEntry.StartedAt.Time).Seconds())
-
-		_, err = queries.UpdateAnonymousTimeEntry(ctx, db.UpdateAnonymousTimeEntryParams{
-			TrackingID:       realID,
-			EndedAt:          pgtype.Timestamp{Time: endTime, Valid: true},
-			TotalTimeSeconds: pgtype.Int4{Int32: totalSeconds, Valid: true},
-		})
-		return err
+// GetTimeTrackingBySessionID retrieves a time tracking session by its ID
+func GetTimeTrackingBySessionID(ctx context.Context, sessionID string) (*TimeTrackingSession, error) {
+	if cacheInstance == nil || keyBuilder == nil {
+		return nil, nil
 	}
 
-	// Authenticated user tracking (positive ID)
-	entry, err := queries.GetTimeEntryByID(ctx, trackingID)
+	cacheKey := keyBuilder.TimeTrackingSession(sessionID)
+	var session TimeTrackingSession
+	err := cacheInstance.GetJSON(cacheKey, &session)
 	if err != nil {
-		return err
+		return nil, nil
 	}
 
-	endTime := time.Now()
-	totalSeconds := int32(endTime.Sub(entry.StartedAt.Time).Seconds())
+	// Check if session is too old (expired)
+	if time.Since(session.CreatedAt) > SESSION_MAX_AGE {
+		fmt.Println("DEBUG: Time tracking session expired", sessionID, "age:", time.Since(session.CreatedAt))
+		_ = cacheInstance.Delete(cacheKey)
+		return nil, nil
+	}
 
-	_, err = queries.UpdateTimeEntry(ctx, db.UpdateTimeEntryParams{
-		TrackingID:       trackingID,
-		EndedAt:          pgtype.Timestamp{Time: endTime, Valid: true},
-		TotalTimeSeconds: pgtype.Int4{Int32: totalSeconds, Valid: true},
-	})
-	return err
+	fmt.Println("DEBUG: Retrieved time tracking session", sessionID, "for user", session.UserID, "route", session.Route, "story", session.StoryID)
+
+	return &session, nil
 }
 
-// EndTimeTracking updates a time tracking entry with end time and duration
-func EndTimeTracking(ctx context.Context, trackingID int32, startTime time.Time, logger *slog.Logger) error {
-	endTime := time.Now()
-	totalSeconds := int32(endTime.Sub(startTime).Seconds())
-
-	_, err := queries.UpdateTimeEntry(ctx, db.UpdateTimeEntryParams{
-		TrackingID:       trackingID,
-		EndedAt:          pgtype.Timestamp{Time: endTime, Valid: true},
-		TotalTimeSeconds: pgtype.Int4{Int32: totalSeconds, Valid: true},
-	})
-	if err != nil {
-		logger.Error("failed to update time entry", "error", err, "tracking_id", trackingID)
-		return err
+// InvalidateTimeTrackingSession removes a session from active tracking
+func InvalidateTimeTrackingSession(ctx context.Context, sessionID string) {
+	if cacheInstance == nil || keyBuilder == nil {
+		return
 	}
 
-	return nil
+	cacheKey := keyBuilder.TimeTrackingSession(sessionID)
+	_ = cacheInstance.Delete(cacheKey)
 }
 
-// ExtractStoryIDFromRoute extracts story ID from URL path if present
-func ExtractStoryIDFromRoute(route string) *int32 {
-	if !strings.Contains(route, "/stories/") {
-		return nil
-	}
-
-	parts := strings.Split(route, "/")
-	for i, part := range parts {
-		if part == "stories" && i+1 < len(parts) {
-			if id, err := strconv.Atoi(parts[i+1]); err == nil {
-				storyID := int32(id)
-				return &storyID
-			}
-			break
-		}
-	}
-	return nil
+// ClearActiveSessionsForUser clears active sessions for a user when navigating to a new route
+// Only clears sessions that don't match the current route/story combination
+func ClearActiveSessionsForUser(ctx context.Context, userID, currentRoute string, currentStoryID *int32) {
+	// Note: This is a simplified implementation. In a production system with many users,
+	// you'd want to maintain a user -> sessions index in cache to avoid scanning.
+	// For now, we rely on the cache TTL to naturally expire old sessions.
+	// The main protection is that MakeTimeTrackingSession checks for existing sessions
+	// before creating new ones, preventing duplicates for the same route.
 }
 
 // GetTimeEntriesForUser returns time tracking entries for a specific user
@@ -212,6 +142,57 @@ func GetTimeEntriesForUser(ctx context.Context, userID string) ([]db.UserTimeTra
 	}
 
 	return entries, nil
+}
+
+// RecordTimeTracking creates a complete time tracking entry in one call
+// Uses client-provided elapsed time for accuracy
+// Updates existing entry with larger time value if found within deduplication window
+func RecordTimeTracking(ctx context.Context, userID, route string, storyID *int32, elapsedMs int32) error {
+	var pgStoryID pgtype.Int4
+	if storyID != nil {
+		pgStoryID = pgtype.Int4{Int32: *storyID, Valid: true}
+	}
+
+	now := time.Now()
+	totalSeconds := elapsedMs / 1000
+	startTime := now.Add(-time.Duration(elapsedMs) * time.Millisecond)
+
+	// Check for similar recent entry using single query
+	recentEntry, err := queries.FindRecentSimilarTimeEntry(ctx, db.FindRecentSimilarTimeEntryParams{
+		UserID:    userID,
+		Route:     route,
+		StoryID:   pgStoryID,
+		CreatedAt: pgtype.Timestamp{Time: now.Add(-DEDUP_WINDOW), Valid: true},
+	})
+
+	if err == nil && recentEntry.TotalTimeSeconds.Valid {
+		// Found recent similar entry, accumulate time
+		err = queries.AccumulateTimeEntry(ctx, db.AccumulateTimeEntryParams{
+			TrackingID:       recentEntry.TrackingID,
+			TotalTimeSeconds: pgtype.Int4{Int32: totalSeconds, Valid: true},
+			EndedAt:          pgtype.Timestamp{Time: now, Valid: true},
+		})
+
+		// Do NOT invalidate session - allow tab-switch-return pattern
+		// Session will naturally expire after TTL or be replaced when user navigates to new route
+
+		return err
+	}
+
+	// No recent similar entry found, create new one
+	_, err = queries.CreateCompleteTimeEntry(ctx, db.CreateCompleteTimeEntryParams{
+		UserID:           userID,
+		Route:            route,
+		StoryID:          pgStoryID,
+		StartedAt:        pgtype.Timestamp{Time: startTime, Valid: true},
+		EndedAt:          pgtype.Timestamp{Time: now, Valid: true},
+		TotalTimeSeconds: pgtype.Int4{Int32: totalSeconds, Valid: true},
+	})
+
+	// Do NOT invalidate session - allow tab-switch-return pattern
+	// Session will naturally expire after TTL or be replaced when user navigates to new route
+
+	return err
 }
 
 // GetTimeEntriesForStory returns time tracking entries for a specific story

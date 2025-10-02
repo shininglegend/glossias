@@ -7,7 +7,6 @@ import (
 	"glossias/src/pkg/models"
 	"log/slog"
 	"net/http"
-	"strconv"
 
 	"github.com/gorilla/mux"
 )
@@ -27,7 +26,7 @@ func NewTimeTrackingHandler(logger *slog.Logger) *TimeTrackingHandler {
 // RegisterRoutes registers time tracking routes
 func (h *TimeTrackingHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/time-tracking/start", h.startTimeTracking).Methods("POST")
-	router.HandleFunc("/time-tracking/end", h.endTimeTracking).Methods("POST")
+	router.HandleFunc("/time-tracking/record", h.recordTimeTracking).Methods("POST")
 }
 
 type StartTimeTrackingRequest struct {
@@ -35,12 +34,13 @@ type StartTimeTrackingRequest struct {
 	StoryID *int32 `json:"story_id,omitempty"`
 }
 
-type EndTimeTrackingRequest struct {
-	TrackingID int32 `json:"tracking_id"`
+type RecordTimeTrackingRequest struct {
+	ElapsedMs  int32  `json:"elapsed_ms"`
+	TrackingID string `json:"tracking_id"`
 }
 
 type StartTimeTrackingResponse struct {
-	TrackingID int32  `json:"tracking_id"`
+	TrackingID string `json:"tracking_id"`
 	Status     string `json:"status"`
 }
 
@@ -72,7 +72,7 @@ func (h *TimeTrackingHandler) startTimeTracking(w http.ResponseWriter, r *http.R
 		clientIP = r.RemoteAddr
 	}
 
-	trackingID, err := models.StartTimeTracking(r.Context(), userID, req.Route, req.StoryID, clientIP)
+	trackingID, err := models.MakeTimeTrackingSession(r.Context(), userID, req.Route, req.StoryID)
 	if err != nil {
 		h.logger.Error("failed to start time tracking", "error", err, "user_id", userID)
 		http.Error(w, "Failed to start time tracking", http.StatusInternalServerError)
@@ -88,66 +88,64 @@ func (h *TimeTrackingHandler) startTimeTracking(w http.ResponseWriter, r *http.R
 	json.NewEncoder(w).Encode(response)
 }
 
-// endTimeTracking handles ending a time tracking session
-func (h *TimeTrackingHandler) endTimeTracking(w http.ResponseWriter, r *http.Request) {
-	userID := auth.GetUserID(r)
-	if userID == "" {
-		clientIP := r.Header.Get("X-Forwarded-For")
-		if clientIP == "" {
-			clientIP = r.RemoteAddr
-		}
-	}
+// recordTimeTracking handles recording a complete time tracking session in one call
+func (h *TimeTrackingHandler) recordTimeTracking(w http.ResponseWriter, r *http.Request) {
+	var req RecordTimeTrackingRequest
 
-	var trackingID int32
-
-	// Handle both JSON and FormData (from beacon)
+	// Handle both JSON and multipart form data (for beacons)
 	contentType := r.Header.Get("Content-Type")
-
 	if contentType == "application/json" {
-		var req EndTimeTrackingRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			h.logger.Error("failed to decode JSON", "error", err)
 			http.Error(w, "Invalid JSON", http.StatusBadRequest)
 			return
 		}
-		trackingID = req.TrackingID
 	} else {
-		// Handle FormData from beacon - try multipart first, then regular form
-		if err := r.ParseMultipartForm(32 << 20); err != nil { // 32MB max
-			fmt.Println("Failed to parse multipart form: ", err)
-			// If multipart fails, try regular form parsing
-			if err := r.ParseForm(); err != nil {
-				h.logger.Error("failed to parse form data", "error", err)
-				http.Error(w, "Invalid form data", http.StatusBadRequest)
-				return
-			}
-		}
-
-		trackingIDStr := r.FormValue("tracking_id")
-
-		if trackingIDStr == "" {
-			http.Error(w, "tracking_id is required", http.StatusBadRequest)
+		// Parse multipart form data for beacon requests
+		if err := r.ParseMultipartForm(32 << 20); err != nil { // 32MB max memory
+			http.Error(w, "Invalid form data", http.StatusBadRequest)
 			return
 		}
 
-		id, err := strconv.Atoi(trackingIDStr)
-		if err != nil {
-			h.logger.Error("invalid tracking_id format", "error", err, "tracking_id_str", trackingIDStr)
-			http.Error(w, "Invalid tracking_id", http.StatusBadRequest)
+		req.TrackingID = r.FormValue("tracking_id")
+		elapsedStr := r.FormValue("elapsed_ms")
+		if elapsedStr == "" {
+			http.Error(w, "elapsed_ms is required", http.StatusBadRequest)
 			return
 		}
-		trackingID = int32(id)
+
+		var elapsed int32
+		if _, err := fmt.Sscanf(elapsedStr, "%d", &elapsed); err != nil {
+			http.Error(w, "elapsed_ms must be a valid integer", http.StatusBadRequest)
+			return
+		}
+		req.ElapsedMs = elapsed
 	}
 
-	if trackingID == 0 {
-		http.Error(w, "tracking_id is required", http.StatusBadRequest)
+	session, err := models.GetTimeTrackingBySessionID(r.Context(), req.TrackingID)
+	if err != nil {
+		h.logger.Error("failed to get time tracking session", "error", err, "tracking_id", req.TrackingID)
+		http.Error(w, "Invalid tracking ID", http.StatusBadRequest)
 		return
 	}
 
-	err := models.EndTimeTrackingByID(r.Context(), trackingID)
+	// If session not found, log and return error
+	if session == nil {
+		h.logger.Warn("time tracking session not found", "tracking_id", req.TrackingID)
+		http.Error(w, "Tracking session not found or expired", http.StatusBadRequest)
+		return
+	}
+
+	if req.ElapsedMs <= 0 {
+		http.Error(w, "elapsed_ms must be positive", http.StatusBadRequest)
+		return
+	}
+
+	fmt.Println("Session: ", session)
+
+	err = models.RecordTimeTracking(r.Context(), session.UserID, session.Route, session.StoryID, req.ElapsedMs)
 	if err != nil {
-		h.logger.Error("failed to end time tracking", "error", err, "tracking_id", trackingID)
-		http.Error(w, "Failed to end time tracking", http.StatusInternalServerError)
+		h.logger.Error("failed to record time tracking", "error", err, "user_id", session.UserID)
+		http.Error(w, "Failed to record time tracking", http.StatusInternalServerError)
 		return
 	}
 

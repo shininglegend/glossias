@@ -233,6 +233,51 @@ func (q *Queries) GetCourseIdForStory(ctx context.Context, storyID int32) (pgtyp
 	return course_id, err
 }
 
+const getCourseStoriesWithTitles = `-- name: GetCourseStoriesWithTitles :many
+SELECT s.story_id, s.week_number, s.day_letter, st.title
+FROM stories s
+JOIN story_titles st ON s.story_id = st.story_id AND st.language_code = $2
+WHERE s.course_id = $1
+ORDER BY s.week_number, s.day_letter
+`
+
+type GetCourseStoriesWithTitlesParams struct {
+	CourseID     pgtype.Int4 `json:"course_id"`
+	LanguageCode string      `json:"language_code"`
+}
+
+type GetCourseStoriesWithTitlesRow struct {
+	StoryID    int32  `json:"story_id"`
+	WeekNumber int32  `json:"week_number"`
+	DayLetter  string `json:"day_letter"`
+	Title      string `json:"title"`
+}
+
+func (q *Queries) GetCourseStoriesWithTitles(ctx context.Context, arg GetCourseStoriesWithTitlesParams) ([]GetCourseStoriesWithTitlesRow, error) {
+	rows, err := q.db.Query(ctx, getCourseStoriesWithTitles, arg.CourseID, arg.LanguageCode)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetCourseStoriesWithTitlesRow{}
+	for rows.Next() {
+		var i GetCourseStoriesWithTitlesRow
+		if err := rows.Scan(
+			&i.StoryID,
+			&i.WeekNumber,
+			&i.DayLetter,
+			&i.Title,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStoriesByCourse = `-- name: GetStoriesByCourse :many
 SELECT s.story_id, s.week_number, s.day_letter, s.video_url, s.last_revision, s.author_id, s.author_name, s.course_id
 FROM stories s

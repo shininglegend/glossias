@@ -89,6 +89,17 @@ DeleteAllUsersFromCourse(courseID int) error // Uses DeleteAllUsersFromCourse
 GetCoursesForUser(userID string) ([]UserCourse, error) // Uses GetCoursesForUser
 GetUsersForCourse(courseID int) ([]CourseUser, error) // Uses GetUsersForCourse
 
+Time Tracking Types:
+- TimeTrackingSession: {SessionID, UserID, Route, StoryID}
+
+Time Tracking Operations (Cache-based sessions, SQLC-based storage):
+MakeTimeTrackingSession(ctx, userID, route, storyID) (string, error) // Creates cached session, returns sessionID
+GetTimeTrackingBySessionID(ctx, sessionID) (*TimeTrackingSession, error) // Retrieves from cache
+InvalidateTimeTrackingSession(ctx, sessionID) // Removes session from cache
+RecordTimeTracking(ctx, userID, route, storyID, elapsedMs) error // Records final entry with deduplication
+GetTimeEntriesForUser(ctx, userID) ([]db.UserTimeTracking, error) // Gets user's time entries
+GetTimeEntriesForStory(ctx, storyID) ([]db.UserTimeTracking, error) // Gets story's time entries
+
 Navigation Types:
 - PageType: string constants for "video", "vocab", "translate", "grammar", "score"
 - NavigationGuidanceRequest: {UserId, CurrentPage, StoryId}
@@ -96,11 +107,6 @@ Navigation Types:
 
 Navigation Operations:
 Navigate(storyID, currentPage, userID) (*NavigationGuidanceResponse, error) // Determines next page in learning flow
-getPageCompletionStatus(userID, storyID) (map[PageType]bool, error) // Checks completion for all page types
-isVocabCompleted(userID, storyID) (bool, error) // Vocab attempts + 5 seconds min time
-isGrammarCompleted(userID, storyID) (bool, error) // Grammar attempts + 5 seconds min time
-isTranslateCompleted(userID, storyID) (bool, error) // 5 seconds min time
-determineNextPage(currentPage, completionStatus) PageType // Navigation logic with video always visited
 
 Error Types:
 ErrNotFound, ErrInvalidStoryID, ErrInvalidLineNumber, ErrMissingStoryID,

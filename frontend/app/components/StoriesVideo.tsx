@@ -134,13 +134,13 @@ export function StoriesVideo() {
             <div>
               <p className="text-gray-700">
                 {metadata.description?.text || ""}
-                <div>
-                  <strong>
-                    Please watch the entire video before continuing.
-                  </strong>{" "}
-                  This will help you get familiar with the story before the
-                  other exercises.
-                </div>
+              </p>
+              <p className="text-gray-700">
+                <strong>
+                  Please watch the entire video before continuing.
+                </strong>{" "}
+                This will help you get familiar with the story before the other
+                exercises.
               </p>
             </div>
           </div>

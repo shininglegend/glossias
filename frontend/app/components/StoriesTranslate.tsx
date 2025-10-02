@@ -260,7 +260,7 @@ export function StoriesTranslate() {
                               ? translationData
                                 ? "bg-blue-100 border-2 border-blue-300"
                                 : isSelected
-                                  ? "bg-blue-200 border-2 border-blue-400"
+                                  ? "bg-orange-200 border-2 border-orange-400"
                                   : "bg-gray-50"
                               : isSelected
                                 ? "bg-blue-200 border-2 border-blue-400"

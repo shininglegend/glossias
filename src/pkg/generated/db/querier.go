@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	AccumulateTimeEntry(ctx context.Context, arg AccumulateTimeEntryParams) error
 	// Course admin management queries
 	AddCourseAdmin(ctx context.Context, arg AddCourseAdminParams) (CourseAdmin, error)
 	AddUserToCourse(ctx context.Context, arg AddUserToCourseParams) error
@@ -30,6 +31,7 @@ type Querier interface {
 	CreateAnonymousTimeEntry(ctx context.Context, arg CreateAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
 	// Audio files management queries
 	CreateAudioFile(ctx context.Context, arg CreateAudioFileParams) (LineAudioFile, error)
+	CreateCompleteTimeEntry(ctx context.Context, arg CreateCompleteTimeEntryParams) (UserTimeTracking, error)
 	// Course management queries
 	CreateCourse(ctx context.Context, arg CreateCourseParams) (Course, error)
 	CreateFootnote(ctx context.Context, arg CreateFootnoteParams) (int32, error)
@@ -77,6 +79,7 @@ type Querier interface {
 	DeleteUser(ctx context.Context, userID string) error
 	DeleteVocabularyItem(ctx context.Context, id int32) error
 	DeleteVocabularyItems(ctx context.Context, arg DeleteVocabularyItemsParams) error
+	FindRecentSimilarTimeEntry(ctx context.Context, arg FindRecentSimilarTimeEntryParams) (FindRecentSimilarTimeEntryRow, error)
 	GetActiveAnonymousTimeEntry(ctx context.Context, arg GetActiveAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
 	GetActiveTimeEntry(ctx context.Context, arg GetActiveTimeEntryParams) (UserTimeTracking, error)
 	GetAdminCoursesForUser(ctx context.Context, userID string) ([]Course, error)
@@ -99,6 +102,7 @@ type Querier interface {
 	GetCourseAdmins(ctx context.Context, courseID int32) ([]GetCourseAdminsRow, error)
 	GetCourseByNumber(ctx context.Context, courseNumber string) (Course, error)
 	GetCourseIdForStory(ctx context.Context, storyID int32) (pgtype.Int4, error)
+	GetCourseStoriesWithTitles(ctx context.Context, arg GetCourseStoriesWithTitlesParams) ([]GetCourseStoriesWithTitlesRow, error)
 	GetCoursesForUser(ctx context.Context, userID string) ([]GetCoursesForUserRow, error)
 	GetFootnoteReferences(ctx context.Context, footnoteID int32) ([]string, error)
 	GetFootnotes(ctx context.Context, arg GetFootnotesParams) ([]Footnote, error)
@@ -110,6 +114,7 @@ type Querier interface {
 	GetLineTranslation(ctx context.Context, arg GetLineTranslationParams) (string, error)
 	// Line translations management queries
 	GetLineTranslations(ctx context.Context, arg GetLineTranslationsParams) ([]LineTranslation, error)
+	GetRecentTimeEntriesForUser(ctx context.Context, arg GetRecentTimeEntriesForUserParams) ([]UserTimeTracking, error)
 	GetStoriesByCourse(ctx context.Context, courseID pgtype.Int4) ([]Story, error)
 	GetStoriesForUserCourses(ctx context.Context, userID string) ([]Story, error)
 	GetStoriesWithGrammarPoint(ctx context.Context, grammarPointID int32) ([]Story, error)
@@ -146,6 +151,7 @@ type Querier interface {
 	GetUserStoryTimeTracking(ctx context.Context, arg GetUserStoryTimeTrackingParams) (GetUserStoryTimeTrackingRow, error)
 	GetUserStoryVocabSummary(ctx context.Context, arg GetUserStoryVocabSummaryParams) (GetUserStoryVocabSummaryRow, error)
 	GetUserTranslationRequests(ctx context.Context, userID string) ([]TranslationRequest, error)
+	GetUserTranslationStatusForStory(ctx context.Context, arg GetUserTranslationStatusForStoryParams) (GetUserTranslationStatusForStoryRow, error)
 	GetUserVocabScores(ctx context.Context, arg GetUserVocabScoresParams) ([]GetUserVocabScoresRow, error)
 	GetUsersForCourse(ctx context.Context, courseID int32) ([]GetUsersForCourseRow, error)
 	GetVocabularyItems(ctx context.Context, arg GetVocabularyItemsParams) ([]VocabularyItem, error)
@@ -174,6 +180,7 @@ type Querier interface {
 	UpdateStory(ctx context.Context, arg UpdateStoryParams) error
 	UpdateStoryRevision(ctx context.Context, storyID int32) error
 	UpdateTimeEntry(ctx context.Context, arg UpdateTimeEntryParams) (UserTimeTracking, error)
+	UpdateTimeEntryIfBigger(ctx context.Context, arg UpdateTimeEntryIfBiggerParams) error
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpdateVocabularyByPosition(ctx context.Context, arg UpdateVocabularyByPositionParams) error
 	UpdateVocabularyByWord(ctx context.Context, arg UpdateVocabularyByWordParams) error
@@ -182,6 +189,7 @@ type Querier interface {
 	UpsertStoryDescription(ctx context.Context, arg UpsertStoryDescriptionParams) error
 	UpsertStoryLine(ctx context.Context, arg UpsertStoryLineParams) error
 	UpsertStoryTitle(ctx context.Context, arg UpsertStoryTitleParams) error
+	UpsertTimeEntry(ctx context.Context, arg UpsertTimeEntryParams) (UserTimeTracking, error)
 	UpsertUser(ctx context.Context, arg UpsertUserParams) (User, error)
 }
 

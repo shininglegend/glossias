@@ -2,41 +2,33 @@ import { useCallback, useRef, useEffect } from "react";
 import { useAuthenticatedFetch } from "./authFetch";
 
 class TimeTracker {
-  private currentTrackingId: number | null = null;
+  private startTime: number | null = null;
   private cleanup: (() => void) | null = null;
+  private trackingId: string | null = null;
 
   async startTracking(
-    authenticatedFetch: (
+    route?: string,
+    authenticatedFetch?: (
       input: RequestInfo,
       init?: RequestInit,
     ) => Promise<Response>,
-    route?: string,
   ) {
-    const currentRoute = route || window.location.pathname;
-    const storyId = currentRoute.includes("/stories/")
-      ? parseInt(currentRoute.split("/stories/")[1]) || null
+    const targetRoute = route || window.location.pathname;
+    const extractedStoryId = targetRoute.includes("/stories/")
+      ? parseInt(targetRoute.split("/stories/")[1]) || null
       : null;
 
-    try {
-      const response = await authenticatedFetch("/api/time-tracking/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          route: currentRoute,
-          story_id: storyId,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        this.currentTrackingId = data.tracking_id;
-        this.setupPageLeaveTracking(authenticatedFetch);
-        return data.tracking_id;
-      }
-    } catch (error) {
-      console.error("Failed to start time tracking:", error);
+    // Get tracking ID from backend
+    if (authenticatedFetch) {
+      await this.getTrackingId(
+        targetRoute,
+        extractedStoryId,
+        authenticatedFetch,
+      );
     }
-    return null;
+
+    this.startTime = Date.now();
+    this.setupPageLeaveTracking();
   }
 
   async endTracking(
@@ -44,54 +36,114 @@ class TimeTracker {
       input: RequestInfo,
       init?: RequestInit,
     ) => Promise<Response>,
-    trackingId?: number,
     useBeacon = false,
   ) {
-    const id = trackingId || this.currentTrackingId;
-    if (!id) return;
+    if (!this.startTime || !this.trackingId) {
+      return;
+    }
+
+    const elapsedMs = Date.now() - this.startTime;
+
+    // Only record if elapsed time is meaningful (>1 second)
+    if (elapsedMs < 1000) {
+      this.reset();
+      return;
+    }
+
+    const payload = {
+      elapsed_ms: elapsedMs,
+      tracking_id: this.trackingId,
+    };
 
     if (useBeacon && navigator.sendBeacon) {
       const formData = new FormData();
-      formData.append("tracking_id", id.toString());
-      navigator.sendBeacon("/api/time-tracking/end", formData);
+      formData.append("elapsed_ms", payload.elapsed_ms.toString());
+      if (payload.tracking_id) {
+        formData.append("tracking_id", payload.tracking_id);
+      }
+      navigator.sendBeacon("/api/time-tracking/record", formData);
     } else {
-      fetch("/api/time-tracking/end", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tracking_id: id }),
-      }).catch(() => {}); // Fire and forget
+      try {
+        await authenticatedFetch("/api/time-tracking/record", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } catch (error) {
+        console.error("Failed to record time tracking:", error);
+      }
     }
 
-    if (id === this.currentTrackingId) {
-      this.currentTrackingId = null;
-      this.cleanupPageLeaveTracking();
-    }
+    this.reset();
   }
 
-  private setupPageLeaveTracking(
+  private reset() {
+    this.startTime = null;
+    this.trackingId = null;
+    this.cleanupPageLeaveTracking();
+  }
+
+  private async getTrackingId(
+    route: string,
+    storyId: number | null,
     authenticatedFetch: (
       input: RequestInfo,
       init?: RequestInit,
     ) => Promise<Response>,
   ) {
-    if (!this.currentTrackingId) return;
+    try {
+      const payload: { route: string; story_id?: number } = { route };
+      if (storyId) {
+        payload.story_id = storyId;
+      }
 
-    const trackingId = this.currentTrackingId;
-    const handlePageLeave = () =>
-      this.endTracking(authenticatedFetch, trackingId, true);
+      const response = await authenticatedFetch("/api/time-tracking/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      this.trackingId = data.tracking_id;
+    } catch (error) {
+      // Silent fail for tracking ID
+    }
+  }
+
+  private setupPageLeaveTracking() {
+    const handlePageLeave = () => {
+      // Use beacon for page leave to ensure delivery
+      this.endTracking(() => Promise.resolve(new Response()), true);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        // Don't end tracking on tab switch, only record current time
+        if (this.startTime && this.trackingId) {
+          const elapsedMs = Date.now() - this.startTime;
+          if (elapsedMs >= 1000) {
+            const payload = {
+              elapsed_ms: elapsedMs,
+              tracking_id: this.trackingId,
+            };
+            const formData = new FormData();
+            formData.append("elapsed_ms", payload.elapsed_ms.toString());
+            formData.append("tracking_id", payload.tracking_id);
+            navigator.sendBeacon("/api/time-tracking/record", formData);
+          }
+          // Reset start time for next session but keep tracking ID
+          this.startTime = Date.now();
+        }
+      }
+    };
 
     window.addEventListener("beforeunload", handlePageLeave);
     window.addEventListener("pagehide", handlePageLeave);
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") {
-        handlePageLeave();
-      }
-    });
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     this.cleanup = () => {
       window.removeEventListener("beforeunload", handlePageLeave);
       window.removeEventListener("pagehide", handlePageLeave);
-      document.removeEventListener("visibilitychange", handlePageLeave);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }
 
@@ -102,8 +154,8 @@ class TimeTracker {
     }
   }
 
-  getCurrentTrackingId() {
-    return this.currentTrackingId;
+  isTracking() {
+    return this.startTime !== null;
   }
 }
 
@@ -112,41 +164,31 @@ const globalTracker = new TimeTracker();
 export function useTimeTracking() {
   const authenticatedFetch = useAuthenticatedFetch();
   const hasStartedRef = useRef(false);
-  const pendingStartRef = useRef<Promise<number | null> | null>(null);
 
   const startTracking = useCallback(
     async (route?: string) => {
-      if (hasStartedRef.current) return globalTracker.getCurrentTrackingId();
-      if (pendingStartRef.current) return await pendingStartRef.current;
+      if (hasStartedRef.current) return;
 
       hasStartedRef.current = true;
-      const startPromise = globalTracker.startTracking(
-        authenticatedFetch,
-        route,
-      );
-      pendingStartRef.current = startPromise;
-
-      const result = await startPromise;
-      pendingStartRef.current = null;
-      return result;
+      await globalTracker.startTracking(route, authenticatedFetch);
     },
     [authenticatedFetch],
   );
 
-  const endTracking = useCallback(
-    async (trackingId?: number) => {
-      hasStartedRef.current = false;
-      pendingStartRef.current = null;
-      return await globalTracker.endTracking(authenticatedFetch, trackingId);
-    },
-    [authenticatedFetch],
-  );
+  const endTracking = useCallback(async () => {
+    if (!hasStartedRef.current) return;
+
+    hasStartedRef.current = false;
+    await globalTracker.endTracking(authenticatedFetch);
+  }, [authenticatedFetch]);
 
   useEffect(() => {
     return () => {
-      hasStartedRef.current = false;
-      pendingStartRef.current = null;
-      globalTracker.endTracking(authenticatedFetch);
+      // Only cleanup on component unmount, not on tab switch
+      if (hasStartedRef.current && document.visibilityState !== "hidden") {
+        hasStartedRef.current = false;
+        globalTracker.endTracking(authenticatedFetch);
+      }
     };
   }, [authenticatedFetch]);
 

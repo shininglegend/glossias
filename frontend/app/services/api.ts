@@ -254,6 +254,11 @@ export function useApiService() {
           },
         );
       },
+
+      // Admin endpoints
+      getCourseStudentPerformance: (courseId: string): Promise<APIResponse<any>> => {
+        return fetchAPI(`/admin/courses/${courseId}/student-performance`);
+      },
     }),
     [fetchAPI],
   );

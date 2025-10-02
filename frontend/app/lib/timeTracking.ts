@@ -1,9 +1,6 @@
 import { useCallback, useRef, useEffect } from "react";
 import { useAuthenticatedFetch } from "./authFetch";
 
-const DEBUG = process.env.NODE_ENV === "development";
-const log = (...args: any[]) => DEBUG && console.log("[TimeTracker]", ...args);
-
 class TimeTracker {
   private startTime: number | null = null;
   private cleanup: (() => void) | null = null;
@@ -20,12 +17,6 @@ class TimeTracker {
     const extractedStoryId = targetRoute.includes("/stories/")
       ? parseInt(targetRoute.split("/stories/")[1]) || null
       : null;
-
-    log("Starting tracking:", {
-      targetRoute,
-      extractedStoryId,
-      wasAlreadyTracking: this.isTracking(),
-    });
 
     // Get tracking ID from backend
     if (authenticatedFetch) {
@@ -47,23 +38,14 @@ class TimeTracker {
     ) => Promise<Response>,
     useBeacon = false,
   ) {
-    log("Attempting to end tracking:", {
-      hasStartTime: !!this.startTime,
-      hasTrackingId: !!this.trackingId,
-      useBeacon,
-    });
-
     if (!this.startTime || !this.trackingId) {
-      log("Ending early - no start time or tracking ID");
       return;
     }
 
     const elapsedMs = Date.now() - this.startTime;
-    log("Calculated elapsed time:", { elapsedMs });
 
     // Only record if elapsed time is meaningful (>1 second)
     if (elapsedMs < 1000) {
-      log("Ending early - elapsed time too short");
       this.reset();
       return;
     }
@@ -73,28 +55,20 @@ class TimeTracker {
       tracking_id: this.trackingId,
     };
 
-    log("Recording time:", payload);
-
     if (useBeacon && navigator.sendBeacon) {
       const formData = new FormData();
       formData.append("elapsed_ms", payload.elapsed_ms.toString());
       if (payload.tracking_id) {
         formData.append("tracking_id", payload.tracking_id);
       }
-      const beaconSent = navigator.sendBeacon(
-        "/api/time-tracking/record",
-        formData,
-      );
-      log("Beacon sent:", beaconSent);
+      navigator.sendBeacon("/api/time-tracking/record", formData);
     } else {
       try {
-        log("Sending POST request to record time");
-        const response = await authenticatedFetch("/api/time-tracking/record", {
+        await authenticatedFetch("/api/time-tracking/record", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        log("POST request completed:", response.status, response.statusText);
       } catch (error) {
         console.error("Failed to record time tracking:", error);
       }
@@ -104,7 +78,6 @@ class TimeTracker {
   }
 
   private reset() {
-    log("Resetting tracker");
     this.startTime = null;
     this.trackingId = null;
     this.cleanupPageLeaveTracking();
@@ -119,7 +92,6 @@ class TimeTracker {
     ) => Promise<Response>,
   ) {
     try {
-      log("Getting tracking ID");
       const payload: { route: string; story_id?: number } = { route };
       if (storyId) {
         payload.story_id = storyId;
@@ -132,22 +104,19 @@ class TimeTracker {
       });
       const data = await response.json();
       this.trackingId = data.tracking_id;
-      log("Got tracking ID:", this.trackingId);
     } catch (error) {
-      log("Failed to get tracking ID:", error);
+      // Silent fail for tracking ID
     }
   }
 
   private setupPageLeaveTracking() {
     const handlePageLeave = () => {
-      log("Page leave detected");
       // Use beacon for page leave to ensure delivery
       this.endTracking(() => Promise.resolve(new Response()), true);
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        log("Page hidden - tab switch detected");
         // Don't end tracking on tab switch, only record current time
         if (this.startTime && this.trackingId) {
           const elapsedMs = Date.now() - this.startTime;
@@ -156,7 +125,6 @@ class TimeTracker {
               elapsed_ms: elapsedMs,
               tracking_id: this.trackingId,
             };
-            log("Recording time on tab switch:", payload);
             const formData = new FormData();
             formData.append("elapsed_ms", payload.elapsed_ms.toString());
             formData.append("tracking_id", payload.tracking_id);
@@ -181,7 +149,6 @@ class TimeTracker {
 
   private cleanupPageLeaveTracking() {
     if (this.cleanup) {
-      log("Cleaning up page leave tracking");
       this.cleanup();
       this.cleanup = null;
     }
@@ -200,10 +167,6 @@ export function useTimeTracking() {
 
   const startTracking = useCallback(
     async (route?: string) => {
-      log("useTimeTracking startTracking called:", {
-        route,
-        alreadyStarted: hasStartedRef.current,
-      });
       if (hasStartedRef.current) return;
 
       hasStartedRef.current = true;
@@ -213,9 +176,6 @@ export function useTimeTracking() {
   );
 
   const endTracking = useCallback(async () => {
-    log("useTimeTracking endTracking called:", {
-      wasStarted: hasStartedRef.current,
-    });
     if (!hasStartedRef.current) return;
 
     hasStartedRef.current = false;
@@ -226,7 +186,6 @@ export function useTimeTracking() {
     return () => {
       // Only cleanup on component unmount, not on tab switch
       if (hasStartedRef.current && document.visibilityState !== "hidden") {
-        log("useTimeTracking cleanup effect triggered");
         hasStartedRef.current = false;
         globalTracker.endTracking(authenticatedFetch);
       }

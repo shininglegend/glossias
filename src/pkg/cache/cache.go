@@ -173,6 +173,60 @@ func (c *Cache) Stats() bigcache.Stats {
 	return c.cache.Stats()
 }
 
+// GetAllKeys returns all keys currently in the cache
+func (c *Cache) GetAllKeys() ([]string, error) {
+	iterator := c.cache.Iterator()
+	var keys []string
+
+	for iterator.SetNext() {
+		info, err := iterator.Value()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get iterator value: %w", err)
+		}
+		keys = append(keys, info.Key())
+	}
+
+	return keys, nil
+}
+
+// GetAllEntries returns all key-value pairs currently in the cache
+func (c *Cache) GetAllEntries() (map[string][]byte, error) {
+	iterator := c.cache.Iterator()
+	entries := make(map[string][]byte)
+
+	for iterator.SetNext() {
+		info, err := iterator.Value()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get iterator value: %w", err)
+		}
+
+		key := info.Key()
+		value, err := c.Get(key)
+		if err != nil {
+			// Skip entries that can't be retrieved (may have been evicted)
+			continue
+		}
+		entries[key] = value
+	}
+
+	return entries, nil
+}
+
+// PrintCacheContents prints all cache entries to stdout (for debugging)
+func (c *Cache) PrintCacheContents() error {
+	entries, err := c.GetAllEntries()
+	if err != nil {
+		return fmt.Errorf("failed to get cache entries: %w", err)
+	}
+
+	fmt.Printf("Cache contains %d entries:\n", len(entries))
+	for key, value := range entries {
+		fmt.Printf("  %s: %s\n", key, string(value))
+	}
+
+	return nil
+}
+
 // Key builders for consistent cache key generation
 type KeyBuilder struct{}
 
@@ -190,7 +244,6 @@ func (kb *KeyBuilder) UserAccess(userID string, storyID int) string {
 func (kb *KeyBuilder) StoryData(storyID int) string {
 	return fmt.Sprintf("story:%d", storyID)
 }
-
 
 // UserVocabScores builds a cache key for user vocabulary scores
 func (kb *KeyBuilder) UserVocabScores(userID string, storyID int) string {
@@ -215,4 +268,9 @@ func (kb *KeyBuilder) StoryAnnotations(storyID int) string {
 // LineAnnotations builds a cache key for line annotations
 func (kb *KeyBuilder) LineAnnotations(storyID int, lineNumber int) string {
 	return fmt.Sprintf("line_annotations:%d:%d", storyID, lineNumber)
+}
+
+// TimeTrackingSession builds a cache key for active time tracking sessions
+func (kb *KeyBuilder) TimeTrackingSession(sessionID string) string {
+	return fmt.Sprintf("time_session:%s", sessionID)
 }

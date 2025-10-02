@@ -11,6 +11,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const accumulateTimeEntry = `-- name: AccumulateTimeEntry :exec
+UPDATE user_time_tracking
+SET total_time_seconds = COALESCE(total_time_seconds, 0) + $2,
+    ended_at = $3
+WHERE tracking_id = $1
+`
+
+type AccumulateTimeEntryParams struct {
+	TrackingID       int32            `json:"tracking_id"`
+	TotalTimeSeconds pgtype.Int4      `json:"total_time_seconds"`
+	EndedAt          pgtype.Timestamp `json:"ended_at"`
+}
+
+func (q *Queries) AccumulateTimeEntry(ctx context.Context, arg AccumulateTimeEntryParams) error {
+	_, err := q.db.Exec(ctx, accumulateTimeEntry, arg.TrackingID, arg.TotalTimeSeconds, arg.EndedAt)
+	return err
+}
+
 const closeAnonymousTimeEntry = `-- name: CloseAnonymousTimeEntry :exec
 UPDATE anonymous_time_tracking
 SET ended_at = $2, total_time_seconds = $3
@@ -81,6 +99,44 @@ func (q *Queries) CreateAnonymousTimeEntry(ctx context.Context, arg CreateAnonym
 	return i, err
 }
 
+const createCompleteTimeEntry = `-- name: CreateCompleteTimeEntry :one
+INSERT INTO user_time_tracking (user_id, route, story_id, started_at, ended_at, total_time_seconds)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at
+`
+
+type CreateCompleteTimeEntryParams struct {
+	UserID           string           `json:"user_id"`
+	Route            string           `json:"route"`
+	StoryID          pgtype.Int4      `json:"story_id"`
+	StartedAt        pgtype.Timestamp `json:"started_at"`
+	EndedAt          pgtype.Timestamp `json:"ended_at"`
+	TotalTimeSeconds pgtype.Int4      `json:"total_time_seconds"`
+}
+
+func (q *Queries) CreateCompleteTimeEntry(ctx context.Context, arg CreateCompleteTimeEntryParams) (UserTimeTracking, error) {
+	row := q.db.QueryRow(ctx, createCompleteTimeEntry,
+		arg.UserID,
+		arg.Route,
+		arg.StoryID,
+		arg.StartedAt,
+		arg.EndedAt,
+		arg.TotalTimeSeconds,
+	)
+	var i UserTimeTracking
+	err := row.Scan(
+		&i.TrackingID,
+		&i.UserID,
+		&i.Route,
+		&i.StoryID,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.TotalTimeSeconds,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createTimeEntry = `-- name: CreateTimeEntry :one
 
 INSERT INTO user_time_tracking (user_id, route, story_id, started_at)
@@ -127,10 +183,45 @@ func (q *Queries) DeleteOldAnonymousEntries(ctx context.Context, createdAt pgtyp
 	return err
 }
 
+const findRecentSimilarTimeEntry = `-- name: FindRecentSimilarTimeEntry :one
+SELECT tracking_id, total_time_seconds
+FROM user_time_tracking
+WHERE user_id = $1
+  AND route = $2
+  AND story_id IS NOT DISTINCT FROM $3
+  AND created_at >= $4
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type FindRecentSimilarTimeEntryParams struct {
+	UserID    string           `json:"user_id"`
+	Route     string           `json:"route"`
+	StoryID   pgtype.Int4      `json:"story_id"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+}
+
+type FindRecentSimilarTimeEntryRow struct {
+	TrackingID       int32       `json:"tracking_id"`
+	TotalTimeSeconds pgtype.Int4 `json:"total_time_seconds"`
+}
+
+func (q *Queries) FindRecentSimilarTimeEntry(ctx context.Context, arg FindRecentSimilarTimeEntryParams) (FindRecentSimilarTimeEntryRow, error) {
+	row := q.db.QueryRow(ctx, findRecentSimilarTimeEntry,
+		arg.UserID,
+		arg.Route,
+		arg.StoryID,
+		arg.CreatedAt,
+	)
+	var i FindRecentSimilarTimeEntryRow
+	err := row.Scan(&i.TrackingID, &i.TotalTimeSeconds)
+	return i, err
+}
+
 const getActiveAnonymousTimeEntry = `-- name: GetActiveAnonymousTimeEntry :one
 SELECT tracking_id, session_id, route, story_id, started_at, ended_at, total_time_seconds, created_at
 FROM anonymous_time_tracking
-WHERE session_id = $1 AND route = $2 AND story_id IS NOT DISTINCT FROM $3
+WHERE session_id = $1 AND route = $2 AND story_id IS NOT DISTINCT FROM $3 AND ended_at IS NULL
 ORDER BY started_at DESC
 LIMIT 1
 `
@@ -160,7 +251,7 @@ func (q *Queries) GetActiveAnonymousTimeEntry(ctx context.Context, arg GetActive
 const getActiveTimeEntry = `-- name: GetActiveTimeEntry :one
 SELECT tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at
 FROM user_time_tracking
-WHERE user_id = $1 AND route = $2 AND story_id IS NOT DISTINCT FROM $3
+WHERE user_id = $1 AND route = $2 AND story_id IS NOT DISTINCT FROM $3 AND ended_at IS NULL
 ORDER BY started_at DESC
 LIMIT 1
 `
@@ -207,6 +298,47 @@ func (q *Queries) GetAnonymousTimeEntryByID(ctx context.Context, trackingID int3
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const getRecentTimeEntriesForUser = `-- name: GetRecentTimeEntriesForUser :many
+SELECT tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at
+FROM user_time_tracking
+WHERE user_id = $1 AND created_at >= $2
+ORDER BY created_at DESC
+`
+
+type GetRecentTimeEntriesForUserParams struct {
+	UserID    string           `json:"user_id"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+}
+
+func (q *Queries) GetRecentTimeEntriesForUser(ctx context.Context, arg GetRecentTimeEntriesForUserParams) ([]UserTimeTracking, error) {
+	rows, err := q.db.Query(ctx, getRecentTimeEntriesForUser, arg.UserID, arg.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []UserTimeTracking{}
+	for rows.Next() {
+		var i UserTimeTracking
+		if err := rows.Scan(
+			&i.TrackingID,
+			&i.UserID,
+			&i.Route,
+			&i.StoryID,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.TotalTimeSeconds,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getTimeEntriesForStory = `-- name: GetTimeEntriesForStory :many
@@ -381,6 +513,66 @@ type UpdateTimeEntryParams struct {
 
 func (q *Queries) UpdateTimeEntry(ctx context.Context, arg UpdateTimeEntryParams) (UserTimeTracking, error) {
 	row := q.db.QueryRow(ctx, updateTimeEntry, arg.TrackingID, arg.EndedAt, arg.TotalTimeSeconds)
+	var i UserTimeTracking
+	err := row.Scan(
+		&i.TrackingID,
+		&i.UserID,
+		&i.Route,
+		&i.StoryID,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.TotalTimeSeconds,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateTimeEntryIfBigger = `-- name: UpdateTimeEntryIfBigger :exec
+UPDATE user_time_tracking
+SET total_time_seconds = GREATEST(total_time_seconds, $2),
+    ended_at = $3
+WHERE tracking_id = $1
+`
+
+type UpdateTimeEntryIfBiggerParams struct {
+	TrackingID       int32            `json:"tracking_id"`
+	TotalTimeSeconds pgtype.Int4      `json:"total_time_seconds"`
+	EndedAt          pgtype.Timestamp `json:"ended_at"`
+}
+
+func (q *Queries) UpdateTimeEntryIfBigger(ctx context.Context, arg UpdateTimeEntryIfBiggerParams) error {
+	_, err := q.db.Exec(ctx, updateTimeEntryIfBigger, arg.TrackingID, arg.TotalTimeSeconds, arg.EndedAt)
+	return err
+}
+
+const upsertTimeEntry = `-- name: UpsertTimeEntry :one
+INSERT INTO user_time_tracking (user_id, route, story_id, started_at, ended_at, total_time_seconds)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (tracking_id)
+DO UPDATE SET
+    total_time_seconds = GREATEST(user_time_tracking.total_time_seconds, EXCLUDED.total_time_seconds),
+    ended_at = EXCLUDED.ended_at
+RETURNING tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at
+`
+
+type UpsertTimeEntryParams struct {
+	UserID           string           `json:"user_id"`
+	Route            string           `json:"route"`
+	StoryID          pgtype.Int4      `json:"story_id"`
+	StartedAt        pgtype.Timestamp `json:"started_at"`
+	EndedAt          pgtype.Timestamp `json:"ended_at"`
+	TotalTimeSeconds pgtype.Int4      `json:"total_time_seconds"`
+}
+
+func (q *Queries) UpsertTimeEntry(ctx context.Context, arg UpsertTimeEntryParams) (UserTimeTracking, error) {
+	row := q.db.QueryRow(ctx, upsertTimeEntry,
+		arg.UserID,
+		arg.Route,
+		arg.StoryID,
+		arg.StartedAt,
+		arg.EndedAt,
+		arg.TotalTimeSeconds,
+	)
 	var i UserTimeTracking
 	err := row.Scan(
 		&i.TrackingID,

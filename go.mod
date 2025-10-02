@@ -9,6 +9,7 @@ require github.com/gorilla/mux v1.8.1
 require (
 	github.com/allegro/bigcache/v3 v3.1.0
 	github.com/clerk/clerk-sdk-go/v2 v2.3.1
+	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9

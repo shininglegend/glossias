@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/clerk/clerk-sdk-go/v2"
@@ -17,6 +18,11 @@ import (
 type contextKey string
 
 const UserIDKey contextKey = "userID"
+
+var byPassURLS = []string{
+	"/api/health",
+	"/api/time-tracking/record",
+}
 
 // Middleware combines CORS and Clerk authentication
 func Middleware(logger *slog.Logger) mux.MiddlewareFunc {
@@ -35,8 +41,7 @@ func Middleware(logger *slog.Logger) mux.MiddlewareFunc {
 			}
 
 			// Extract and validate JWT token for API routes (except health and time tracking)
-			if strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/health" &&
-				!strings.HasPrefix(r.URL.Path, "/api/time-tracking/end") {
+			if strings.HasPrefix(r.URL.Path, "/api/") && !slices.Contains(byPassURLS, r.URL.Path) {
 				userID, err := extractAndValidateUser(r, logger)
 				if err != nil {
 					logger.Error("auth failed", "error", err, "path", r.URL.Path)

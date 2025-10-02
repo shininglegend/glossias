@@ -47,7 +47,6 @@ func MakeTimeTrackingSession(ctx context.Context, userID, route string, storyID 
 		err := cacheInstance.GetJSON(activeKey, &existingSessionID)
 		if err == nil && existingSessionID != "" {
 			// Return existing session ID
-			fmt.Println("DEBUG: Reusing existing time tracking session", existingSessionID, "for user", userID, "route", route, "story", storyID)
 			return existingSessionID, nil
 		}
 	}
@@ -84,8 +83,6 @@ func MakeTimeTrackingSession(ctx context.Context, userID, route string, storyID 
 		_ = cacheInstance.SetJSON(activeKey, sessionID)
 	}
 
-	fmt.Println("DEBUG: Created time tracking session", sessionID, "for user", userID, "route", route, "story", storyID)
-
 	return sessionID, nil
 }
 
@@ -104,12 +101,9 @@ func GetTimeTrackingBySessionID(ctx context.Context, sessionID string) (*TimeTra
 
 	// Check if session is too old (expired)
 	if time.Since(session.CreatedAt) > SESSION_MAX_AGE {
-		fmt.Println("DEBUG: Time tracking session expired", sessionID, "age:", time.Since(session.CreatedAt))
 		_ = cacheInstance.Delete(cacheKey)
 		return nil, nil
 	}
-
-	fmt.Println("DEBUG: Retrieved time tracking session", sessionID, "for user", session.UserID, "route", session.Route, "story", session.StoryID)
 
 	return &session, nil
 }

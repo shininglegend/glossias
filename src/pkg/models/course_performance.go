@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"glossias/src/pkg/generated/db"
+	"slices"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -109,8 +110,8 @@ func GetCourseStudentPerformance(ctx context.Context, courseID int32) ([]CourseS
 					for i, val := range v {
 						performance.RequestedLines[i] = int32(val)
 					}
-				case []interface{}:
-					// Handle []interface{} where each element is an int
+				case []any:
+					// Handle []any where each element is an int
 					performance.RequestedLines = make([]int32, 0, len(v))
 					for _, item := range v {
 						switch val := item.(type) {
@@ -129,6 +130,9 @@ func GetCourseStudentPerformance(ctx context.Context, courseID int32) ([]CourseS
 						performance.RequestedLines = lines
 					}
 				}
+
+				// Sort requested lines
+				slices.Sort(performance.RequestedLines)
 			}
 
 			// Get time tracking data

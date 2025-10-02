@@ -33,13 +33,16 @@ type CourseStudentPerformance struct {
 // GetCourseStudentPerformance retrieves performance data for all students in a course
 func GetCourseStudentPerformance(ctx context.Context, courseID int32) ([]CourseStudentPerformance, error) {
 	// Get all users in the course
-	courseUsers, err := queries.GetCourseUsers(ctx, courseID)
+	courseUsers, err := queries.GetUsersForCourse(ctx, courseID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get all stories in the course
-	courseStories, err := queries.GetCourseStories(ctx, pgtype.Int4{Int32: courseID, Valid: true})
+	courseStories, err := queries.GetCourseStoriesWithTitles(ctx, db.GetCourseStoriesWithTitlesParams{
+		CourseID:     pgtype.Int4{Int32: courseID, Valid: true},
+		LanguageCode: "en",
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +61,7 @@ func GetCourseStudentPerformance(ctx context.Context, courseID int32) ([]CourseS
 			}
 
 			// Get vocab accuracy
-			vocabData, err := queries.GetUserVocabAccuracyForStory(ctx, db.GetUserVocabAccuracyForStoryParams{
+			vocabData, err := queries.GetUserStoryVocabSummary(ctx, db.GetUserStoryVocabSummaryParams{
 				UserID:  user.UserID,
 				StoryID: story.StoryID,
 			})
@@ -72,7 +75,7 @@ func GetCourseStudentPerformance(ctx context.Context, courseID int32) ([]CourseS
 			}
 
 			// Get grammar accuracy
-			grammarData, err := queries.GetUserGrammarAccuracyForStory(ctx, db.GetUserGrammarAccuracyForStoryParams{
+			grammarData, err := queries.GetUserStoryGrammarSummary(ctx, db.GetUserStoryGrammarSummaryParams{
 				UserID:  user.UserID,
 				StoryID: story.StoryID,
 			})
@@ -129,7 +132,7 @@ func GetCourseStudentPerformance(ctx context.Context, courseID int32) ([]CourseS
 			}
 
 			// Get time tracking data
-			timeData, err := queries.GetUserTimeTrackingForStory(ctx, db.GetUserTimeTrackingForStoryParams{
+			timeData, err := queries.GetUserStoryTimeTracking(ctx, db.GetUserStoryTimeTrackingParams{
 				UserID:  user.UserID,
 				StoryID: pgtype.Int4{Int32: story.StoryID, Valid: true},
 			})
@@ -158,11 +161,12 @@ func GetCourseStudentPerformance(ctx context.Context, courseID int32) ([]CourseS
 			} else if v, ok := timeData.VideoTimeSeconds.(int32); ok {
 				performance.VideoTimeSeconds = v
 			}
-			if v, ok := timeData.TotalTimeSeconds.(int64); ok {
-				performance.TotalTimeSeconds = int32(v)
-			} else if v, ok := timeData.TotalTimeSeconds.(int32); ok {
-				performance.TotalTimeSeconds = v
-			}
+
+			// Calculate total time from components
+			performance.TotalTimeSeconds = performance.VocabTimeSeconds +
+				performance.GrammarTimeSeconds +
+				performance.TranslationTimeSeconds +
+				performance.VideoTimeSeconds
 
 			results = append(results, performance)
 		}

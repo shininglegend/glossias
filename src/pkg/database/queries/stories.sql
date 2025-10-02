@@ -68,3 +68,10 @@ FROM stories s
 JOIN course_admins ca ON s.course_id = ca.course_id
 WHERE ca.user_id = $1
 ORDER BY s.week_number, s.day_letter;
+
+-- name: GetCourseStoriesWithTitles :many
+SELECT s.story_id, s.week_number, s.day_letter, st.title
+FROM stories s
+JOIN story_titles st ON s.story_id = st.story_id AND st.language_code = $2
+WHERE s.course_id = $1
+ORDER BY s.week_number, s.day_letter;

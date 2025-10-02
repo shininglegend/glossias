@@ -160,6 +160,29 @@ func (q *Queries) GetUserTranslationRequests(ctx context.Context, userID string)
 	return items, nil
 }
 
+const getUserTranslationStatusForStory = `-- name: GetUserTranslationStatusForStory :one
+SELECT
+    EXISTS(SELECT 1 FROM translation_requests tr WHERE tr.user_id = $1 AND tr.story_id = $2) as completed,
+    COALESCE((SELECT tr2.requested_lines FROM translation_requests tr2 WHERE tr2.user_id = $1 AND tr2.story_id = $2), ARRAY[]::INTEGER[]) as requested_lines
+`
+
+type GetUserTranslationStatusForStoryParams struct {
+	UserID  string `json:"user_id"`
+	StoryID int32  `json:"story_id"`
+}
+
+type GetUserTranslationStatusForStoryRow struct {
+	Completed      bool        `json:"completed"`
+	RequestedLines interface{} `json:"requested_lines"`
+}
+
+func (q *Queries) GetUserTranslationStatusForStory(ctx context.Context, arg GetUserTranslationStatusForStoryParams) (GetUserTranslationStatusForStoryRow, error) {
+	row := q.db.QueryRow(ctx, getUserTranslationStatusForStory, arg.UserID, arg.StoryID)
+	var i GetUserTranslationStatusForStoryRow
+	err := row.Scan(&i.Completed, &i.RequestedLines)
+	return i, err
+}
+
 const translationRequestExists = `-- name: TranslationRequestExists :one
 SELECT EXISTS(
     SELECT 1 FROM translation_requests

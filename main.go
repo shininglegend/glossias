@@ -35,10 +35,10 @@ func main() {
 		err = nil
 	}
 
-	// Initialize database based on POSTGRES_DB environment variable
+	// Initialize database with automatic reconnection support
 	// USE_POOL=true uses pgxpool, USE_POOL=false uses database/sql, no DATABASE_URL uses mock
 	dbPath := "" // Not used for PostgreSQL
-	db, err := database.InitDB(dbPath)
+	db, err := database.InitDBWithReconnect(dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}

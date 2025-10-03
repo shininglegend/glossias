@@ -141,28 +141,25 @@ func (h *Handler) getPageCompletionStatus(ctx context.Context, userID string, st
 	return status, nil
 }
 
-// isVocabCompleted checks if user has completed vocab (has attempts AND sufficient time)
+// isVocabCompleted checks if user has completed vocab (correct answers = total vocab items)
 func (h *Handler) isVocabCompleted(ctx context.Context, userID string, storyID int32) (bool, error) {
-	const minTimeSeconds = 5
+	// Get total vocabulary items in story
+	totalVocabItems, err := models.CountStoryVocabItems(ctx, storyID)
+	if err != nil {
+		return false, err
+	}
 
-	// Check if user has vocab attempts
+	if totalVocabItems == 0 {
+		return true, nil // No vocab items means complete
+	}
+
+	// Check user's correct answers
 	vocabSummary, err := models.GetUserStoryVocabSummary(ctx, userID, storyID)
 	if err != nil {
 		return false, err
 	}
 
-	vocabTotal := vocabSummary.CorrectCount + vocabSummary.IncorrectCount
-	if vocabTotal == 0 {
-		return false, nil // No attempts
-	}
-
-	// Check time spent
-	timeData, err := models.GetUserStoryTimeTracking(ctx, userID, storyID)
-	if err != nil {
-		return false, err
-	}
-
-	return timeData.VocabTimeSeconds >= minTimeSeconds, nil
+	return vocabSummary.CorrectCount == totalVocabItems, nil
 }
 
 // isGrammarCompleted checks if user has completed grammar (has attempts AND sufficient time)

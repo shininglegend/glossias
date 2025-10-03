@@ -11,6 +11,32 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countStoryGrammarItems = `-- name: CountStoryGrammarItems :one
+SELECT COUNT(*) as total_grammar_items
+FROM grammar_items
+WHERE story_id = $1
+`
+
+func (q *Queries) CountStoryGrammarItems(ctx context.Context, storyID pgtype.Int4) (int64, error) {
+	row := q.db.QueryRow(ctx, countStoryGrammarItems, storyID)
+	var total_grammar_items int64
+	err := row.Scan(&total_grammar_items)
+	return total_grammar_items, err
+}
+
+const countStoryVocabItems = `-- name: CountStoryVocabItems :one
+SELECT COUNT(*) as total_vocab_items
+FROM vocabulary_items
+WHERE story_id = $1
+`
+
+func (q *Queries) CountStoryVocabItems(ctx context.Context, storyID pgtype.Int4) (int64, error) {
+	row := q.db.QueryRow(ctx, countStoryVocabItems, storyID)
+	var total_vocab_items int64
+	err := row.Scan(&total_vocab_items)
+	return total_vocab_items, err
+}
+
 const getAllUsersStoryGrammarSummary = `-- name: GetAllUsersStoryGrammarSummary :many
 SELECT
     COALESCE(gca.user_id, gia.user_id) as user_id,
@@ -168,18 +194,8 @@ SELECT
     st.title as story_title,
     COALESCE(vocab_stats.correct_count, 0) as vocab_correct,
     COALESCE(vocab_stats.incorrect_count, 0) as vocab_incorrect,
-    (CASE 
-        WHEN COALESCE(vocab_stats.correct_count, 0) + COALESCE(vocab_stats.incorrect_count, 0) > 0 
-        THEN (COALESCE(vocab_stats.correct_count, 0)::float / (COALESCE(vocab_stats.correct_count, 0) + COALESCE(vocab_stats.incorrect_count, 0))) * 100
-        ELSE 0
-    END)::double precision as vocab_accuracy,
     COALESCE(grammar_stats.correct_count, 0) as grammar_correct,
     COALESCE(grammar_stats.incorrect_count, 0) as grammar_incorrect,
-    (CASE 
-        WHEN COALESCE(grammar_stats.correct_count, 0) + COALESCE(grammar_stats.incorrect_count, 0) > 0 
-        THEN (COALESCE(grammar_stats.correct_count, 0)::float / (COALESCE(grammar_stats.correct_count, 0) + COALESCE(grammar_stats.incorrect_count, 0))) * 100
-        ELSE 0
-    END)::double precision as grammar_accuracy,
     COALESCE(tr.completed, false) as translation_completed,
     COALESCE(tr.requested_lines, ARRAY[]::INTEGER[]) as requested_lines,
     COALESCE(time_stats.vocab_time_seconds, 0) as vocab_time_seconds,
@@ -237,10 +253,8 @@ type GetStoryStudentPerformanceRow struct {
 	StoryTitle             pgtype.Text `json:"story_title"`
 	VocabCorrect           int64       `json:"vocab_correct"`
 	VocabIncorrect         int64       `json:"vocab_incorrect"`
-	VocabAccuracy          float64     `json:"vocab_accuracy"`
 	GrammarCorrect         int64       `json:"grammar_correct"`
 	GrammarIncorrect       int64       `json:"grammar_incorrect"`
-	GrammarAccuracy        float64     `json:"grammar_accuracy"`
 	TranslationCompleted   bool        `json:"translation_completed"`
 	RequestedLines         interface{} `json:"requested_lines"`
 	VocabTimeSeconds       interface{} `json:"vocab_time_seconds"`
@@ -266,10 +280,8 @@ func (q *Queries) GetStoryStudentPerformance(ctx context.Context, storyID int32)
 			&i.StoryTitle,
 			&i.VocabCorrect,
 			&i.VocabIncorrect,
-			&i.VocabAccuracy,
 			&i.GrammarCorrect,
 			&i.GrammarIncorrect,
-			&i.GrammarAccuracy,
 			&i.TranslationCompleted,
 			&i.RequestedLines,
 			&i.VocabTimeSeconds,

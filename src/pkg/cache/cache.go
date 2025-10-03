@@ -264,6 +264,11 @@ func (kb *KeyBuilder) StoryAnnotations(storyID int) string {
 	return fmt.Sprintf("story_annotations:%d", storyID)
 }
 
+// StoryVocabCount builds a cache key for story vocabulary item count
+func (kb *KeyBuilder) StoryVocabCount(storyID int) string {
+	return fmt.Sprintf("story_vocab_count:%d", storyID)
+}
+
 // LineAnnotations builds a cache key for line annotations
 func (kb *KeyBuilder) LineAnnotations(storyID int, lineNumber int) string {
 	return fmt.Sprintf("line_annotations:%d:%d", storyID, lineNumber)

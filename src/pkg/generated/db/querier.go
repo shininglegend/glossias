@@ -27,6 +27,8 @@ type Querier interface {
 	ClearStoryGrammarPoints(ctx context.Context, storyID int32) error
 	CloseAnonymousTimeEntry(ctx context.Context, arg CloseAnonymousTimeEntryParams) error
 	CloseTimeEntry(ctx context.Context, arg CloseTimeEntryParams) error
+	CountStoryGrammarItems(ctx context.Context, storyID pgtype.Int4) (int64, error)
+	CountStoryVocabItems(ctx context.Context, storyID pgtype.Int4) (int64, error)
 	// Anonymous time tracking queries
 	CreateAnonymousTimeEntry(ctx context.Context, arg CreateAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
 	// Audio files management queries

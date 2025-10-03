@@ -119,6 +119,16 @@ LEFT JOIN grammar_items gi ON gs.grammar_point_id = gi.grammar_point_id AND gs.s
 WHERE gs.user_id = $1 AND gs.story_id = $2
 ORDER BY gs.line_number, gs.grammar_point_id, gs.attempted_at DESC;
 
+-- name: CountStoryVocabItems :one
+SELECT COUNT(*) as total_vocab_items
+FROM vocabulary_items
+WHERE story_id = $1;
+
+-- name: CountStoryGrammarItems :one
+SELECT COUNT(*) as total_grammar_items
+FROM grammar_items
+WHERE story_id = $1;
+
 -- name: GetStoryStudentPerformance :many
 SELECT
     u.user_id,
@@ -127,18 +137,8 @@ SELECT
     st.title as story_title,
     COALESCE(vocab_stats.correct_count, 0) as vocab_correct,
     COALESCE(vocab_stats.incorrect_count, 0) as vocab_incorrect,
-    (CASE 
-        WHEN COALESCE(vocab_stats.correct_count, 0) + COALESCE(vocab_stats.incorrect_count, 0) > 0 
-        THEN (COALESCE(vocab_stats.correct_count, 0)::float / (COALESCE(vocab_stats.correct_count, 0) + COALESCE(vocab_stats.incorrect_count, 0))) * 100
-        ELSE 0
-    END)::double precision as vocab_accuracy,
     COALESCE(grammar_stats.correct_count, 0) as grammar_correct,
     COALESCE(grammar_stats.incorrect_count, 0) as grammar_incorrect,
-    (CASE 
-        WHEN COALESCE(grammar_stats.correct_count, 0) + COALESCE(grammar_stats.incorrect_count, 0) > 0 
-        THEN (COALESCE(grammar_stats.correct_count, 0)::float / (COALESCE(grammar_stats.correct_count, 0) + COALESCE(grammar_stats.incorrect_count, 0))) * 100
-        ELSE 0
-    END)::double precision as grammar_accuracy,
     COALESCE(tr.completed, false) as translation_completed,
     COALESCE(tr.requested_lines, ARRAY[]::INTEGER[]) as requested_lines,
     COALESCE(time_stats.vocab_time_seconds, 0) as vocab_time_seconds,

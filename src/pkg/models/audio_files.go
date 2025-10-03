@@ -173,7 +173,10 @@ func deleteAudioFilesFromStorage(audioFiles []AudioFile) error {
 	}
 
 	for _, audioFile := range audioFiles {
-		_, err := storageClient.RemoveFile(audioFile.FileBucket, []string{audioFile.FilePath})
+		err := storageRetry(func() error {
+			_, removeErr := storageClient.RemoveFile(audioFile.FileBucket, []string{audioFile.FilePath})
+			return removeErr
+		})
 		if err != nil {
 			return fmt.Errorf("failed to delete file from storage: %w", err)
 		}
@@ -306,13 +309,20 @@ func GetSignedAudioURL(ctx context.Context, audioFileID int, userID string, expi
 		}
 	}
 
-	// Generate signed URL from Supabase
-	result, err := storageClient.CreateSignedUrl(audioFile.FileBucket, audioFile.FilePath, expiresInSeconds)
+	// Generate signed URL from Supabase with retry
+	var signedURL string
+	err = storageRetry(func() error {
+		result, signErr := storageClient.CreateSignedUrl(audioFile.FileBucket, audioFile.FilePath, expiresInSeconds)
+		if signErr == nil {
+			signedURL = result.SignedURL
+		}
+		return signErr
+	})
 	if err != nil {
 		return "", err
 	}
 
-	return result.SignedURL, nil
+	return signedURL, nil
 }
 
 // GetSignedAudioURLsForStory generates signed URLs for all audio files in a story with optional label filter
@@ -348,14 +358,21 @@ func GetSignedAudioURLsForStory(ctx context.Context, storyID int, userID string,
 		return nil, err
 	}
 
-	// Generate signed URLs
+	// Generate signed URLs with retry
 	signedURLs := make(map[int]string)
 	for _, audioFile := range audioFiles {
-		result, err := storageClient.CreateSignedUrl(audioFile.FileBucket, audioFile.FilePath, expiresInSeconds)
+		var signedURL string
+		err := storageRetry(func() error {
+			result, signErr := storageClient.CreateSignedUrl(audioFile.FileBucket, audioFile.FilePath, expiresInSeconds)
+			if signErr == nil {
+				signedURL = result.SignedURL
+			}
+			return signErr
+		})
 		if err != nil {
 			return nil, err
 		}
-		signedURLs[audioFile.LineNumber] = result.SignedURL
+		signedURLs[audioFile.LineNumber] = signedURL
 	}
 
 	return signedURLs, nil
@@ -386,14 +403,21 @@ func GetSignedAudioURLsForLine(ctx context.Context, storyID, lineNumber int, use
 		return nil, err
 	}
 
-	// Generate signed URLs
+	// Generate signed URLs with retry
 	signedURLs := make(map[int]string)
 	for _, audioFile := range audioFiles {
-		result, err := storageClient.CreateSignedUrl(audioFile.FileBucket, audioFile.FilePath, expiresInSeconds)
+		var signedURL string
+		err := storageRetry(func() error {
+			result, signErr := storageClient.CreateSignedUrl(audioFile.FileBucket, audioFile.FilePath, expiresInSeconds)
+			if signErr == nil {
+				signedURL = result.SignedURL
+			}
+			return signErr
+		})
 		if err != nil {
 			return nil, err
 		}
-		signedURLs[audioFile.ID] = result.SignedURL
+		signedURLs[audioFile.ID] = signedURL
 	}
 
 	return signedURLs, nil
@@ -418,17 +442,18 @@ func GenerateSignedUploadURL(ctx context.Context, bucket, filePath string) (stri
 		return "", errors.New("storage client not initialized")
 	}
 
-	// Generate signed upload URL
-	result, err := storageClient.CreateSignedUploadUrl(bucket, filePath)
+	// Generate signed upload URL with retry
+	var uploadURL string
+	err := storageRetry(func() error {
+		result, signErr := storageClient.CreateSignedUploadUrl(bucket, filePath)
+		if signErr == nil {
+			uploadURL = storageBaseURL + result.Url
+		}
+		return signErr
+	})
 	if err != nil {
 		return "", err
 	}
 
-	// Construct complete URL using base storage URL
-	if storageBaseURL == "" {
-		return "", errors.New("storage base URL not configured")
-	}
-	// fmt.Println("Generated signed upload URL:\n", storageBaseURL+result.Url)
-
-	return storageBaseURL + result.Url, nil
+	return uploadURL, nil
 }

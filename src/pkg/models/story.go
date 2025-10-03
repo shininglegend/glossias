@@ -7,6 +7,7 @@ import (
 	"glossias/src/pkg/cache"
 	"glossias/src/pkg/database"
 	"glossias/src/pkg/generated/db"
+	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -32,6 +33,7 @@ var queries *db.Queries
 var rawConn any
 var storageClient *storage_go.Client
 var storageBaseURL string
+var storageAPIKey string
 var cacheInstance *cache.Cache
 var keyBuilder *cache.KeyBuilder
 
@@ -56,17 +58,34 @@ func SetStorageClient(url, apiKey string) {
 		fmt.Println("Storage credentials missing - operations will fail")
 		storageClient = nil
 		storageBaseURL = ""
+		storageAPIKey = ""
 		return
 	}
 
 	storageClient = storage_go.NewClient(url, apiKey, nil)
 	storageBaseURL = url
-	// Test the connection by listing buckets
-	_, err := storageClient.ListBuckets()
+	storageAPIKey = apiKey
+	// Test the connection by listing buckets with retry on 'tx closed'
+	const maxRetries = 3
+	var err error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		_, err = storageClient.ListBuckets()
+		if err == nil {
+			break
+		}
+		if strings.Contains(err.Error(), "tx closed") {
+			fmt.Printf("Attempt %d: tx closed error received, reconnecting...\n", attempt)
+			storageClient = storage_go.NewClient(url, apiKey, nil)
+			time.Sleep(1 * time.Second)
+		} else {
+			break
+		}
+	}
 	if err != nil {
 		fmt.Printf("Failed to connect to storage: %v\n", err)
 		storageClient = nil
 		storageBaseURL = ""
+		storageAPIKey = ""
 		return
 	}
 	fmt.Printf("Storage client initialized with URL: %s\n", url)
@@ -83,6 +102,42 @@ func SetCache() error {
 	keyBuilder = cache.NewKeyBuilder()
 	fmt.Println("Cache initialized successfully")
 	return nil
+}
+
+// storageRetry executes a storage operation with retry on connection errors
+func storageRetry(operation func() error) error {
+	const maxRetries = 3
+	var err error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		err = operation()
+		if err == nil {
+			return nil
+		}
+
+		// Check if it's a connection error
+		if strings.Contains(err.Error(), "tx closed") ||
+			strings.Contains(err.Error(), "connection closed") ||
+			strings.Contains(err.Error(), "connection reset") ||
+			strings.Contains(err.Error(), "broken pipe") ||
+			strings.Contains(err.Error(), "unexpected EOF") {
+
+			fmt.Printf("Storage connection error (attempt %d/%d): %v\n", attempt, maxRetries, err)
+
+			if attempt < maxRetries {
+				time.Sleep(1 * time.Second)
+				// Reinitialize storage client
+				if storageBaseURL != "" && storageAPIKey != "" {
+					storageClient = storage_go.NewClient(storageBaseURL, storageAPIKey, nil)
+				}
+			}
+		} else {
+			// Non-connection error, don't retry
+			return err
+		}
+	}
+
+	return fmt.Errorf("storage operation failed after %d attempts: %w", maxRetries, err)
 }
 
 type Story struct {

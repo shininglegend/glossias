@@ -128,3 +128,20 @@ func GetUserStoryTimeTracking(ctx context.Context, userID string, storyID int32)
 		VideoTimeSeconds:       convertToInt(result.VideoTimeSeconds),
 	}, nil
 }
+
+// CountStoryVocabItems returns the total number of vocabulary items for a story (cached)
+func CountStoryVocabItems(ctx context.Context, storyID int32) (int64, error) {
+	if cacheInstance == nil || keyBuilder == nil {
+		// No cache available, query directly
+		return queries.CountStoryVocabItems(ctx, pgtype.Int4{Int32: storyID, Valid: true})
+	}
+
+	cacheKey := keyBuilder.StoryVocabCount(int(storyID))
+
+	var count int64
+	err := cacheInstance.GetOrSetJSON(cacheKey, &count, func() (any, error) {
+		return queries.CountStoryVocabItems(ctx, pgtype.Int4{Int32: storyID, Valid: true})
+	})
+
+	return count, err
+}

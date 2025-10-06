@@ -191,14 +191,26 @@ export function CourseStudentPerformance() {
     fetchPerformance();
   }, [selectedStoryId, api]);
 
-  // Sort performance data by performance score
+  // Sort performance data by:
+  // 1. Most combined correct (vocab + grammar)
+  // 2. Least combined incorrect (vocab + grammar)
+  // 3. Alphabetically by email
   const sortedPerformanceData = performanceData.slice().sort((a, b) => {
-    const scoreA = (a.vocab_accuracy + a.grammar_accuracy) / 2;
-    const scoreB = (b.vocab_accuracy + b.grammar_accuracy) / 2;
-    if (scoreB !== scoreA) {
-      return scoreB - scoreA; // Higher score first
+    const totalCorrectA = a.vocab_correct + a.grammar_correct;
+    const totalCorrectB = b.vocab_correct + b.grammar_correct;
+    
+    if (totalCorrectB !== totalCorrectA) {
+      return totalCorrectB - totalCorrectA; // Higher correct first
     }
-    return a.user_name.localeCompare(b.user_name); // Alphabetical tie-break
+    
+    const totalIncorrectA = a.vocab_incorrect + a.grammar_incorrect;
+    const totalIncorrectB = b.vocab_incorrect + b.grammar_incorrect;
+    
+    if (totalIncorrectA !== totalIncorrectB) {
+      return totalIncorrectA - totalIncorrectB; // Lower incorrect first
+    }
+    
+    return a.email.localeCompare(b.email); // Alphabetical by email
   });
 
   if (loadingStories) {

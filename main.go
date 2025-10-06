@@ -73,16 +73,6 @@ func main() {
 	r.Use(auth.Middleware(logger))
 	r.Use(loggingMiddleware(logger))
 
-	// Initialize handlers
-	// Serve static files (robots.txt, etc) that aren't handled by the frontend service
-	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
-		http.FileServer(http.Dir("static"))))
-
-	// Robots.txt
-	r.HandleFunc("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "static/robots.txt")
-	})
-
 	// Health check endpoint (no auth required)
 	r.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

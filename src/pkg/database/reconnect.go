@@ -2,30 +2,31 @@ package database
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
 	maxRetries     = 3
-	retryDelay     = 1 * time.Second
-	reconnectDelay = 2 * time.Second
+	retryDelay     = 3 * time.Second
+	reconnectDelay = 5 * time.Second
 )
 
-// isConnectionError checks if an error is a connection-related error that warrants reconnection
-func isConnectionError(err error) bool {
+// IsConnectionError checks if an error is a connection-related error that warrants reconnection
+func IsConnectionError(err error) bool {
 	if err == nil {
 		return false
 	}
 	errStr := strings.ToLower(err.Error())
 	return strings.Contains(errStr, "tx closed") ||
 		strings.Contains(errStr, "connection closed") ||
+		strings.Contains(errStr, "connection refused") ||
 		strings.Contains(errStr, "connection reset") ||
 		strings.Contains(errStr, "broken pipe") ||
 		strings.Contains(errStr, "bad connection") ||
@@ -33,30 +34,32 @@ func isConnectionError(err error) bool {
 		strings.Contains(errStr, "conn busy")
 }
 
-// ReconnectablePoolStore wraps poolStore with automatic reconnection
-type ReconnectablePoolStore struct {
+// ReconnectableDBTX wraps pgxpool.Pool with SQLC's DBTX interface and automatic reconnection
+// This ensures SQLC-generated queries benefit from reconnection logic
+type ReconnectableDBTX struct {
 	pool      *pgxpool.Pool
 	connStr   string
 	schemaSQL string
 }
 
-// NewReconnectablePoolStore creates a new reconnectable pool store
-func NewReconnectablePoolStore(connStr string, schemaSQL string) (*ReconnectablePoolStore, error) {
-	store := &ReconnectablePoolStore{
+// NewReconnectableDBTX creates a new DBTX wrapper with reconnection support
+func NewReconnectableDBTX(connStr string, schemaSQL string) (*ReconnectableDBTX, error) {
+	dbtx := &ReconnectableDBTX{
 		connStr:   connStr,
 		schemaSQL: schemaSQL,
 	}
 
-	if err := store.reconnect(); err != nil {
+	if err := dbtx.reconnect(); err != nil {
 		return nil, err
 	}
 
-	return store, nil
+	return dbtx, nil
 }
 
 // reconnect establishes a new connection pool
-func (s *ReconnectablePoolStore) reconnect() error {
-	config, err := pgxpool.ParseConfig(s.connStr)
+func (d *ReconnectableDBTX) reconnect() error {
+	fmt.Println("Attempting to reconnect to the database...")
+	config, err := pgxpool.ParseConfig(d.connStr)
 	if err != nil {
 		return fmt.Errorf("failed to parse config: %w", err)
 	}
@@ -74,25 +77,25 @@ func (s *ReconnectablePoolStore) reconnect() error {
 		return fmt.Errorf("failed to ping: %w", err)
 	}
 
-	if s.schemaSQL != "" {
-		if _, err := pool.Exec(context.Background(), s.schemaSQL); err != nil {
+	if d.schemaSQL != "" {
+		if _, err := pool.Exec(context.Background(), d.schemaSQL); err != nil {
 			pool.Close()
 			return fmt.Errorf("failed to execute schema: %w", err)
 		}
 	}
 
 	// Close old pool if exists
-	if s.pool != nil {
-		s.pool.Close()
+	if d.pool != nil {
+		d.pool.Close()
 	}
 
-	s.pool = pool
+	d.pool = pool
 	fmt.Println("Database connection pool reconnected successfully")
 	return nil
 }
 
 // executeWithRetry executes a function with automatic reconnection on connection errors
-func (s *ReconnectablePoolStore) executeWithRetry(fn func() error) error {
+func (d *ReconnectableDBTX) executeWithRetry(fn func() error) error {
 	var err error
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		err = fn()
@@ -100,7 +103,7 @@ func (s *ReconnectablePoolStore) executeWithRetry(fn func() error) error {
 			return nil
 		}
 
-		if !isConnectionError(err) {
+		if !IsConnectionError(err) {
 			return err
 		}
 
@@ -108,7 +111,7 @@ func (s *ReconnectablePoolStore) executeWithRetry(fn func() error) error {
 
 		if attempt < maxRetries {
 			time.Sleep(retryDelay)
-			if reconnectErr := s.reconnect(); reconnectErr != nil {
+			if reconnectErr := d.reconnect(); reconnectErr != nil {
 				fmt.Printf("Reconnection failed: %v\n", reconnectErr)
 				time.Sleep(reconnectDelay)
 			}
@@ -118,74 +121,77 @@ func (s *ReconnectablePoolStore) executeWithRetry(fn func() error) error {
 	return fmt.Errorf("failed after %d attempts: %w", maxRetries, err)
 }
 
-func (s *ReconnectablePoolStore) DB() DB {
-	return &reconnectablePoolDB{store: s}
-}
-
-func (s *ReconnectablePoolStore) Close() error {
-	if s.pool != nil {
-		s.pool.Close()
-	}
-	return nil
-}
-
-func (s *ReconnectablePoolStore) RawConn() any {
-	return s.pool
-}
-
-// reconnectablePoolDB wraps pool operations with retry logic
-type reconnectablePoolDB struct {
-	store *ReconnectablePoolStore
-}
-
-func (db *reconnectablePoolDB) Exec(query string, args ...any) (sql.Result, error) {
-	var result sql.Result
-	err := db.store.executeWithRetry(func() error {
-		tag, execErr := db.store.pool.Exec(context.Background(), query, args...)
-		if execErr != nil {
-			return execErr
-		}
-		result = &poolResult{tag}
-		return nil
+// Exec implements DBTX interface with retry logic
+func (d *ReconnectableDBTX) Exec(ctx context.Context, query string, args ...interface{}) (pgconn.CommandTag, error) {
+	var tag pgconn.CommandTag
+	err := d.executeWithRetry(func() error {
+		var execErr error
+		tag, execErr = d.pool.Exec(ctx, query, args...)
+		return execErr
 	})
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
+	return tag, err
 }
 
-func (db *reconnectablePoolDB) Query(query string, args ...any) (result Rows, err error) {
-	err = db.store.executeWithRetry(func() error {
-		rows, queryErr := db.store.pool.Query(context.Background(), query, args...)
-		if queryErr != nil {
-			return queryErr
-		}
-		result = &poolRows{rows}
-		return nil
+// Query implements DBTX interface with retry logic
+func (d *ReconnectableDBTX) Query(ctx context.Context, query string, args ...interface{}) (pgx.Rows, error) {
+	var rows pgx.Rows
+	err := d.executeWithRetry(func() error {
+		var queryErr error
+		rows, queryErr = d.pool.Query(ctx, query, args...)
+		return queryErr
 	})
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
+	return rows, err
 }
 
-func (db *reconnectablePoolDB) QueryRow(query string, args ...any) Row {
-	// QueryRow doesn't return errors until Scan is called
-	return &poolRow{db.store.pool.QueryRow(context.Background(), query, args...)}
+// retryableRow wraps pgx.Row to add retry logic on Scan
+type retryableRow struct {
+	dbtx  *ReconnectableDBTX
+	ctx   context.Context
+	query string
+	args  []any
 }
 
-func (db *reconnectablePoolDB) Begin() (*sql.Tx, error) {
-	return nil, fmt.Errorf("transactions not implemented for reconnectable pool")
-}
-
-func (db *reconnectablePoolDB) Close() error {
-	return db.store.Close()
-}
-
-func (db *reconnectablePoolDB) Ping() error {
-	return db.store.executeWithRetry(func() error {
-		return db.store.pool.Ping(context.Background())
+func (r *retryableRow) Scan(dest ...any) error {
+	var scanErr error
+	err := r.dbtx.executeWithRetry(func() error {
+		row := r.dbtx.pool.QueryRow(r.ctx, r.query, r.args...)
+		scanErr = row.Scan(dest...)
+		return scanErr
 	})
+	return err
+}
+
+// QueryRow implements DBTX interface with retry logic via retryableRow
+func (d *ReconnectableDBTX) QueryRow(ctx context.Context, query string, args ...any) pgx.Row {
+	return &retryableRow{
+		dbtx:  d,
+		ctx:   ctx,
+		query: query,
+		args:  args,
+	}
+}
+
+// CopyFrom implements DBTX interface with retry logic
+func (d *ReconnectableDBTX) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
+	var rowsAffected int64
+	err := d.executeWithRetry(func() error {
+		var copyErr error
+		rowsAffected, copyErr = d.pool.CopyFrom(ctx, tableName, columnNames, rowSrc)
+		return copyErr
+	})
+	return rowsAffected, err
+}
+
+// Close closes the connection pool
+func (d *ReconnectableDBTX) Close() {
+	if d.pool != nil {
+		d.pool.Close()
+	}
+}
+
+// Pool returns the underlying pool (for any direct access needs)
+func (d *ReconnectableDBTX) Pool() *pgxpool.Pool {
+	return d.pool
 }
 
 // InitDBWithReconnect initializes database with automatic reconnection support
@@ -204,9 +210,36 @@ func InitDBWithReconnect(dbPath string) (Store, error) {
 	}
 
 	if usePool {
-		return NewReconnectablePoolStore(connStr, string(schema))
+		// Create reconnectable DBTX wrapper for SQLC compatibility
+		dbtx, err := NewReconnectableDBTX(connStr, string(schema))
+		if err != nil {
+			return nil, err
+		}
+		return &reconnectableDBTXStore{dbtx: dbtx}, nil
 	}
 
 	// Fallback to regular connection for non-pool mode
 	return InitDB(dbPath)
+}
+
+// reconnectableDBTXStore wraps ReconnectableDBTX as a Store
+type reconnectableDBTXStore struct {
+	dbtx *ReconnectableDBTX
+}
+
+func (s *reconnectableDBTXStore) DB() DB {
+	// Not typically used - SQLC queries use RawConn() directly
+	// Return nil to indicate this store doesn't support the legacy DB interface
+	return nil
+}
+
+func (s *reconnectableDBTXStore) Close() error {
+	s.dbtx.Close()
+	return nil
+}
+
+func (s *reconnectableDBTXStore) RawConn() any {
+	// Return the DBTX wrapper, not the raw pool
+	// This is what gets passed to db.New() in models.SetDB()
+	return s.dbtx
 }

@@ -7,7 +7,6 @@ import (
 	"glossias/src/pkg/cache"
 	"glossias/src/pkg/database"
 	"glossias/src/pkg/generated/db"
-	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -46,6 +45,9 @@ func SetDB(d any) {
 		queries = db.New(conn)
 	} else if mockConn, ok := d.(*database.MockDBTX); ok {
 		queries = db.New(mockConn)
+	} else if reconnectConn, ok := d.(*database.ReconnectableDBTX); ok {
+		// ReconnectableDBTX implements DBTX with reconnection logic
+		queries = db.New(reconnectConn)
 	} else {
 		// For testing - allow nil queries when no real DB connection
 		queries = nil
@@ -73,7 +75,7 @@ func SetStorageClient(url, apiKey string) {
 		if err == nil {
 			break
 		}
-		if strings.Contains(err.Error(), "tx closed") {
+		if database.IsConnectionError(err) {
 			fmt.Printf("Attempt %d: tx closed error received, reconnecting...\n", attempt)
 			storageClient = storage_go.NewClient(url, apiKey, nil)
 			time.Sleep(1 * time.Second)
@@ -116,11 +118,7 @@ func storageRetry(operation func() error) error {
 		}
 
 		// Check if it's a connection error
-		if strings.Contains(err.Error(), "tx closed") ||
-			strings.Contains(err.Error(), "connection closed") ||
-			strings.Contains(err.Error(), "connection reset") ||
-			strings.Contains(err.Error(), "broken pipe") ||
-			strings.Contains(err.Error(), "unexpected EOF") {
+		if database.IsConnectionError(err) {
 
 			fmt.Printf("Storage connection error (attempt %d/%d): %v\n", attempt, maxRetries, err)
 

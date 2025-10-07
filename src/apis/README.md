@@ -68,7 +68,7 @@ Vocabulary exercise with blanks (`%`) and word bank.
 ```
 
 ### GET `/api/stories/{id}/grammar`
-Grammar exercise with blank story lines and grammar point info.
+Grammar exercise with story lines, grammar point info, and user progress.
 
 **Response:**
 ```json
@@ -79,12 +79,28 @@ Grammar exercise with blank story lines and grammar point info.
     "story_title": "Story Title",
     "lines": [
       {
-        "text": ["Full line of text"],
-        "audio_files": [],
-        "has_vocab_or_grammar": true
+        "text": "Full line of text"
       }
     ],
-    "grammar_point": "Present Perfect Tense"
+    "grammar_point": "Present Perfect Tense",
+    "grammar_description": "Used for actions completed in the past",
+    "instances_count": 3,
+    "found_instances": [
+      {
+        "line_number": 1,
+        "position": [5, 9],
+        "text": "verb"
+      }
+    ],
+    "incorrect_instances": [
+      {
+        "line_number": 2,
+        "position": [10, 11],
+        "text": "a",
+        "correct": false
+      }
+    ],
+    "next_grammar_point": 17
   }
 }
 ```
@@ -137,22 +153,14 @@ Check vocabulary answers for one line.
 ```
 
 ### POST `/api/stories/{id}/check-grammar`
-Check grammar answers for multiple lines of same grammar point.
+Check single grammar selection (one click at a time).
 
 **Request:**
 ```json
 {
   "grammar_point_id": 1,
-  "answers": [
-    {
-      "line_number": 0,
-      "positions": [5, 12, 20]
-    },
-    {
-      "line_number": 2,
-      "positions": [8]
-    }
-  ]
+  "line_number": 1,
+  "position": 5
 }
 ```
 
@@ -161,17 +169,10 @@ Check grammar answers for multiple lines of same grammar point.
 {
   "success": true,
   "data": {
-    "correct": 3,
-    "wrong": 1,
-    "total_answers": 4,
-    "results": [
-      {
-        "line_number": 0,
-        "position": [5, 9],
-        "text": "verb",
-        "correct": true
-      }
-    ]
+    "correct": true,
+    "matched_position": [5, 9],
+    "total_instances": 3,
+    "next_grammar_point": 17
   }
 }
 ```

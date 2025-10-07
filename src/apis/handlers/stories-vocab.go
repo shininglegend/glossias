@@ -33,7 +33,7 @@ func (h *Handler) GetVocabPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lines, vocabBank := h.generateVocabLines(*story, id)
+	lines, vocabBank := h.generateVocabLines(*story)
 
 	data := types.VocabPageData{
 		PageData: types.PageData{
@@ -54,7 +54,7 @@ func (h *Handler) GetVocabPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // generateVocabLines prepares lines with vocabulary blanks and vocab bank
-func (h *Handler) generateVocabLines(story models.Story, id int) ([]types.Line, []string) {
+func (h *Handler) generateVocabLines(story models.Story) ([]types.Line, []string) {
 	lines := make([]types.Line, len(story.Content.Lines))
 	vocabBank := make([]string, 0)
 

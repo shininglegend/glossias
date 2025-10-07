@@ -94,6 +94,24 @@ func SaveGrammarScore(ctx context.Context, userID string, storyID int, lineNumbe
 	return nil
 }
 
+// GetUserGrammarScoresByGrammarPoint retrieves user's correct grammar answers for a specific grammar point
+func GetUserGrammarScoresByGrammarPoint(ctx context.Context, userID string, storyID int, grammarPointID int) ([]db.GetUserGrammarScoresByGrammarPointRow, error) {
+	return queries.GetUserGrammarScoresByGrammarPoint(ctx, db.GetUserGrammarScoresByGrammarPointParams{
+		UserID:         userID,
+		StoryID:        int32(storyID),
+		GrammarPointID: int32(grammarPointID),
+	})
+}
+
+// GetUserGrammarIncorrectAnswers retrieves user's incorrect grammar answers for a specific grammar point
+func GetUserGrammarIncorrectAnswers(ctx context.Context, userID string, storyID int, grammarPointID int) ([]db.GetUserGrammarIncorrectAnswersRow, error) {
+	return queries.GetUserGrammarIncorrectAnswers(ctx, db.GetUserGrammarIncorrectAnswersParams{
+		UserID:         userID,
+		StoryID:        int32(storyID),
+		GrammarPointID: int32(grammarPointID),
+	})
+}
+
 // SaveGrammarScoresForPoint saves grammar scores for multiple lines of the same grammar point
 func SaveGrammarScoresForPoint(ctx context.Context, userID string, storyID int, grammarPointID int, lineScores map[int]bool, incorrectAnswers map[int]struct {
 	SelectedLine      int
@@ -229,4 +247,45 @@ func SaveIncorrectAnswers(ctx context.Context, userID string, storyID, grammarPo
 		}
 		return nil
 	})
+}
+
+// SaveSingleGrammarSelection saves a single grammar selection (correct or incorrect)
+func SaveSingleGrammarSelection(ctx context.Context, userID string, storyID int, grammarPointID int, lineNumber int, position int, correct bool) error {
+	if correct {
+		return queries.SaveGrammarScore(ctx, db.SaveGrammarScoreParams{
+			UserID:         userID,
+			StoryID:        int32(storyID),
+			LineNumber:     int32(lineNumber),
+			GrammarPointID: int32(grammarPointID),
+		})
+	}
+
+	return queries.SaveGrammarIncorrectAnswer(ctx, db.SaveGrammarIncorrectAnswerParams{
+		UserID:            userID,
+		StoryID:           int32(storyID),
+		LineNumber:        int32(lineNumber),
+		GrammarPointID:    int32(grammarPointID),
+		SelectedLine:      int32(lineNumber),
+		SelectedPositions: []int32{int32(position)},
+	})
+}
+
+// CountFoundGrammarInstances counts how many instances of a grammar point a user has already found correctly
+func CountFoundGrammarInstances(ctx context.Context, userID string, storyID int, grammarPointID int) (int, error) {
+	scores, err := queries.GetUserGrammarScores(ctx, db.GetUserGrammarScoresParams{
+		UserID:  userID,
+		StoryID: int32(storyID),
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	// Count scores matching this grammar point
+	count := 0
+	for _, score := range scores {
+		if int(score.GrammarPointID) == grammarPointID {
+			count++
+		}
+	}
+	return count, nil
 }

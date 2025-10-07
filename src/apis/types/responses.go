@@ -67,12 +67,15 @@ type VocabPageData struct {
 // GrammarPageData extends PageData with grammar point
 type GrammarPageData struct {
 	PageData
-	Lines              []LineText `json:"lines"`
-	LanguageCode       string     `json:"languageCode"`
-	GrammarPointID     int        `json:"grammar_point_id"`
-	GrammarPoint       string     `json:"grammar_point"`
-	GrammarDescription string     `json:"grammar_description"`
-	InstancesCount     int        `json:"instances_count"`
+	Lines              []LineText        `json:"lines"`
+	LanguageCode       string            `json:"languageCode"`
+	GrammarPointID     int               `json:"grammar_point_id"`
+	GrammarPoint       string            `json:"grammar_point"`
+	GrammarDescription string            `json:"grammar_description"`
+	InstancesCount     int               `json:"instances_count"`
+	FoundInstances     []GrammarInstance `json:"found_instances"`
+	IncorrectInstances []UserSelection   `json:"incorrect_instances"`
+	NextGrammarPoint   *int              `json:"next_grammar_point"`
 }
 
 // TranslationPageData extends PageData with translation field
@@ -105,6 +108,13 @@ type CheckGrammarRequest struct {
 	Answers        []GrammarAnswer `json:"answers"`
 }
 
+// CheckSingleGrammarRequest represents the request body for checking a single grammar selection
+type CheckSingleGrammarRequest struct {
+	GrammarPointID int `json:"grammar_point_id"`
+	LineNumber     int `json:"line_number"`
+	Position       int `json:"position"`
+}
+
 // VocabResult represents individual vocabulary check result
 type VocabResult struct {
 	Correct       bool   `json:"correct"`
@@ -122,10 +132,9 @@ type CheckVocabResponse struct {
 
 // GrammarInstance represents a grammar point instance in the story
 type GrammarInstance struct {
-	LineNumber   int    `json:"line_number"`
-	Position     [2]int `json:"position"`
-	Text         string `json:"text"`
-	UserSelected bool   `json:"user_selected"`
+	LineNumber int    `json:"line_number"`
+	Position   [2]int `json:"position"`
+	Text       string `json:"text"`
 }
 
 // UserSelection represents a user's selection with correctness
@@ -144,6 +153,14 @@ type CheckGrammarResponse struct {
 	GrammarInstances   []GrammarInstance `json:"grammar_instances"`
 	UserSelections     []UserSelection   `json:"user_selections"`
 	NextGrammarPointID *int              `json:"next_grammar_point_id"`
+}
+
+// CheckSingleGrammarResponse represents the response for checking a single grammar selection
+type CheckSingleGrammarResponse struct {
+	Correct          bool   `json:"correct"`
+	MatchedPosition  [2]int `json:"matched_position"`   // Full position range of the match (if correct)
+	TotalInstances   int    `json:"total_instances"`    // Total number of instances to find
+	NextGrammarPoint *int   `json:"next_grammar_point"` // ID of next grammar point if all found
 }
 
 // LineValidationError represents validation error with expected answer counts

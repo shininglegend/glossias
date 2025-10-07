@@ -41,6 +41,7 @@ GetGrammarPoint(grammarPointID int) (*GrammarPoint, error)
 GetGrammarPointByName(name string, storyID int) (*GrammarPoint, error)
 ListGrammarPoints() ([]GrammarPoint, error)
 GetStoryGrammarPoints(storyID int) ([]GrammarPoint, error)
+GetGrammarPointInstances(ctx, storyID, grammarPointID int) (map[linenumber]GrammarInstanceData, error) // Returns all grammar instances for a grammar point
 
 Audio File Operations:
 CreateAudioFile(storyID, lineNumber int, filePath, fileBucket, label string) (*AudioFile, error)
@@ -72,6 +73,10 @@ Score Operations:
 SaveVocabScore(ctx context.Context, userID string, storyID int, lineNumber int, correct bool, incorrectAnswer string) error
 SaveGrammarScore(ctx context.Context, userID string, storyID int, lineNumber int, correct bool, selectedLine int, selectedPositions []int) error
 SaveGrammarScoresForPoint(ctx context.Context, userID string, storyID int, grammarPointID int, lineScores map[int]bool, incorrectAnswers map[int]struct{SelectedLine int; SelectedPositions []int}) error // Multi-line grammar point scoring
+SaveSingleGrammarSelection(ctx, userID, storyID, grammarPointID, lineNumber, position int, correct bool) error // Save single grammar selection
+CountFoundGrammarInstances(ctx, userID, storyID, grammarPointID int) (int, error) // Count correct instances found by user
+GetUserGrammarScoresByGrammarPoint(ctx context.Context, userID string, storyID int, grammarPointID int) ([]db.GetUserGrammarScoresByGrammarPointRow, error) // Get user's correct answers for specific grammar point
+GetUserGrammarIncorrectAnswers(ctx context.Context, userID string, storyID int, grammarPointID int) ([]db.GetUserGrammarIncorrectAnswersRow, error) // Get user's incorrect answers for specific grammar point
 GetUserVocabScores(ctx context.Context, userID string, storyID int) (map[int]bool, error) // Returns map[lineNumber]correct
 GetUserGrammarScores(ctx context.Context, userID string, storyID int) (map[int]bool, error) // Returns map[lineNumber]correct
 

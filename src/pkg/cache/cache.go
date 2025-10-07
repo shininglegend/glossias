@@ -286,3 +286,8 @@ func (kb *KeyBuilder) ActiveTimeTrackingSession(userID, route string, storyID *i
 	}
 	return fmt.Sprintf("active_time_session:user:%s:route:%s", userID, route)
 }
+
+// GrammarInstances builds a cache key for grammar instances of a specific grammar point in a story
+func (kb *KeyBuilder) GrammarInstances(storyID int, grammarPointID int) string {
+	return fmt.Sprintf("grammar_instances:story:%d:gp:%d", storyID, grammarPointID)
+}

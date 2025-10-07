@@ -31,6 +31,18 @@ LEFT JOIN grammar_items gi ON gs.grammar_point_id = gi.grammar_point_id AND gs.s
 WHERE gs.user_id = $1 AND gs.story_id = $2
 ORDER BY gs.line_number, gs.attempted_at DESC;
 
+-- name: GetUserGrammarScoresByGrammarPoint :many
+SELECT gs.line_number, gs.grammar_point_id, gs.attempted_at
+FROM grammar_correct_answers gs
+WHERE gs.user_id = $1 AND gs.story_id = $2 AND gs.grammar_point_id = $3
+ORDER BY gs.line_number, gs.attempted_at DESC;
+
+-- name: GetUserGrammarIncorrectAnswers :many
+SELECT gia.line_number, gia.grammar_point_id, gia.selected_line, gia.selected_positions, gia.attempted_at
+FROM grammar_incorrect_answers gia
+WHERE gia.user_id = $1 AND gia.story_id = $2 AND gia.grammar_point_id = $3
+ORDER BY gia.line_number, gia.attempted_at DESC;
+
 -- name: GetStoryVocabScores :many
 SELECT vs.user_id, vs.line_number, vs.vocab_item_id, vs.attempted_at,
        vi.word, vi.lexical_form, u.name as user_name, u.email
@@ -145,30 +157,30 @@ SELECT
     COALESCE(time_stats.grammar_time_seconds, 0) as grammar_time_seconds,
     COALESCE(time_stats.translation_time_seconds, 0) as translation_time_seconds,
     COALESCE(time_stats.video_time_seconds, 0) as video_time_seconds,
-    COALESCE(time_stats.vocab_time_seconds, 0) + 
-    COALESCE(time_stats.grammar_time_seconds, 0) + 
-    COALESCE(time_stats.translation_time_seconds, 0) + 
+    COALESCE(time_stats.vocab_time_seconds, 0) +
+    COALESCE(time_stats.grammar_time_seconds, 0) +
+    COALESCE(time_stats.translation_time_seconds, 0) +
     COALESCE(time_stats.video_time_seconds, 0) as total_time_seconds
 FROM users u
 JOIN course_users cu ON u.user_id = cu.user_id
 JOIN stories s ON cu.course_id = s.course_id
 LEFT JOIN story_titles st ON s.story_id = st.story_id AND st.language_code = 'en'
 LEFT JOIN LATERAL (
-    SELECT 
+    SELECT
         COUNT(DISTINCT vca.vocab_item_id) as correct_count,
         COUNT(DISTINCT via.vocab_item_id) as incorrect_count
     FROM vocab_correct_answers vca
     FULL OUTER JOIN vocab_incorrect_answers via ON vca.user_id = via.user_id AND vca.story_id = via.story_id AND vca.vocab_item_id = via.vocab_item_id
-    WHERE COALESCE(vca.user_id, via.user_id) = u.user_id 
+    WHERE COALESCE(vca.user_id, via.user_id) = u.user_id
       AND COALESCE(vca.story_id, via.story_id) = s.story_id
 ) vocab_stats ON true
 LEFT JOIN LATERAL (
-    SELECT 
+    SELECT
         COUNT(DISTINCT gca.grammar_point_id) as correct_count,
         COUNT(DISTINCT gia.grammar_point_id) as incorrect_count
     FROM grammar_correct_answers gca
     FULL OUTER JOIN grammar_incorrect_answers gia ON gca.user_id = gia.user_id AND gca.story_id = gia.story_id AND gca.grammar_point_id = gia.grammar_point_id
-    WHERE COALESCE(gca.user_id, gia.user_id) = u.user_id 
+    WHERE COALESCE(gca.user_id, gia.user_id) = u.user_id
       AND COALESCE(gca.story_id, gia.story_id) = s.story_id
 ) grammar_stats ON true
 LEFT JOIN LATERAL (

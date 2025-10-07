@@ -202,30 +202,30 @@ SELECT
     COALESCE(time_stats.grammar_time_seconds, 0) as grammar_time_seconds,
     COALESCE(time_stats.translation_time_seconds, 0) as translation_time_seconds,
     COALESCE(time_stats.video_time_seconds, 0) as video_time_seconds,
-    COALESCE(time_stats.vocab_time_seconds, 0) + 
-    COALESCE(time_stats.grammar_time_seconds, 0) + 
-    COALESCE(time_stats.translation_time_seconds, 0) + 
+    COALESCE(time_stats.vocab_time_seconds, 0) +
+    COALESCE(time_stats.grammar_time_seconds, 0) +
+    COALESCE(time_stats.translation_time_seconds, 0) +
     COALESCE(time_stats.video_time_seconds, 0) as total_time_seconds
 FROM users u
 JOIN course_users cu ON u.user_id = cu.user_id
 JOIN stories s ON cu.course_id = s.course_id
 LEFT JOIN story_titles st ON s.story_id = st.story_id AND st.language_code = 'en'
 LEFT JOIN LATERAL (
-    SELECT 
+    SELECT
         COUNT(DISTINCT vca.vocab_item_id) as correct_count,
         COUNT(DISTINCT via.vocab_item_id) as incorrect_count
     FROM vocab_correct_answers vca
     FULL OUTER JOIN vocab_incorrect_answers via ON vca.user_id = via.user_id AND vca.story_id = via.story_id AND vca.vocab_item_id = via.vocab_item_id
-    WHERE COALESCE(vca.user_id, via.user_id) = u.user_id 
+    WHERE COALESCE(vca.user_id, via.user_id) = u.user_id
       AND COALESCE(vca.story_id, via.story_id) = s.story_id
 ) vocab_stats ON true
 LEFT JOIN LATERAL (
-    SELECT 
+    SELECT
         COUNT(DISTINCT gca.grammar_point_id) as correct_count,
         COUNT(DISTINCT gia.grammar_point_id) as incorrect_count
     FROM grammar_correct_answers gca
     FULL OUTER JOIN grammar_incorrect_answers gia ON gca.user_id = gia.user_id AND gca.story_id = gia.story_id AND gca.grammar_point_id = gia.grammar_point_id
-    WHERE COALESCE(gca.user_id, gia.user_id) = u.user_id 
+    WHERE COALESCE(gca.user_id, gia.user_id) = u.user_id
       AND COALESCE(gca.story_id, gia.story_id) = s.story_id
 ) grammar_stats ON true
 LEFT JOIN LATERAL (
@@ -350,6 +350,53 @@ func (q *Queries) GetStoryVocabScores(ctx context.Context, storyID int32) ([]Get
 	return items, nil
 }
 
+const getUserGrammarIncorrectAnswers = `-- name: GetUserGrammarIncorrectAnswers :many
+SELECT gia.line_number, gia.grammar_point_id, gia.selected_line, gia.selected_positions, gia.attempted_at
+FROM grammar_incorrect_answers gia
+WHERE gia.user_id = $1 AND gia.story_id = $2 AND gia.grammar_point_id = $3
+ORDER BY gia.line_number, gia.attempted_at DESC
+`
+
+type GetUserGrammarIncorrectAnswersParams struct {
+	UserID         string `json:"user_id"`
+	StoryID        int32  `json:"story_id"`
+	GrammarPointID int32  `json:"grammar_point_id"`
+}
+
+type GetUserGrammarIncorrectAnswersRow struct {
+	LineNumber        int32            `json:"line_number"`
+	GrammarPointID    int32            `json:"grammar_point_id"`
+	SelectedLine      int32            `json:"selected_line"`
+	SelectedPositions []int32          `json:"selected_positions"`
+	AttemptedAt       pgtype.Timestamp `json:"attempted_at"`
+}
+
+func (q *Queries) GetUserGrammarIncorrectAnswers(ctx context.Context, arg GetUserGrammarIncorrectAnswersParams) ([]GetUserGrammarIncorrectAnswersRow, error) {
+	rows, err := q.db.Query(ctx, getUserGrammarIncorrectAnswers, arg.UserID, arg.StoryID, arg.GrammarPointID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetUserGrammarIncorrectAnswersRow{}
+	for rows.Next() {
+		var i GetUserGrammarIncorrectAnswersRow
+		if err := rows.Scan(
+			&i.LineNumber,
+			&i.GrammarPointID,
+			&i.SelectedLine,
+			&i.SelectedPositions,
+			&i.AttemptedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserGrammarScores = `-- name: GetUserGrammarScores :many
 SELECT gs.line_number, gs.grammar_point_id, gs.attempted_at, gi.text, gp.name as grammar_point_name
 FROM grammar_correct_answers gs
@@ -388,6 +435,45 @@ func (q *Queries) GetUserGrammarScores(ctx context.Context, arg GetUserGrammarSc
 			&i.Text,
 			&i.GrammarPointName,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserGrammarScoresByGrammarPoint = `-- name: GetUserGrammarScoresByGrammarPoint :many
+SELECT gs.line_number, gs.grammar_point_id, gs.attempted_at
+FROM grammar_correct_answers gs
+WHERE gs.user_id = $1 AND gs.story_id = $2 AND gs.grammar_point_id = $3
+ORDER BY gs.line_number, gs.attempted_at DESC
+`
+
+type GetUserGrammarScoresByGrammarPointParams struct {
+	UserID         string `json:"user_id"`
+	StoryID        int32  `json:"story_id"`
+	GrammarPointID int32  `json:"grammar_point_id"`
+}
+
+type GetUserGrammarScoresByGrammarPointRow struct {
+	LineNumber     int32            `json:"line_number"`
+	GrammarPointID int32            `json:"grammar_point_id"`
+	AttemptedAt    pgtype.Timestamp `json:"attempted_at"`
+}
+
+func (q *Queries) GetUserGrammarScoresByGrammarPoint(ctx context.Context, arg GetUserGrammarScoresByGrammarPointParams) ([]GetUserGrammarScoresByGrammarPointRow, error) {
+	rows, err := q.db.Query(ctx, getUserGrammarScoresByGrammarPoint, arg.UserID, arg.StoryID, arg.GrammarPointID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetUserGrammarScoresByGrammarPointRow{}
+	for rows.Next() {
+		var i GetUserGrammarScoresByGrammarPointRow
+		if err := rows.Scan(&i.LineNumber, &i.GrammarPointID, &i.AttemptedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

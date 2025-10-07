@@ -58,10 +58,10 @@ func convertToInt32(v any) int32 {
 	}
 }
 
-// calculateAccuracy calculates accuracy score for vocab/grammar exercises where students must retry until correct.
+// CalculateAccuracyScore calculates accuracy score for vocab/grammar exercises where students must retry until correct.
 // If not all items completed, score = (100 - (correctCount / totalItems * 100)) * (incorrectCount / (correctCount + incorrectCount))
 // If all items completed, score = max(0, 100 - (incorrectCount / totalItems * 10))
-func calculateAccuracy(correctCount, incorrectCount, totalItems int64) float64 {
+func CalculateAccuracyScore(correctCount, incorrectCount, totalItems int64) float64 {
 	totalAttempted := correctCount + incorrectCount
 
 	// If no attempts made, score is 0
@@ -145,10 +145,10 @@ func GetStoryStudentPerformance(ctx context.Context, storyID int32) ([]CourseStu
 		}
 
 		// Calculate vocab accuracy using the new formula
-		vocabAccuracy := calculateAccuracy(row.VocabCorrect, row.VocabIncorrect, totalVocab)
+		vocabAccuracy := CalculateAccuracyScore(row.VocabCorrect, row.VocabIncorrect, totalVocab)
 
 		// Calculate grammar accuracy using the new formula
-		grammarAccuracy := calculateAccuracy(row.GrammarCorrect, row.GrammarIncorrect, totalGrammar)
+		grammarAccuracy := CalculateAccuracyScore(row.GrammarCorrect, row.GrammarIncorrect, totalGrammar)
 
 		results[i] = CourseStudentPerformance{
 			UserID:                 row.UserID,

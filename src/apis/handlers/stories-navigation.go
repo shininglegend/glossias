@@ -35,6 +35,8 @@ var defaultPageOrder = []PageType{
 	PageTypeScore,
 }
 
+const minTimeSeconds = 0 // Minimum time in seconds to consider a page "completed" (unused)
+
 // NavigationGuidanceRequest represents the request structure
 type NavigationGuidanceRequest struct {
 	CurrentPage string `json:"currentPage"`
@@ -162,19 +164,32 @@ func (h *Handler) isVocabCompleted(ctx context.Context, userID string, storyID i
 	return vocabSummary.CorrectCount == totalVocabItems, nil
 }
 
-// isGrammarCompleted checks if user has completed grammar (has attempts AND sufficient time)
+// isGrammarCompleted checks if user has completed grammar (correct answers == total instances AND sufficient time)
 func (h *Handler) isGrammarCompleted(ctx context.Context, userID string, storyID int32) (bool, error) {
-	const minTimeSeconds = 5
+	// Get total grammar instances in story
+	story, err := models.GetStoryData(ctx, int(storyID), userID)
+	if err != nil {
+		return false, err
+	}
 
-	// Check if user has grammar attempts
+	// Count total grammar instances across all grammar points
+	totalInstances := 0
+	for _, line := range story.Content.Lines {
+		totalInstances += len(line.Grammar)
+	}
+
+	if totalInstances == 0 {
+		return true, nil // No grammar instances to find
+	}
+
+	// Check if user has found all instances
 	grammarSummary, err := models.GetUserStoryGrammarSummary(ctx, userID, storyID)
 	if err != nil {
 		return false, err
 	}
 
-	grammarTotal := grammarSummary.CorrectCount + grammarSummary.IncorrectCount
-	if grammarTotal == 0 {
-		return false, nil // No attempts
+	if int(grammarSummary.CorrectCount) < totalInstances {
+		return false, nil // Haven't found all instances yet
 	}
 
 	// Check time spent
@@ -188,8 +203,6 @@ func (h *Handler) isGrammarCompleted(ctx context.Context, userID string, storyID
 
 // isTranslateCompleted checks if user has spent sufficient time on translation
 func (h *Handler) isTranslateCompleted(ctx context.Context, userID string, storyID int32) (bool, error) {
-	const minTimeSeconds = 5
-
 	timeData, err := models.GetUserStoryTimeTracking(ctx, userID, storyID)
 	if err != nil {
 		return false, err

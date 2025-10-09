@@ -230,8 +230,8 @@ func (h *Handler) CheckVocab(w http.ResponseWriter, r *http.Request) {
 
 	line := story.Content.Lines[lineIndex]
 	if len(line.Vocabulary) == 0 {
-		h.log.Warn("No vocabulary on line in CheckVocab", "lineNumber", lineIndex, "ip", r.RemoteAddr)
-		h.sendError(w, fmt.Sprintf("No vocabulary on line: %d", lineIndex), http.StatusBadRequest)
+		h.log.Warn("No vocabulary on line in CheckVocab", "lineNumber", lineIndex+1, "ip", r.RemoteAddr)
+		h.sendError(w, fmt.Sprintf("No vocabulary on line: %d", lineIndex+1), http.StatusBadRequest)
 		return
 	}
 

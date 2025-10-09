@@ -78,7 +78,7 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 	var vocabAccuracy float64
 	vocabTotal := totalCounts.VocabCount
 	if vocabTotal > 0 {
-		vocabAccuracy = models.CalculateAccuracyScore(vocabSummary.CorrectCount, vocabSummary.IncorrectCount, vocabTotal)
+		vocabAccuracy = models.CalculateScoreWithRetriesAllowed(vocabSummary.CorrectCount, vocabSummary.IncorrectCount, vocabTotal)
 	}
 
 	// Get grammar accuracy
@@ -92,7 +92,7 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 	var grammarAccuracy float64
 	grammarTotal := totalCounts.GrammarCount
 	if grammarTotal > 0 {
-		grammarAccuracy = models.CalculateAccuracyScore(grammarSummary.CorrectCount, grammarSummary.IncorrectCount, grammarTotal)
+		grammarAccuracy = models.CalculateScoreWithRetriesAllowed(grammarSummary.CorrectCount, grammarSummary.IncorrectCount, grammarTotal)
 	}
 
 	// Get time tracking data
@@ -220,10 +220,10 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 }
 
 func getVocabAndGrammarCount(story models.Story) struct{ VocabCount, GrammarCount int64 } {
-	counts := struct{ VocabCount, GrammarCount int }{}
+	counts := struct{ VocabCount, GrammarCount int64 }{}
 	for _, line := range story.Content.Lines {
-		counts.VocabCount += len(line.Vocabulary)
-		counts.GrammarCount += len(line.Grammar)
+		counts.VocabCount += int64(len(line.Vocabulary))
+		counts.GrammarCount += int64(len(line.Grammar))
 	}
-	return struct{ VocabCount, GrammarCount int64 }{int64(counts.VocabCount), int64(counts.GrammarCount)}
+	return counts
 }

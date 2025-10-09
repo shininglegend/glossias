@@ -21,8 +21,8 @@ func SaveVocabScore(ctx context.Context, userID string, storyID, lineNumber, pos
 	}
 
 	// Save score for each vocabulary item on this line
-	if len(vocabItems) < position {
-		panic("Position exceeds number of vocab items on line")
+	if position < 0 || position >= len(vocabItems) {
+		panic("Position out of bounds for vocab items on line")
 	}
 
 	item := vocabItems[position]

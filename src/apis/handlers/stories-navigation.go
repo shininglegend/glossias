@@ -208,7 +208,13 @@ func (h *Handler) isTranslateCompleted(ctx context.Context, userID string, story
 		return false, err
 	}
 
-	return timeData.TranslationTimeSeconds >= minTimeSeconds, nil
+	// Check if translation request exists for this user and story
+	exists, err := models.TranslationRequestExists(ctx, userID, int(storyID))
+	if err != nil {
+		return false, err
+	}
+
+	return timeData.TranslationTimeSeconds >= minTimeSeconds && exists, nil
 }
 
 // determineNextPage finds the next page to visit based on current page and completion status

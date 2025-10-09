@@ -269,8 +269,9 @@ export function StoriesGrammar() {
           <div className="flex items-center justify-center text-blue-700">
             <span className="material-icons mr-2 text-sm">touch_app</span>
             <span className="text-sm">
-              Click characters to check immediately. Green = correct, red =
-              incorrect.
+              {isSubmittingAnswer
+                ? "Checking your answer..."
+                : "Click characters to check immediately. Green = correct, red = incorrect."}
             </span>
           </div>
         </div>
@@ -362,7 +363,7 @@ export function StoriesGrammar() {
                           );
                           return line.text.split("").map((char, charIndex) => {
                             let className = isSubmittingAnswer
-                              ? "select-none transition-colors duration-150"
+                              ? "select-none transition-colors duration-150 cursor-wait opacity-50"
                               : "cursor-pointer select-none transition-colors duration-150";
 
                             if (isPositionCorrect(lineIndex, charIndex)) {
@@ -388,9 +389,11 @@ export function StoriesGrammar() {
                                     ? { paddingRight: `${indentLevel * 2}em` }
                                     : {}
                                 }
-                                onClick={() =>
-                                  handleTextClick(lineIndex, charIndex)
-                                }
+                                onClick={() => {
+                                  if (!isSubmittingAnswer) {
+                                    handleTextClick(lineIndex, charIndex);
+                                  }
+                                }}
                               >
                                 {char === "\t" && charIndex < indentLevel
                                   ? ""

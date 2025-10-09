@@ -19,8 +19,8 @@ export function useAuthenticatedFetch() {
       if (response.status === 401 && isSignedIn) {
         console.log("Received 401, attempting to refresh token and retry...");
         
-        // Force token refresh by passing { template: undefined }
-        token = await getToken({ template: undefined });
+        // Force token refresh by skipping cache
+        token = await getToken({ skipCache: true });
         
         if (token) {
           // Retry the request with the new token

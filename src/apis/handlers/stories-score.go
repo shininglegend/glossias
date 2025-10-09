@@ -64,6 +64,8 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 		h.sendError(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+	// Get total vocab and grammar counts in story
+	totalCounts := getVocabAndGrammarCount(*story)
 
 	// Get vocab accuracy
 	vocabSummary, err := models.GetUserStoryVocabSummary(r.Context(), userID, int32(id))
@@ -74,7 +76,7 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var vocabAccuracy float64
-	vocabTotal := vocabSummary.CorrectCount + vocabSummary.IncorrectCount
+	vocabTotal := totalCounts.VocabCount
 	if vocabTotal > 0 {
 		vocabAccuracy = models.CalculateAccuracyScore(vocabSummary.CorrectCount, vocabSummary.IncorrectCount, vocabTotal)
 	}
@@ -88,7 +90,7 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var grammarAccuracy float64
-	grammarTotal := grammarSummary.CorrectCount + grammarSummary.IncorrectCount
+	grammarTotal := totalCounts.GrammarCount
 	if grammarTotal > 0 {
 		grammarAccuracy = models.CalculateAccuracyScore(grammarSummary.CorrectCount, grammarSummary.IncorrectCount, grammarTotal)
 	}
@@ -215,4 +217,13 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+func getVocabAndGrammarCount(story models.Story) struct{ VocabCount, GrammarCount int64 } {
+	counts := struct{ VocabCount, GrammarCount int }{}
+	for _, line := range story.Content.Lines {
+		counts.VocabCount += len(line.Vocabulary)
+		counts.GrammarCount += len(line.Grammar)
+	}
+	return struct{ VocabCount, GrammarCount int64 }{int64(counts.VocabCount), int64(counts.GrammarCount)}
 }

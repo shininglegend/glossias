@@ -11,6 +11,32 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countStoryGrammarItems = `-- name: CountStoryGrammarItems :one
+SELECT COUNT(*) as total_grammar_items
+FROM grammar_items
+WHERE story_id = $1
+`
+
+func (q *Queries) CountStoryGrammarItems(ctx context.Context, storyID pgtype.Int4) (int64, error) {
+	row := q.db.QueryRow(ctx, countStoryGrammarItems, storyID)
+	var total_grammar_items int64
+	err := row.Scan(&total_grammar_items)
+	return total_grammar_items, err
+}
+
+const countStoryVocabItems = `-- name: CountStoryVocabItems :one
+SELECT COUNT(*) as total_vocab_items
+FROM vocabulary_items
+WHERE story_id = $1
+`
+
+func (q *Queries) CountStoryVocabItems(ctx context.Context, storyID pgtype.Int4) (int64, error) {
+	row := q.db.QueryRow(ctx, countStoryVocabItems, storyID)
+	var total_vocab_items int64
+	err := row.Scan(&total_vocab_items)
+	return total_vocab_items, err
+}
+
 const getAllUsersStoryGrammarSummary = `-- name: GetAllUsersStoryGrammarSummary :many
 SELECT
     COALESCE(gca.user_id, gia.user_id) as user_id,
@@ -168,48 +194,38 @@ SELECT
     st.title as story_title,
     COALESCE(vocab_stats.correct_count, 0) as vocab_correct,
     COALESCE(vocab_stats.incorrect_count, 0) as vocab_incorrect,
-    (CASE 
-        WHEN COALESCE(vocab_stats.correct_count, 0) + COALESCE(vocab_stats.incorrect_count, 0) > 0 
-        THEN (COALESCE(vocab_stats.correct_count, 0)::float / (COALESCE(vocab_stats.correct_count, 0) + COALESCE(vocab_stats.incorrect_count, 0))) * 100
-        ELSE 0
-    END)::double precision as vocab_accuracy,
     COALESCE(grammar_stats.correct_count, 0) as grammar_correct,
     COALESCE(grammar_stats.incorrect_count, 0) as grammar_incorrect,
-    (CASE 
-        WHEN COALESCE(grammar_stats.correct_count, 0) + COALESCE(grammar_stats.incorrect_count, 0) > 0 
-        THEN (COALESCE(grammar_stats.correct_count, 0)::float / (COALESCE(grammar_stats.correct_count, 0) + COALESCE(grammar_stats.incorrect_count, 0))) * 100
-        ELSE 0
-    END)::double precision as grammar_accuracy,
     COALESCE(tr.completed, false) as translation_completed,
     COALESCE(tr.requested_lines, ARRAY[]::INTEGER[]) as requested_lines,
     COALESCE(time_stats.vocab_time_seconds, 0) as vocab_time_seconds,
     COALESCE(time_stats.grammar_time_seconds, 0) as grammar_time_seconds,
     COALESCE(time_stats.translation_time_seconds, 0) as translation_time_seconds,
     COALESCE(time_stats.video_time_seconds, 0) as video_time_seconds,
-    COALESCE(time_stats.vocab_time_seconds, 0) + 
-    COALESCE(time_stats.grammar_time_seconds, 0) + 
-    COALESCE(time_stats.translation_time_seconds, 0) + 
+    COALESCE(time_stats.vocab_time_seconds, 0) +
+    COALESCE(time_stats.grammar_time_seconds, 0) +
+    COALESCE(time_stats.translation_time_seconds, 0) +
     COALESCE(time_stats.video_time_seconds, 0) as total_time_seconds
 FROM users u
 JOIN course_users cu ON u.user_id = cu.user_id
 JOIN stories s ON cu.course_id = s.course_id
 LEFT JOIN story_titles st ON s.story_id = st.story_id AND st.language_code = 'en'
 LEFT JOIN LATERAL (
-    SELECT 
+    SELECT
         COUNT(DISTINCT vca.vocab_item_id) as correct_count,
         COUNT(DISTINCT via.vocab_item_id) as incorrect_count
     FROM vocab_correct_answers vca
     FULL OUTER JOIN vocab_incorrect_answers via ON vca.user_id = via.user_id AND vca.story_id = via.story_id AND vca.vocab_item_id = via.vocab_item_id
-    WHERE COALESCE(vca.user_id, via.user_id) = u.user_id 
+    WHERE COALESCE(vca.user_id, via.user_id) = u.user_id
       AND COALESCE(vca.story_id, via.story_id) = s.story_id
 ) vocab_stats ON true
 LEFT JOIN LATERAL (
-    SELECT 
+    SELECT
         COUNT(DISTINCT gca.grammar_point_id) as correct_count,
         COUNT(DISTINCT gia.grammar_point_id) as incorrect_count
     FROM grammar_correct_answers gca
     FULL OUTER JOIN grammar_incorrect_answers gia ON gca.user_id = gia.user_id AND gca.story_id = gia.story_id AND gca.grammar_point_id = gia.grammar_point_id
-    WHERE COALESCE(gca.user_id, gia.user_id) = u.user_id 
+    WHERE COALESCE(gca.user_id, gia.user_id) = u.user_id
       AND COALESCE(gca.story_id, gia.story_id) = s.story_id
 ) grammar_stats ON true
 LEFT JOIN LATERAL (
@@ -237,10 +253,8 @@ type GetStoryStudentPerformanceRow struct {
 	StoryTitle             pgtype.Text `json:"story_title"`
 	VocabCorrect           int64       `json:"vocab_correct"`
 	VocabIncorrect         int64       `json:"vocab_incorrect"`
-	VocabAccuracy          float64     `json:"vocab_accuracy"`
 	GrammarCorrect         int64       `json:"grammar_correct"`
 	GrammarIncorrect       int64       `json:"grammar_incorrect"`
-	GrammarAccuracy        float64     `json:"grammar_accuracy"`
 	TranslationCompleted   bool        `json:"translation_completed"`
 	RequestedLines         interface{} `json:"requested_lines"`
 	VocabTimeSeconds       interface{} `json:"vocab_time_seconds"`
@@ -266,10 +280,8 @@ func (q *Queries) GetStoryStudentPerformance(ctx context.Context, storyID int32)
 			&i.StoryTitle,
 			&i.VocabCorrect,
 			&i.VocabIncorrect,
-			&i.VocabAccuracy,
 			&i.GrammarCorrect,
 			&i.GrammarIncorrect,
-			&i.GrammarAccuracy,
 			&i.TranslationCompleted,
 			&i.RequestedLines,
 			&i.VocabTimeSeconds,
@@ -338,6 +350,53 @@ func (q *Queries) GetStoryVocabScores(ctx context.Context, storyID int32) ([]Get
 	return items, nil
 }
 
+const getUserGrammarIncorrectAnswers = `-- name: GetUserGrammarIncorrectAnswers :many
+SELECT gia.line_number, gia.grammar_point_id, gia.selected_line, gia.selected_positions, gia.attempted_at
+FROM grammar_incorrect_answers gia
+WHERE gia.user_id = $1 AND gia.story_id = $2 AND gia.grammar_point_id = $3
+ORDER BY gia.line_number, gia.attempted_at DESC
+`
+
+type GetUserGrammarIncorrectAnswersParams struct {
+	UserID         string `json:"user_id"`
+	StoryID        int32  `json:"story_id"`
+	GrammarPointID int32  `json:"grammar_point_id"`
+}
+
+type GetUserGrammarIncorrectAnswersRow struct {
+	LineNumber        int32            `json:"line_number"`
+	GrammarPointID    int32            `json:"grammar_point_id"`
+	SelectedLine      int32            `json:"selected_line"`
+	SelectedPositions []int32          `json:"selected_positions"`
+	AttemptedAt       pgtype.Timestamp `json:"attempted_at"`
+}
+
+func (q *Queries) GetUserGrammarIncorrectAnswers(ctx context.Context, arg GetUserGrammarIncorrectAnswersParams) ([]GetUserGrammarIncorrectAnswersRow, error) {
+	rows, err := q.db.Query(ctx, getUserGrammarIncorrectAnswers, arg.UserID, arg.StoryID, arg.GrammarPointID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetUserGrammarIncorrectAnswersRow{}
+	for rows.Next() {
+		var i GetUserGrammarIncorrectAnswersRow
+		if err := rows.Scan(
+			&i.LineNumber,
+			&i.GrammarPointID,
+			&i.SelectedLine,
+			&i.SelectedPositions,
+			&i.AttemptedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserGrammarScores = `-- name: GetUserGrammarScores :many
 SELECT gs.line_number, gs.grammar_point_id, gs.attempted_at, gi.text, gp.name as grammar_point_name
 FROM grammar_correct_answers gs
@@ -376,6 +435,45 @@ func (q *Queries) GetUserGrammarScores(ctx context.Context, arg GetUserGrammarSc
 			&i.Text,
 			&i.GrammarPointName,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserGrammarScoresByGrammarPoint = `-- name: GetUserGrammarScoresByGrammarPoint :many
+SELECT gs.line_number, gs.grammar_point_id, gs.attempted_at
+FROM grammar_correct_answers gs
+WHERE gs.user_id = $1 AND gs.story_id = $2 AND gs.grammar_point_id = $3
+ORDER BY gs.line_number, gs.attempted_at DESC
+`
+
+type GetUserGrammarScoresByGrammarPointParams struct {
+	UserID         string `json:"user_id"`
+	StoryID        int32  `json:"story_id"`
+	GrammarPointID int32  `json:"grammar_point_id"`
+}
+
+type GetUserGrammarScoresByGrammarPointRow struct {
+	LineNumber     int32            `json:"line_number"`
+	GrammarPointID int32            `json:"grammar_point_id"`
+	AttemptedAt    pgtype.Timestamp `json:"attempted_at"`
+}
+
+func (q *Queries) GetUserGrammarScoresByGrammarPoint(ctx context.Context, arg GetUserGrammarScoresByGrammarPointParams) ([]GetUserGrammarScoresByGrammarPointRow, error) {
+	rows, err := q.db.Query(ctx, getUserGrammarScoresByGrammarPoint, arg.UserID, arg.StoryID, arg.GrammarPointID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetUserGrammarScoresByGrammarPointRow{}
+	for rows.Next() {
+		var i GetUserGrammarScoresByGrammarPointRow
+		if err := rows.Scan(&i.LineNumber, &i.GrammarPointID, &i.AttemptedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -493,11 +591,8 @@ func (q *Queries) GetUserLatestVocabScoresByLine(ctx context.Context, arg GetUse
 
 const getUserStoryGrammarSummary = `-- name: GetUserStoryGrammarSummary :one
 SELECT
-    COUNT(gca.grammar_point_id) as correct_count,
-    COUNT(gia.grammar_point_id) as incorrect_count
-FROM grammar_correct_answers gca
-FULL OUTER JOIN grammar_incorrect_answers gia ON gca.user_id = gia.user_id AND gca.story_id = gia.story_id AND gca.grammar_point_id = gia.grammar_point_id
-WHERE COALESCE(gca.user_id, gia.user_id) = $1 AND COALESCE(gca.story_id, gia.story_id) = $2
+    (SELECT COUNT(*) FROM grammar_correct_answers gca WHERE gca.user_id = $1 AND gca.story_id = $2) as correct_count,
+    (SELECT COUNT(*) FROM grammar_incorrect_answers gia WHERE gia.user_id = $1 AND gia.story_id = $2) as incorrect_count
 `
 
 type GetUserStoryGrammarSummaryParams struct {
@@ -519,11 +614,8 @@ func (q *Queries) GetUserStoryGrammarSummary(ctx context.Context, arg GetUserSto
 
 const getUserStoryVocabSummary = `-- name: GetUserStoryVocabSummary :one
 SELECT
-    COUNT(vca.vocab_item_id) as correct_count,
-    COUNT(via.vocab_item_id) as incorrect_count
-FROM vocab_correct_answers vca
-FULL OUTER JOIN vocab_incorrect_answers via ON vca.user_id = via.user_id AND vca.story_id = via.story_id AND vca.vocab_item_id = via.vocab_item_id
-WHERE COALESCE(vca.user_id, via.user_id) = $1 AND COALESCE(vca.story_id, via.story_id) = $2
+    (SELECT COUNT(*) FROM vocab_correct_answers vca WHERE vca.user_id = $1 AND vca.story_id = $2) as correct_count,
+    (SELECT COUNT(*) FROM vocab_incorrect_answers via WHERE via.user_id = $1 AND via.story_id = $2) as incorrect_count
 `
 
 type GetUserStoryVocabSummaryParams struct {
@@ -617,6 +709,7 @@ func (q *Queries) SaveGrammarIncorrectAnswer(ctx context.Context, arg SaveGramma
 }
 
 const saveGrammarScore = `-- name: SaveGrammarScore :exec
+
 INSERT INTO grammar_correct_answers (user_id, story_id, line_number, grammar_point_id)
 VALUES ($1, $2, $3, $4)
 `
@@ -628,60 +721,13 @@ type SaveGrammarScoreParams struct {
 	GrammarPointID int32  `json:"grammar_point_id"`
 }
 
+// Score management queries
 func (q *Queries) SaveGrammarScore(ctx context.Context, arg SaveGrammarScoreParams) error {
 	_, err := q.db.Exec(ctx, saveGrammarScore,
 		arg.UserID,
 		arg.StoryID,
 		arg.LineNumber,
 		arg.GrammarPointID,
-	)
-	return err
-}
-
-const saveVocabIncorrectAnswer = `-- name: SaveVocabIncorrectAnswer :exec
-INSERT INTO vocab_incorrect_answers (user_id, story_id, line_number, vocab_item_id, incorrect_answer)
-VALUES ($1, $2, $3, $4, $5)
-`
-
-type SaveVocabIncorrectAnswerParams struct {
-	UserID          string `json:"user_id"`
-	StoryID         int32  `json:"story_id"`
-	LineNumber      int32  `json:"line_number"`
-	VocabItemID     int32  `json:"vocab_item_id"`
-	IncorrectAnswer string `json:"incorrect_answer"`
-}
-
-func (q *Queries) SaveVocabIncorrectAnswer(ctx context.Context, arg SaveVocabIncorrectAnswerParams) error {
-	_, err := q.db.Exec(ctx, saveVocabIncorrectAnswer,
-		arg.UserID,
-		arg.StoryID,
-		arg.LineNumber,
-		arg.VocabItemID,
-		arg.IncorrectAnswer,
-	)
-	return err
-}
-
-const saveVocabScore = `-- name: SaveVocabScore :exec
-
-INSERT INTO vocab_correct_answers (user_id, story_id, line_number, vocab_item_id)
-VALUES ($1, $2, $3, $4)
-`
-
-type SaveVocabScoreParams struct {
-	UserID      string `json:"user_id"`
-	StoryID     int32  `json:"story_id"`
-	LineNumber  int32  `json:"line_number"`
-	VocabItemID int32  `json:"vocab_item_id"`
-}
-
-// Score management queries
-func (q *Queries) SaveVocabScore(ctx context.Context, arg SaveVocabScoreParams) error {
-	_, err := q.db.Exec(ctx, saveVocabScore,
-		arg.UserID,
-		arg.StoryID,
-		arg.LineNumber,
-		arg.VocabItemID,
 	)
 	return err
 }

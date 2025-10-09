@@ -8,8 +8,12 @@ interface ScoreData {
   story_title: string;
   total_time_seconds: number;
   vocab_accuracy: number;
+  vocab_correct_count: number;
+  vocab_incorrect_count: number;
   vocab_time_seconds: number;
   grammar_accuracy: number;
+  grammar_correct_count: number;
+  grammar_incorrect_count: number;
   grammar_time_seconds: number;
   translation_time_seconds: number;
   video_time_seconds: number;
@@ -237,9 +241,23 @@ export function StoriesScore() {
     );
   }
 
-  const overallScore = Math.round(
-    (scoreData.vocab_accuracy + scoreData.grammar_accuracy) / 2
-  );
+  const totalCorrect =
+    scoreData.vocab_correct_count + scoreData.grammar_correct_count;
+  const totalIncorrect =
+    scoreData.vocab_incorrect_count + scoreData.grammar_incorrect_count;
+  const totalAttempts = totalCorrect + totalIncorrect;
+
+  let overallAccuracy = 0;
+  if (totalAttempts > 0) {
+    if (totalIncorrect === 0) {
+      overallAccuracy = 100;
+    } else {
+      // Use similar logic to course_performance.go - penalty based on incorrect attempts
+      const penalty = (totalIncorrect / totalCorrect) * 10;
+      overallAccuracy = Math.max(100 - penalty, 0);
+    }
+  }
+  const overallScore = Math.round(overallAccuracy);
 
   return (
     <>
@@ -265,22 +283,10 @@ export function StoriesScore() {
 
         <div className="text-center">
           <button
-            onClick={async () => {
-              try {
-                const guidance = await getNavigationGuidance(id!, "score");
-                if (guidance) {
-                  navigate(`/stories/${id}/${guidance.nextPage}`);
-                } else {
-                  navigate("/");
-                }
-              } catch (error) {
-                console.error("Failed to get navigation guidance:", error);
-                navigate("/");
-              }
-            }}
+            onClick={() => navigate("/")}
             className="inline-flex items-center px-8 py-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-lg font-semibold transition-all duration-200 shadow-lg"
           >
-            <span>{nextStepName}</span>
+            <span>Back to Stories</span>
             <span className="material-icons ml-2">home</span>
           </button>
         </div>
@@ -312,6 +318,26 @@ export function StoriesScore() {
                   {Math.round(scoreData.vocab_accuracy)}%
                 </span>
               </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Attempts:</span>
+                <span className="text-sm font-medium">
+                  <span className="text-green-600">
+                    {scoreData.vocab_correct_count} correct
+                  </span>
+                  <span className="text-gray-400"> • </span>
+                  <span className="text-red-600">
+                    {scoreData.vocab_incorrect_count} wrong
+                  </span>
+                </span>
+              </div>
+              {scoreData.vocab_incorrect_count > 0 && (
+                <div className="text-xs text-gray-500 mt-1">
+                  You had {scoreData.vocab_incorrect_count} incorrect guesses
+                  with {scoreData.vocab_correct_count} vocabulary items. You
+                  lost {100 - Math.round(scoreData.vocab_accuracy)} points for
+                  mistakes, giving you {Math.round(scoreData.vocab_accuracy)}%
+                </div>
+              )}
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Time spent:</span>
                 <span className="text-lg font-medium">
@@ -356,6 +382,26 @@ export function StoriesScore() {
                   {Math.round(scoreData.grammar_accuracy)}%
                 </span>
               </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Attempts:</span>
+                <span className="text-sm font-medium">
+                  <span className="text-green-600">
+                    {scoreData.grammar_correct_count} correct
+                  </span>
+                  <span className="text-gray-400"> • </span>
+                  <span className="text-red-600">
+                    {scoreData.grammar_incorrect_count} wrong
+                  </span>
+                </span>
+              </div>
+              {scoreData.grammar_incorrect_count > 0 && (
+                <div className="text-xs text-gray-500 mt-1">
+                  You had {scoreData.grammar_incorrect_count} incorrect guesses
+                  with {scoreData.grammar_correct_count} grammar points. You
+                  lost {100 - Math.round(scoreData.grammar_accuracy)} points for
+                  mistakes, giving you {Math.round(scoreData.grammar_accuracy)}%
+                </div>
+              )}
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Time spent:</span>
                 <span className="text-lg font-medium">

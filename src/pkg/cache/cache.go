@@ -264,6 +264,11 @@ func (kb *KeyBuilder) StoryAnnotations(storyID int) string {
 	return fmt.Sprintf("story_annotations:%d", storyID)
 }
 
+// StoryVocabCount builds a cache key for story vocabulary item count
+func (kb *KeyBuilder) StoryVocabCount(storyID int) string {
+	return fmt.Sprintf("story_vocab_count:%d", storyID)
+}
+
 // LineAnnotations builds a cache key for line annotations
 func (kb *KeyBuilder) LineAnnotations(storyID int, lineNumber int) string {
 	return fmt.Sprintf("line_annotations:%d:%d", storyID, lineNumber)
@@ -280,4 +285,9 @@ func (kb *KeyBuilder) ActiveTimeTrackingSession(userID, route string, storyID *i
 		return fmt.Sprintf("active_time_session:user:%s:route:%s:story:%d", userID, route, *storyID)
 	}
 	return fmt.Sprintf("active_time_session:user:%s:route:%s", userID, route)
+}
+
+// GrammarInstances builds a cache key for grammar instances of a specific grammar point in a story
+func (kb *KeyBuilder) GrammarInstances(storyID int, grammarPointID int) string {
+	return fmt.Sprintf("grammar_instances:story:%d:gp:%d", storyID, grammarPointID)
 }

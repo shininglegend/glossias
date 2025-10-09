@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router";
 import { useApiService } from "../services/api";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import { useAuthenticatedFetch } from "../lib/authFetch";
-import type { VocabData } from "../services/api";
+import type { VocabData, VocabLine } from "../services/api";
 import { useAudioPlayer } from "./story-components/AudioPlayer";
 import { StoryHeader } from "./story-components/StoryHeader";
 import { StoryLine } from "./story-components/StoryLine";
@@ -17,8 +17,8 @@ interface AudioURLsResponse {
 }
 
 // Helper function to check if a line contains vocabulary placeholders
-const lineHasVocab = (line: { text: string[] }): boolean => {
-  return line.text.includes("%");
+const lineHasVocab = (line: VocabLine): boolean => {
+  return line.text.some((segment) => segment.type === "blank");
 };
 
 export function StoriesVocab() {
@@ -37,9 +37,11 @@ export function StoriesVocab() {
   const [lineResults, setLineResults] = useState<{
     [key: string]: boolean | null;
   }>({});
+  const [pendingAnswers, setPendingAnswers] = useState<Set<string>>(new Set());
+  const [lockedAnswers, setLockedAnswers] = useState<Set<string>>(new Set());
   const [completedLines, setCompletedLines] = useState<Set<number>>(new Set());
   const [originalLines, setOriginalLines] = useState<Record<number, string>>(
-    {}
+    {},
   );
   const [playedLines, setPlayedLines] = useState<Set<number>>(new Set());
   const [checkingLines, setCheckingLines] = useState<Set<number>>(new Set());
@@ -54,7 +56,7 @@ export function StoriesVocab() {
     if (!id) return {};
     try {
       const response = await authenticatedFetch(
-        `/api/stories/${id}/audio/signed?label=complete`
+        `/api/stories/${id}/audio/signed?label=complete`,
       );
       if (!response.ok) return {};
       const data: AudioURLsResponse = await response.json();
@@ -111,84 +113,80 @@ export function StoriesVocab() {
     fetchNextStep();
   }, [id, getNavigationGuidance]);
 
-  const handleAnswerChange = (vocabKey: string, value: string) => {
+  const handleAnswerChange = async (vocabKey: string, value: string) => {
+    // Lock this answer immediately
+    setLockedAnswers((prev) => new Set([...prev, vocabKey]));
+    setPendingAnswers((prev) => new Set([...prev, vocabKey]));
+
     setSelectedAnswers((prev) => ({
       ...prev,
       [vocabKey]: value,
     }));
+
     // Reset result for this vocab item
     setLineResults((prev) => ({
       ...prev,
       [vocabKey]: null,
     }));
+
+    // Check this individual answer
+    await checkIndividualAnswer(vocabKey, value);
   };
 
-  const checkLineAnswer = async (vocabKey: string) => {
-    if (!id || !selectedAnswers[vocabKey]) return;
-
-    // Extract lineIndex from vocabKey (format: "lineIndex-vocabIndex")
-    const lineIndex = parseInt(vocabKey.split("-")[0]);
-
-    // Check if all vocab items on this line have answers
-    const lineVocabKeys = Object.keys(selectedAnswers)
-      .filter((key) => key.startsWith(`${lineIndex}-`))
-      .sort(); // Ensure consistent order by vocab index
-
-    const totalVocabOnLine =
-      pageData?.lines[lineIndex]?.text.filter((t) => t === "%").length || 0;
-
-    // Only proceed if we have answers for all vocab items on this line
-    const answersForLine = lineVocabKeys
-      .map((key) => selectedAnswers[key])
-      .filter(Boolean);
-
-    if (answersForLine.length !== totalVocabOnLine) {
-      // Not all vocab items filled yet, just return
-      return;
-    }
-
-    setCheckingLines((prev) => new Set([...prev, lineIndex]));
+  const checkIndividualAnswer = async (vocabKey: string, value: string) => {
+    if (!id || !value) return;
 
     try {
-      // Send all answers for this line to the API
-      const response = await api.checkVocabLine(id, lineIndex, answersForLine);
+      // Send individual answer to API
+      const result = await api.checkIndividualVocab(id, vocabKey, value);
+      const isCorrect = result.success && result.data?.correct;
+      const lineComplete = result.success && result.data?.line_complete;
+      const originalLine = result.data?.original_line;
 
-      if (response.success && response.data) {
-        const individualResults = response.data.results || [];
-        const allCorrect = response.data.allCorrect;
+      // Update the result for this vocab item
+      setLineResults((prev) => ({
+        ...prev,
+        [vocabKey]: isCorrect || false,
+      }));
 
-        // Update results for each vocab item individually
-        const newResults: { [key: string]: boolean | null } = {};
-        lineVocabKeys.forEach((key, index) => {
-          newResults[key] = individualResults[index] ?? false;
+      if (!isCorrect) {
+        // Unlock if incorrect
+        setLockedAnswers((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(vocabKey);
+          return newSet;
+        });
+      }
+
+      // Handle line completion from API response
+      if (lineComplete && originalLine) {
+        const lineIndex = parseInt(vocabKey.split("-")[0]);
+        setCompletedLines((prev) => new Set([...prev, lineIndex]));
+        setOriginalLines((prev) => {
+          const updated = {
+            ...prev,
+            [lineIndex]: originalLine,
+          };
+          return updated;
         });
 
-        setLineResults((prev) => ({
-          ...prev,
-          ...newResults,
-        }));
-
-        if (allCorrect) {
-          setCompletedLines((prev) => new Set([...prev, lineIndex]));
-          // Store original line if provided
-          if (response.data?.originalLine) {
-            setOriginalLines((prev) => ({
-              ...prev,
-              [lineIndex]: response.data!.originalLine!,
-            }));
-          }
-          // Continue playing audio from next line
-          setTimeout(() => {
-            audioPlayer.playNextLineFromIndex(lineIndex);
-          }, 1000);
-        }
+        // Play next line audio
+        setTimeout(() => {
+          audioPlayer.playNextLineFromIndex(lineIndex);
+        }, 1000);
       }
     } catch (err) {
       console.error("Failed to check answer:", err);
-    } finally {
-      setCheckingLines((prev) => {
+      // Unlock on error
+      setLockedAnswers((prev) => {
         const newSet = new Set(prev);
-        newSet.delete(lineIndex);
+        newSet.delete(vocabKey);
+        return newSet;
+      });
+    } finally {
+      setPendingAnswers((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(vocabKey);
         return newSet;
       });
     }
@@ -281,7 +279,8 @@ export function StoriesVocab() {
                   prefetchedAudio={audioPlayer.prefetchedAudio}
                   originalLine={originalLines[lineIndex]}
                   onAnswerChange={handleAnswerChange}
-                  onCheckAnswer={checkLineAnswer}
+                  pendingAnswers={pendingAnswers}
+                  lockedAnswers={lockedAnswers}
                   onPlayLineAudio={audioPlayer.playLineAudio}
                 />
               ))}

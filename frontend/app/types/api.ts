@@ -110,6 +110,20 @@ export type PageType =
   | "grammar"
   | "score";
 
+// TextSegment represents a segment of text in a vocab line
+export interface TextSegment {
+  text: string;
+  type: "text" | "blank" | "completed";
+  vocab_key?: string; // For blanks: "lineIndex-vocabIndex"
+}
+
+// VocabLine represents a story line with vocabulary segments
+export interface VocabLine {
+  text: TextSegment[];
+  audio_files: AudioFile[];
+  signed_audio_urls?: { [key: number]: string };
+}
+
 export const createAnnotationRequest = (
   lineNumber: number,
   type: AnnotationType,

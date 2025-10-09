@@ -3,8 +3,6 @@ package models
 import (
 	"context"
 	"glossias/src/pkg/generated/db"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // GetUserGrammarScores retrieves grammar scores for a user and story
@@ -39,6 +37,15 @@ func GetUserVocabScores(ctx context.Context, userID string, storyID int) (map[in
 	}
 
 	return result, nil
+}
+
+func CheckAllVocabCompleteForLine(ctx context.Context, userID string, storyID, lineNumber int) (bool, error) {
+	lineNumber = lineNumber + 1 // Convert to 1-based index for DB
+	return queries.CheckAllVocabCompleteForLineForUser(ctx, db.CheckAllVocabCompleteForLineForUserParams{
+		UserID:     userID,
+		StoryID:    convertToPGInt(storyID),
+		LineNumber: convertToPGInt(lineNumber),
+	})
 }
 
 // UserStoryVocabSummary represents vocabulary summary data
@@ -97,7 +104,7 @@ type UserStoryTimeTracking struct {
 func GetUserStoryTimeTracking(ctx context.Context, userID string, storyID int32) (*UserStoryTimeTracking, error) {
 	result, err := queries.GetUserStoryTimeTracking(ctx, db.GetUserStoryTimeTrackingParams{
 		UserID:  userID,
-		StoryID: pgtype.Int4{Int32: storyID, Valid: true},
+		StoryID: convertToPGInt(storyID),
 	})
 	if err != nil {
 		return nil, err
@@ -127,4 +134,21 @@ func GetUserStoryTimeTracking(ctx context.Context, userID string, storyID int32)
 		TranslationTimeSeconds: convertToInt(result.TranslationTimeSeconds),
 		VideoTimeSeconds:       convertToInt(result.VideoTimeSeconds),
 	}, nil
+}
+
+// CountStoryVocabItems returns the total number of vocabulary items for a story (cached)
+func CountStoryVocabItems(ctx context.Context, storyID int32) (int64, error) {
+	if cacheInstance == nil || keyBuilder == nil {
+		// No cache available, query directly
+		return queries.CountStoryVocabItems(ctx, convertToPGInt(storyID))
+	}
+
+	cacheKey := keyBuilder.StoryVocabCount(int(storyID))
+
+	var count int64
+	err := cacheInstance.GetOrSetJSON(cacheKey, &count, func() (any, error) {
+		return queries.CountStoryVocabItems(ctx, convertToPGInt(storyID))
+	})
+
+	return count, err
 }

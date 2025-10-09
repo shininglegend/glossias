@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"glossias/src/apis/types"
 	"glossias/src/auth"
 	"glossias/src/pkg/models"
@@ -75,19 +74,77 @@ func (h *Handler) GetGrammarPage(w http.ResponseWriter, r *http.Request) {
 	var grammarPoint string
 	var grammarDescription string
 	var instancesCount int
+	foundInstances := []types.GrammarInstance{}
+	incorrectInstances := []types.UserSelection{}
+	var nextGrammarPointID *int
 
 	if selectedPoint != nil {
 		grammarPointID = selectedPoint.ID
 		grammarPoint = selectedPoint.Name
 		grammarDescription = selectedPoint.Description
 
-		// Count instances of this grammar point in the story
-		for _, line := range story.Content.Lines {
-			for _, grammar := range line.Grammar {
-				if grammar.GrammarPointID != nil && *grammar.GrammarPointID == selectedPoint.ID {
-					instancesCount++
+		// Build grammar map for this grammar point
+		grammarItemsMap, totalExpected, err := buildCorrectGrammarMap(story, selectedPoint.ID)
+		if err != nil {
+			h.log.Error("Failed to build grammar map", "error", err)
+			h.sendError(w, "Failed to process grammar data", http.StatusInternalServerError)
+			return
+		}
+		instancesCount = totalExpected
+
+		userID := auth.GetUserID(r)
+		if userID == "" {
+			h.sendError(w, "Authentication required", http.StatusUnauthorized)
+			return
+		}
+		// Get user's correct answers for this grammar point
+		correctAnswers, err := models.GetUserGrammarScoresByGrammarPoint(r.Context(), userID, id, selectedPoint.ID)
+		if err != nil {
+			h.log.Warn("Failed to get user grammar scores", "error", err)
+		} else {
+			// Build found instances from user's correct answers
+			for _, answer := range correctAnswers {
+				if lineGrammar, exists := grammarItemsMap[int(answer.LineNumber)]; exists {
+					for _, item := range lineGrammar {
+						foundInstances = append(foundInstances, types.GrammarInstance{
+							LineNumber: int(answer.LineNumber),
+							Position:   item.Position,
+							Text:       item.Text,
+						})
+					}
 				}
 			}
+		}
+
+		// Get user's incorrect answers for this grammar point
+		incorrectAnswers, err := models.GetUserGrammarIncorrectAnswers(r.Context(), userID, id, selectedPoint.ID)
+		if err != nil {
+			h.log.Warn("Failed to get user incorrect answers", "error", err)
+		} else {
+			// Build incorrect instances from user's wrong answers
+			for _, answer := range incorrectAnswers {
+				for _, pos := range answer.SelectedPositions {
+					matchedText := ""
+					if int(answer.SelectedLine) > 0 && int(answer.SelectedLine) <= len(story.Content.Lines) {
+						line := story.Content.Lines[int(answer.SelectedLine)-1]
+						runes := []rune(line.Text)
+						if pos >= 0 && int(pos) < len(runes) {
+							matchedText = string(runes[pos])
+						}
+					}
+					incorrectInstances = append(incorrectInstances, types.UserSelection{
+						LineNumber: int(answer.SelectedLine),
+						Position:   [2]int{int(pos), int(pos) + 1},
+						Text:       matchedText,
+						Correct:    false,
+					})
+				}
+			}
+		}
+
+		// Check if all instances found and get next grammar point
+		if len(foundInstances) >= instancesCount {
+			nextGrammarPointID, _ = findNextGrammarPoint(r.Context(), id, selectedPoint.ID)
 		}
 	}
 
@@ -110,6 +167,9 @@ func (h *Handler) GetGrammarPage(w http.ResponseWriter, r *http.Request) {
 		GrammarPoint:       grammarPoint,
 		GrammarDescription: grammarDescription,
 		InstancesCount:     instancesCount,
+		FoundInstances:     foundInstances,
+		IncorrectInstances: incorrectInstances,
+		NextGrammarPoint:   nextGrammarPointID,
 	}
 
 	response := types.APIResponse{
@@ -141,212 +201,35 @@ func buildCorrectGrammarMap(story *models.Story, grammarPointID int) (map[int][]
 	return grammarItemsMap, totalExpected, nil
 }
 
-// buildUserSelections creates mapping of user selections for quick lookup
-func buildUserSelections(answers []types.GrammarAnswer, storyLineCount int) (map[int]map[int]bool, int, error) {
-	userSelections := make(map[int]map[int]bool)
-	totalAnswered := 0
-
-	for _, answer := range answers {
-		if answer.LineNumber < 1 || answer.LineNumber > storyLineCount {
-			return nil, 0, fmt.Errorf("invalid line number: %d", answer.LineNumber)
-		}
-
-		if userSelections[answer.LineNumber] == nil {
-			userSelections[answer.LineNumber] = make(map[int]bool)
-		}
-		for _, pos := range answer.Positions {
-			userSelections[answer.LineNumber][pos] = true
-		}
-		totalAnswered += len(answer.Positions)
-	}
-
-	return userSelections, totalAnswered, nil
-}
-
-// buildGrammarInstances creates grammar instances and calculates correct/wrong counts
-func buildGrammarInstances(grammarItemsMap map[int][]models.GrammarItem, userSelections map[int]map[int]bool) ([]types.GrammarInstance, int, int, error) {
-	var grammarInstances []types.GrammarInstance
-	correct := 0
-	wrong := 0
-
-	for lineNum, grammarItems := range grammarItemsMap {
-		for _, item := range grammarItems {
-			userSelected := false
-			if lineSelections, exists := userSelections[lineNum]; exists {
-				for pos := range lineSelections {
-					if pos >= item.Position[0] && pos < item.Position[1] {
-						userSelected = true
-						break
-					}
-				}
-			}
-
-			grammarInstances = append(grammarInstances, types.GrammarInstance{
-				LineNumber:   lineNum,
-				Position:     item.Position,
-				Text:         item.Text,
-				UserSelected: userSelected,
-			})
-
-			if userSelected {
-				correct++
-			} else {
-				wrong++
-			}
+// findNextGrammarPointFromSlice finds the next grammar point ID in sequence from provided slice
+func findNextGrammarPointFromSlice(grammarPoints []models.GrammarPoint, currentGrammarPointID int) *int {
+	for i, gp := range grammarPoints {
+		if gp.ID == currentGrammarPointID && i+1 < len(grammarPoints) {
+			return &grammarPoints[i+1].ID
 		}
 	}
-
-	return grammarInstances, correct, wrong, nil
+	return nil
 }
 
-// buildUserSelectionResults creates results for what user clicked
-func buildUserSelectionResults(userSelections map[int]map[int]bool, grammarItemsMap map[int][]models.GrammarItem, story *models.Story) ([]types.UserSelection, error) {
-	var userSelectionResults []types.UserSelection
-
-	for lineNum, lineSelections := range userSelections {
-		line := story.Content.Lines[lineNum-1]
-		grammarItems := grammarItemsMap[lineNum]
-
-		for pos := range lineSelections {
-			isCorrect := false
-			matchedText := ""
-			matchedPosition := [2]int{pos, pos + 1}
-
-			for _, item := range grammarItems {
-				if pos >= item.Position[0] && pos < item.Position[1] {
-					isCorrect = true
-					matchedText = item.Text
-					matchedPosition = item.Position
-					break
-				}
-			}
-
-			if !isCorrect {
-				matchedText = string([]rune(line.Text)[pos : pos+1])
-			}
-
-			userSelectionResults = append(userSelectionResults, types.UserSelection{
-				LineNumber: lineNum,
-				Position:   matchedPosition,
-				Text:       matchedText,
-				Correct:    isCorrect,
-			})
-		}
-	}
-
-	return userSelectionResults, nil
-}
-
-// findNextGrammarPoint finds the next grammar point ID in sequence
+// findNextGrammarPoint finds the next grammar point ID in sequence (legacy function)
 func findNextGrammarPoint(ctx context.Context, storyID, currentGrammarPointID int) (*int, error) {
 	grammarPoints, err := models.GetStoryGrammarPoints(ctx, storyID)
 	if err != nil {
 		return nil, err
 	}
-
-	for i, gp := range grammarPoints {
-		if gp.ID == currentGrammarPointID && i+1 < len(grammarPoints) {
-			return &grammarPoints[i+1].ID, nil
-		}
-	}
-
-	return nil, nil
+	return findNextGrammarPointFromSlice(grammarPoints, currentGrammarPointID), nil
 }
 
-// saveUserScores saves grammar scores for authenticated user
-func saveUserScores(ctx context.Context, userID string, storyID, grammarPointID int, answers []types.GrammarAnswer, correctGrammarMap map[int][]models.GrammarItem) error {
-	if userID == "" {
-		return nil
-	}
-
-	var correctAnswers []struct {
-		LineNumber int
-		Position   [2]int
-		Text       string
-	}
-	var incorrectAnswers []struct {
-		LineNumber int
-		Position   int
-	}
-
-	// Loop over user's answers
-	for _, answer := range answers {
-
-
-		correctItemsForLine, hasCorrectItems := correctGrammarMap[answer.LineNumber]
-		if !hasCorrectItems {
-			// Line has no correct grammar points - all answers are incorrect
-			for _, pos := range answer.Positions {
-				incorrectAnswers = append(incorrectAnswers, struct {
-					LineNumber int
-					Position   int
-				}{
-					LineNumber: answer.LineNumber,
-					Position:   pos,
-				})
-			}
-		} else {
-			// Line has correct grammar points - check each user position
-			remainingCorrectItems := make([]models.GrammarItem, len(correctItemsForLine))
-			copy(remainingCorrectItems, correctItemsForLine)
-
-			for _, userPos := range answer.Positions {
-				matched := false
-
-				// Check if this position matches any remaining correct item
-				for i, correctItem := range remainingCorrectItems {
-					if userPos >= correctItem.Position[0] && userPos < correctItem.Position[1] {
-						// Add to correct answers
-						correctAnswers = append(correctAnswers, struct {
-							LineNumber int
-							Position   [2]int
-							Text       string
-						}{
-							LineNumber: answer.LineNumber,
-							Position:   correctItem.Position,
-							Text:       correctItem.Text,
-						})
-
-						// Remove this item from remaining to avoid dupes
-						remainingCorrectItems = append(remainingCorrectItems[:i], remainingCorrectItems[i+1:]...)
-						matched = true
-						break
-					}
-				}
-
-				if !matched {
-					incorrectAnswers = append(incorrectAnswers, struct {
-						LineNumber int
-						Position   int
-					}{
-						LineNumber: answer.LineNumber,
-						Position:   userPos,
-					})
-				}
-			}
-		}
-	}
-
-	// Save correct answers
-	if len(correctAnswers) > 0 {
-		if err := models.SaveCorrectAnswers(ctx, userID, storyID, grammarPointID, correctAnswers); err != nil {
-			return err
-		}
-	}
-
-	// Save incorrect answers
-	if len(incorrectAnswers) > 0 {
-		if err := models.SaveIncorrectAnswers(ctx, userID, storyID, grammarPointID, incorrectAnswers); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// CheckGrammar handles grammar checking for multiple lines of the same grammar point
+// CheckGrammar handles single grammar selection checking (one click at a time)
 func (h *Handler) CheckGrammar(w http.ResponseWriter, r *http.Request) {
-	var req types.CheckGrammarRequest
+	ctx := r.Context()
+	userID := auth.GetUserID(r)
+	if userID == "" {
+		h.sendError(w, "Authentication required", http.StatusUnauthorized)
+		return
+	}
+
+	var req types.CheckSingleGrammarRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.log.Warn("Invalid request body in CheckGrammar", "error", err, "ip", r.RemoteAddr)
 		h.sendError(w, "Invalid request body", http.StatusBadRequest)
@@ -361,70 +244,89 @@ func (h *Handler) CheckGrammar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	story, err := models.GetStoryData(r.Context(), id, auth.GetUserID(r))
+	// Get story data - cached, fastest call
+	story, err := models.GetStoryData(ctx, id, userID)
 	if err != nil {
-		h.log.Error("Failed to fetch story in CheckGrammar", "error", err, "storyID", id)
-		h.sendError(w, "Failed to fetch story", http.StatusInternalServerError)
+		h.log.Error("Failed to fetch story data", "error", err, "storyID", id)
+		h.sendError(w, "Failed to fetch story data", http.StatusInternalServerError)
 		return
 	}
 
-	correctGrammarMap, totalExpected, err := buildCorrectGrammarMap(story, req.GrammarPointID)
+	// Build grammar map for this grammar point - O(n) on story lines
+	grammarItemsMap, totalInstances := buildCorrectGrammarMapOptimized(story, req.GrammarPointID)
+
+	// Check if user clicked on a correct instance - O(1) hash lookup + small array scan
+	isCorrect := false
+	var matchedGrammar *models.GrammarItem
+	if lineGrammar, exists := grammarItemsMap[req.LineNumber]; exists {
+		for i := range lineGrammar {
+			item := &lineGrammar[i]
+			if req.Position >= item.Position[0] && req.Position < item.Position[1] {
+				isCorrect = true
+				matchedGrammar = item
+				break
+			}
+		}
+	}
+
+	matchedPosition := [2]int{req.Position, req.Position + 1}
+	if isCorrect && matchedGrammar != nil {
+		matchedPosition = matchedGrammar.Position
+	}
+
+	// Save the score - cannot avoid this DB call
+	if err := models.SaveSingleGrammarSelection(ctx, userID, id, req.GrammarPointID, req.LineNumber, req.Position, isCorrect); err != nil {
+		h.log.Error("Failed to save grammar selection", "error", err, "userID", userID, "storyID", id)
+	}
+
+	// Get current found count and check completion - single DB call
+	foundCount, err := models.CountFoundGrammarInstances(ctx, userID, id, req.GrammarPointID)
 	if err != nil {
-		h.log.Error("Failed to build correct grammar map", "error", err)
-		h.sendError(w, "Internal error", http.StatusInternalServerError)
-		return
+		h.log.Error("Failed to count found instances", "error", err, "userID", userID, "storyID", id)
+		// Continue without count rather than failing
+		foundCount = 0
 	}
 
-	userSelections, totalAnswered, err := buildUserSelections(req.Answers, len(story.Content.Lines))
-	if err != nil {
-		h.log.Warn("Invalid user selections", "error", err)
-		h.sendError(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+	allComplete := foundCount >= totalInstances
 
-	if totalAnswered != totalExpected {
-		h.sendError(w, fmt.Sprintf("Expected %d grammar points but got %d answers. If expected == 0, then check both grammar point ID and story", totalExpected, totalAnswered), http.StatusBadRequest)
-		return
-	}
-
-	grammarInstances, correct, wrong, err := buildGrammarInstances(correctGrammarMap, userSelections)
-	if err != nil {
-		h.log.Error("Failed to build grammar instances", "error", err)
-		h.sendError(w, "Internal error", http.StatusInternalServerError)
-		return
-	}
-
-	userSelectionResults, err := buildUserSelectionResults(userSelections, correctGrammarMap, story)
-	if err != nil {
-		h.log.Error("Failed to build user selection results", "error", err)
-		h.sendError(w, "Internal error", http.StatusInternalServerError)
-		return
-	}
-
-	if correct+wrong != totalExpected {
-		h.log.Error("Score calculation error", "correct", correct, "wrong", wrong, "expected", totalExpected)
-	}
-
-	nextGrammarPointID, err := findNextGrammarPoint(r.Context(), id, req.GrammarPointID)
-	if err != nil {
-		h.log.Warn("Failed to find next grammar point", "error", err)
-	}
-
-	if err := saveUserScores(r.Context(), auth.GetUserID(r), id, req.GrammarPointID, req.Answers, correctGrammarMap); err != nil {
-		h.log.Error("Failed to save grammar scores", "error", err, "userID", auth.GetUserID(r), "storyID", id)
+	// Find next grammar point if all complete - optimized to avoid extra DB call
+	var nextGrammarPointID *int
+	if allComplete {
+		grammarPoints, err := models.GetStoryGrammarPoints(ctx, id)
+		if err != nil {
+			h.log.Error("Failed to get grammar points for next lookup", "error", err, "storyID", id)
+		} else {
+			nextGrammarPointID = findNextGrammarPointFromSlice(grammarPoints, req.GrammarPointID)
+		}
 	}
 
 	response := types.APIResponse{
 		Success: true,
-		Data: types.CheckGrammarResponse{
-			Correct:            correct,
-			Wrong:              wrong,
-			TotalAnswers:       totalExpected,
-			GrammarInstances:   grammarInstances,
-			UserSelections:     userSelectionResults,
-			NextGrammarPointID: nextGrammarPointID,
+		Data: types.CheckSingleGrammarResponse{
+			Correct:          isCorrect,
+			MatchedPosition:  matchedPosition,
+			TotalInstances:   totalInstances,
+			NextGrammarPoint: nextGrammarPointID,
 		},
 	}
 
 	json.NewEncoder(w).Encode(response)
+}
+
+// buildCorrectGrammarMapOptimized creates mapping of grammar items by line number (optimized version)
+func buildCorrectGrammarMapOptimized(story *models.Story, grammarPointID int) (map[int][]models.GrammarItem, int) {
+	grammarItemsMap := make(map[int][]models.GrammarItem)
+	totalExpected := 0
+
+	// Single pass through story lines
+	for _, line := range story.Content.Lines {
+		for _, grammar := range line.Grammar {
+			if grammar.GrammarPointID != nil && *grammar.GrammarPointID == grammarPointID {
+				totalExpected++
+				grammarItemsMap[line.LineNumber] = append(grammarItemsMap[line.LineNumber], grammar)
+			}
+		}
+	}
+
+	return grammarItemsMap, totalExpected
 }

@@ -134,7 +134,7 @@ export function StoriesTranslate() {
             <div>
               <p className="text-gray-700 mb-2">
                 Select exactly 5 lines from the text below that you would like
-                to see translated.
+                to see translated. Choose wisely to help you complete the rest of the exercises!
               </p>
               <p className="text-gray-700">
                 Selected:{" "}

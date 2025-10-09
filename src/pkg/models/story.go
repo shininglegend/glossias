@@ -9,6 +9,7 @@ import (
 	"glossias/src/pkg/generated/db"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	_ "github.com/lib/pq"
 	storage_go "github.com/supabase-community/storage-go"
 )
@@ -32,6 +33,7 @@ var queries *db.Queries
 var rawConn any
 var storageClient *storage_go.Client
 var storageBaseURL string
+var storageAPIKey string
 var cacheInstance *cache.Cache
 var keyBuilder *cache.KeyBuilder
 
@@ -44,6 +46,9 @@ func SetDB(d any) {
 		queries = db.New(conn)
 	} else if mockConn, ok := d.(*database.MockDBTX); ok {
 		queries = db.New(mockConn)
+	} else if reconnectConn, ok := d.(*database.ReconnectableDBTX); ok {
+		// ReconnectableDBTX implements DBTX with reconnection logic
+		queries = db.New(reconnectConn)
 	} else {
 		// For testing - allow nil queries when no real DB connection
 		queries = nil
@@ -56,17 +61,34 @@ func SetStorageClient(url, apiKey string) {
 		fmt.Println("Storage credentials missing - operations will fail")
 		storageClient = nil
 		storageBaseURL = ""
+		storageAPIKey = ""
 		return
 	}
 
 	storageClient = storage_go.NewClient(url, apiKey, nil)
 	storageBaseURL = url
-	// Test the connection by listing buckets
-	_, err := storageClient.ListBuckets()
+	storageAPIKey = apiKey
+	// Test the connection by listing buckets with retry on 'tx closed'
+	const maxRetries = 3
+	var err error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		_, err = storageClient.ListBuckets()
+		if err == nil {
+			break
+		}
+		if database.IsConnectionError(err) {
+			fmt.Printf("Attempt %d: tx closed error received, reconnecting...\n", attempt)
+			storageClient = storage_go.NewClient(url, apiKey, nil)
+			time.Sleep(1 * time.Second)
+		} else {
+			break
+		}
+	}
 	if err != nil {
 		fmt.Printf("Failed to connect to storage: %v\n", err)
 		storageClient = nil
 		storageBaseURL = ""
+		storageAPIKey = ""
 		return
 	}
 	fmt.Printf("Storage client initialized with URL: %s\n", url)
@@ -83,6 +105,38 @@ func SetCache() error {
 	keyBuilder = cache.NewKeyBuilder()
 	fmt.Println("Cache initialized successfully")
 	return nil
+}
+
+// storageRetry executes a storage operation with retry on connection errors
+func storageRetry(operation func() error) error {
+	const maxRetries = 3
+	var err error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		err = operation()
+		if err == nil {
+			return nil
+		}
+
+		// Check if it's a connection error
+		if database.IsConnectionError(err) {
+
+			fmt.Printf("Storage connection error (attempt %d/%d): %v\n", attempt, maxRetries, err)
+
+			if attempt < maxRetries {
+				time.Sleep(1 * time.Second)
+				// Reinitialize storage client
+				if storageBaseURL != "" && storageAPIKey != "" {
+					storageClient = storage_go.NewClient(storageBaseURL, storageAPIKey, nil)
+				}
+			}
+		} else {
+			// Non-connection error, don't retry
+			return err
+		}
+	}
+
+	return fmt.Errorf("storage operation failed after %d attempts: %w", maxRetries, err)
 }
 
 type Story struct {
@@ -242,4 +296,20 @@ func (s *Story) Validate() error {
 		return ErrMissingGrammarPoints
 	}
 	return nil
+}
+
+// convertToPGInt converts various integer types to pgtype.Int4
+func convertToPGInt(value any) pgtype.Int4 {
+	switch v := value.(type) {
+	case int:
+		return pgtype.Int4{Int32: int32(v), Valid: true}
+	case int32:
+		return pgtype.Int4{Int32: v, Valid: true}
+	case int64:
+		return pgtype.Int4{Int32: int32(v), Valid: true}
+	case nil:
+		return pgtype.Int4{Valid: false}
+	default:
+		return pgtype.Int4{Valid: false}
+	}
 }

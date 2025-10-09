@@ -32,9 +32,23 @@ type AudioFile struct {
 	Label      string `json:"label"`
 }
 
+// TextSegment represents a segment of text in a line
+type TextSegment struct {
+	Text     string `json:"text"`
+	Type     string `json:"type"`                // "text", "blank", "completed"
+	VocabKey string `json:"vocab_key,omitempty"` // For blanks: "lineIndex-vocabIndex"
+}
+
 // Line represents a story line in API responses
 type Line struct {
 	Text            []string       `json:"text"`
+	AudioFiles      []AudioFile    `json:"audio_files"`
+	SignedAudioURLs map[int]string `json:"signed_audio_urls,omitempty"`
+}
+
+// VocabLine represents a story line with vocabulary segments
+type VocabLine struct {
+	Text            []TextSegment  `json:"text"`
 	AudioFiles      []AudioFile    `json:"audio_files"`
 	SignedAudioURLs map[int]string `json:"signed_audio_urls,omitempty"`
 }
@@ -60,19 +74,22 @@ type AudioPageData struct {
 // VocabPageData extends PageData with vocabulary bank
 type VocabPageData struct {
 	PageData
-	Lines     []Line   `json:"lines"`
-	VocabBank []string `json:"vocab_bank"`
+	Lines     []VocabLine `json:"lines"`
+	VocabBank []string    `json:"vocab_bank"`
 }
 
 // GrammarPageData extends PageData with grammar point
 type GrammarPageData struct {
 	PageData
-	Lines              []LineText `json:"lines"`
-	LanguageCode       string     `json:"languageCode"`
-	GrammarPointID     int        `json:"grammar_point_id"`
-	GrammarPoint       string     `json:"grammar_point"`
-	GrammarDescription string     `json:"grammar_description"`
-	InstancesCount     int        `json:"instances_count"`
+	Lines              []LineText        `json:"lines"`
+	LanguageCode       string            `json:"languageCode"`
+	GrammarPointID     int               `json:"grammar_point_id"`
+	GrammarPoint       string            `json:"grammar_point"`
+	GrammarDescription string            `json:"grammar_description"`
+	InstancesCount     int               `json:"instances_count"`
+	FoundInstances     []GrammarInstance `json:"found_instances"`
+	IncorrectInstances []UserSelection   `json:"incorrect_instances"`
+	NextGrammarPoint   *int              `json:"next_grammar_point"`
 }
 
 // TranslationPageData extends PageData with translation field
@@ -82,15 +99,10 @@ type TranslationPageData struct {
 	ReturnedLines []int             `json:"returned_lines"`
 }
 
-// VocabAnswer represents vocabulary answer from client
-type VocabAnswer struct {
-	LineNumber int      `json:"line_number"`
-	Answers    []string `json:"answers"`
-}
-
 // CheckVocabRequest represents the request body for vocab checking
 type CheckVocabRequest struct {
-	Answers []VocabAnswer `json:"answers"`
+	VocabKey string `json:"vocab_key"`
+	Answer   string `json:"answer"`
 }
 
 // GrammarAnswer represents grammar answer from client
@@ -105,27 +117,25 @@ type CheckGrammarRequest struct {
 	Answers        []GrammarAnswer `json:"answers"`
 }
 
-// VocabResult represents individual vocabulary check result
-type VocabResult struct {
-	Correct       bool   `json:"correct"`
-	UserAnswer    string `json:"user_answer,omitempty"`
-	CorrectAnswer string `json:"correct_answer,omitempty"`
-	Line          int    `json:"line"`
+// CheckSingleGrammarRequest represents the request body for checking a single grammar selection
+type CheckSingleGrammarRequest struct {
+	GrammarPointID int `json:"grammar_point_id"`
+	LineNumber     int `json:"line_number"`
+	Position       int `json:"position"`
 }
 
 // CheckVocabResponse represents the response for vocab checking
 type CheckVocabResponse struct {
-	Results      []bool `json:"results"`                // Individual results for each vocab item
-	AllCorrect   bool   `json:"allCorrect"`             // Whether all items are correct
-	OriginalLine string `json:"originalLine,omitempty"` // Original line text when all correct
+	Correct      bool    `json:"correct"`                 // Whether the user's answer is correct for this vocab item
+	LineComplete bool    `json:"line_complete"`           // Whether all items on this line have been answered
+	OriginalLine *string `json:"original_line,omitempty"` // Original line text when the line is complete
 }
 
 // GrammarInstance represents a grammar point instance in the story
 type GrammarInstance struct {
-	LineNumber   int    `json:"line_number"`
-	Position     [2]int `json:"position"`
-	Text         string `json:"text"`
-	UserSelected bool   `json:"user_selected"`
+	LineNumber int    `json:"line_number"`
+	Position   [2]int `json:"position"`
+	Text       string `json:"text"`
 }
 
 // UserSelection represents a user's selection with correctness
@@ -144,6 +154,14 @@ type CheckGrammarResponse struct {
 	GrammarInstances   []GrammarInstance `json:"grammar_instances"`
 	UserSelections     []UserSelection   `json:"user_selections"`
 	NextGrammarPointID *int              `json:"next_grammar_point_id"`
+}
+
+// CheckSingleGrammarResponse represents the response for checking a single grammar selection
+type CheckSingleGrammarResponse struct {
+	Correct          bool   `json:"correct"`
+	MatchedPosition  [2]int `json:"matched_position"`   // Full position range of the match (if correct)
+	TotalInstances   int    `json:"total_instances"`    // Total number of instances to find
+	NextGrammarPoint *int   `json:"next_grammar_point"` // ID of next grammar point if all found
 }
 
 // LineValidationError represents validation error with expected answer counts

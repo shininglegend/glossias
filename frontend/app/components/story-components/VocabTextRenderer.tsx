@@ -1,7 +1,8 @@
 import React from "react";
+import type { VocabLine } from "../../services/api";
 
 interface VocabTextRendererProps {
-  line: { text: string[] };
+  line: VocabLine;
   lineIndex: number;
   vocabBank: string[];
   selectedAnswers: { [key: string]: string };
@@ -12,8 +13,9 @@ interface VocabTextRendererProps {
   isCurrentLine: boolean;
   isRTL: boolean;
   originalLine?: string;
+  pendingAnswers: Set<string>;
+  lockedAnswers: Set<string>;
   onAnswerChange: (vocabKey: string, value: string) => void;
-  onCheckAnswer: (vocabKey: string) => void;
 }
 
 // Helper function for RTL indentation
@@ -42,18 +44,12 @@ export const VocabTextRenderer: React.FC<VocabTextRendererProps> = ({
   playedLines,
   isRTL,
   originalLine,
+  pendingAnswers,
+  lockedAnswers,
   onAnswerChange,
 }) => {
-  let vocabIndex = 0; // Track vocab items within this line
   const isDisabled =
     completedLines.has(lineIndex) || !playedLines.has(lineIndex);
-
-  // Check if all vocab items on this line have answers
-  const totalVocabOnLine = line.text.filter((t) => t === "%").length;
-  const lineVocabKeys = Array.from(
-    { length: totalVocabOnLine },
-    (_, i) => `${lineIndex}-${i}`
-  );
 
   // If line is completed and we have the original text, display it
   if (completedLines.has(lineIndex) && originalLine) {
@@ -72,15 +68,23 @@ export const VocabTextRenderer: React.FC<VocabTextRendererProps> = ({
 
   return (
     <div className="line-content text-3xl inline">
-      {line.text.map((text, textIndex) => {
-        const { displayText, indentLevel } = processTextForRTL(text, isRTL);
+      {line.text.map((segment, segmentIndex) => {
+        const { displayText, indentLevel } = processTextForRTL(
+          segment.text,
+          isRTL,
+        );
 
-        if (displayText === "%") {
-          const vocabKey = `${lineIndex}-${vocabIndex}`;
+        if (segment.type === "blank" && segment.vocab_key) {
+          const vocabKey = segment.vocab_key;
           const result = lineResults[vocabKey];
-          vocabIndex++; // Increment for next vocab item on this line
+          const isPending = pendingAnswers.has(vocabKey);
+          const isLocked = lockedAnswers.has(vocabKey);
+
           return (
-            <span key={textIndex} className="vocab-container inline-block mx-1">
+            <span
+              key={segmentIndex}
+              className="vocab-container inline-block mx-1"
+            >
               <select
                 className={`vocab-select inline-block min-w-24 px-2 py-1 text-2xl border-2 rounded cursor-pointer bg-white transition-all duration-200 focus:outline-none focus:border-blue-500 ${
                   result === true
@@ -90,14 +94,16 @@ export const VocabTextRenderer: React.FC<VocabTextRendererProps> = ({
                       : !playedLines.has(lineIndex)
                         ? "border-gray-200 bg-gray-50"
                         : "border-gray-300"
-                } ${isDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
+                } ${isDisabled || isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
                 value={selectedAnswers[vocabKey] || ""}
                 onChange={(e) => onAnswerChange(vocabKey, e.target.value)}
-                disabled={isDisabled}
+                disabled={isDisabled || isLocked}
                 title={
                   !playedLines.has(lineIndex)
                     ? "Play the audio first to unlock this vocabulary"
-                    : ""
+                    : isLocked
+                      ? "Answer is being checked"
+                      : ""
                 }
               >
                 <option value="">
@@ -114,22 +120,47 @@ export const VocabTextRenderer: React.FC<VocabTextRendererProps> = ({
                 ))}
               </select>
 
-              {result === false && (
-                <span className="error-indicator text-red-500 text-lg font-bold">
+              {isPending && (
+                <span className="loading-indicator ml-1 inline-flex items-center">
+                  <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                </span>
+              )}
+              {result === false && !isPending && (
+                <span className="error-indicator text-red-500 text-lg font-bold ml-1">
                   ✗
                 </span>
               )}
-              {completedLines.has(lineIndex) && (
-                <span className="success-indicator text-green-500 text-lg font-bold">
+              {result === true && !isPending && (
+                <span className="success-indicator text-green-500 text-lg font-bold ml-1">
                   ✓
                 </span>
               )}
             </span>
           );
-        } else {
+        } else if (segment.type === "completed") {
+          // For completed vocab, show locked dropdown with green styling and checkmark
           return (
             <span
-              key={textIndex}
+              key={segmentIndex}
+              className="vocab-container inline-block mx-1"
+            >
+              <select
+                className="vocab-select inline-block min-w-24 px-2 py-1 text-2xl border-2 rounded cursor-not-allowed bg-green-50 border-green-500 opacity-60"
+                value={displayText}
+                disabled={true}
+              >
+                <option value={displayText}>{displayText}</option>
+              </select>
+              <span className="success-indicator text-green-500 text-lg font-bold ml-1">
+                ✓
+              </span>
+            </span>
+          );
+        } else {
+          // For "text" segments, just display the text
+          return (
+            <span
+              key={segmentIndex}
               style={
                 indentLevel > 0 ? { paddingRight: `${indentLevel * 2}em` } : {}
               }

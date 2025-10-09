@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/clerk/clerk-sdk-go/v2"
 	clerkjwt "github.com/clerk/clerk-sdk-go/v2/jwt"
@@ -107,9 +108,10 @@ func extractAndValidateUser(r *http.Request, logger *slog.Logger) (string, error
 		return "", &clerk.APIErrorResponse{HTTPStatusCode: 401}
 	}
 
-	// Verify JWT token
+	// Verify JWT token with clock tolerance
 	claims, err := clerkjwt.Verify(r.Context(), &clerkjwt.VerifyParams{
-		Token: token,
+		Token:  token,
+		Leeway: time.Minute * 5, // Allow 5 minutes clock skew
 	})
 	if err != nil {
 		return "", err

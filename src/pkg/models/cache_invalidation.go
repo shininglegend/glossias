@@ -22,6 +22,10 @@ func InvalidateStoryCache(storyID int, userID string) {
 	annotationsKey := keyBuilder.StoryAnnotations(storyID)
 	_ = cacheInstance.Delete(annotationsKey)
 
+	// Invalidate story vocab count
+	vocabCountKey := keyBuilder.StoryVocabCount(storyID)
+	_ = cacheInstance.Delete(vocabCountKey)
+
 	// Invalidate user access cache
 	accessKey := keyBuilder.UserAccess(userID, storyID)
 	_ = cacheInstance.Delete(accessKey)
@@ -46,6 +50,10 @@ func InvalidateStoryMetadata(storyID int) {
 	// Invalidate story annotations
 	annotationsKey := keyBuilder.StoryAnnotations(storyID)
 	_ = cacheInstance.Delete(annotationsKey)
+
+	// Invalidate story vocab count
+	vocabCountKey := keyBuilder.StoryVocabCount(storyID)
+	_ = cacheInstance.Delete(vocabCountKey)
 
 	fmt.Printf("Invalidated metadata cache for story %d\n", storyID)
 }

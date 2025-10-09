@@ -35,10 +35,10 @@ func main() {
 		err = nil
 	}
 
-	// Initialize database based on POSTGRES_DB environment variable
+	// Initialize database with automatic reconnection support
 	// USE_POOL=true uses pgxpool, USE_POOL=false uses database/sql, no DATABASE_URL uses mock
 	dbPath := "" // Not used for PostgreSQL
-	db, err := database.InitDB(dbPath)
+	db, err := database.InitDBWithReconnect(dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -72,16 +72,6 @@ func main() {
 	r.Use(auth.RateLimitMiddleware(logger))
 	r.Use(auth.Middleware(logger))
 	r.Use(loggingMiddleware(logger))
-
-	// Initialize handlers
-	// Serve static files (robots.txt, etc) that aren't handled by the frontend service
-	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/",
-		http.FileServer(http.Dir("static"))))
-
-	// Robots.txt
-	r.HandleFunc("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "static/robots.txt")
-	})
 
 	// Health check endpoint (no auth required)
 	r.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {

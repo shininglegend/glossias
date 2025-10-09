@@ -16,8 +16,12 @@ type ScoreData struct {
 	StoryTitle             string  `json:"story_title"`
 	TotalTimeSeconds       int     `json:"total_time_seconds"`
 	VocabAccuracy          float64 `json:"vocab_accuracy"` // Percentage (0-100)
+	VocabCorrectCount      int32   `json:"vocab_correct_count"`
+	VocabIncorrectCount    int32   `json:"vocab_incorrect_count"`
 	VocabTimeSeconds       int     `json:"vocab_time_seconds"`
 	GrammarAccuracy        float64 `json:"grammar_accuracy"` // Percentage (0-100)
+	GrammarCorrectCount    int32   `json:"grammar_correct_count"`
+	GrammarIncorrectCount  int32   `json:"grammar_incorrect_count"`
 	GrammarTimeSeconds     int     `json:"grammar_time_seconds"`
 	TranslationTimeSeconds int     `json:"translation_time_seconds"`
 	VideoTimeSeconds       int     `json:"video_time_seconds"`
@@ -60,6 +64,8 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 		h.sendError(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+	// Get total vocab and grammar counts in story
+	totalCounts := getVocabAndGrammarCount(*story)
 
 	// Get vocab accuracy
 	vocabSummary, err := models.GetUserStoryVocabSummary(r.Context(), userID, int32(id))
@@ -70,9 +76,9 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var vocabAccuracy float64
-	vocabTotal := vocabSummary.CorrectCount + vocabSummary.IncorrectCount
+	vocabTotal := totalCounts.VocabCount
 	if vocabTotal > 0 {
-		vocabAccuracy = float64(vocabSummary.CorrectCount) / float64(vocabTotal) * 100
+		vocabAccuracy = models.CalculateScoreWithRetriesAllowed(vocabSummary.CorrectCount, vocabSummary.IncorrectCount, vocabTotal)
 	}
 
 	// Get grammar accuracy
@@ -84,9 +90,9 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var grammarAccuracy float64
-	grammarTotal := grammarSummary.CorrectCount + grammarSummary.IncorrectCount
+	grammarTotal := totalCounts.GrammarCount
 	if grammarTotal > 0 {
-		grammarAccuracy = float64(grammarSummary.CorrectCount) / float64(grammarTotal) * 100
+		grammarAccuracy = models.CalculateScoreWithRetriesAllowed(grammarSummary.CorrectCount, grammarSummary.IncorrectCount, grammarTotal)
 	}
 
 	// Get time tracking data
@@ -100,23 +106,53 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 	// Check for missing data
 	var missingActivities []MissingActivity
 
-	// Check vocab
-	if vocabTotal == 0 {
+	// Count total vocab items in story
+	totalVocabItems := 0
+	for _, line := range story.Content.Lines {
+		totalVocabItems += len(line.Vocabulary)
+	}
+
+	// Count total grammar instances in story
+	totalGrammarInstances := 0
+	for _, line := range story.Content.Lines {
+		totalGrammarInstances += len(line.Grammar)
+	}
+
+	// Check vocab completion
+	if totalVocabItems == 0 {
+		// Story has no vocab items - automatically complete
+	} else if vocabTotal == 0 {
 		missingActivities = append(missingActivities, MissingActivity{
 			Activity:    "vocab",
 			DisplayName: "Vocabulary",
 			Route:       "vocab",
 			Reason:      "no_data",
 		})
+	} else if int(vocabSummary.CorrectCount) < totalVocabItems {
+		missingActivities = append(missingActivities, MissingActivity{
+			Activity:    "vocab",
+			DisplayName: "Vocabulary",
+			Route:       "vocab",
+			Reason:      "incomplete",
+		})
 	}
 
-	// Check grammar
-	if grammarTotal == 0 {
+	// Check grammar completion
+	if totalGrammarInstances == 0 {
+		// Story has no grammar instances - automatically complete
+	} else if grammarTotal == 0 {
 		missingActivities = append(missingActivities, MissingActivity{
 			Activity:    "grammar",
 			DisplayName: "Grammar",
 			Route:       "grammar",
 			Reason:      "no_data",
+		})
+	} else if int(grammarSummary.CorrectCount) < totalGrammarInstances {
+		missingActivities = append(missingActivities, MissingActivity{
+			Activity:    "grammar",
+			DisplayName: "Grammar",
+			Route:       "grammar",
+			Reason:      "incomplete",
 		})
 	}
 
@@ -163,8 +199,12 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 		StoryTitle:             story.Metadata.Title["en"],
 		TotalTimeSeconds:       totalTime,
 		VocabAccuracy:          vocabAccuracy,
+		VocabCorrectCount:      int32(vocabSummary.CorrectCount),
+		VocabIncorrectCount:    int32(vocabSummary.IncorrectCount),
 		VocabTimeSeconds:       timeData.VocabTimeSeconds,
 		GrammarAccuracy:        grammarAccuracy,
+		GrammarCorrectCount:    int32(grammarSummary.CorrectCount),
+		GrammarIncorrectCount:  int32(grammarSummary.IncorrectCount),
 		GrammarTimeSeconds:     timeData.GrammarTimeSeconds,
 		TranslationTimeSeconds: timeData.TranslationTimeSeconds,
 		VideoTimeSeconds:       timeData.VideoTimeSeconds,
@@ -177,4 +217,13 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+func getVocabAndGrammarCount(story models.Story) struct{ VocabCount, GrammarCount int64 } {
+	counts := struct{ VocabCount, GrammarCount int64 }{}
+	for _, line := range story.Content.Lines {
+		counts.VocabCount += int64(len(line.Vocabulary))
+		counts.GrammarCount += int64(len(line.Grammar))
+	}
+	return counts
 }

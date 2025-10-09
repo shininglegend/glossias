@@ -2,7 +2,11 @@
 
 import { useCallback, useRef, useMemo } from "react";
 import { useAuthenticatedFetch } from "../lib/authFetch";
-import type { NavigationGuidanceResponse, Story as CourseStory } from "../types/api";
+import type {
+  NavigationGuidanceResponse,
+  Story as CourseStory,
+  TextSegment,
+} from "../types/api";
 
 const API_BASE = "/api";
 
@@ -41,6 +45,12 @@ export interface Line {
   signed_audio_urls?: { [key: number]: string };
 }
 
+export interface VocabLine {
+  text: TextSegment[];
+  audio_files: AudioFile[];
+  signed_audio_urls?: { [key: number]: string };
+}
+
 export interface GrammarLine {
   text: string;
   english_translation?: string;
@@ -60,7 +70,11 @@ export interface GrammarPageData {
   language: string;
 }
 
-export interface VocabData extends PageData {
+export interface VocabData {
+  story_id: string;
+  story_title: string;
+  lines: VocabLine[];
+  language: string;
   vocab_bank: string[];
 }
 
@@ -69,6 +83,18 @@ export interface GrammarData extends GrammarPageData {
   grammar_point: string;
   grammar_description?: string;
   instances_count: number;
+  found_instances?: Array<{
+    line_number: number;
+    position: [number, number];
+    text: string;
+  }>;
+  incorrect_instances?: Array<{
+    line_number: number;
+    position: [number, number];
+    text: string;
+    correct: boolean;
+  }>;
+  next_grammar_point?: number;
 }
 
 export interface TranslationLine {
@@ -192,21 +218,22 @@ export function useApiService() {
         });
       },
 
-      checkVocabLine: (
+      checkIndividualVocab: (
         id: string,
-        lineNumber: number,
-        answers: string[],
+        vocabKey: string,
+        answer: string,
       ): Promise<
         APIResponse<{
-          results: boolean[];
-          allCorrect: boolean;
-          originalLine?: string;
+          correct: boolean;
+          line_complete: boolean;
+          original_line?: string;
         }>
       > => {
         return fetchAPI(`/stories/${id}/check-vocab`, {
           method: "POST",
           body: JSON.stringify({
-            answers: [{ line_number: lineNumber, answers }],
+            vocab_key: vocabKey,
+            answer: answer,
           }),
         });
       },
@@ -214,14 +241,22 @@ export function useApiService() {
       checkGrammar: (
         id: string,
         grammarPointId: number,
-        answers: Array<{ line_number: number; positions: number[] }>,
-      ): Promise<APIResponse<any>> => {
+        request: {
+          grammar_point_id: number;
+          line_number: number;
+          position: number;
+        },
+      ): Promise<
+        APIResponse<{
+          correct: boolean;
+          matched_position?: [number, number];
+          total_instances: number;
+          next_grammar_point: number | null;
+        }>
+      > => {
         return fetchAPI(`/stories/${id}/check-grammar`, {
           method: "POST",
-          body: JSON.stringify({
-            grammar_point_id: grammarPointId,
-            answers,
-          }),
+          body: JSON.stringify(request),
         });
       },
 
@@ -256,7 +291,9 @@ export function useApiService() {
       },
 
       // Admin endpoints
-      getCourseStories: (courseId: string): Promise<APIResponse<CourseStory[]>> => {
+      getCourseStories: (
+        courseId: string,
+      ): Promise<APIResponse<CourseStory[]>> => {
         return fetchAPI<CourseStory[]>(`/stories/by-course/${courseId}`);
       },
 

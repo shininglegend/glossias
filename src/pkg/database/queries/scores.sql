@@ -1,16 +1,8 @@
 -- Score management queries
 
--- name: SaveVocabScore :exec
-INSERT INTO vocab_correct_answers (user_id, story_id, line_number, vocab_item_id)
-VALUES ($1, $2, $3, $4);
-
 -- name: SaveGrammarScore :exec
 INSERT INTO grammar_correct_answers (user_id, story_id, line_number, grammar_point_id)
 VALUES ($1, $2, $3, $4);
-
--- name: SaveVocabIncorrectAnswer :exec
-INSERT INTO vocab_incorrect_answers (user_id, story_id, line_number, vocab_item_id, incorrect_answer)
-VALUES ($1, $2, $3, $4, $5);
 
 -- name: SaveGrammarIncorrectAnswer :exec
 INSERT INTO grammar_incorrect_answers (user_id, story_id, line_number, grammar_point_id, selected_line, selected_positions)
@@ -30,6 +22,18 @@ JOIN grammar_points gp ON gs.grammar_point_id = gp.grammar_point_id
 LEFT JOIN grammar_items gi ON gs.grammar_point_id = gi.grammar_point_id AND gs.story_id = gi.story_id AND gs.line_number = gi.line_number
 WHERE gs.user_id = $1 AND gs.story_id = $2
 ORDER BY gs.line_number, gs.attempted_at DESC;
+
+-- name: GetUserGrammarScoresByGrammarPoint :many
+SELECT gs.line_number, gs.grammar_point_id, gs.attempted_at
+FROM grammar_correct_answers gs
+WHERE gs.user_id = $1 AND gs.story_id = $2 AND gs.grammar_point_id = $3
+ORDER BY gs.line_number, gs.attempted_at DESC;
+
+-- name: GetUserGrammarIncorrectAnswers :many
+SELECT gia.line_number, gia.grammar_point_id, gia.selected_line, gia.selected_positions, gia.attempted_at
+FROM grammar_incorrect_answers gia
+WHERE gia.user_id = $1 AND gia.story_id = $2 AND gia.grammar_point_id = $3
+ORDER BY gia.line_number, gia.attempted_at DESC;
 
 -- name: GetStoryVocabScores :many
 SELECT vs.user_id, vs.line_number, vs.vocab_item_id, vs.attempted_at,
@@ -52,19 +56,13 @@ ORDER BY gs.line_number, gs.attempted_at DESC;
 
 -- name: GetUserStoryVocabSummary :one
 SELECT
-    COUNT(vca.vocab_item_id) as correct_count,
-    COUNT(via.vocab_item_id) as incorrect_count
-FROM vocab_correct_answers vca
-FULL OUTER JOIN vocab_incorrect_answers via ON vca.user_id = via.user_id AND vca.story_id = via.story_id AND vca.vocab_item_id = via.vocab_item_id
-WHERE COALESCE(vca.user_id, via.user_id) = $1 AND COALESCE(vca.story_id, via.story_id) = $2;
+    (SELECT COUNT(*) FROM vocab_correct_answers vca WHERE vca.user_id = $1 AND vca.story_id = $2) as correct_count,
+    (SELECT COUNT(*) FROM vocab_incorrect_answers via WHERE via.user_id = $1 AND via.story_id = $2) as incorrect_count;
 
 -- name: GetUserStoryGrammarSummary :one
 SELECT
-    COUNT(gca.grammar_point_id) as correct_count,
-    COUNT(gia.grammar_point_id) as incorrect_count
-FROM grammar_correct_answers gca
-FULL OUTER JOIN grammar_incorrect_answers gia ON gca.user_id = gia.user_id AND gca.story_id = gia.story_id AND gca.grammar_point_id = gia.grammar_point_id
-WHERE COALESCE(gca.user_id, gia.user_id) = $1 AND COALESCE(gca.story_id, gia.story_id) = $2;
+    (SELECT COUNT(*) FROM grammar_correct_answers gca WHERE gca.user_id = $1 AND gca.story_id = $2) as correct_count,
+    (SELECT COUNT(*) FROM grammar_incorrect_answers gia WHERE gia.user_id = $1 AND gia.story_id = $2) as incorrect_count;
 
 -- name: GetAllUsersStoryVocabSummary :many
 SELECT
@@ -119,6 +117,16 @@ LEFT JOIN grammar_items gi ON gs.grammar_point_id = gi.grammar_point_id AND gs.s
 WHERE gs.user_id = $1 AND gs.story_id = $2
 ORDER BY gs.line_number, gs.grammar_point_id, gs.attempted_at DESC;
 
+-- name: CountStoryVocabItems :one
+SELECT COUNT(*) as total_vocab_items
+FROM vocabulary_items
+WHERE story_id = $1;
+
+-- name: CountStoryGrammarItems :one
+SELECT COUNT(*) as total_grammar_items
+FROM grammar_items
+WHERE story_id = $1;
+
 -- name: GetStoryStudentPerformance :many
 SELECT
     u.user_id,
@@ -127,48 +135,38 @@ SELECT
     st.title as story_title,
     COALESCE(vocab_stats.correct_count, 0) as vocab_correct,
     COALESCE(vocab_stats.incorrect_count, 0) as vocab_incorrect,
-    (CASE 
-        WHEN COALESCE(vocab_stats.correct_count, 0) + COALESCE(vocab_stats.incorrect_count, 0) > 0 
-        THEN (COALESCE(vocab_stats.correct_count, 0)::float / (COALESCE(vocab_stats.correct_count, 0) + COALESCE(vocab_stats.incorrect_count, 0))) * 100
-        ELSE 0
-    END)::double precision as vocab_accuracy,
     COALESCE(grammar_stats.correct_count, 0) as grammar_correct,
     COALESCE(grammar_stats.incorrect_count, 0) as grammar_incorrect,
-    (CASE 
-        WHEN COALESCE(grammar_stats.correct_count, 0) + COALESCE(grammar_stats.incorrect_count, 0) > 0 
-        THEN (COALESCE(grammar_stats.correct_count, 0)::float / (COALESCE(grammar_stats.correct_count, 0) + COALESCE(grammar_stats.incorrect_count, 0))) * 100
-        ELSE 0
-    END)::double precision as grammar_accuracy,
     COALESCE(tr.completed, false) as translation_completed,
     COALESCE(tr.requested_lines, ARRAY[]::INTEGER[]) as requested_lines,
     COALESCE(time_stats.vocab_time_seconds, 0) as vocab_time_seconds,
     COALESCE(time_stats.grammar_time_seconds, 0) as grammar_time_seconds,
     COALESCE(time_stats.translation_time_seconds, 0) as translation_time_seconds,
     COALESCE(time_stats.video_time_seconds, 0) as video_time_seconds,
-    COALESCE(time_stats.vocab_time_seconds, 0) + 
-    COALESCE(time_stats.grammar_time_seconds, 0) + 
-    COALESCE(time_stats.translation_time_seconds, 0) + 
+    COALESCE(time_stats.vocab_time_seconds, 0) +
+    COALESCE(time_stats.grammar_time_seconds, 0) +
+    COALESCE(time_stats.translation_time_seconds, 0) +
     COALESCE(time_stats.video_time_seconds, 0) as total_time_seconds
 FROM users u
 JOIN course_users cu ON u.user_id = cu.user_id
 JOIN stories s ON cu.course_id = s.course_id
 LEFT JOIN story_titles st ON s.story_id = st.story_id AND st.language_code = 'en'
 LEFT JOIN LATERAL (
-    SELECT 
+    SELECT
         COUNT(DISTINCT vca.vocab_item_id) as correct_count,
         COUNT(DISTINCT via.vocab_item_id) as incorrect_count
     FROM vocab_correct_answers vca
     FULL OUTER JOIN vocab_incorrect_answers via ON vca.user_id = via.user_id AND vca.story_id = via.story_id AND vca.vocab_item_id = via.vocab_item_id
-    WHERE COALESCE(vca.user_id, via.user_id) = u.user_id 
+    WHERE COALESCE(vca.user_id, via.user_id) = u.user_id
       AND COALESCE(vca.story_id, via.story_id) = s.story_id
 ) vocab_stats ON true
 LEFT JOIN LATERAL (
-    SELECT 
+    SELECT
         COUNT(DISTINCT gca.grammar_point_id) as correct_count,
         COUNT(DISTINCT gia.grammar_point_id) as incorrect_count
     FROM grammar_correct_answers gca
     FULL OUTER JOIN grammar_incorrect_answers gia ON gca.user_id = gia.user_id AND gca.story_id = gia.story_id AND gca.grammar_point_id = gia.grammar_point_id
-    WHERE COALESCE(gca.user_id, gia.user_id) = u.user_id 
+    WHERE COALESCE(gca.user_id, gia.user_id) = u.user_id
       AND COALESCE(gca.story_id, gia.story_id) = s.story_id
 ) grammar_stats ON true
 LEFT JOIN LATERAL (

@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
+import type { VocabData, VocabLine } from "../../services/api";
 
 interface UseAudioPlayerProps {
   audioURLs: Record<string, string>;
-  pageData: { lines: { text: string[] }[] } | null;
+  pageData: VocabData | null;
   onPlayedLinesChange: (lines: Set<number>) => void;
   onCurrentLineChange: (index: number) => void;
   onPlayingStateChange: (isPlaying: boolean) => void;
@@ -10,8 +11,8 @@ interface UseAudioPlayerProps {
 }
 
 // Helper function to check if a line contains vocabulary placeholders
-const lineHasVocab = (line: { text: string[] }): boolean => {
-  return line.text.includes("%");
+const lineHasVocab = (line: VocabLine): boolean => {
+  return line.text.some((segment) => segment.type === "blank");
 };
 
 export const useAudioPlayer = ({

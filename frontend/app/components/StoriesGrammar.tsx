@@ -10,22 +10,10 @@ interface ClickPosition {
 }
 
 interface CheckGrammarResponse {
-  correct: number;
-  wrong: number;
-  total_answers: number;
-  grammar_instances: Array<{
-    line_number: number;
-    position: [number, number];
-    text: string;
-    user_selected: boolean;
-  }>;
-  user_selections: Array<{
-    line_number: number;
-    position: [number, number];
-    text: string;
-    correct: boolean;
-  }>;
-  next_grammar_point_id: string | null;
+  correct: boolean;
+  matched_position?: [number, number];
+  total_instances: number;
+  next_grammar_point: number | null;
 }
 
 export function StoriesGrammar() {
@@ -38,14 +26,18 @@ export function StoriesGrammar() {
   const [pageData, setPageData] = useState<GrammarData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedPositions, setSelectedPositions] = useState<ClickPosition[]>(
-    [],
+  const [clickedPositions, setClickedPositions] = useState<Set<string>>(
+    new Set(),
   );
-  const [checkResults, setCheckResults] = useState<CheckGrammarResponse | null>(
-    null,
+  const [correctPositions, setCorrectPositions] = useState<Set<string>>(
+    new Set(),
   );
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [incorrectPositions, setIncorrectPositions] = useState<Set<string>>(
+    new Set(),
+  );
   const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false);
+  const [nextGrammarPoint, setNextGrammarPoint] = useState<number | null>(null);
+  const [foundInstances, setFoundInstances] = useState(0);
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
 
   useEffect(() => {
@@ -62,6 +54,41 @@ export function StoriesGrammar() {
           : await api.getStoryGrammar(id);
         if (response.success && response.data) {
           setPageData(response.data);
+
+          // Initialize state from existing data
+          const newCorrect = new Set<string>();
+          const newClicked = new Set<string>();
+          let foundCount = 0;
+
+          if (response.data.found_instances) {
+            response.data.found_instances.forEach((instance) => {
+              const lineIndex = instance.line_number - 1;
+              const [start, end] = instance.position;
+              for (let i = start; i <= end; i++) {
+                newCorrect.add(`${lineIndex}-${i}`);
+                newClicked.add(`${lineIndex}-${i}`);
+              }
+              foundCount++;
+            });
+          }
+
+          if (response.data.incorrect_instances) {
+            response.data.incorrect_instances.forEach((instance) => {
+              const lineIndex = instance.line_number - 1;
+              const [start, end] = instance.position;
+              const positionKey = `${lineIndex}-${start}`;
+              setIncorrectPositions((prev) => new Set([...prev, positionKey]));
+              newClicked.add(positionKey);
+            });
+          }
+
+          setCorrectPositions(newCorrect);
+          setClickedPositions(newClicked);
+          setFoundInstances(foundCount);
+
+          if (response.data.next_grammar_point) {
+            setNextGrammarPoint(response.data.next_grammar_point);
+          }
         } else {
           setError(response.error || "Failed to fetch page data");
         }
@@ -73,9 +100,11 @@ export function StoriesGrammar() {
     };
 
     // Reset state when starting new fetch
-    setSelectedPositions([]);
-    setCheckResults(null);
-    setIsSubmitted(false);
+    setClickedPositions(new Set());
+    setCorrectPositions(new Set());
+    setIncorrectPositions(new Set());
+    setFoundInstances(0);
+    setNextGrammarPoint(null);
 
     fetchPageData();
   }, [id, grammarPointId]);
@@ -112,92 +141,75 @@ export function StoriesGrammar() {
     warmUpApi();
   }, [pageData, id]);
 
-  const handleTextClick = (lineIndex: number, charIndex: number) => {
-    if (isSubmitted) return;
+  const handleTextClick = async (lineIndex: number, charIndex: number) => {
+    if (isSubmittingAnswer || !pageData || !id) return;
 
-    const newPosition = { lineNumber: lineIndex + 1, position: charIndex };
-    const existingIndex = selectedPositions.findIndex(
-      (pos) => pos.lineNumber === lineIndex + 1 && pos.position === charIndex,
-    );
+    const positionKey = `${lineIndex}-${charIndex}`;
 
-    if (existingIndex >= 0) {
-      setSelectedPositions((prev) =>
-        prev.filter((_, index) => index !== existingIndex),
-      );
-    } else if (selectedPositions.length < (pageData?.instances_count || 0)) {
-      setSelectedPositions((prev) => [...prev, newPosition]);
-    }
-  };
-
-  const submitAnswers = async () => {
+    // Skip if already clicked or already processed
     if (
-      !pageData ||
-      !id ||
-      selectedPositions.length !== pageData.instances_count
+      clickedPositions.has(positionKey) ||
+      correctPositions.has(positionKey) ||
+      incorrectPositions.has(positionKey)
     )
       return;
 
     setIsSubmittingAnswer(true);
 
-    const answersByLine = selectedPositions.reduce(
-      (acc, pos) => {
-        const existing = acc.find(
-          (item) => item.line_number === pos.lineNumber,
-        );
-        if (existing) {
-          existing.positions.push(pos.position);
-        } else {
-          acc.push({
-            line_number: pos.lineNumber,
-            positions: [pos.position],
-          });
-        }
-        return acc;
-      },
-      [] as Array<{ line_number: number; positions: number[] }>,
-    );
     try {
-      const result = await api.checkGrammar(
-        id!,
-        pageData.grammar_point_id,
-        answersByLine,
-      );
+      const result = await api.checkGrammar(id, pageData.grammar_point_id, {
+        grammar_point_id: pageData.grammar_point_id,
+        line_number: lineIndex + 1,
+        position: charIndex,
+      });
 
-      if (result.success) {
-        setCheckResults(result.data);
-        setIsSubmitted(true);
+      if (result.success && result.data) {
+        const newClicked = new Set(clickedPositions);
+        newClicked.add(positionKey);
+        setClickedPositions(newClicked);
+
+        if (result.data.correct) {
+          // Mark the full matched position as correct
+          if (result.data.matched_position) {
+            const [start, end] = result.data.matched_position;
+            const newCorrect = new Set(correctPositions);
+            for (let i = start; i <= end; i++) {
+              newCorrect.add(`${lineIndex}-${i}`);
+            }
+            setCorrectPositions(newCorrect);
+            setFoundInstances((prev) => prev + 1);
+          }
+        } else {
+          // Mark this position as incorrect
+          const newIncorrect = new Set(incorrectPositions);
+          newIncorrect.add(positionKey);
+          setIncorrectPositions(newIncorrect);
+        }
+
+        if (result.data.next_grammar_point) {
+          setNextGrammarPoint(result.data.next_grammar_point);
+        }
       }
     } catch (err) {
-      console.error("Failed to submit answers:", err);
+      console.error("Failed to check grammar:", err);
     } finally {
       setIsSubmittingAnswer(false);
     }
   };
 
-  const isPositionSelected = (lineIndex: number, charIndex: number) => {
-    return selectedPositions.some(
-      (pos) => pos.lineNumber === lineIndex + 1 && pos.position === charIndex,
-    );
+  const isPositionCorrect = (lineIndex: number, charIndex: number) => {
+    const positionKey = `${lineIndex}-${charIndex}`;
+    return correctPositions.has(positionKey);
   };
 
-  const isCorrectAnswerPosition = (lineIndex: number, charIndex: number) => {
-    if (!checkResults) return false;
-    return checkResults.grammar_instances.some(
-      (instance) =>
-        instance.line_number === lineIndex + 1 &&
-        charIndex >= instance.position[0] &&
-        charIndex <= instance.position[1],
-    );
+  const isPositionIncorrect = (lineIndex: number, charIndex: number) => {
+    const positionKey = `${lineIndex}-${charIndex}`;
+    return incorrectPositions.has(positionKey);
   };
 
-  const getUserSelectionResult = (lineIndex: number, charIndex: number) => {
-    if (!checkResults || !isPositionSelected(lineIndex, charIndex)) return null;
-    return checkResults.user_selections.find(
-      (selection) =>
-        selection.line_number === lineIndex + 1 &&
-        charIndex >= selection.position[0] &&
-        charIndex <= selection.position[1],
-    );
+  const isPositionClicked = (lineIndex: number, charIndex: number) => {
+    const positionKey = `${lineIndex}-${charIndex}`;
+    return clickedPositions.has(positionKey);
   };
 
   if (loading) {
@@ -243,11 +255,10 @@ export function StoriesGrammar() {
               </p>
               <p className="text-gray-700">
                 Find each occurrence of this grammar point in the text below.
-                Click on any character within each occurrence - you only need
-                one selection per occurrence. Find exactly{" "}
-                {pageData.instances_count} instances. Selected:{" "}
+                Click on any character within each occurrence. Find exactly{" "}
+                {pageData.instances_count} instances. Found:{" "}
                 <span className="font-semibold">
-                  {selectedPositions.length}/{pageData.instances_count}
+                  {foundInstances}/{pageData.instances_count}
                 </span>
               </p>
             </div>
@@ -258,8 +269,9 @@ export function StoriesGrammar() {
           <div className="flex items-center justify-center text-blue-700">
             <span className="material-icons mr-2 text-sm">touch_app</span>
             <span className="text-sm">
-              Click individual characters in the text below. Selected characters
-              will be highlighted in blue.
+              {isSubmittingAnswer
+                ? "Checking your answer..."
+                : "Click characters to check immediately. Green = correct, red = incorrect."}
             </span>
           </div>
         </div>
@@ -267,131 +279,52 @@ export function StoriesGrammar() {
         <div className="bg-gray-50 border border-gray-200 p-3 rounded-lg mb-4 text-center">
           <h5 className="font-medium text-gray-700 mb-2 text-sm">Legend:</h5>
           <div className="flex flex-wrap gap-4 text-sm justify-center">
-            {!isSubmitted ? (
-              <>
-                <div className="flex items-center">
-                  <span className="w-4 h-4 bg-yellow-100 border border-yellow-200 rounded-sm mr-2"></span>
-                  <span className="text-gray-600">Hover to select</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="w-4 h-4 bg-blue-400 rounded-sm mr-2"></span>
-                  <span className="text-gray-600">Selected</span>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="flex items-center">
-                  <span className="w-4 h-4 bg-green-200 rounded-sm mr-2"></span>
-                  <span className="text-gray-600">Correct answer</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="w-4 h-4 bg-green-600 rounded-sm mr-2"></span>
-                  <span className="text-gray-600">Your correct selection</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="w-4 h-4 bg-red-500 rounded-sm mr-2"></span>
-                  <span className="text-gray-600">
-                    Your incorrect selection
-                  </span>
-                </div>
-              </>
-            )}
+            <div className="flex items-center">
+              <span className="w-4 h-4 bg-yellow-100 border border-yellow-200 rounded-sm mr-2"></span>
+              <span className="text-gray-600">Hover to click</span>
+            </div>
+            <div className="flex items-center">
+              <span className="w-4 h-4 bg-green-500 bg-opacity-70 rounded-sm mr-2"></span>
+              <span className="text-gray-600">Correct</span>
+            </div>
+            <div className="flex items-center">
+              <span className="w-4 h-4 bg-red-500 bg-opacity-70 rounded-sm mr-2"></span>
+              <span className="text-gray-600">Incorrect</span>
+            </div>
           </div>
         </div>
 
-        {!isSubmitted ? (
-          <div className="mt-4">
-            <button
-              onClick={submitAnswers}
-              disabled={
-                selectedPositions.length !== pageData.instances_count ||
-                isSubmittingAnswer
-              }
-              className={`px-6 py-3 rounded-lg font-medium ${
-                selectedPositions.length === pageData.instances_count &&
-                !isSubmittingAnswer
-                  ? "bg-blue-500 text-white hover:bg-blue-600"
-                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
-              }`}
-            >
-              {isSubmittingAnswer ? (
-                <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Checking...
-                </div>
-              ) : (
-                `Check Answers (${selectedPositions.length}/${pageData.instances_count})`
-              )}
-            </button>
-          </div>
-        ) : (
-          <div className="mt-4 space-y-4">
-            {checkResults && (
-              <div className="bg-blue-50 border-l-4 border-blue-400 p-6 rounded-lg">
-                <div className="flex items-center mb-3">
-                  <span className="material-icons text-blue-600 mr-2">
-                    assessment
-                  </span>
-                  <h3 className="text-xl font-bold text-blue-900">
-                    Your Results
-                  </h3>
-                </div>
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div className="bg-green-100 p-3 rounded-lg">
-                    <div className="text-2xl font-bold text-green-700">
-                      {checkResults.correct}
-                    </div>
-                    <div className="text-sm text-green-600">Correct</div>
-                  </div>
-                  <div className="bg-red-100 p-3 rounded-lg">
-                    <div className="text-2xl font-bold text-red-700">
-                      {checkResults.wrong}
-                    </div>
-                    <div className="text-sm text-red-600">Wrong</div>
-                  </div>
-                  <div className="bg-gray-100 p-3 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-700">
-                      {checkResults.total_answers}
-                    </div>
-                    <div className="text-sm text-gray-600">Total</div>
-                  </div>
-                </div>
-              </div>
-            )}
-            <div className="text-center">
-              {checkResults?.next_grammar_point_id ? (
-                <Link
-                  to={`/stories/${id}/grammar?id=${checkResults.next_grammar_point_id}`}
-                  className="inline-flex items-center px-8 py-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-lg font-semibold transition-all duration-200 shadow-lg"
-                >
-                  <span>Next Grammar Exercise</span>
-                  <span className="material-icons ml-2">arrow_forward</span>
-                </Link>
-              ) : (
-                <button
-                  onClick={async () => {
-                    try {
-                      const guidance = await getNavigationGuidance(
-                        id!,
-                        "grammar",
-                      );
-                      if (guidance) {
-                        navigate(`/stories/${id}/${guidance.nextPage}`);
-                      }
-                    } catch (error) {
-                      console.error(
-                        "Failed to get navigation guidance:",
-                        error,
-                      );
+        {foundInstances === pageData.instances_count && (
+          <div className="mt-4 text-center">
+            {nextGrammarPoint ? (
+              <Link
+                to={`/stories/${id}/grammar?id=${nextGrammarPoint}`}
+                className="inline-flex items-center px-8 py-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-lg font-semibold transition-all duration-200 shadow-lg"
+              >
+                <span>Next Grammar Exercise</span>
+                <span className="material-icons ml-2">arrow_forward</span>
+              </Link>
+            ) : (
+              <button
+                onClick={async () => {
+                  try {
+                    const guidance = await getNavigationGuidance(
+                      id!,
+                      "grammar",
+                    );
+                    if (guidance) {
+                      navigate(`/stories/${id}/${guidance.nextPage}`);
                     }
-                  }}
-                  className="inline-flex items-center px-8 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 text-lg font-semibold transition-all duration-200 shadow-lg"
-                >
-                  <span>Continue to {nextStepName}</span>
-                  <span className="material-icons ml-2">arrow_forward</span>
-                </button>
-              )}
-            </div>
+                  } catch (error) {
+                    console.error("Failed to get navigation guidance:", error);
+                  }
+                }}
+                className="inline-flex items-center px-8 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 text-lg font-semibold transition-all duration-200 shadow-lg"
+              >
+                <span>Continue to {nextStepName}</span>
+                <span className="material-icons ml-2">arrow_forward</span>
+              </button>
+            )}
           </div>
         )}
       </header>
@@ -429,40 +362,21 @@ export function StoriesGrammar() {
                             line.text.length - 1,
                           );
                           return line.text.split("").map((char, charIndex) => {
-                            const isSelected = isPositionSelected(
-                              lineIndex,
-                              charIndex,
-                            );
+                            let className = isSubmittingAnswer
+                              ? "select-none transition-colors duration-150 cursor-wait opacity-50"
+                              : "cursor-pointer select-none transition-colors duration-150";
 
-                            let className =
-                              "cursor-pointer select-none transition-colors duration-150";
-
-                            if (!isSubmitted) {
-                              if (isSelected) {
-                                className +=
-                                  " bg-blue-400 text-white rounded-sm shadow-sm";
-                              } else {
-                                className +=
-                                  " hover:bg-yellow-100 hover:shadow-sm rounded-sm";
-                              }
-                            } else {
-                              // Show correct answers in light green
-                              if (
-                                isCorrectAnswerPosition(lineIndex, charIndex)
-                              ) {
-                                className += " bg-green-200 rounded-sm";
-                              }
-
-                              // Overlay user selections with their result
-                              const userResult = getUserSelectionResult(
-                                lineIndex,
-                                charIndex,
-                              );
-                              if (userResult) {
-                                className += userResult.correct
-                                  ? " bg-green-600 text-white rounded-sm shadow-sm" // Dark green for correct selection
-                                  : " bg-red-500 text-white rounded-sm shadow-sm"; // Red for incorrect selection
-                              }
+                            if (isPositionCorrect(lineIndex, charIndex)) {
+                              className +=
+                                " bg-green-500 bg-opacity-70 text-white rounded-sm shadow-sm";
+                            } else if (
+                              isPositionIncorrect(lineIndex, charIndex)
+                            ) {
+                              className +=
+                                " bg-red-500 bg-opacity-70 text-white rounded-sm shadow-sm";
+                            } else if (!isSubmittingAnswer) {
+                              className +=
+                                " hover:bg-yellow-100 hover:shadow-sm rounded-sm";
                             }
 
                             return (
@@ -475,9 +389,11 @@ export function StoriesGrammar() {
                                     ? { paddingRight: `${indentLevel * 2}em` }
                                     : {}
                                 }
-                                onClick={() =>
-                                  handleTextClick(lineIndex, charIndex)
-                                }
+                                onClick={() => {
+                                  if (!isSubmittingAnswer) {
+                                    handleTextClick(lineIndex, charIndex);
+                                  }
+                                }}
                               >
                                 {char === "\t" && charIndex < indentLevel
                                   ? ""

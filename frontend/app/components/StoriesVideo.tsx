@@ -25,6 +25,7 @@ export function StoriesVideo() {
   const [videoWatched, setVideoWatched] = useState(false);
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
   const [guidanceCache, setGuidanceCache] = useState<any>(null);
+  const [iframeLoaded, setIframeLoaded] = useState(false);
 
   useEffect(() => {
     const fetchMetadataAndGuidance = async () => {
@@ -154,20 +155,39 @@ export function StoriesVideo() {
             maxWidth: "800px",
             margin: "0 auto",
             aspectRatio: "16/9",
+            position: "relative",
           }}
         >
           {isYouTubeUrl(metadata.videoUrl) ? (
-            <iframe
-              src={getYouTubeEmbedUrl(metadata.videoUrl) || ""}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              style={{
-                width: "100%",
-                height: "100%",
-                borderRadius: "8px",
-                border: "none",
-              }}
-            />
+            <>
+              {!iframeLoaded && (
+                <div
+                  className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-lg"
+                  style={{
+                    borderRadius: "8px",
+                  }}
+                >
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-2"></div>
+                    <p className="text-gray-600">Loading video...</p>
+                  </div>
+                </div>
+              )}
+              <iframe
+                src={getYouTubeEmbedUrl(metadata.videoUrl) || ""}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                onLoad={() => setIframeLoaded(true)}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  borderRadius: "8px",
+                  border: "none",
+                  opacity: iframeLoaded ? 1 : 0,
+                  transition: "opacity 0.3s ease-in-out",
+                }}
+              />
+            </>
           ) : (
             <video
               src={metadata.videoUrl}
@@ -202,7 +222,12 @@ export function StoriesVideo() {
                 console.error("Failed to get navigation guidance:", error);
               }
             }}
-            className="inline-flex items-center px-6 py-3 bg-gray-400 text-gray-700 rounded-lg hover:bg-gray-500 hover:text-white text-base font-normal transition-all duration-200 shadow-sm"
+            disabled={isYouTubeUrl(metadata.videoUrl) && !iframeLoaded}
+            className={`inline-flex items-center px-6 py-3 rounded-lg text-base font-normal transition-all duration-200 shadow-sm ${
+              isYouTubeUrl(metadata.videoUrl) && !iframeLoaded
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-gray-400 text-gray-700 hover:bg-gray-500 hover:text-white"
+            }`}
           >
             <span>Continue to {nextStepName}</span>
             <span className="material-icons ml-2">arrow_forward</span>

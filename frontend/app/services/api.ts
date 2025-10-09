@@ -207,21 +207,22 @@ export function useApiService() {
         });
       },
 
-      checkVocabLine: (
+      checkIndividualVocab: (
         id: string,
-        lineNumber: number,
-        answers: string[],
+        vocabKey: string,
+        answer: string,
       ): Promise<
         APIResponse<{
-          results: boolean[];
-          allCorrect: boolean;
-          originalLine?: string;
+          correct: boolean;
+          line_complete: boolean;
+          original_line?: string;
         }>
       > => {
         return fetchAPI(`/stories/${id}/check-vocab`, {
           method: "POST",
           body: JSON.stringify({
-            answers: [{ line_number: lineNumber, answers }],
+            vocab_key: vocabKey,
+            answer: answer,
           }),
         });
       },

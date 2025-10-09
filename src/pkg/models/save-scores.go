@@ -9,7 +9,7 @@ import (
 )
 
 // SaveVocabScore saves a vocabulary score for a user
-func SaveVocabScore(ctx context.Context, userID string, storyID int, lineNumber int, correct bool, incorrectAnswer string) error {
+func SaveVocabScore(ctx context.Context, userID string, storyID, lineNumber, position int, correct bool, incorrectAnswer string) error {
 	lineNumber = lineNumber + 1 // Convert 0-indexed to 1-indexed
 	// Get all vocabulary items for this line to save individual scores
 	vocabItems, err := queries.GetVocabularyItems(ctx, db.GetVocabularyItemsParams{
@@ -21,28 +21,32 @@ func SaveVocabScore(ctx context.Context, userID string, storyID int, lineNumber 
 	}
 
 	// Save score for each vocabulary item on this line
-	for _, item := range vocabItems {
-		if correct {
-			err := queries.SaveVocabScore(ctx, db.SaveVocabScoreParams{
-				UserID:      userID,
-				StoryID:     int32(storyID),
-				LineNumber:  int32(lineNumber),
-				VocabItemID: item.ID,
-			})
-			if err != nil {
-				return err
-			}
-		} else if incorrectAnswer != "" {
-			err := queries.SaveVocabIncorrectAnswer(ctx, db.SaveVocabIncorrectAnswerParams{
-				UserID:          userID,
-				StoryID:         int32(storyID),
-				LineNumber:      int32(lineNumber),
-				VocabItemID:     item.ID,
-				IncorrectAnswer: incorrectAnswer,
-			})
-			if err != nil {
-				return err
-			}
+	if len(vocabItems) < position {
+		panic("Position exceeds number of vocab items on line")
+	}
+
+	item := vocabItems[position]
+	// Save score only for the specific vocab item at this position
+	if correct {
+		err := queries.SaveVocabScore(ctx, db.SaveVocabScoreParams{
+			UserID:      userID,
+			StoryID:     int32(storyID),
+			LineNumber:  int32(lineNumber),
+			VocabItemID: item.ID,
+		})
+		if err != nil {
+			return err
+		}
+	} else if incorrectAnswer != "" {
+		err := queries.SaveVocabIncorrectAnswer(ctx, db.SaveVocabIncorrectAnswerParams{
+			UserID:          userID,
+			StoryID:         int32(storyID),
+			LineNumber:      int32(lineNumber),
+			VocabItemID:     item.ID,
+			IncorrectAnswer: incorrectAnswer,
+		})
+		if err != nil {
+			return err
 		}
 	}
 

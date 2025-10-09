@@ -21,6 +21,7 @@ type Querier interface {
 	BulkCreateStoryLines(ctx context.Context, arg []BulkCreateStoryLinesParams) (int64, error)
 	BulkCreateVocabularyItems(ctx context.Context, arg []BulkCreateVocabularyItemsParams) (int64, error)
 	CanUserAccessCourse(ctx context.Context, arg CanUserAccessCourseParams) (bool, error)
+	CheckAllVocabCompleteForLineForUser(ctx context.Context, arg CheckAllVocabCompleteForLineForUserParams) (bool, error)
 	CheckFootnoteExists(ctx context.Context, arg CheckFootnoteExistsParams) (int32, error)
 	CheckGrammarExists(ctx context.Context, arg CheckGrammarExistsParams) (bool, error)
 	CheckVocabularyExists(ctx context.Context, arg CheckVocabularyExistsParams) (bool, error)

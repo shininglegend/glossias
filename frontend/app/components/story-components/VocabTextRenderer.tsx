@@ -12,8 +12,9 @@ interface VocabTextRendererProps {
   isCurrentLine: boolean;
   isRTL: boolean;
   originalLine?: string;
+  pendingAnswers: Set<string>;
+  lockedAnswers: Set<string>;
   onAnswerChange: (vocabKey: string, value: string) => void;
-  onCheckAnswer: (vocabKey: string) => void;
 }
 
 // Helper function for RTL indentation
@@ -42,6 +43,8 @@ export const VocabTextRenderer: React.FC<VocabTextRendererProps> = ({
   playedLines,
   isRTL,
   originalLine,
+  pendingAnswers,
+  lockedAnswers,
   onAnswerChange,
 }) => {
   let vocabIndex = 0; // Track vocab items within this line
@@ -52,7 +55,7 @@ export const VocabTextRenderer: React.FC<VocabTextRendererProps> = ({
   const totalVocabOnLine = line.text.filter((t) => t === "%").length;
   const lineVocabKeys = Array.from(
     { length: totalVocabOnLine },
-    (_, i) => `${lineIndex}-${i}`
+    (_, i) => `${lineIndex}-${i}`,
   );
 
   // If line is completed and we have the original text, display it
@@ -78,6 +81,8 @@ export const VocabTextRenderer: React.FC<VocabTextRendererProps> = ({
         if (displayText === "%") {
           const vocabKey = `${lineIndex}-${vocabIndex}`;
           const result = lineResults[vocabKey];
+          const isPending = pendingAnswers.has(vocabKey);
+          const isLocked = lockedAnswers.has(vocabKey);
           vocabIndex++; // Increment for next vocab item on this line
           return (
             <span key={textIndex} className="vocab-container inline-block mx-1">
@@ -90,14 +95,16 @@ export const VocabTextRenderer: React.FC<VocabTextRendererProps> = ({
                       : !playedLines.has(lineIndex)
                         ? "border-gray-200 bg-gray-50"
                         : "border-gray-300"
-                } ${isDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
+                } ${isDisabled || isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
                 value={selectedAnswers[vocabKey] || ""}
                 onChange={(e) => onAnswerChange(vocabKey, e.target.value)}
-                disabled={isDisabled}
+                disabled={isDisabled || isLocked}
                 title={
                   !playedLines.has(lineIndex)
                     ? "Play the audio first to unlock this vocabulary"
-                    : ""
+                    : isLocked
+                      ? "Answer is being checked"
+                      : ""
                 }
               >
                 <option value="">
@@ -114,13 +121,18 @@ export const VocabTextRenderer: React.FC<VocabTextRendererProps> = ({
                 ))}
               </select>
 
-              {result === false && (
-                <span className="error-indicator text-red-500 text-lg font-bold">
+              {isPending && (
+                <span className="loading-indicator ml-1 inline-flex items-center">
+                  <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                </span>
+              )}
+              {result === false && !isPending && (
+                <span className="error-indicator text-red-500 text-lg font-bold ml-1">
                   ✗
                 </span>
               )}
-              {completedLines.has(lineIndex) && (
-                <span className="success-indicator text-green-500 text-lg font-bold">
+              {result === true && !isPending && (
+                <span className="success-indicator text-green-500 text-lg font-bold ml-1">
                   ✓
                 </span>
               )}

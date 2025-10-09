@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 )
@@ -106,19 +107,13 @@ func (h *Handler) generateVocabLines(story models.Story) ([]types.Line, []string
 	return lines, vocabBank
 }
 
-// CheckVocab handles vocabulary checking for a single line
+// CheckVocab handles vocabulary checking for individual words
 func (h *Handler) CheckVocab(w http.ResponseWriter, r *http.Request) {
-
+	ctx := r.Context()
 	var req types.CheckVocabRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.log.Warn("Invalid request body in CheckVocab", "error", err, "ip", r.RemoteAddr)
 		h.sendError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	// Only process one line at a time
-	if len(req.Answers) != 1 {
-		h.sendError(w, "Must provide answers for exactly one line", http.StatusBadRequest)
 		return
 	}
 
@@ -130,6 +125,28 @@ func (h *Handler) CheckVocab(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Parse vocabKey format: "lineIndex-vocabIndex"
+	parts := strings.Split(req.VocabKey, "-")
+	if len(parts) != 2 {
+		h.log.Warn("Invalid vocab_key format in CheckVocab", "vocab_key", req.VocabKey, "ip", r.RemoteAddr)
+		h.sendError(w, "Invalid vocab_key format", http.StatusBadRequest)
+		return
+	}
+
+	lineIndex, err := strconv.Atoi(parts[0])
+	if err != nil {
+		h.log.Warn("Invalid line index in vocab_key", "vocab_key", req.VocabKey, "ip", r.RemoteAddr)
+		h.sendError(w, "Invalid line index in vocab_key", http.StatusBadRequest)
+		return
+	}
+
+	vocabIndex, err := strconv.Atoi(parts[1])
+	if err != nil {
+		h.log.Warn("Invalid vocab index in vocab_key", "vocab_key", req.VocabKey, "ip", r.RemoteAddr)
+		h.sendError(w, "Invalid vocab index in vocab_key", http.StatusBadRequest)
+		return
+	}
+
 	story, err := models.GetStoryData(r.Context(), id, auth.GetUserID(r))
 	if err != nil {
 		h.log.Error("Failed to fetch story in CheckVocab", "error", err, "storyID", id)
@@ -137,67 +154,67 @@ func (h *Handler) CheckVocab(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	answer := req.Answers[0]
-
 	// Validate line number
-	if answer.LineNumber < 0 || answer.LineNumber >= len(story.Content.Lines) {
-		h.log.Warn("Invalid line number in CheckVocab", "lineNumber", answer.LineNumber, "maxLines", len(story.Content.Lines), "ip", r.RemoteAddr)
-		h.sendError(w, fmt.Sprintf("Invalid line number: %d", answer.LineNumber), http.StatusBadRequest)
+	if lineIndex < 0 || lineIndex >= len(story.Content.Lines) {
+		h.log.Warn("Invalid line number in CheckVocab", "lineNumber", lineIndex, "maxLines", len(story.Content.Lines), "ip", r.RemoteAddr)
+		h.sendError(w, fmt.Sprintf("Invalid line number: %d", lineIndex), http.StatusBadRequest)
 		return
 	}
 
-	line := story.Content.Lines[answer.LineNumber]
-	expectedVocabCount := len(line.Vocabulary)
-
-	// Validate answer count
-	if len(answer.Answers) != expectedVocabCount {
-		h.log.Warn("Wrong number of answers provided", "lineNumber", answer.LineNumber, "expected", expectedVocabCount, "provided", len(answer.Answers), "ip", r.RemoteAddr)
-		h.sendError(w, fmt.Sprintf("Expected %d answers, got %d", expectedVocabCount, len(answer.Answers)), http.StatusBadRequest)
+	line := story.Content.Lines[lineIndex]
+	if len(line.Vocabulary) == 0 {
+		h.log.Warn("No vocabulary on line in CheckVocab", "lineNumber", lineIndex, "ip", r.RemoteAddr)
+		h.sendError(w, fmt.Sprintf("No vocabulary on line: %d", lineIndex), http.StatusBadRequest)
 		return
 	}
 
-	// Check each answer individually and track results
-	results := make([]bool, len(answer.Answers))
-	allCorrect := true
-	for i, userAnswer := range answer.Answers {
-		if i >= len(line.Vocabulary) {
-			results[i] = false
-			allCorrect = false
-		} else {
-			isCorrect := userAnswer == line.Vocabulary[i].LexicalForm
-			results[i] = isCorrect
-			if !isCorrect {
-				allCorrect = false
-			}
-		}
+	// Validate vocab index
+	if vocabIndex < 0 || vocabIndex >= len(line.Vocabulary) {
+		h.log.Warn("Invalid vocab index in CheckVocab", "vocabIndex", vocabIndex, "maxVocab", len(line.Vocabulary), "ip", r.RemoteAddr)
+		h.sendError(w, fmt.Sprintf("Invalid vocab index: %d", vocabIndex), http.StatusBadRequest)
+		return
 	}
 
-	// Get original line text if all correct
-	var originalLine string
-	if allCorrect {
-		originalLine = line.Text
-	}
+	// Check if the answer is correct
+	expectedAnswer := line.Vocabulary[vocabIndex].LexicalForm
+	isCorrect := req.Answer == expectedAnswer
 
-	// Save score if available
+	// Save individual vocab score
 	userID := auth.GetUserID(r)
-	if userID != "" {
-		incorrectAnswer := ""
-		if !allCorrect {
-			// Join the user's answers to save as incorrect answer
-			incorrectAnswer = fmt.Sprintf("%v", answer.Answers)
+	if userID == "" {
+		h.sendError(w, "Authentication required", http.StatusUnauthorized)
+		return
+	}
+	incorrectAnswer := ""
+	if !isCorrect {
+		incorrectAnswer = req.Answer
+	}
+	if err := models.SaveVocabScore(ctx, userID, id, lineIndex, vocabIndex, isCorrect, incorrectAnswer); err != nil {
+		h.log.Error("Failed to save vocab score", "error", err, "userID", userID, "storyID", id, "line", lineIndex)
+		h.sendError(w, "Failed to save vocab score", http.StatusInternalServerError)
+		return
+	}
+
+	// Check if all vocab items on this line are now complete (if answer was correct)
+	var originalLine *string
+	allLineComplete := false
+	if isCorrect {
+		// Check if all vocab on line is completed by user
+		allLineComplete, err = models.CheckAllVocabCompleteForLine(r.Context(), userID, id, lineIndex)
+		if err == nil && allLineComplete {
+			originalLine = &line.Text
 		}
-		if err := models.SaveVocabScore(r.Context(), userID, id, answer.LineNumber, allCorrect, incorrectAnswer); err != nil {
-			h.log.Error("Failed to save vocab score", "error", err, "userID", userID, "storyID", id, "line", answer.LineNumber)
-		}
+	}
+
+	responseData := types.CheckVocabResponse{
+		Correct:      isCorrect,
+		LineComplete: allLineComplete,
+		OriginalLine: originalLine,
 	}
 
 	response := types.APIResponse{
 		Success: true,
-		Data: types.CheckVocabResponse{
-			Results:      results,      // Individual results for each vocab item
-			AllCorrect:   allCorrect,   // Explicit field for overall correctness
-			OriginalLine: originalLine, // Original line text when all correct
-		},
+		Data:    responseData,
 	}
 
 	json.NewEncoder(w).Encode(response)

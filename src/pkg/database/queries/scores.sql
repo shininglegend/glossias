@@ -125,6 +125,19 @@ LEFT JOIN grammar_items gi ON gs.grammar_point_id = gi.grammar_point_id AND gs.s
 WHERE gs.user_id = $1 AND gs.story_id = $2
 ORDER BY gs.line_number, gs.grammar_point_id, gs.attempted_at DESC;
 
+-- name: CheckAllVocabCompleteForLineForUser :one
+SELECT NOT EXISTS (
+    SELECT 1
+    FROM vocabulary_items vi
+    WHERE vi.story_id = $1
+      AND vi.line_number = $2
+      AND vi.id NOT IN (
+          SELECT vca.vocab_item_id
+          FROM vocab_correct_answers vca
+          WHERE vca.user_id = $3 AND vca.story_id = $1
+      )
+) as all_complete; 
+
 -- name: CountStoryVocabItems :one
 SELECT COUNT(*) as total_vocab_items
 FROM vocabulary_items

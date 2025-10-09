@@ -14,8 +14,9 @@ interface StoryLineProps {
   isRTL: boolean;
   prefetchedAudio: Record<string, HTMLAudioElement>;
   originalLine?: string;
+  pendingAnswers: Set<string>;
+  lockedAnswers: Set<string>;
   onAnswerChange: (vocabKey: string, value: string) => void;
-  onCheckAnswer: (vocabKey: string) => void;
   onPlayLineAudio: (lineIndex: number) => void;
 }
 
@@ -37,8 +38,9 @@ export const StoryLine: React.FC<StoryLineProps> = ({
   isRTL,
   prefetchedAudio,
   originalLine,
+  pendingAnswers,
+  lockedAnswers,
   onAnswerChange,
-  onCheckAnswer,
   onPlayLineAudio,
 }) => {
   const hasVocab = lineHasVocab(line);
@@ -48,21 +50,6 @@ export const StoryLine: React.FC<StoryLineProps> = ({
     !completedLines.has(lineIndex) &&
     hasAudio &&
     (playedLines.has(lineIndex) || isCurrentLine);
-
-  // Check if all vocab items on this line have answers
-  const totalVocabOnLine = line.text.filter((t) => t === "%").length;
-  const lineVocabKeys = Array.from(
-    { length: totalVocabOnLine },
-    (_, i) => `${lineIndex}-${i}`,
-  );
-  const allVocabAnswered = lineVocabKeys.every(
-    (key) => selectedAnswers[key] && selectedAnswers[key].trim() !== "",
-  );
-  const shouldShowSubmitButton =
-    hasVocab &&
-    !completedLines.has(lineIndex) &&
-    playedLines.has(lineIndex) &&
-    allVocabAnswered;
 
   return (
     <div
@@ -82,8 +69,9 @@ export const StoryLine: React.FC<StoryLineProps> = ({
         isCurrentLine={isCurrentLine}
         isRTL={isRTL}
         originalLine={originalLine}
+        pendingAnswers={pendingAnswers}
+        lockedAnswers={lockedAnswers}
         onAnswerChange={onAnswerChange}
-        onCheckAnswer={onCheckAnswer}
       />
       {shouldShowPlayButton && (
         <button
@@ -92,20 +80,6 @@ export const StoryLine: React.FC<StoryLineProps> = ({
           type="button"
         >
           <span className="material-icons text-lg">play_arrow</span>
-        </button>
-      )}
-      {shouldShowSubmitButton && (
-        <button
-          onClick={() => onCheckAnswer(`${lineIndex}-0`)}
-          className="px-2 py-1 bg-blue-800 text-white border-none rounded cursor-pointer text-sm transition-colors duration-200 hover:bg-blue-600 ml-2 align-middle"
-          type="button"
-          disabled={checkingLines.has(lineIndex)}
-        >
-          {checkingLines.has(lineIndex) ? (
-            <div className="animate-spin w-3 h-3 border border-white border-t-transparent rounded-full"></div>
-          ) : (
-            "Submit"
-          )}
         </button>
       )}
     </div>

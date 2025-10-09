@@ -11,6 +11,33 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const checkAllVocabCompleteForLineForUser = `-- name: CheckAllVocabCompleteForLineForUser :one
+SELECT NOT EXISTS (
+    SELECT 1
+    FROM vocabulary_items vi
+    WHERE vi.story_id = $1
+      AND vi.line_number = $2
+      AND vi.id NOT IN (
+          SELECT vca.vocab_item_id
+          FROM vocab_correct_answers vca
+          WHERE vca.user_id = $3 AND vca.story_id = $1
+      )
+) as all_complete
+`
+
+type CheckAllVocabCompleteForLineForUserParams struct {
+	StoryID    pgtype.Int4 `json:"story_id"`
+	LineNumber pgtype.Int4 `json:"line_number"`
+	UserID     string      `json:"user_id"`
+}
+
+func (q *Queries) CheckAllVocabCompleteForLineForUser(ctx context.Context, arg CheckAllVocabCompleteForLineForUserParams) (bool, error) {
+	row := q.db.QueryRow(ctx, checkAllVocabCompleteForLineForUser, arg.StoryID, arg.LineNumber, arg.UserID)
+	var all_complete bool
+	err := row.Scan(&all_complete)
+	return all_complete, err
+}
+
 const countStoryGrammarItems = `-- name: CountStoryGrammarItems :one
 SELECT COUNT(*) as total_grammar_items
 FROM grammar_items

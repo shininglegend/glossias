@@ -85,15 +85,10 @@ type TranslationPageData struct {
 	ReturnedLines []int             `json:"returned_lines"`
 }
 
-// VocabAnswer represents vocabulary answer from client
-type VocabAnswer struct {
-	LineNumber int      `json:"line_number"`
-	Answers    []string `json:"answers"`
-}
-
 // CheckVocabRequest represents the request body for vocab checking
 type CheckVocabRequest struct {
-	Answers []VocabAnswer `json:"answers"`
+	VocabKey string `json:"vocab_key"`
+	Answer   string `json:"answer"`
 }
 
 // GrammarAnswer represents grammar answer from client
@@ -115,19 +110,11 @@ type CheckSingleGrammarRequest struct {
 	Position       int `json:"position"`
 }
 
-// VocabResult represents individual vocabulary check result
-type VocabResult struct {
-	Correct       bool   `json:"correct"`
-	UserAnswer    string `json:"user_answer,omitempty"`
-	CorrectAnswer string `json:"correct_answer,omitempty"`
-	Line          int    `json:"line"`
-}
-
 // CheckVocabResponse represents the response for vocab checking
 type CheckVocabResponse struct {
-	Results      []bool `json:"results"`                // Individual results for each vocab item
-	AllCorrect   bool   `json:"allCorrect"`             // Whether all items are correct
-	OriginalLine string `json:"originalLine,omitempty"` // Original line text when all correct
+	Correct      bool    `json:"correct"`                 // Whether the user's answer is correct for this vocab item
+	LineComplete bool    `json:"line_complete"`           // Whether all items on this line have been answered
+	OriginalLine *string `json:"original_line,omitempty"` // Original line text when the line is complete
 }
 
 // GrammarInstance represents a grammar point instance in the story

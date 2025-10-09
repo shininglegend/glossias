@@ -9,6 +9,7 @@ import (
 	"glossias/src/pkg/generated/db"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	_ "github.com/lib/pq"
 	storage_go "github.com/supabase-community/storage-go"
 )
@@ -295,4 +296,20 @@ func (s *Story) Validate() error {
 		return ErrMissingGrammarPoints
 	}
 	return nil
+}
+
+// convertToPGInt converts various integer types to pgtype.Int4
+func convertToPGInt(value any) pgtype.Int4 {
+	switch v := value.(type) {
+	case int:
+		return pgtype.Int4{Int32: int32(v), Valid: true}
+	case int32:
+		return pgtype.Int4{Int32: v, Valid: true}
+	case int64:
+		return pgtype.Int4{Int32: int32(v), Valid: true}
+	case nil:
+		return pgtype.Int4{Valid: false}
+	default:
+		return pgtype.Int4{Valid: false}
+	}
 }

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"glossias/src/apis/types"
@@ -16,14 +17,20 @@ import (
 
 // GetVocabPage returns JSON data for story page 2 (vocabulary)
 func (h *Handler) GetVocabPage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	storyID := mux.Vars(r)["id"]
 	id, err := strconv.Atoi(storyID)
 	if err != nil {
 		h.sendError(w, "Invalid story ID format", http.StatusBadRequest)
 		return
 	}
+	userID := auth.GetUserID(r)
+	if userID == "" {
+		h.sendError(w, "User not authenticated", http.StatusUnauthorized)
+		return
+	}
 
-	story, err := models.GetStoryData(r.Context(), id, auth.GetUserID(r))
+	story, err := models.GetStoryData(ctx, id, userID)
 	if err == models.ErrNotFound {
 		h.sendError(w, "Story not found", http.StatusNotFound)
 		return
@@ -34,7 +41,12 @@ func (h *Handler) GetVocabPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lines, vocabBank := h.generateVocabLines(*story)
+	lines, vocabBank, err := h.generateVocabLines(ctx, *story, userID)
+	if err != nil {
+		h.log.Error("Failed to generate vocabulary lines", "error", err)
+		h.sendError(w, "Failed to generate vocabulary lines", http.StatusInternalServerError)
+		return
+	}
 
 	data := types.VocabPageData{
 		PageData: types.PageData{
@@ -55,30 +67,79 @@ func (h *Handler) GetVocabPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // generateVocabLines prepares lines with vocabulary blanks and vocab bank
-func (h *Handler) generateVocabLines(story models.Story) ([]types.Line, []string) {
-	lines := make([]types.Line, len(story.Content.Lines))
+func (h *Handler) generateVocabLines(ctx context.Context, story models.Story, userID string) ([]types.VocabLine, []string, error) {
+	// Get incomplete vocab items for this user
+	incompleteVocab, err := models.GetLinesWithoutVocabForUser(ctx, userID, story.Metadata.StoryID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Create lookup map for incomplete vocab positions
+	incompleteMap := make(map[int]map[int]bool)
+	for _, item := range incompleteVocab {
+		if incompleteMap[item.LineNumber] == nil {
+			incompleteMap[item.LineNumber] = make(map[int]bool)
+		}
+		incompleteMap[item.LineNumber][item.Position] = true
+	}
+	lines := make([]types.VocabLine, len(story.Content.Lines))
 	vocabBank := make([]string, 0)
 
 	for i, line := range story.Content.Lines {
-		series := []string{}
+		segments := []types.TextSegment{}
 		runes := []rune(line.Text)
 		lastEnd := 0
 
 		// Sort vocab words by position
 		slices.SortFunc(line.Vocabulary, h.sortVocab)
 
-		for j := 0; j < len(line.Vocabulary); j++ {
-			vocab := line.Vocabulary[j]
-			vocabBank = append(vocabBank, vocab.LexicalForm)
-			start := vocab.Position[0]
-			if start >= lastEnd {
-				series = append(series, string(runes[lastEnd:start]))
+		// Check if this line has any incomplete vocab
+		lineIncompletePositions := incompleteMap[i+1] // Lines are 1-indexed in DB
+		hasIncompleteVocab := len(lineIncompletePositions) > 0
+
+		if hasIncompleteVocab {
+			// Process vocab items, showing blanks only for incomplete ones
+			for j := 0; j < len(line.Vocabulary); j++ {
+				vocab := line.Vocabulary[j]
+				start := vocab.Position[0]
+				end := vocab.Position[1]
+
+				if start >= lastEnd {
+					segments = append(segments, types.TextSegment{
+						Text: string(runes[lastEnd:start]),
+						Type: "text",
+					})
+				}
+
+				// Check if this vocab position is incomplete
+				if lineIncompletePositions[start] {
+					segments = append(segments, types.TextSegment{
+						Text:     vocabBlank,
+						Type:     "blank",
+						VocabKey: fmt.Sprintf("%d-%d", i, j),
+					})
+				} else {
+					// Show the actual word for completed vocab
+					segments = append(segments, types.TextSegment{
+						Text: vocab.LexicalForm,
+						Type: "completed",
+					})
+
+				}
+				lastEnd = end
 			}
-			series = append(series, vocabBlank)
-			lastEnd = vocab.Position[1]
-		}
-		if lastEnd < len(runes) {
-			series = append(series, string(runes[lastEnd:]))
+			if lastEnd < len(runes) {
+				segments = append(segments, types.TextSegment{
+					Text: string(runes[lastEnd:]),
+					Type: "text",
+				})
+			}
+		} else {
+			// No incomplete vocab on this line, show original text
+			segments = append(segments, types.TextSegment{
+				Text: line.Text,
+				Type: "text",
+			})
 		}
 
 		// Convert audio files to API format (vocab_missing label only)
@@ -94,9 +155,15 @@ func (h *Handler) generateVocabLines(story models.Story) ([]types.Line, []string
 			}
 		}
 
-		lines[i] = types.Line{
-			Text:       series,
+		lines[i] = types.VocabLine{
+			Text:       segments,
 			AudioFiles: audioFiles,
+		}
+		// If the line had a vocab item, add it to the bank
+		if len(line.Vocabulary) > 0 {
+			for _, vocab := range line.Vocabulary {
+				vocabBank = append(vocabBank, vocab.LexicalForm)
+			}
 		}
 	}
 
@@ -104,7 +171,7 @@ func (h *Handler) generateVocabLines(story models.Story) ([]types.Line, []string
 	slices.Sort(vocabBank)
 	vocabBank = slices.Compact(vocabBank)
 
-	return lines, vocabBank
+	return lines, vocabBank, nil
 }
 
 // CheckVocab handles vocabulary checking for individual words

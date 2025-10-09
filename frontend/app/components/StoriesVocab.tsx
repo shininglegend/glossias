@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router";
 import { useApiService } from "../services/api";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import { useAuthenticatedFetch } from "../lib/authFetch";
-import type { VocabData } from "../services/api";
+import type { VocabData, VocabLine } from "../services/api";
 import { useAudioPlayer } from "./story-components/AudioPlayer";
 import { StoryHeader } from "./story-components/StoryHeader";
 import { StoryLine } from "./story-components/StoryLine";
@@ -17,8 +17,8 @@ interface AudioURLsResponse {
 }
 
 // Helper function to check if a line contains vocabulary placeholders
-const lineHasVocab = (line: { text: string[] }): boolean => {
-  return line.text.includes("%");
+const lineHasVocab = (line: VocabLine): boolean => {
+  return line.text.some((segment) => segment.type === "blank");
 };
 
 export function StoriesVocab() {

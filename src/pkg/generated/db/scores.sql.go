@@ -11,33 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const checkAllVocabCompleteForLineForUser = `-- name: CheckAllVocabCompleteForLineForUser :one
-SELECT NOT EXISTS (
-    SELECT 1
-    FROM vocabulary_items vi
-    WHERE vi.story_id = $1
-      AND vi.line_number = $2
-      AND vi.id NOT IN (
-          SELECT vca.vocab_item_id
-          FROM vocab_correct_answers vca
-          WHERE vca.user_id = $3 AND vca.story_id = $1
-      )
-) as all_complete
-`
-
-type CheckAllVocabCompleteForLineForUserParams struct {
-	StoryID    pgtype.Int4 `json:"story_id"`
-	LineNumber pgtype.Int4 `json:"line_number"`
-	UserID     string      `json:"user_id"`
-}
-
-func (q *Queries) CheckAllVocabCompleteForLineForUser(ctx context.Context, arg CheckAllVocabCompleteForLineForUserParams) (bool, error) {
-	row := q.db.QueryRow(ctx, checkAllVocabCompleteForLineForUser, arg.StoryID, arg.LineNumber, arg.UserID)
-	var all_complete bool
-	err := row.Scan(&all_complete)
-	return all_complete, err
-}
-
 const countStoryGrammarItems = `-- name: CountStoryGrammarItems :one
 SELECT COUNT(*) as total_grammar_items
 FROM grammar_items
@@ -736,6 +709,7 @@ func (q *Queries) SaveGrammarIncorrectAnswer(ctx context.Context, arg SaveGramma
 }
 
 const saveGrammarScore = `-- name: SaveGrammarScore :exec
+
 INSERT INTO grammar_correct_answers (user_id, story_id, line_number, grammar_point_id)
 VALUES ($1, $2, $3, $4)
 `
@@ -747,60 +721,13 @@ type SaveGrammarScoreParams struct {
 	GrammarPointID int32  `json:"grammar_point_id"`
 }
 
+// Score management queries
 func (q *Queries) SaveGrammarScore(ctx context.Context, arg SaveGrammarScoreParams) error {
 	_, err := q.db.Exec(ctx, saveGrammarScore,
 		arg.UserID,
 		arg.StoryID,
 		arg.LineNumber,
 		arg.GrammarPointID,
-	)
-	return err
-}
-
-const saveVocabIncorrectAnswer = `-- name: SaveVocabIncorrectAnswer :exec
-INSERT INTO vocab_incorrect_answers (user_id, story_id, line_number, vocab_item_id, incorrect_answer)
-VALUES ($1, $2, $3, $4, $5)
-`
-
-type SaveVocabIncorrectAnswerParams struct {
-	UserID          string `json:"user_id"`
-	StoryID         int32  `json:"story_id"`
-	LineNumber      int32  `json:"line_number"`
-	VocabItemID     int32  `json:"vocab_item_id"`
-	IncorrectAnswer string `json:"incorrect_answer"`
-}
-
-func (q *Queries) SaveVocabIncorrectAnswer(ctx context.Context, arg SaveVocabIncorrectAnswerParams) error {
-	_, err := q.db.Exec(ctx, saveVocabIncorrectAnswer,
-		arg.UserID,
-		arg.StoryID,
-		arg.LineNumber,
-		arg.VocabItemID,
-		arg.IncorrectAnswer,
-	)
-	return err
-}
-
-const saveVocabScore = `-- name: SaveVocabScore :exec
-
-INSERT INTO vocab_correct_answers (user_id, story_id, line_number, vocab_item_id)
-VALUES ($1, $2, $3, $4)
-`
-
-type SaveVocabScoreParams struct {
-	UserID      string `json:"user_id"`
-	StoryID     int32  `json:"story_id"`
-	LineNumber  int32  `json:"line_number"`
-	VocabItemID int32  `json:"vocab_item_id"`
-}
-
-// Score management queries
-func (q *Queries) SaveVocabScore(ctx context.Context, arg SaveVocabScoreParams) error {
-	_, err := q.db.Exec(ctx, saveVocabScore,
-		arg.UserID,
-		arg.StoryID,
-		arg.LineNumber,
-		arg.VocabItemID,
 	)
 	return err
 }

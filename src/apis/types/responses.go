@@ -32,9 +32,23 @@ type AudioFile struct {
 	Label      string `json:"label"`
 }
 
+// TextSegment represents a segment of text in a line
+type TextSegment struct {
+	Text     string `json:"text"`
+	Type     string `json:"type"`                // "text", "blank", "completed"
+	VocabKey string `json:"vocab_key,omitempty"` // For blanks: "lineIndex-vocabIndex"
+}
+
 // Line represents a story line in API responses
 type Line struct {
 	Text            []string       `json:"text"`
+	AudioFiles      []AudioFile    `json:"audio_files"`
+	SignedAudioURLs map[int]string `json:"signed_audio_urls,omitempty"`
+}
+
+// VocabLine represents a story line with vocabulary segments
+type VocabLine struct {
+	Text            []TextSegment  `json:"text"`
 	AudioFiles      []AudioFile    `json:"audio_files"`
 	SignedAudioURLs map[int]string `json:"signed_audio_urls,omitempty"`
 }
@@ -60,8 +74,8 @@ type AudioPageData struct {
 // VocabPageData extends PageData with vocabulary bank
 type VocabPageData struct {
 	PageData
-	Lines     []Line   `json:"lines"`
-	VocabBank []string `json:"vocab_bank"`
+	Lines     []VocabLine `json:"lines"`
+	VocabBank []string    `json:"vocab_bank"`
 }
 
 // GrammarPageData extends PageData with grammar point

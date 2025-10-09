@@ -79,6 +79,7 @@ GetUserGrammarScoresByGrammarPoint(ctx context.Context, userID string, storyID i
 GetUserGrammarIncorrectAnswers(ctx context.Context, userID string, storyID int, grammarPointID int) ([]db.GetUserGrammarIncorrectAnswersRow, error) // Get user's incorrect answers for specific grammar point
 GetUserVocabScores(ctx context.Context, userID string, storyID int) (map[int]bool, error) // Returns map[lineNumber]correct
 GetUserGrammarScores(ctx context.Context, userID string, storyID int) (map[int]bool, error) // Returns map[lineNumber]correct
+GetLinesWithoutVocabForUser(ctx context.Context, userID string, storyID int) ([]VocabItem, error) // Returns line/position pairs not yet correctly answered by user
 
 User Operations (SQLC-based):
 UpsertUser(userID, email, name string) (*User, error) // Uses UpsertUser

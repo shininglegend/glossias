@@ -5,6 +5,7 @@ import { useAuthenticatedFetch } from "../lib/authFetch";
 import type {
   NavigationGuidanceResponse,
   Story as CourseStory,
+  TextSegment,
 } from "../types/api";
 
 const API_BASE = "/api";
@@ -44,6 +45,12 @@ export interface Line {
   signed_audio_urls?: { [key: number]: string };
 }
 
+export interface VocabLine {
+  text: TextSegment[];
+  audio_files: AudioFile[];
+  signed_audio_urls?: { [key: number]: string };
+}
+
 export interface GrammarLine {
   text: string;
   english_translation?: string;
@@ -63,7 +70,11 @@ export interface GrammarPageData {
   language: string;
 }
 
-export interface VocabData extends PageData {
+export interface VocabData {
+  story_id: string;
+  story_title: string;
+  lines: VocabLine[];
+  language: string;
   vocab_bank: string[];
 }
 

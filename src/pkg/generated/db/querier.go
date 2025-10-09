@@ -21,6 +21,7 @@ type Querier interface {
 	BulkCreateStoryLines(ctx context.Context, arg []BulkCreateStoryLinesParams) (int64, error)
 	BulkCreateVocabularyItems(ctx context.Context, arg []BulkCreateVocabularyItemsParams) (int64, error)
 	CanUserAccessCourse(ctx context.Context, arg CanUserAccessCourseParams) (bool, error)
+	// Vocabulary-related queries
 	CheckAllVocabCompleteForLineForUser(ctx context.Context, arg CheckAllVocabCompleteForLineForUserParams) (bool, error)
 	CheckFootnoteExists(ctx context.Context, arg CheckFootnoteExistsParams) (int32, error)
 	CheckGrammarExists(ctx context.Context, arg CheckGrammarExistsParams) (bool, error)
@@ -112,6 +113,7 @@ type Querier interface {
 	GetGrammarItems(ctx context.Context, arg GetGrammarItemsParams) ([]GrammarItem, error)
 	GetGrammarPoint(ctx context.Context, grammarPointID int32) (GrammarPoint, error)
 	GetGrammarPointByName(ctx context.Context, arg GetGrammarPointByNameParams) (GrammarPoint, error)
+	GetIncompleteVocabForUser(ctx context.Context, arg GetIncompleteVocabForUserParams) ([]GetIncompleteVocabForUserRow, error)
 	GetLineAudioFiles(ctx context.Context, arg GetLineAudioFilesParams) ([]LineAudioFile, error)
 	GetLineText(ctx context.Context, arg GetLineTextParams) (string, error)
 	GetLineTranslation(ctx context.Context, arg GetLineTranslationParams) (string, error)
@@ -171,9 +173,9 @@ type Querier interface {
 	RemoveCourseAdmin(ctx context.Context, arg RemoveCourseAdminParams) error
 	RemoveUserFromCourse(ctx context.Context, arg RemoveUserFromCourseParams) error
 	SaveGrammarIncorrectAnswer(ctx context.Context, arg SaveGrammarIncorrectAnswerParams) error
+	// Score management queries
 	SaveGrammarScore(ctx context.Context, arg SaveGrammarScoreParams) error
 	SaveVocabIncorrectAnswer(ctx context.Context, arg SaveVocabIncorrectAnswerParams) error
-	// Score management queries
 	SaveVocabScore(ctx context.Context, arg SaveVocabScoreParams) error
 	StoryExists(ctx context.Context, storyID int32) (bool, error)
 	TranslationRequestExists(ctx context.Context, arg TranslationRequestExistsParams) (bool, error)

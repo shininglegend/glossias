@@ -1,16 +1,8 @@
 -- Score management queries
 
--- name: SaveVocabScore :exec
-INSERT INTO vocab_correct_answers (user_id, story_id, line_number, vocab_item_id)
-VALUES ($1, $2, $3, $4);
-
 -- name: SaveGrammarScore :exec
 INSERT INTO grammar_correct_answers (user_id, story_id, line_number, grammar_point_id)
 VALUES ($1, $2, $3, $4);
-
--- name: SaveVocabIncorrectAnswer :exec
-INSERT INTO vocab_incorrect_answers (user_id, story_id, line_number, vocab_item_id, incorrect_answer)
-VALUES ($1, $2, $3, $4, $5);
 
 -- name: SaveGrammarIncorrectAnswer :exec
 INSERT INTO grammar_incorrect_answers (user_id, story_id, line_number, grammar_point_id, selected_line, selected_positions)
@@ -124,19 +116,6 @@ JOIN grammar_points gp ON gs.grammar_point_id = gp.grammar_point_id
 LEFT JOIN grammar_items gi ON gs.grammar_point_id = gi.grammar_point_id AND gs.story_id = gi.story_id AND gs.line_number = gi.line_number
 WHERE gs.user_id = $1 AND gs.story_id = $2
 ORDER BY gs.line_number, gs.grammar_point_id, gs.attempted_at DESC;
-
--- name: CheckAllVocabCompleteForLineForUser :one
-SELECT NOT EXISTS (
-    SELECT 1
-    FROM vocabulary_items vi
-    WHERE vi.story_id = $1
-      AND vi.line_number = $2
-      AND vi.id NOT IN (
-          SELECT vca.vocab_item_id
-          FROM vocab_correct_answers vca
-          WHERE vca.user_id = $3 AND vca.story_id = $1
-      )
-) as all_complete; 
 
 -- name: CountStoryVocabItems :one
 SELECT COUNT(*) as total_vocab_items

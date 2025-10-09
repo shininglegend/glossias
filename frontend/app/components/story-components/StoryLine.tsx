@@ -1,8 +1,9 @@
 import React from "react";
 import { VocabTextRenderer } from "./VocabTextRenderer";
+import type { VocabLine } from "../../services/api";
 
 interface StoryLineProps {
-  line: { text: string[] };
+  line: VocabLine;
   lineIndex: number;
   vocabBank: string[];
   selectedAnswers: { [key: string]: string };
@@ -21,8 +22,8 @@ interface StoryLineProps {
 }
 
 // Helper function to check if a line contains vocabulary placeholders
-const lineHasVocab = (line: { text: string[] }): boolean => {
-  return line.text.includes("%");
+const lineHasVocab = (line: VocabLine): boolean => {
+  return line.text.some((segment) => segment.type === "blank");
 };
 
 export const StoryLine: React.FC<StoryLineProps> = ({

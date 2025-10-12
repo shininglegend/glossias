@@ -10,7 +10,16 @@ import psycopg2
 from datetime import datetime
 from dotenv import load_dotenv
 
-MAX_CLICKS = 10  # Max clicks on a position for intensity normalization
+# For PNG generation
+try:
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options
+    import time
+    SELENIUM_AVAILABLE = True
+except ImportError:
+    SELENIUM_AVAILABLE = False
+
+INTENSITY_CAP = 10  # Cap for intensity calculation (rename from MAX_CLICKS)
 
 
 def load_db_config():
@@ -144,7 +153,19 @@ def build_heatmap_data(lines, grammar_items, correct_data, incorrect_position_da
     return heatmap
 
 
-def generate_html_heatmap(lines, heatmap_data, grammar_point_name, story_id):
+def calculate_max_intensity(heatmap_data):
+    """Calculate the actual maximum click count across all positions."""
+    max_clicks = 0
+    for line_data in heatmap_data.values():
+        for click_data in line_data.values():
+            total = click_data['correct'] + click_data['incorrect']
+            max_clicks = max(max_clicks, total)
+    
+    # Cap at INTENSITY_CAP
+    return min(max_clicks, INTENSITY_CAP)
+
+
+def generate_html_heatmap(lines, heatmap_data, grammar_point_name, story_id, max_intensity):
     """Generate HTML with color-coded text overlay."""
     
     def get_background_color(correct_count, incorrect_count):
@@ -152,9 +173,13 @@ def generate_html_heatmap(lines, heatmap_data, grammar_point_name, story_id):
         if correct_count == 0 and incorrect_count == 0:
             return 'transparent'
         
-        # Normalize intensities
-        correct_intensity = min(correct_count / MAX_CLICKS, 1.0)
-        incorrect_intensity = min(incorrect_count / MAX_CLICKS, 1.0)
+        # Normalize intensities based on actual max in this dataset
+        if max_intensity > 0:
+            correct_intensity = min(correct_count / max_intensity, 1.0)
+            incorrect_intensity = min(incorrect_count / max_intensity, 1.0)
+        else:
+            correct_intensity = 0
+            incorrect_intensity = 0
         
         # Blend colors: green for correct, red for incorrect
         if incorrect_count > correct_count:
@@ -278,6 +303,7 @@ def generate_html_heatmap(lines, heatmap_data, grammar_point_name, story_id):
         <h1>Grammar Click Heatmap</h1>
         <div class="subtitle">Story ID: {story_id}</div>
         <div class="subtitle">Grammar Point: {grammar_point_name}</div>
+        <div class="subtitle">Max Intensity: {max_intensity} clicks</div>
         <div class="subtitle">Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>
     </div>
     
@@ -296,7 +322,7 @@ def generate_html_heatmap(lines, heatmap_data, grammar_point_name, story_id):
             <span>Mixed (Equal Correct/Incorrect)</span>
         </div>
         <div style="margin-top: 10px; font-size: 13px; color: #666;">
-            Hover over characters to see click counts. Color intensity indicates frequency.
+            Hover over characters to see click counts. Color intensity indicates frequency (max: {max_intensity} clicks).
         </div>
     </div>
     
@@ -309,13 +335,53 @@ def generate_html_heatmap(lines, heatmap_data, grammar_point_name, story_id):
     return html
 
 
-def generate_output_filename(story_id, grammar_point_id, grammar_point_name, custom_output):
+def html_to_png(html_file, png_file):
+    """Convert HTML file to PNG using Selenium."""
+    if not SELENIUM_AVAILABLE:
+        print("Warning: Selenium not available. Install with: pip install selenium")
+        print("Also requires Chrome/Chromium and chromedriver")
+        return False
+    
+    try:
+        # Set up headless Chrome
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--window-size=1200,2000")
+        
+        driver = webdriver.Chrome(options=chrome_options)
+        
+        # Load HTML file
+        file_path = f"file://{os.path.abspath(html_file)}"
+        driver.get(file_path)
+        
+        # Wait for page to load
+        time.sleep(2)
+        
+        # Get page dimensions
+        total_height = driver.execute_script("return document.body.scrollHeight")
+        driver.set_window_size(1200, total_height + 100)
+        
+        # Take screenshot
+        driver.save_screenshot(png_file)
+        
+        driver.quit()
+        return True
+        
+    except Exception as e:
+        print(f"Error generating PNG: {e}")
+        return False
+
+
+def generate_output_filename(story_id, grammar_point_id, grammar_point_name, custom_output, extension='html'):
     """Generate output filename with timestamp if not provided."""
-    if custom_output:
+    if custom_output and extension == 'html':
         return custom_output
+    
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     safe_name = grammar_point_name.replace(' ', '_').replace('/', '_')
-    return f"grammar_heatmap_{story_id}_gp{grammar_point_id}_{safe_name}_{timestamp}.html"
+    return f"./output/grammar_heatmap_{story_id}_gp{grammar_point_id}_{safe_name}_{timestamp}.{extension}"
 
 
 def main():
@@ -327,6 +393,11 @@ def main():
         "-o",
         "--output",
         help="Output file path (default: grammar_heatmap_STORYID_GPID_NAME_TIMESTAMP.html)",
+    )
+    parser.add_argument(
+        "--png",
+        action="store_true",
+        help="Also generate PNG screenshots (requires Selenium and Chrome)",
     )
 
     args = parser.parse_args()
@@ -366,15 +437,27 @@ def main():
                 lines, grammar_items, correct_data, incorrect_position_data, gp_id
             )
             
-            # Generate HTML
-            html_content = generate_html_heatmap(lines, heatmap_data, gp_name, args.story_id)
+            # Calculate max intensity for this grammar point
+            max_intensity = calculate_max_intensity(heatmap_data)
+            print(f"  Max intensity: {max_intensity} clicks")
             
-            # Save to file
-            output_file = generate_output_filename(args.story_id, gp_id, gp_name, args.output)
-            with open(output_file, 'w', encoding='utf-8') as f:
+            # Generate HTML
+            html_content = generate_html_heatmap(lines, heatmap_data, gp_name, args.story_id, max_intensity)
+            
+            # Save HTML to file
+            html_file = generate_output_filename(args.story_id, gp_id, gp_name, args.output, 'html')
+            with open(html_file, 'w', encoding='utf-8') as f:
                 f.write(html_content)
             
-            print(f"Saved: {output_file}")
+            print(f"  Saved HTML: {html_file}")
+            
+            # Generate PNG if requested
+            if args.png:
+                png_file = generate_output_filename(args.story_id, gp_id, gp_name, None, 'png')
+                if html_to_png(html_file, png_file):
+                    print(f"  Saved PNG: {png_file}")
+                else:
+                    print(f"  PNG generation failed")
             
             # Print summary stats
             total_correct = sum(correct_data.get((ln, gp_id), 0) for ln, _ in lines)

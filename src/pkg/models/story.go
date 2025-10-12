@@ -77,7 +77,8 @@ func SetStorageClient(url, apiKey string) {
 			break
 		}
 		if database.IsConnectionError(err) {
-			fmt.Printf("Attempt %d: tx closed error received, reconnecting...\n", attempt)
+			fmt.Printf("Attempt %d: error received, reconnecting...\n", attempt)
+			fmt.Printf("-- %v\n", err)
 			storageClient = storage_go.NewClient(url, apiKey, nil)
 			time.Sleep(1 * time.Second)
 		} else {
@@ -85,11 +86,7 @@ func SetStorageClient(url, apiKey string) {
 		}
 	}
 	if err != nil {
-		fmt.Printf("Failed to connect to storage: %v\n", err)
-		storageClient = nil
-		storageBaseURL = ""
-		storageAPIKey = ""
-		return
+		panic(fmt.Sprintf("API keys provided, but failed to connect to storage: %v\n", err))
 	}
 	fmt.Printf("Storage client initialized with URL: %s\n", url)
 }

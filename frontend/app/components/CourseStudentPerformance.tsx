@@ -347,8 +347,8 @@ export function CourseStudentPerformance() {
                           {formatAccuracy(student.vocab_accuracy)}
                         </span>
                         <div className="text-xs text-gray-500">
-                          {student.vocab_correct}/
-                          {student.vocab_correct + student.vocab_incorrect}
+                          {student.vocab_correct} correct /
+                          {student.vocab_incorrect} incorrect
                         </div>
                       </td>
                       <td className="border border-gray-300 p-3 text-center">
@@ -361,8 +361,8 @@ export function CourseStudentPerformance() {
                           {formatAccuracy(student.grammar_accuracy)}
                         </span>
                         <div className="text-xs text-gray-500">
-                          {student.grammar_correct}/
-                          {student.grammar_correct + student.grammar_incorrect}
+                          {student.grammar_correct} correct /
+                          {student.grammar_incorrect} incorrect
                         </div>
                       </td>
                       <td className="border border-gray-300 p-3 text-center">

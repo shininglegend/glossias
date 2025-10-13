@@ -59,36 +59,30 @@ func convertToInt32(v any) int32 {
 }
 
 // CalculateScoreWithRetriesAllowed calculates a score for vocab/grammar exercises where students must retry until correct.
-// If not all items completed, score = (100 - (correctCount / totalItems * 100)) * (incorrectCount / (correctCount + incorrectCount))
-// If all items completed, score = max(0, 100 - (incorrectCount / totalItems * 10))
-func CalculateScoreWithRetriesAllowed(correctCount, incorrectCount, totalItems int64) float64 {
-	totalAttempted := correctCount + incorrectCount
+// If all items are complete, then final score is correct answers / (correct + incorrect answers).
+// If only some items are incorrect (ie, total possible != correct), final score is (correct / (correct + incorrect)) * (correct / total)
+// It takes the number of correct answers and incorrect answers by the student and the total number of possible answers for this story.
+func CalculateScoreWithRetriesAllowed(correctCount, incorrectCount, totalPossible int64) float64 {
+	// Convert to float64
+	var correct, incorrect, possible float64 = float64(correctCount), float64(incorrectCount), float64(totalPossible)
+	// total attempts
+	totalAttempted := correct + incorrect
 
-	// If no attempts made, score is 0
-	if totalAttempted == 0 {
+	// If no attempts made or none correct, score is 0
+	if totalAttempted == 0 || correct == 0 {
 		return 0
 	}
 
-	// If student hasn't completed all items, use partial completion formula
-	if correctCount < totalItems {
-		if incorrectCount == 0 {
-			return float64(correctCount) / float64(totalItems) * 100
-		}
-		// Formula: (100 - (correctCount / totalItems * 100)) * (incorrectCount / totalAttempted)
-		completionPenalty := 100 - (float64(correctCount)/float64(totalItems))*100
-		errorRate := float64(incorrectCount) / float64(totalAttempted)
-		return completionPenalty * errorRate
-	}
-
-	// If completed with no mistakes, perfect score
-	if incorrectCount == 0 {
+	// If total possible is 0, score is arbitrary 100
+	if possible == 0 {
 		return 100
 	}
 
-	// Calculate penalty: 10 points per mistake per item
-	penalty := (float64(incorrectCount) / float64(totalItems)) * 10
-	// Floor at 0
-	accuracy := max(100-penalty, 0)
+	// Calculation
+	accuracy := (correct / totalAttempted) * (correct / possible) * 100
+
+	// Floor at 0, cap at 100
+	accuracy = min(max(accuracy, 0), 100)
 
 	return accuracy
 }

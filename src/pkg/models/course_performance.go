@@ -66,7 +66,7 @@ func CalculateScoreWithRetriesAllowed(correctCount, incorrectCount, totalPossibl
 	// Convert to float64
 	var correct, incorrect, possible float64 = float64(correctCount), float64(incorrectCount), float64(totalPossible)
 	// total attempts
-	totalAttempted := correct + incorrect
+	totalAttempted := correct + (incorrect * .5) // incorrect answers count as half an attempt
 
 	// If no attempts made or none correct, score is 0
 	if totalAttempted == 0 || correct == 0 {

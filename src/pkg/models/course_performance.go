@@ -99,6 +99,8 @@ func GetStoryStudentPerformance(ctx context.Context, storyID int32) ([]CourseStu
 		return nil, err
 	}
 
+	fmt.Println("Total vocab items:", totalVocab, "\nTotal grammar items:", totalGrammar)
+
 	rows, err := queries.GetStoryStudentPerformance(ctx, storyID)
 	if err != nil {
 		return nil, err

@@ -1,6 +1,6 @@
 # Glossias
 
-A web application for displaying stories with synchronized text and audio.
+A web application for engaging with stories to increase the fluency of introductionary-level students.
 
 ## Installation & Setup
 1. Run steps 1-3 of `Go`
@@ -101,4 +101,4 @@ The application uses a layered architecture for database access:
 - Authentication middleware calls model functions for user operations
 
 ### Academic Context
-This project was developed under the oversight of Dr. Derrick Tate for academic credit at Sattler College.
+This project was, in its first part, developed under the oversight of Dr. Derrick Tate for academic credit at Sattler College.

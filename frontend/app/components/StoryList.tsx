@@ -20,8 +20,8 @@ export function StoryList() {
         const response = await api.getStories();
         if (response.success && response.data) {
           setStories(response.data.stories);
-          // Preload navigation guidance to avoid cold starts
-          response.data.stories.forEach((story) => {
+          // Preload navigation guidance for first story only
+          response.data.stories.slice(0, 1).forEach((story) => {
             getNavigationGuidance(story.id.toString(), "list").catch(() => {
               // Silently fail preloading
             });

@@ -402,6 +402,8 @@ def main():
 
     args = parser.parse_args()
 
+    print(f"Loading data for story {args.story_id}")
+
     try:
         # Database connection
         config = load_db_config()

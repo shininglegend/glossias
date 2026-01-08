@@ -30,7 +30,7 @@ func (h *Handler) handleCourseAdminsList(w http.ResponseWriter, r *http.Request,
 	}
 
 	// Check if user has access to this course
-	if !auth.IsCourseAdmin(r.Context(), userID, courseID) {
+	if !auth.IsCourseOrSuperAdmin(r.Context(), userID, courseID) {
 		http.Error(w, "Access denied", http.StatusForbidden)
 		return
 	}

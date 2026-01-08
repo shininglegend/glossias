@@ -1,0 +1,6 @@
+psycopg2-binary
+numpy
+matplotlib
+seaborn
+python-dotenv
+selenium

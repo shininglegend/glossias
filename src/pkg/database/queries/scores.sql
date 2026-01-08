@@ -153,21 +153,13 @@ JOIN stories s ON cu.course_id = s.course_id
 LEFT JOIN story_titles st ON s.story_id = st.story_id AND st.language_code = 'en'
 LEFT JOIN LATERAL (
     SELECT
-        COUNT(DISTINCT vca.vocab_item_id) as correct_count,
-        COUNT(DISTINCT via.vocab_item_id) as incorrect_count
-    FROM vocab_correct_answers vca
-    FULL OUTER JOIN vocab_incorrect_answers via ON vca.user_id = via.user_id AND vca.story_id = via.story_id AND vca.vocab_item_id = via.vocab_item_id
-    WHERE COALESCE(vca.user_id, via.user_id) = u.user_id
-      AND COALESCE(vca.story_id, via.story_id) = s.story_id
+        (SELECT COUNT(*) FROM vocab_correct_answers vca WHERE vca.user_id = u.user_id AND vca.story_id = s.story_id) as correct_count,
+        (SELECT COUNT(*) FROM vocab_incorrect_answers via WHERE via.user_id = u.user_id AND via.story_id = s.story_id) as incorrect_count
 ) vocab_stats ON true
 LEFT JOIN LATERAL (
     SELECT
-        COUNT(DISTINCT gca.grammar_point_id) as correct_count,
-        COUNT(DISTINCT gia.grammar_point_id) as incorrect_count
-    FROM grammar_correct_answers gca
-    FULL OUTER JOIN grammar_incorrect_answers gia ON gca.user_id = gia.user_id AND gca.story_id = gia.story_id AND gca.grammar_point_id = gia.grammar_point_id
-    WHERE COALESCE(gca.user_id, gia.user_id) = u.user_id
-      AND COALESCE(gca.story_id, gia.story_id) = s.story_id
+        (SELECT COUNT(*) FROM grammar_correct_answers gca WHERE gca.user_id = u.user_id AND gca.story_id = s.story_id) as correct_count,
+        (SELECT COUNT(*) FROM grammar_incorrect_answers gia WHERE gia.user_id = u.user_id AND gia.story_id = s.story_id) as incorrect_count
 ) grammar_stats ON true
 LEFT JOIN LATERAL (
     SELECT

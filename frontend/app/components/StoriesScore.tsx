@@ -7,6 +7,7 @@ import confetti from "canvas-confetti";
 interface ScoreData {
   story_title: string;
   total_time_seconds: number;
+  overall_accuracy: number;
   vocab_accuracy: number;
   vocab_correct_count: number;
   vocab_incorrect_count: number;
@@ -240,24 +241,9 @@ export function StoriesScore() {
       </div>
     );
   }
-
-  const totalCorrect =
-    scoreData.vocab_correct_count + scoreData.grammar_correct_count;
-  const totalIncorrect =
-    scoreData.vocab_incorrect_count + scoreData.grammar_incorrect_count;
-  const totalAttempts = totalCorrect + totalIncorrect;
-
-  let overallAccuracy = 0;
-  if (totalAttempts > 0) {
-    if (totalIncorrect === 0) {
-      overallAccuracy = 100;
-    } else {
-      // Use similar logic to course_performance.go - penalty based on incorrect attempts
-      const penalty = (totalIncorrect / totalCorrect) * 10;
-      overallAccuracy = Math.max(100 - penalty, 0);
-    }
-  }
-  const overallScore = Math.round(overallAccuracy);
+  
+  // Simply round this
+  const overallScore = Math.round(scoreData.overall_accuracy);
 
   return (
     <>

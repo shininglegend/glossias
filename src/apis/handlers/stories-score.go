@@ -15,7 +15,8 @@ import (
 type ScoreData struct {
 	StoryTitle             string  `json:"story_title"`
 	TotalTimeSeconds       int     `json:"total_time_seconds"`
-	VocabAccuracy          float64 `json:"vocab_accuracy"` // Percentage (0-100)
+	OverallAccuracy        float64 `json:"overall_accuracy"` // Percentage (0-100)
+	VocabAccuracy          float64 `json:"vocab_accuracy"`   // Percentage (0-100)
 	VocabCorrectCount      int32   `json:"vocab_correct_count"`
 	VocabIncorrectCount    int32   `json:"vocab_incorrect_count"`
 	VocabTimeSeconds       int     `json:"vocab_time_seconds"`
@@ -195,9 +196,17 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 	totalTime := timeData.VocabTimeSeconds + timeData.GrammarTimeSeconds +
 		timeData.TranslationTimeSeconds + timeData.VideoTimeSeconds
 
+	// Calculate overall Accuracy:
+	overallAccuracy := models.CalculateScoreWithRetriesAllowed(
+		vocabSummary.CorrectCount+grammarSummary.CorrectCount,
+		vocabSummary.IncorrectCount+grammarSummary.IncorrectCount,
+		vocabTotal+grammarTotal,
+	)
+
 	scoreData := ScoreData{
 		StoryTitle:             story.Metadata.Title["en"],
 		TotalTimeSeconds:       totalTime,
+		OverallAccuracy:        overallAccuracy,
 		VocabAccuracy:          vocabAccuracy,
 		VocabCorrectCount:      int32(vocabSummary.CorrectCount),
 		VocabIncorrectCount:    int32(vocabSummary.IncorrectCount),

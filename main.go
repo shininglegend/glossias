@@ -80,6 +80,9 @@ func main() {
 		w.Write([]byte(`{"status": "healthy"}`))
 	}).Methods("GET", "OPTIONS")
 
+	// Database health check endpoint (no auth required, rate-limited to 1 request per 5 minutes)
+	r.HandleFunc("/api/db-health", apis.DBHealthHandler(logger)).Methods("GET", "OPTIONS")
+
 	// Time tracking API (no auth required)
 	timeTrackingHandler := apis.NewTimeTrackingHandler(logger)
 	timeTrackingRouter := r.PathPrefix("/api").Subrouter()

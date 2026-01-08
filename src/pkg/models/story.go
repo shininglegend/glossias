@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -92,6 +93,22 @@ func SetStorageClient(url, apiKey string) {
 		return
 	}
 	fmt.Printf("Storage client initialized with URL: %s\n", url)
+}
+
+// TestDBConnection tests the database connection with minimal query
+func TestDBConnection(ctx context.Context) error {
+	if rawConn == nil {
+		return errors.New("database not initialized")
+	}
+	
+	// Use the simplest possible query to test connection
+	if conn, ok := rawConn.(db.DBTX); ok {
+		var result int
+		err := conn.QueryRow(ctx, "SELECT 1").Scan(&result)
+		return err
+	}
+	
+	return errors.New("unable to test database connection")
 }
 
 // SetCache initializes the cache instance

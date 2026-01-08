@@ -22,6 +22,7 @@ const UserIDKey contextKey = "userID"
 
 var byPassURLS = []string{
 	"/api/health",
+	"/api/db-health",
 	"/api/time-tracking/record",
 }
 

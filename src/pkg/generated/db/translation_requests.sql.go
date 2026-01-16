@@ -201,3 +201,20 @@ func (q *Queries) TranslationRequestExists(ctx context.Context, arg TranslationR
 	err := row.Scan(&exists)
 	return exists, err
 }
+
+const updateTranslationRequest = `-- name: UpdateTranslationRequest :exec
+UPDATE translation_requests 
+SET requested_lines = $3
+WHERE user_id = $1 AND story_id = $2
+`
+
+type UpdateTranslationRequestParams struct {
+	UserID         string  `json:"user_id"`
+	StoryID        int32   `json:"story_id"`
+	RequestedLines []int32 `json:"requested_lines"`
+}
+
+func (q *Queries) UpdateTranslationRequest(ctx context.Context, arg UpdateTranslationRequestParams) error {
+	_, err := q.db.Exec(ctx, updateTranslationRequest, arg.UserID, arg.StoryID, arg.RequestedLines)
+	return err
+}

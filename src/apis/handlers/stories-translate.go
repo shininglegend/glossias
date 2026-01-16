@@ -7,6 +7,7 @@ import (
 	"glossias/src/auth"
 	"glossias/src/pkg/models"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/gorilla/mux"
@@ -16,8 +17,9 @@ var ErrMissingTranslation = "Translation not available. Contact the story author
 
 // GetTranslateData returns JSON data for story page 4 (translation) for selected lines
 func (h *Handler) GetTranslateData(w http.ResponseWriter, r *http.Request) {
-	storyID := mux.Vars(r)["id"]
-	id, err := strconv.Atoi(storyID)
+	// If GET, send all lines, otherwise, save request
+	storyIDstr := mux.Vars(r)["id"]
+	storyID, err := strconv.Atoi(storyIDstr)
 	if err != nil {
 		h.sendError(w, "Invalid story ID format", http.StatusBadRequest)
 		return
@@ -29,50 +31,21 @@ func (h *Handler) GetTranslateData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if user already has a translation request for this story
-	existingRequest, err := models.GetTranslationRequest(r.Context(), userID, id)
-	if err != nil && err != models.ErrNotFound {
-		h.log.Error("Failed to check existing translation request", "error", err)
-		h.sendError(w, "Failed to process request", http.StatusInternalServerError)
-		return
+	switch r.Method {
+	case http.MethodGet:
+		h.getTranslationRequest(w, r, userID, storyID)
+	case http.MethodPut:
+		h.saveTranslationRequest(w, r, userID, storyID)
+	case http.MethodOptions:
+		// TODO: Is this needed?
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
+}
 
-	var lineNumbers []int
-	if existingRequest != nil {
-		// Use existing requested lines
-		for _, line := range existingRequest.RequestedLines {
-			lineNumbers = append(lineNumbers, int(line))
-		}
-	} else {
-		// Parse line numbers from query parameters for new request
-		lineNumbersStr := r.URL.Query().Get("lines")
-		if lineNumbersStr == "" {
-			h.sendError(w, "Line numbers required", http.StatusBadRequest)
-			return
-		}
-
-		err = json.Unmarshal([]byte(lineNumbersStr), &lineNumbers)
-		if err != nil {
-			h.sendError(w, "Invalid line numbers format", http.StatusBadRequest)
-			return
-		}
-
-		// Validate line numbers
-		if len(lineNumbers) == 0 || len(lineNumbers) > 5 {
-			h.sendError(w, "Must specify 1-5 line numbers", http.StatusBadRequest)
-			return
-		}
-
-		// Create translation request to limit future requests
-		_, err = models.CreateTranslationRequest(r.Context(), userID, id, lineNumbers)
-		if err != nil {
-			h.log.Error("Failed to create translation request", "error", err)
-			h.sendError(w, "Failed to process request", http.StatusInternalServerError)
-			return
-		}
-	}
-
-	story, err := models.GetStoryData(r.Context(), id, userID)
+func (h *Handler) getTranslationRequest(w http.ResponseWriter, r *http.Request, userID string, storyID int) {
+	ctx := r.Context()
+	story, err := models.GetStoryData(ctx, storyID, userID)
 	if err == models.ErrNotFound {
 		h.sendError(w, "Story not found", http.StatusNotFound)
 		return
@@ -83,31 +56,23 @@ func (h *Handler) GetTranslateData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert 1-indexed to 0-indexed and validate bounds
-	zeroIndexedLines := make([]int, len(lineNumbers))
-	for i, lineNum := range lineNumbers {
-		if lineNum < 1 || lineNum > len(story.Content.Lines) {
-			h.sendError(w, "Line number out of bounds", http.StatusBadRequest)
-			return
-		}
-		zeroIndexedLines[i] = lineNum - 1
-	}
-
-	lines, returnedLines, err := h.processLinesForTranslation(r.Context(), *story, id, zeroIndexedLines)
+	lines, err := h.processLinesForTranslation(ctx, *story, storyID)
 	if err != nil {
 		h.log.Error("Failed to process lines for translation", "error", err)
 		h.sendError(w, "Failed to process lines for translation", http.StatusInternalServerError)
 		return
 	}
 
+	hasTranslated, err := models.TranslationRequestExists(ctx, userID, storyID)
+
 	data := types.TranslationPageData{
 		PageData: types.PageData{
-			StoryID:    storyID,
+			StoryID:    strconv.Itoa(storyID),
 			StoryTitle: story.Metadata.Title["en"],
 			Language:   story.Metadata.Language,
 		},
 		Lines:         lines,
-		ReturnedLines: returnedLines,
+		HasTranslated: hasTranslated,
 	}
 
 	response := types.APIResponse{
@@ -118,14 +83,74 @@ func (h *Handler) GetTranslateData(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+// saveTranslationRequest saves which lines the student translated
+func (h *Handler) saveTranslationRequest(w http.ResponseWriter, r *http.Request, userID string, storyID int) {
+	ctx := r.Context()
+
+	// Get the previous request, if any
+	prevTranslationRequest, err := models.GetTranslationRequest(ctx, userID, storyID)
+	if err != nil && err != models.ErrNotFound {
+		h.log.Error("Failed to save translation request", "error", err)
+		h.sendError(w, "Failed to save translation request", http.StatusInternalServerError)
+		return
+	}
+
+	// Parse line numbers from query parameters for new request
+	lineNumbersStr := r.URL.Query().Get("lines")
+
+	lineNumbers := []int{}
+	err = json.Unmarshal([]byte(lineNumbersStr), &lineNumbers)
+	if err != nil {
+		h.sendError(w, "Invalid line numbers format", http.StatusBadRequest)
+		return
+	}
+	// Combine the two requests if present
+	if prevTranslationRequest == nil {
+		// Create translation request to show this has been done
+		_, err = models.CreateTranslationRequest(ctx, userID, storyID, lineNumbers)
+		if err != nil {
+			h.log.Error("Failed to create translation request", "error", err)
+			h.sendError(w, "Failed to create translation request", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		// Update the previous req in the db
+		prevLineNumbers := prevTranslationRequest.RequestedLines
+
+		// Combine and deduplicate line numbers using a map
+		lineSet := make(map[int]bool)
+		for _, line := range prevLineNumbers {
+			lineSet[int(line)] = true
+		}
+		for _, line := range lineNumbers {
+			lineSet[line] = true
+		}
+
+		// Convert to sorted slice
+		combinedLines := make([]int32, 0, len(lineSet))
+		for line := range lineSet {
+			combinedLines = append(combinedLines, int32(line))
+		}
+		slices.Sort(combinedLines)
+
+		// Save in DB
+		err := models.UpdateTranslationRequest(ctx, userID, storyID, combinedLines)
+		if err != nil {
+			h.log.Error("Failed to update translation request", "error", err)
+			h.sendError(w, "Failed to update translation request", http.StatusInternalServerError)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 // processLinesForTranslation prepares lines for translation page
-func (h *Handler) processLinesForTranslation(ctx context.Context, story models.Story, id int, linesToTranslate []int) ([]types.LineTranslation, []int, error) {
-	lines := make([]types.LineTranslation, 0, len(linesToTranslate))
-	returnedLines := make([]int, 0, len(linesToTranslate))
+func (h *Handler) processLinesForTranslation(ctx context.Context, story models.Story, id int) (lines []types.LineTranslation, err error) {
+	lines = make([]types.LineTranslation, 0, len(story.Content.Lines))
 
 	translations, err := models.GetTranslationsByLanguage(ctx, id, "en")
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Create a map of line number to translation for efficient lookup
@@ -134,12 +159,11 @@ func (h *Handler) processLinesForTranslation(ctx context.Context, story models.S
 		translationMap[trans.LineNumber] = trans.TranslationText
 	}
 
-	for _, lineIndex := range linesToTranslate {
+	for lineIndex, lineContent := range story.Content.Lines {
 		if lineIndex < len(story.Content.Lines) {
-			dbLine := story.Content.Lines[lineIndex]
 			lineTranslation := types.LineTranslation{
 				LineText: types.LineText{
-					Text: dbLine.Text,
+					Text: lineContent.Text,
 				},
 				LineNumber: lineIndex + 1, // Convert to 1-indexed
 			}
@@ -152,9 +176,8 @@ func (h *Handler) processLinesForTranslation(ctx context.Context, story models.S
 			}
 
 			lines = append(lines, lineTranslation)
-			returnedLines = append(returnedLines, lineIndex+1) // Convert to 1-indexed
 		}
 	}
 
-	return lines, returnedLines, nil
+	return lines, nil
 }

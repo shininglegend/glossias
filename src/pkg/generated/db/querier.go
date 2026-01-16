@@ -189,6 +189,7 @@ type Querier interface {
 	UpdateStoryRevision(ctx context.Context, storyID int32) error
 	UpdateTimeEntry(ctx context.Context, arg UpdateTimeEntryParams) (UserTimeTracking, error)
 	UpdateTimeEntryIfBigger(ctx context.Context, arg UpdateTimeEntryIfBiggerParams) error
+	UpdateTranslationRequest(ctx context.Context, arg UpdateTranslationRequestParams) error
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpdateVocabularyByPosition(ctx context.Context, arg UpdateVocabularyByPositionParams) error
 	UpdateVocabularyByWord(ctx context.Context, arg UpdateVocabularyByWordParams) error

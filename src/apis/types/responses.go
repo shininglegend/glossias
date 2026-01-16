@@ -96,7 +96,12 @@ type GrammarPageData struct {
 type TranslationPageData struct {
 	PageData
 	Lines         []LineTranslation `json:"lines"`
-	ReturnedLines []int             `json:"returned_lines"`
+	HasTranslated bool `json:"has_translation"`
+}
+
+// SaveTranslationRequest saves the translation to the database
+type SaveTranslationRequest struct {
+	LineIndexes []int `json:"line_numbers"`
 }
 
 // CheckVocabRequest represents the request body for vocab checking

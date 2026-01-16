@@ -1,11 +1,13 @@
 import React from "react";
 
 interface CompletionMessageProps {
+  currentStepName: string;
   nextStepName: string;
   onContinue: () => void;
 }
 
 export const CompletionMessage: React.FC<CompletionMessageProps> = ({
+  currentStepName,
   nextStepName,
   onContinue,
 }) => {
@@ -13,7 +15,7 @@ export const CompletionMessage: React.FC<CompletionMessageProps> = ({
     <div className="text-center mt-10 p-8 bg-green-50 rounded-xl border-2 border-green-500">
       <div className="mb-5">
         <h3 className="text-green-700 m-0 text-2xl">
-          Great job! You've completed all vocabulary exercises.
+          Great job! You've completed all {currentStepName} exercises.
         </h3>
       </div>
       <div className="mt-5">

@@ -8,6 +8,7 @@ interface UseAudioPlayerProps {
   onCurrentLineChange: (index: number) => void;
   onPlayingStateChange: (isPlaying: boolean) => void;
   completedLines: Set<number>;
+  pauseAfterEveryLine?: boolean;
 }
 
 // Helper function to check if a line contains vocabulary placeholders
@@ -22,6 +23,7 @@ export const useAudioPlayer = ({
   onCurrentLineChange,
   onPlayingStateChange,
   completedLines,
+  pauseAfterEveryLine = false,
 }: UseAudioPlayerProps) => {
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
     null,
@@ -166,7 +168,11 @@ export const useAudioPlayer = ({
         setPlayedLines((prev) => new Set([...prev, startIndex]));
         audio.removeEventListener("ended", onEnded);
 
-        if (lineHasVocab(line) && !completedLines.has(startIndex)) {
+        const shouldPause = pauseAfterEveryLine
+          ? !completedLines.has(startIndex)
+          : lineHasVocab(line) && !completedLines.has(startIndex);
+
+        if (shouldPause) {
           setIsPlaying(false);
           return;
         }
@@ -178,7 +184,11 @@ export const useAudioPlayer = ({
     } else {
       setPlayedLines((prev) => new Set([...prev, startIndex]));
 
-      if (lineHasVocab(line) && !completedLines.has(startIndex)) {
+      const shouldPause = pauseAfterEveryLine
+        ? !completedLines.has(startIndex)
+        : lineHasVocab(line) && !completedLines.has(startIndex);
+
+      if (shouldPause) {
         setIsPlaying(false);
         return;
       }
@@ -207,5 +217,7 @@ export const useAudioPlayer = ({
     playLineAudio,
     playStoryAudio,
     playNextLineFromIndex: playNextLineFromIndexContinuation,
+    pauseAudio,
+    stopAudio,
   };
 };

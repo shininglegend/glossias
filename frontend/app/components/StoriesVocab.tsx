@@ -290,6 +290,7 @@ export function StoriesVocab() {
 
         {allVocabCompleted() && (
           <CompletionMessage
+          currentStepName="vocabulary"
             nextStepName={nextStepName}
             onContinue={handleContinue}
           />

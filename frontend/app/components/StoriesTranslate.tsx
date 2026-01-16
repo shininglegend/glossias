@@ -5,7 +5,6 @@ import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import { useAuthenticatedFetch } from "../lib/authFetch";
 import type { VocabLine } from "../services/api";
 import { useAudioPlayer } from "./story-components/AudioPlayer";
-import { StoryHeader } from "./story-components/StoryHeader";
 import { StoryLine } from "./story-components/StoryLine";
 import { CompletionMessage } from "./story-components/CompletionMessage";
 

@@ -235,13 +235,13 @@ export function StoriesTranslate() {
     if (!id) return;
 
     try {
-      const response = await authenticatedFetch(
-        `/api/stories/${id}/translate?lines=[${lines.join(",")}]`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+      const url = new URL(`/api/stories/${id}/translate`, window.location.origin);
+      url.searchParams.set("lines", `[${lines.join(",")}]`);
+      
+      const response = await authenticatedFetch(url.toString(), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+      });
 
       if (!response.ok) {
         console.warn("Failed to save requested lines:", response.statusText);

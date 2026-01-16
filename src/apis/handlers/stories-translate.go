@@ -64,6 +64,11 @@ func (h *Handler) getTranslationRequest(w http.ResponseWriter, r *http.Request, 
 	}
 
 	hasTranslated, err := models.TranslationRequestExists(ctx, userID, storyID)
+	if err != nil {
+		// This could be logged and ignored
+		h.log.Error("Failed to check for translation request", "error", err)
+		err = nil
+	}
 
 	data := types.TranslationPageData{
 		PageData: types.PageData{
@@ -164,23 +169,21 @@ func (h *Handler) processLinesForTranslation(ctx context.Context, story models.S
 	}
 
 	for lineIndex, lineContent := range story.Content.Lines {
-		if lineIndex < len(story.Content.Lines) {
-			lineTranslation := types.LineTranslation{
-				LineText: types.LineText{
-					Text: lineContent.Text,
-				},
-				LineNumber: lineIndex + 1, // Convert to 1-indexed
-			}
-
-			// Look up translation by line number
-			if translationText, exists := translationMap[int32(lineIndex+1)]; exists && translationText != "" {
-				lineTranslation.Translation = &translationText
-			} else {
-				lineTranslation.Translation = &ErrMissingTranslation
-			}
-
-			lines = append(lines, lineTranslation)
+		lineTranslation := types.LineTranslation{
+			LineText: types.LineText{
+				Text: lineContent.Text,
+			},
+			LineNumber: lineIndex + 1, // Convert to 1-indexed
 		}
+
+		// Look up translation by line number
+		if translationText, exists := translationMap[int32(lineIndex+1)]; exists && translationText != "" {
+			lineTranslation.Translation = &translationText
+		} else {
+			lineTranslation.Translation = &ErrMissingTranslation
+		}
+
+		lines = append(lines, lineTranslation)
 	}
 
 	return lines, nil

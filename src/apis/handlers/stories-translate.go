@@ -97,13 +97,17 @@ func (h *Handler) saveTranslationRequest(w http.ResponseWriter, r *http.Request,
 
 	// Parse line numbers from query parameters for new request
 	lineNumbersStr := r.URL.Query().Get("lines")
-
 	lineNumbers := []int{}
 	err = json.Unmarshal([]byte(lineNumbersStr), &lineNumbers)
 	if err != nil {
 		h.sendError(w, "Invalid line numbers format", http.StatusBadRequest)
 		return
 	}
+	// For legacy reasons, line numbers are 1-indexed in db, but sent as 0-indexed
+	for i := range lineNumbers {
+		lineNumbers[i] += 1
+	}
+
 	// Combine the two requests if present
 	if prevTranslationRequest == nil {
 		// Create translation request to show this has been done

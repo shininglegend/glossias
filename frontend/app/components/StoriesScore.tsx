@@ -253,9 +253,6 @@ export function StoriesScore() {
 
         <div className="bg-green-50 border border-green-300 p-6 mb-4 rounded-lg text-center">
           <div className="flex items-center justify-center mb-4">
-            <span className="material-icons text-green-600 mr-2 text-4xl">
-              emoji_events
-            </span>
             <div>
               <h3 className="text-3xl font-bold text-green-700 mb-2">
                 Overall Score: {overallScore}%

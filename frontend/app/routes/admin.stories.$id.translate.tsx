@@ -191,6 +191,27 @@ function TranslationLineEditor({
       e.preventDefault();
       onSave(translation.lineNumber);
     }
+
+    // Handle Tab navigation between fields
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const allTextareas = document.querySelectorAll<HTMLTextAreaElement>(
+        'textarea[data-translation-field]'
+      );
+      const currentIndex = Array.from(allTextareas).indexOf(
+        textareaRef.current!
+      );
+
+      if (e.shiftKey) {
+        // Shift+Tab: Move to previous field
+        const prevIndex = currentIndex > 0 ? currentIndex - 1 : allTextareas.length - 1;
+        allTextareas[prevIndex]?.focus();
+      } else {
+        // Tab: Move to next field
+        const nextIndex = currentIndex < allTextareas.length - 1 ? currentIndex + 1 : 0;
+        allTextareas[nextIndex]?.focus();
+      }
+    }
   };
 
   return (
@@ -214,6 +235,7 @@ function TranslationLineEditor({
             onChange={(e) => onUpdate(translation.lineNumber, e.target.value)}
             onInput={adjustHeight}
             onKeyDown={handleKeyDown}
+            data-translation-field
             className="w-full p-2 border border-gray-300 rounded text-sm resize-none overflow-hidden focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="Enter English translation..."
             rows={1}

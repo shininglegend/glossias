@@ -19,6 +19,8 @@ interface StoryLineProps {
   lockedAnswers: Set<string>;
   onAnswerChange: (vocabKey: string, value: string) => void;
   onPlayLineAudio: (lineIndex: number) => void;
+  translation?: string;
+  showTranslation?: boolean;
 }
 
 // Helper function to check if a line contains vocabulary placeholders
@@ -43,6 +45,8 @@ export const StoryLine: React.FC<StoryLineProps> = ({
   lockedAnswers,
   onAnswerChange,
   onPlayLineAudio,
+  translation,
+  showTranslation,
 }) => {
   const hasVocab = lineHasVocab(line);
   const hasAudio = prefetchedAudio[(lineIndex + 1).toString()];
@@ -82,6 +86,14 @@ export const StoryLine: React.FC<StoryLineProps> = ({
         >
           <span className="material-icons text-lg">play_arrow</span>
         </button>
+      )}
+      {showTranslation && translation && (
+        <div
+          className="mt-2 mb-4 bg-blue-50 border-l-4 border-blue-400 p-3 rounded-r-lg text-left block"
+          dir="ltr"
+        >
+          <p className="text-lg text-blue-900">{translation}</p>
+        </div>
       )}
     </div>
   );

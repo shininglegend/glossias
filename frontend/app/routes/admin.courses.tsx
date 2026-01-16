@@ -366,7 +366,7 @@ export default function AdminCourses() {
                       className="flex items-center justify-between p-3 bg-slate-50 rounded"
                     >
                       <div>
-                        <div className="font-medium">{admin.name}</div>
+                        <div className="font-medium">{admin.name || admin.email || admin.user_id}</div>
                         <div className="text-sm text-slate-500">
                           {admin.email}
                         </div>

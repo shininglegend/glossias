@@ -38,15 +38,7 @@ CREATE TABLE IF NOT EXISTS course_users (
     PRIMARY KEY (course_id, user_id)
 );
 
--- Grammar points table - each point belongs to a specific story
-CREATE TABLE IF NOT EXISTS grammar_points (
-    grammar_point_id SERIAL PRIMARY KEY,
-    story_id INTEGER NOT NULL REFERENCES stories (story_id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
+-- Stories table - must be defined before grammar_points
 CREATE TABLE IF NOT EXISTS stories (
     story_id SERIAL PRIMARY KEY,
     week_number INTEGER NOT NULL,
@@ -58,7 +50,14 @@ CREATE TABLE IF NOT EXISTS stories (
     course_id INTEGER REFERENCES courses (course_id) ON DELETE SET NULL
 );
 
-
+-- Grammar points table - each point belongs to a specific story
+CREATE TABLE IF NOT EXISTS grammar_points (
+    grammar_point_id SERIAL PRIMARY KEY,
+    story_id INTEGER NOT NULL REFERENCES stories (story_id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TABLE IF NOT EXISTS story_titles (
     story_id INTEGER REFERENCES stories (story_id) ON DELETE CASCADE,

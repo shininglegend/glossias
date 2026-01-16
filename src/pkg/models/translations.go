@@ -193,6 +193,14 @@ func CreateTranslationRequest(ctx context.Context, userID string, storyID int, r
 	}, nil
 }
 
+func UpdateTranslationRequest(ctx context.Context, userID string, storyID int, combinedLines []int32) error {
+	return queries.UpdateTranslationRequest(ctx, db.UpdateTranslationRequestParams{
+		UserID:         userID,
+		StoryID:        int32(storyID),
+		RequestedLines: combinedLines,
+	})
+}
+
 // TranslationRequestExists checks if a translation request exists for a user and story
 func TranslationRequestExists(ctx context.Context, userID string, storyID int) (bool, error) {
 	if queries == nil {

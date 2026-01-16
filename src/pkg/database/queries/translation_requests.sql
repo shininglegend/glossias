@@ -41,3 +41,8 @@ ORDER BY created_at DESC;
 SELECT
     EXISTS(SELECT 1 FROM translation_requests tr WHERE tr.user_id = $1 AND tr.story_id = $2) as completed,
     COALESCE((SELECT tr2.requested_lines FROM translation_requests tr2 WHERE tr2.user_id = $1 AND tr2.story_id = $2), ARRAY[]::INTEGER[]) as requested_lines;
+
+-- name: UpdateTranslationRequest :exec
+UPDATE translation_requests 
+SET requested_lines = $3
+WHERE user_id = $1 AND story_id = $2;

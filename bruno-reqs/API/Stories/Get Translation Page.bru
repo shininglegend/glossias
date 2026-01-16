@@ -1,0 +1,16 @@
+meta {
+  name: Get Translation Page
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{baseURL}}/api/stories/3/translate
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

@@ -4,16 +4,17 @@ meta {
   seq: 9
 }
 
-post {
-  url: {{baseURL}}/api/stories/5/translate?lines=[1,2,5,4,7]
+put {
+  url: {{baseURL}}/api/stories/3/translate?lines=[]
   body: none
   auth: inherit
 }
 
 params:query {
-  lines: [1,2,5,4,7]
+  lines: []
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

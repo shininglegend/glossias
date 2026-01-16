@@ -190,6 +190,7 @@ export function StoriesTranslate() {
     showComprehensionPrompt,
     allLinesCompleted,
     isAutoWaiting,
+    audioPlayer,
   ]);
 
   const handleComprehendYes = () => {

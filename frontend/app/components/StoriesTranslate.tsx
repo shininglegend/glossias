@@ -115,7 +115,7 @@ export function StoriesTranslate() {
     };
 
     fetchData();
-  }, [id]);
+  }, [id, authenticatedFetch]);
 
   useEffect(() => {
     const fetchNextStep = async () => {

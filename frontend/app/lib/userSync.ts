@@ -13,6 +13,14 @@ export interface UserInfo {
     course_name: string;
     assigned_at: string;
   }[];
+  enrolled_courses: {
+    course_id: number;
+    course_number: string;
+    name: string;
+    description?: string;
+    enrolled_at: string;
+    status: string;
+  }[];
 }
 
 export function useUserSync() {

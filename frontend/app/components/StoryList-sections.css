@@ -1,0 +1,44 @@
+/* Story section styles */
+.story-section {
+  margin-bottom: 2rem;
+}
+
+.section-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #1a1a1a;
+}
+
+.section-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: #4a4a4a;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.section-toggle:hover {
+  background: #ebebeb;
+  border-color: #d0d0d0;
+}
+
+.section-toggle span:first-child {
+  flex: 1;
+  text-align: left;
+}
+
+.toggle-icon {
+  font-size: 0.875rem;
+  margin-left: 0.5rem;
+  transition: transform 0.2s ease;
+}

@@ -1,18 +1,53 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { useApiService } from "../services/api";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
+import { useUserContext } from "../contexts/UserContext";
 import type { Story } from "../services/api";
 import "./StoryList.css";
+import "./StoryList-sections.css";
 
 export function StoryList() {
   const api = useApiService();
   const navigate = useNavigate();
   const { getNavigationGuidance } = useNavigationGuidance();
+  const { userInfo } = useUserContext();
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadingStory, setLoadingStory] = useState<number | null>(null);
+  const [showPast, setShowPast] = useState(false);
+  const [showFuture, setShowFuture] = useState(false);
+
+  // Group stories by course status
+  const groupedStories = useMemo(() => {
+    if (!userInfo?.enrolled_courses) {
+      return { active: stories, past: [], future: [] };
+    }
+
+    const courseStatusMap = new Map(
+      userInfo.enrolled_courses.map(c => [c.course_id, c.status])
+    );
+
+    const active: Story[] = [];
+    const past: Story[] = [];
+    const future: Story[] = [];
+    console.log("Course Status Map:", courseStatusMap);
+    console.log("Stories:", stories);
+
+    stories.forEach(story => {
+      const status = story.course_id ? courseStatusMap.get(story.course_id) : 'past';
+      if (status === 'past') {
+        past.push(story);
+      } else if (status === 'future') {
+        future.push(story);
+      } else {
+        active.push(story);
+      }
+    });
+
+    return { active, past, future };
+  }, [stories, userInfo]);
 
   useEffect(() => {
     const fetchStories = async () => {
@@ -77,8 +112,8 @@ export function StoryList() {
         <hr />
       </header>
       <main className="container">
-        <div className="stories-list">
-          {stories.length === 0 ? (
+        {stories.length === 0 ? (
+          <div className="stories-list">
             <div className="story-item">
               <h2>Welcome!</h2>
               <p>
@@ -86,32 +121,122 @@ export function StoryList() {
                 access some stories.
               </p>
             </div>
-          ) : (
-            stories.map((story) => (
-              <div key={story.id} className="story-item">
-                <h2>{story.title}</h2>
-                <p>
-                  Week {story.week_number}
-                  {story.day_letter}
-                </p>
-                <button
-                  onClick={() => handleStoryClick(story.id)}
-                  className="start-reading-button"
-                  disabled={loadingStory === story.id}
-                >
-                  {loadingStory === story.id ? (
-                    <div className="flex items-center gap-2">
-                      <div className="animate-spin w-4 h-4 border border-white border-t-transparent rounded-full"></div>
-                      Loading...
+          </div>
+        ) : (
+          <>
+            {/* Active Stories */}
+            {groupedStories.active.length > 0 && (
+              <section className="story-section">
+                <h2 className="section-title">Current Stories</h2>
+                <div className="stories-list">
+                  {groupedStories.active.map((story) => (
+                    <div key={story.id} className="story-item">
+                      <h2>{story.title}</h2>
+                      <p>
+                        Week {story.week_number}
+                        {story.day_letter}
+                      </p>
+                      <button
+                        onClick={() => handleStoryClick(story.id)}
+                        className="start-reading-button"
+                        disabled={loadingStory === story.id}
+                      >
+                        {loadingStory === story.id ? (
+                          <div className="flex items-center gap-2">
+                            <div className="animate-spin w-4 h-4 border border-white border-t-transparent rounded-full"></div>
+                            Loading...
+                          </div>
+                        ) : (
+                          "Start Reading"
+                        )}
+                      </button>
                     </div>
-                  ) : (
-                    "Start Reading"
-                  )}
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Future Stories */}
+            {groupedStories.future.length > 0 && (
+              <section className="story-section">
+                <button
+                  onClick={() => setShowFuture(!showFuture)}
+                  className="section-toggle"
+                >
+                  <span>Upcoming Stories ({groupedStories.future.length})</span>
+                  <span className="toggle-icon">{showFuture ? '▼' : '▶'}</span>
                 </button>
-              </div>
-            ))
-          )}
-        </div>
+                {showFuture && (
+                  <div className="stories-list">
+                    {groupedStories.future.map((story) => (
+                      <div key={story.id} className="story-item">
+                        <h2>{story.title}</h2>
+                        <p>
+                          Week {story.week_number}
+                          {story.day_letter}
+                        </p>
+                        <button
+                          onClick={() => handleStoryClick(story.id)}
+                          className="start-reading-button"
+                          disabled={loadingStory === story.id}
+                        >
+                          {loadingStory === story.id ? (
+                            <div className="flex items-center gap-2">
+                              <div className="animate-spin w-4 h-4 border border-white border-t-transparent rounded-full"></div>
+                              Loading...
+                            </div>
+                          ) : (
+                            "Start Reading"
+                          )}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Past Stories */}
+            {groupedStories.past.length > 0 && (
+              <section className="story-section">
+                <button
+                  onClick={() => setShowPast(!showPast)}
+                  className="section-toggle"
+                >
+                  <span>Archived Stories ({groupedStories.past.length})</span>
+                  <span className="toggle-icon">{showPast ? '▼' : '▶'}</span>
+                </button>
+                {showPast && (
+                  <div className="stories-list">
+                    {groupedStories.past.map((story) => (
+                      <div key={story.id} className="story-item">
+                        <h2>{story.title}</h2>
+                        <p>
+                          Week {story.week_number}
+                          {story.day_letter}
+                        </p>
+                        <button
+                          onClick={() => handleStoryClick(story.id)}
+                          className="start-reading-button"
+                          disabled={loadingStory === story.id}
+                        >
+                          {loadingStory === story.id ? (
+                            <div className="flex items-center gap-2">
+                              <div className="animate-spin w-4 h-4 border border-white border-t-transparent rounded-full"></div>
+                              Loading...
+                            </div>
+                          ) : (
+                            "Start Reading"
+                          )}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+          </>
+        )}
       </main>
     </>
   );

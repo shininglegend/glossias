@@ -26,6 +26,7 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	courseUsers := r.PathPrefix("/course-users").Subrouter()
 	courseUsers.HandleFunc("/{courseId:[0-9]+}", h.GetUsersForCourse).Methods("GET")
 	courseUsers.HandleFunc("/{courseId:[0-9]+}", h.AddUserToCourse).Methods("POST")
+	courseUsers.HandleFunc("/{courseId:[0-9]+}/status", h.SetUserStatusInCourse).Methods("PUT")
 	courseUsers.HandleFunc("/{courseId:[0-9]+}/users/{userId}", h.RemoveUserFromCourse).Methods("DELETE")
 }
 
@@ -35,10 +36,15 @@ type UserResponse struct {
 	Name       string `json:"name"`
 	Role       string `json:"role"`
 	EnrolledAt string `json:"enrolled_at"`
+	Status     string `json:"status,omitempty"`
 }
 
 type AddUserRequest struct {
 	Email string `json:"email"`
+}
+
+type ChangeUserStatusRequest struct {
+	UserIDs []string `json:"user_ids"`
 }
 
 type ErrorResponse struct {
@@ -92,6 +98,7 @@ func (h *Handler) GetUsersForCourse(w http.ResponseWriter, r *http.Request) {
 			Name:       user.Name,
 			Role:       role,
 			EnrolledAt: user.EnrolledAt.Format("2006-01-02T15:04:05Z07:00"),
+			Status:    user.Status,
 		}
 	}
 
@@ -157,6 +164,79 @@ func (h *Handler) AddUserToCourse(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "User added to course successfully",
+	})
+}
+
+func (h *Handler) SetUserStatusInCourse(w http.ResponseWriter, r *http.Request) {
+	userID := auth.GetUserID(r)
+	if userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	vars := mux.Vars(r)
+	courseIDStr := vars["courseId"]
+	courseID, err := strconv.Atoi(courseIDStr)
+	if err != nil {
+		http.Error(w, "Invalid course ID", http.StatusBadRequest)
+		return
+	}
+
+	// Get status from query parameter
+	status := r.URL.Query().Get("status")
+	if status == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(ErrorResponse{Error: "Status query parameter is required"})
+		return
+	}
+
+	// Validate status value
+	if status != "active" && status != "past" && status != "future" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(ErrorResponse{Error: "Status must be 'active', 'past', or 'future'"})
+		return
+	}
+
+	ctx := r.Context()
+
+	// Check if user is admin of this course or super admin
+	if !models.IsUserCourseOrSuperAdmin(ctx, userID, int32(courseID)) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	// Parse request body
+	var req ChangeUserStatusRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(ErrorResponse{Error: "Invalid request body"})
+		return
+	}
+
+	if len(req.UserIDs) == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(ErrorResponse{Error: "At least one user ID is required"})
+		return
+	}
+
+	// Bulk update user status in course
+	err = models.BulkUpdateUserStatusInCourse(ctx, courseID, req.UserIDs, status)
+	if err != nil {
+		h.log.Error("failed to update user status in course", "error", err, "course_id", courseID)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(ErrorResponse{Error: "Failed to update user status in course"})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "Status updated successfully for all users",
 	})
 }
 

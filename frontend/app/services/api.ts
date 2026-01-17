@@ -15,6 +15,7 @@ export interface Story {
   title: string;
   week_number: number;
   day_letter: string;
+  course_id?: number;
 }
 
 export interface Description {

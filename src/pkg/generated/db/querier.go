@@ -20,6 +20,7 @@ type Querier interface {
 	BulkCreateLineTranslations(ctx context.Context, arg []BulkCreateLineTranslationsParams) (int64, error)
 	BulkCreateStoryLines(ctx context.Context, arg []BulkCreateStoryLinesParams) (int64, error)
 	BulkCreateVocabularyItems(ctx context.Context, arg []BulkCreateVocabularyItemsParams) (int64, error)
+	BulkUpdateCourseUserStatus(ctx context.Context, arg BulkUpdateCourseUserStatusParams) error
 	CanUserAccessCourse(ctx context.Context, arg CanUserAccessCourseParams) (bool, error)
 	// Vocabulary-related queries
 	CheckAllVocabCompleteForLineForUser(ctx context.Context, arg CheckAllVocabCompleteForLineForUserParams) (bool, error)
@@ -108,6 +109,7 @@ type Querier interface {
 	GetCourseIdForStory(ctx context.Context, storyID int32) (pgtype.Int4, error)
 	GetCourseStoriesWithTitles(ctx context.Context, arg GetCourseStoriesWithTitlesParams) ([]GetCourseStoriesWithTitlesRow, error)
 	GetCoursesForUser(ctx context.Context, userID string) ([]GetCoursesForUserRow, error)
+	GetCoursesForUserByStatus(ctx context.Context, arg GetCoursesForUserByStatusParams) ([]GetCoursesForUserByStatusRow, error)
 	GetFootnoteReferences(ctx context.Context, footnoteID int32) ([]string, error)
 	GetFootnotes(ctx context.Context, arg GetFootnotesParams) ([]Footnote, error)
 	GetGrammarItems(ctx context.Context, arg GetGrammarItemsParams) ([]GrammarItem, error)
@@ -182,6 +184,7 @@ type Querier interface {
 	UpdateAnonymousTimeEntry(ctx context.Context, arg UpdateAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
 	UpdateAudioFile(ctx context.Context, arg UpdateAudioFileParams) (LineAudioFile, error)
 	UpdateCourse(ctx context.Context, arg UpdateCourseParams) (Course, error)
+	UpdateCourseUserStatus(ctx context.Context, arg UpdateCourseUserStatusParams) error
 	UpdateFootnote(ctx context.Context, arg UpdateFootnoteParams) error
 	UpdateGrammarByPosition(ctx context.Context, arg UpdateGrammarByPositionParams) error
 	UpdateGrammarPoint(ctx context.Context, arg UpdateGrammarPointParams) (GrammarPoint, error)

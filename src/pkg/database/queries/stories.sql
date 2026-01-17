@@ -38,6 +38,7 @@ LEFT JOIN course_users cu ON s.course_id = cu.course_id AND cu.user_id = $2
 LEFT JOIN course_admins ca ON s.course_id = ca.course_id AND ca.user_id = $2
 WHERE (st.language_code = $1 OR $1 = '')
   AND (s.course_id IS NULL OR cu.user_id IS NOT NULL OR ca.user_id IS NOT NULL)
+  AND (cu.status = 'active' OR cu.status IS NULL OR ca.user_id IS NOT NULL)
 ORDER BY s.week_number, s.day_letter;
 
 -- name: GetAllStoriesWithTitles :many

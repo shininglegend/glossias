@@ -268,6 +268,18 @@ export default function AdminUsers() {
                   .split(/[\n,\s]+/)
                   .map(email => email.trim())
                   .filter(email => email.length > 0);
+
+                // Basic email format validation before submitting to backend
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                const invalidEmails = emails.filter(email => !emailRegex.test(email));
+                if (invalidEmails.length > 0) {
+                  alert(
+                    `The following email address(es) are invalid:\n\n${invalidEmails.join(
+                      "\n"
+                    )}\n\nPlease correct them and try again.`
+                  );
+                  return;
+                }
                 
                 if (emails.length > 0 && courseId) {
                   handleAddUser(emails, courseId);

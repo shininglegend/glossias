@@ -94,6 +94,39 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 	return i, err
 }
 
+const getUsersByEmails = `-- name: GetUsersByEmails :many
+SELECT user_id, email, name, is_super_admin, created_at, updated_at
+FROM users
+WHERE email = ANY($1::text[])
+`
+
+func (q *Queries) GetUsersByEmails(ctx context.Context, dollar_1 []string) ([]User, error) {
+	rows, err := q.db.Query(ctx, getUsersByEmails, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Email,
+			&i.Name,
+			&i.IsSuperAdmin,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSuperAdmins = `-- name: ListSuperAdmins :many
 SELECT user_id, email, name, is_super_admin, created_at, updated_at
 FROM users

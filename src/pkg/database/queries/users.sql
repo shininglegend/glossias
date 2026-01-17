@@ -15,6 +15,11 @@ SELECT user_id, email, name, is_super_admin, created_at, updated_at
 FROM users
 WHERE email = $1;
 
+-- name: GetUsersByEmails :many
+SELECT user_id, email, name, is_super_admin, created_at, updated_at
+FROM users
+WHERE email = ANY($1::text[]);
+
 -- name: UpdateUser :one
 UPDATE users
 SET email = $2, name = $3, is_super_admin = $4, updated_at = CURRENT_TIMESTAMP

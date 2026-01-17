@@ -2,6 +2,11 @@
 INSERT INTO course_users (course_id, user_id, enrolled_at)
 VALUES ($1, $2, CURRENT_TIMESTAMP);
 
+-- name: AddMultiUsersToCourse :exec
+INSERT INTO course_users (course_id, user_id, enrolled_at)
+SELECT $1, unnest($2::text[]), CURRENT_TIMESTAMP
+ON CONFLICT (course_id, user_id) DO NOTHING;
+
 -- name: RemoveUserFromCourse :exec
 DELETE FROM course_users
 WHERE course_id = $1 AND user_id = $2;

@@ -6,6 +6,7 @@ import (
 	"glossias/src/auth"
 	"glossias/src/pkg/models"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/gorilla/mux"
@@ -18,6 +19,14 @@ func (h *Handler) studentPerformanceHandler(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		h.log.Error("Invalid story ID", "id", storyIDStr, "error", err)
 		http.Error(w, "Invalid story ID", http.StatusBadRequest)
+		return
+	}
+
+	// Get status filter from query params (active, future, past, or "" for all)
+	status := r.URL.Query().Get("status")
+	if !slices.Contains([]string{"", "active", "future", "past"}, status) {
+		h.log.Error("Invalid status parameter", "status", status)
+		http.Error(w, "Invalid status parameter. Must be: active, future, past, or empty", http.StatusBadRequest)
 		return
 	}
 
@@ -44,7 +53,7 @@ func (h *Handler) studentPerformanceHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Get student performance data
-	performanceData, err := models.GetStoryStudentPerformance(r.Context(), int32(storyID))
+	performanceData, err := models.GetStoryStudentPerformance(r.Context(), int32(storyID), status)
 	if err != nil {
 		h.log.Error("Failed to fetch story student performance", "error", err, "story_id", storyID)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)

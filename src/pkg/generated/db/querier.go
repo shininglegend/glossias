@@ -137,7 +137,7 @@ type Querier interface {
 	GetStoryLine(ctx context.Context, arg GetStoryLineParams) (StoryLine, error)
 	// Story lines
 	GetStoryLines(ctx context.Context, storyID int32) ([]StoryLine, error)
-	GetStoryStudentPerformance(ctx context.Context, storyID int32) ([]GetStoryStudentPerformanceRow, error)
+	GetStoryStudentPerformance(ctx context.Context, arg GetStoryStudentPerformanceParams) ([]GetStoryStudentPerformanceRow, error)
 	GetStoryTitle(ctx context.Context, arg GetStoryTitleParams) (string, error)
 	// Story titles
 	GetStoryTitles(ctx context.Context, storyID int32) ([]StoryTitle, error)

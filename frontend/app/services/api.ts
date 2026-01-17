@@ -300,8 +300,10 @@ export function useApiService() {
 
       getStoryStudentPerformance: (
         storyId: string,
+        status?: string,
       ): Promise<APIResponse<any>> => {
-        return fetchAPI(`/admin/courses/${storyId}/student-performance`);
+        const queryParams = status ? `?status=${encodeURIComponent(status)}` : '';
+        return fetchAPI(`/admin/courses/${storyId}/student-performance${queryParams}`);
       },
     }),
     [fetchAPI],

@@ -142,7 +142,7 @@ func MassImportUsersToCourse(ctx context.Context, courseID int, userEmails []str
 		userIDs[i] = user.UserID
 	}
 
-	// Only add the new ones
+	// Attempt to enroll all users; the SQL query uses ON CONFLICT DO NOTHING to skip users already enrolled.
 	return nil, queries.AddMultiUsersToCourse(ctx, db.AddMultiUsersToCourseParams{
 		CourseID: int32(courseID),
 		Column2:  userIDs,

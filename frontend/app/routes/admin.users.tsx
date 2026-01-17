@@ -14,7 +14,7 @@ type User = {
   email: string;
   name: string;
   role: "student" | "course_admin" | "super_admin";
-  status: "active" | "inactive" | "pending";
+  status: "active" | "past" | "future";
   enrolled_at: string;
 };
 
@@ -32,6 +32,8 @@ export default function AdminUsers() {
     new Set()
   );
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
+  const [updatingStatus, setUpdatingStatus] = React.useState<string | null>(null);
+  const [showBulkStatusModal, setShowBulkStatusModal] = React.useState(false);
   const authenticatedFetch = useAuthenticatedFetch();
   const coursesApi = useCoursesApi();
 
@@ -222,12 +224,93 @@ export default function AdminUsers() {
     setSelectedUsers(new Set());
   };
 
-  const filteredUsers = users.filter((user) => {
-    if (statusFilter !== "all" && user.status !== statusFilter) {
-      return false;
+  const handleStatusChange = async (
+    userId: string,
+    newStatus: "active" | "past" | "future"
+  ) => {
+    if (!selectedCourse) return;
+
+    setUpdatingStatus(userId);
+    try {
+      const res = await authenticatedFetch(
+        `/api/admin/course-users/${selectedCourse}/status?status=${newStatus}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_ids: [userId] }),
+        }
+      );
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to update status");
+      }
+
+      // Update local state
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, status: newStatus } : u))
+      );
+    } catch (error) {
+      console.error("Failed to update status:", error);
+      const message =
+        error instanceof Error ? error.message : "Failed to update status";
+      alert(message);
+    } finally {
+      setUpdatingStatus(null);
     }
-    return true;
-  });
+  };
+
+  const handleBulkStatusChange = async (
+    newStatus: "active" | "past" | "future"
+  ) => {
+    if (selectedUsers.size === 0 || !selectedCourse) return;
+
+    setUpdatingStatus("bulk");
+    try {
+      const res = await authenticatedFetch(
+        `/api/admin/course-users/${selectedCourse}/status?status=${newStatus}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_ids: Array.from(selectedUsers) }),
+        }
+      );
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to update status");
+      }
+
+      // Update local state for all selected users
+      setUsers((prev) =>
+        prev.map((u) =>
+          selectedUsers.has(u.id) ? { ...u, status: newStatus } : u
+        )
+      );
+      setSelectedUsers(new Set());
+      setShowBulkStatusModal(false);
+    } catch (error) {
+      console.error("Failed to update status:", error);
+      const message =
+        error instanceof Error ? error.message : "Failed to update status";
+      alert(message);
+    } finally {
+      setUpdatingStatus(null);
+    }
+  };
+
+  const filteredUsers = users
+    .filter((user) => {
+      if (statusFilter !== "all" && user.status !== statusFilter) {
+        return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      // Sort order: active (0), future (1), past (2)
+      const statusOrder = { active: 0, future: 1, past: 2 };
+      return statusOrder[a.status] - statusOrder[b.status];
+    });
 
   if (loading) {
     return (
@@ -264,12 +347,12 @@ export default function AdminUsers() {
             <span>Active</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded bg-yellow-100 border border-yellow-200"></div>
-            <span>Pending</span>
+            <div className="w-4 h-4 rounded bg-blue-100 border border-blue-200"></div>
+            <span>Future</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-4 h-4 rounded bg-gray-100 border border-gray-200"></div>
-            <span>Inactive</span>
+            <span>Past</span>
           </div>
         </div>
 
@@ -302,23 +385,34 @@ export default function AdminUsers() {
             >
               <option value="all">All Statuses</option>
               <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="pending">Pending</option>
+              <option value="future">Future</option>
+              <option value="past">Past</option>
             </select>
           </div>
 
           {filteredUsers.length > 0 && (
             <div className="flex items-center gap-2 ml-auto">
               {selectedUsers.size > 0 && (
-                <Button
-                  onClick={handleRemoveSelected}
-                  variant="outline"
-                  size="sm"
-                  icon={<span className="material-icons text-sm">delete</span>}
-                  disabled={removing !== null}
-                >
-                  Remove Selected ({selectedUsers.size})
-                </Button>
+                <>
+                  <Button
+                    onClick={() => setShowBulkStatusModal(true)}
+                    variant="outline"
+                    size="sm"
+                    icon={<span className="material-icons text-sm">sync</span>}
+                    disabled={updatingStatus !== null}
+                  >
+                    Change Status ({selectedUsers.size})
+                  </Button>
+                  <Button
+                    onClick={handleRemoveSelected}
+                    variant="outline"
+                    size="sm"
+                    icon={<span className="material-icons text-sm">delete</span>}
+                    disabled={removing !== null}
+                  >
+                    Remove Selected ({selectedUsers.size})
+                  </Button>
+                </>
               )}
               <Button onClick={selectAll} variant="outline" size="sm">
                 Select All
@@ -330,20 +424,20 @@ export default function AdminUsers() {
           )}
         </div>
 
-        <div className="grid gap-4">
+        <div className="grid gap-2">
           {filteredUsers.length === 0 ? (
             <Card className="p-8 text-center">
-              <p className="text-slate-500">No users found for this course.</p>
+              <p className="text-slate-500">No users found for this course, or filters are hiding all users.</p>
             </Card>
           ) : (
             filteredUsers.map((user) => {
               const statusColors = {
-                active: "bg-green-50 border-green-200",
-                inactive: "bg-gray-50 border-gray-200",
-                pending: "bg-yellow-50 border-yellow-200",
+                active: "!bg-green-50 !border-green-200",
+                past: "!bg-gray-50 !border-gray-200",
+                future: "!bg-blue-50 !border-blue-200",
               };
               return (
-              <Card key={user.id} className={`p-4 ${statusColors[user.status]}`}>
+              <Card key={user.id} className={`p-3 ${statusColors[user.status]}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <input
@@ -364,6 +458,21 @@ export default function AdminUsers() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <select
+                      value={user.status}
+                      onChange={(e) =>
+                        handleStatusChange(
+                          user.id,
+                          e.target.value as "active" | "past" | "future"
+                        )
+                      }
+                      disabled={updatingStatus === user.id}
+                      className="rounded border border-slate-300 bg-white px-2 py-1 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="active">Active</option>
+                      <option value="future">Future</option>
+                      <option value="past">Past</option>
+                    </select>
                     <Badge
                       variant={
                         user.role === "super_admin"
@@ -478,6 +587,53 @@ export default function AdminUsers() {
                 </Button>
               </div>
             </form>
+          </Card>
+        </div>
+      )}
+
+      {showBulkStatusModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md p-6">
+            <h2 className="text-lg font-semibold mb-4">
+              Change Status for {selectedUsers.size} User{selectedUsers.size !== 1 ? 's' : ''}
+            </h2>
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600">
+                Select the new status for all selected users:
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => handleBulkStatusChange("active")}
+                  className="flex-1"
+                  disabled={updatingStatus !== null}
+                >
+                  Active
+                </Button>
+                <Button
+                  onClick={() => handleBulkStatusChange("future")}
+                  className="flex-1"
+                  disabled={updatingStatus !== null}
+                >
+                  Future
+                </Button>
+                <Button
+                  onClick={() => handleBulkStatusChange("past")}
+                  className="flex-1"
+                  disabled={updatingStatus !== null}
+                >
+                  Past
+                </Button>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowBulkStatusModal(false)}
+                className="w-full"
+                disabled={updatingStatus !== null}
+              >
+                Cancel
+              </Button>
+            </div>
           </Card>
         </div>
       )}

@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-var ErrSomeUsersNotFound = errors.New("Some users not found")
+var ErrSomeUsersNotFound = errors.New("some users not found")
 
 // CourseUser represents a user enrolled in a course
 type CourseUser struct {

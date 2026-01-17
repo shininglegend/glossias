@@ -108,7 +108,7 @@ func GetUsersForCourse(ctx context.Context, courseID int) ([]CourseUser, error) 
 	return users, nil
 }
 
-// MassImportUsers enrolls a list of users in a course
+// MassImportUsersToCourse enrolls a list of users in a course
 func MassImportUsersToCourse(ctx context.Context, courseID int, userEmails []string) ([]string, error) {
 	// First get user IDs for the emails
 	// One mass query to get all users by email

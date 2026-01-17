@@ -11,6 +11,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addMultiUsersToCourse = `-- name: AddMultiUsersToCourse :exec
+INSERT INTO course_users (course_id, user_id, enrolled_at)
+SELECT $1, unnest($2::text[]), CURRENT_TIMESTAMP
+ON CONFLICT (course_id, user_id) DO NOTHING
+`
+
+type AddMultiUsersToCourseParams struct {
+	CourseID int32    `json:"course_id"`
+	Column2  []string `json:"column_2"`
+}
+
+func (q *Queries) AddMultiUsersToCourse(ctx context.Context, arg AddMultiUsersToCourseParams) error {
+	_, err := q.db.Exec(ctx, addMultiUsersToCourse, arg.CourseID, arg.Column2)
+	return err
+}
+
 const addUserToCourse = `-- name: AddUserToCourse :exec
 INSERT INTO course_users (course_id, user_id, enrolled_at, status)
 VALUES ($1, $2, CURRENT_TIMESTAMP, COALESCE($3, 'active'))

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"glossias/src/pkg/generated/db"
@@ -11,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+var ErrSomeUsersNotFound = errors.New("some users not found")
 
 var ErrInvalidStatus = errors.New("invalid status for course")
 
@@ -183,4 +186,45 @@ func GetUsersForCourse(ctx context.Context, courseID int) ([]CourseUser, error) 
 	}
 
 	return users, nil
+}
+
+// MassImportUsersToCourse enrolls a list of users in a course
+func MassImportUsersToCourse(ctx context.Context, courseID int, userEmails []string) ([]string, error) {
+	// First get user IDs for the emails
+	// One mass query to get all users by email
+	users, err := queries.GetUsersByEmails(ctx, userEmails)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(users) != len(userEmails) {
+		// Some emails did not match any users
+		var foundEmails []string
+		for _, user := range users {
+			foundEmails = append(foundEmails, user.Email)
+		}
+		var notFoundEmails []string
+		emailSet := make(map[string]bool)
+		for _, email := range foundEmails {
+			emailSet[strings.ToLower(email)] = true
+		}
+		for _, email := range userEmails {
+			if !emailSet[strings.ToLower(email)] {
+				notFoundEmails = append(notFoundEmails, email)
+			}
+		}
+		return notFoundEmails, ErrSomeUsersNotFound
+	}
+
+	// Get the IDs
+	userIDs := make([]string, len(users))
+	for i, user := range users {
+		userIDs[i] = user.UserID
+	}
+
+	// Attempt to enroll all users; the SQL query uses ON CONFLICT DO NOTHING to skip users already enrolled.
+	return nil, queries.AddMultiUsersToCourse(ctx, db.AddMultiUsersToCourseParams{
+		CourseID: int32(courseID),
+		Column2:  userIDs,
+	})
 }

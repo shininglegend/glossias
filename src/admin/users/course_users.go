@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 )
@@ -25,7 +26,7 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	// Base: /api/admin/course-users
 	courseUsers := r.PathPrefix("/course-users").Subrouter()
 	courseUsers.HandleFunc("/{courseId:[0-9]+}", h.GetUsersForCourse).Methods("GET")
-	courseUsers.HandleFunc("/{courseId:[0-9]+}", h.AddUserToCourse).Methods("POST")
+	courseUsers.HandleFunc("/{courseId:[0-9]+}", h.AddUsersToCourse).Methods("POST")
 	courseUsers.HandleFunc("/{courseId:[0-9]+}/status", h.SetUserStatusInCourse).Methods("PUT")
 	courseUsers.HandleFunc("/{courseId:[0-9]+}/users/{userId}", h.RemoveUserFromCourse).Methods("DELETE")
 }
@@ -37,6 +38,10 @@ type UserResponse struct {
 	Role       string `json:"role"`
 	EnrolledAt string `json:"enrolled_at"`
 	Status     string `json:"status,omitempty"`
+}
+
+type AddUsersRequest struct {
+	Emails []string `json:"emails"`
 }
 
 type AddUserRequest struct {
@@ -108,7 +113,7 @@ func (h *Handler) GetUsersForCourse(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) AddUserToCourse(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) AddUsersToCourse(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID(r)
 	if userID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -131,40 +136,35 @@ func (h *Handler) AddUserToCourse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req AddUserRequest
+	var req AddUsersRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	if req.Email == "" {
-		http.Error(w, "Email is required", http.StatusBadRequest)
+	if len(req.Emails) == 0 {
+		http.Error(w, "Emails are required", http.StatusBadRequest)
 		return
 	}
 
-	// Add user to course by email
-	err = models.AddUserToCourseByEmail(ctx, req.Email, courseID)
+	// Add users to course by emails
+	notFound, err := models.MassImportUsersToCourse(ctx, courseID, req.Emails)
 	if err != nil {
-		h.log.Error("failed to add user to course", "error", err, "email", req.Email, "course_id", courseID)
-
-		// Check if it's a user not found error
-		if err == models.ErrNotFound {
+		// Check if it's a some users not found error
+		if err == models.ErrSomeUsersNotFound {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(ErrorResponse{Error: "User with this email not found"})
+			json.NewEncoder(w).Encode(ErrorResponse{Error: "The following emails were not found: " + strings.Join(notFound, ", ")})
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(ErrorResponse{Error: "Failed to add user to course"})
+		h.log.Error("failed to mass add users to course", "error", err, "course_id", courseID)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(ErrorResponse{Error: "Failed to add users to course"})
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "User added to course successfully",
-	})
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) SetUserStatusInCourse(w http.ResponseWriter, r *http.Request) {

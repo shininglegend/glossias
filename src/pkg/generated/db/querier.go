@@ -14,6 +14,7 @@ type Querier interface {
 	AccumulateTimeEntry(ctx context.Context, arg AccumulateTimeEntryParams) error
 	// Course admin management queries
 	AddCourseAdmin(ctx context.Context, arg AddCourseAdminParams) (CourseAdmin, error)
+	AddMultiUsersToCourse(ctx context.Context, arg AddMultiUsersToCourseParams) error
 	AddUserToCourse(ctx context.Context, arg AddUserToCourseParams) error
 	BulkCreateAudioFiles(ctx context.Context, arg []BulkCreateAudioFilesParams) (int64, error)
 	BulkCreateGrammarItems(ctx context.Context, arg []BulkCreateGrammarItemsParams) (int64, error)
@@ -161,6 +162,7 @@ type Querier interface {
 	GetUserTranslationRequests(ctx context.Context, userID string) ([]TranslationRequest, error)
 	GetUserTranslationStatusForStory(ctx context.Context, arg GetUserTranslationStatusForStoryParams) (GetUserTranslationStatusForStoryRow, error)
 	GetUserVocabScores(ctx context.Context, arg GetUserVocabScoresParams) ([]GetUserVocabScoresRow, error)
+	GetUsersByEmails(ctx context.Context, dollar_1 []string) ([]User, error)
 	GetUsersForCourse(ctx context.Context, courseID int32) ([]GetUsersForCourseRow, error)
 	GetVocabularyItems(ctx context.Context, arg GetVocabularyItemsParams) ([]VocabularyItem, error)
 	IsUserAdminOfAnyCourse(ctx context.Context, userID string) (bool, error)

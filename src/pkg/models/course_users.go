@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -53,22 +54,19 @@ func AddUserToCourseByEmailWithStatus(ctx context.Context, email string, courseI
 		return err
 	}
 
-	if status != "" && status != "active" && status != "past" && status != "future" {
+	if slices.Contains([]string{"active", "past", "future"}, status) {
 		return ErrInvalidStatus
 	}
 
 	// Add the user to the course with status
-	var statusParam string
-	if status != "" {
-		statusParam = status
-	} else {
-		statusParam = "active"
+	if status == "" {
+		status = "active"
 	}
 
 	return queries.AddUserToCourse(ctx, db.AddUserToCourseParams{
 		CourseID: int32(courseID),
 		UserID:   user.UserID,
-		Column3:  statusParam,
+		Column3:  status,
 	})
 }
 
@@ -177,12 +175,12 @@ func GetUsersForCourse(ctx context.Context, courseID int) ([]CourseUser, error) 
 			Email:      result.Email,
 			Name:       result.Name,
 			EnrolledAt: result.EnrolledAt.Time,
-			Status: "active",
+			Status:     "active",
 		}
 		// Override status if present
-		if result.Status.Valid == true {
+		if result.Status.Valid {
 			users[i].Status = result.Status.String
-		} 
+		}
 	}
 
 	return users, nil

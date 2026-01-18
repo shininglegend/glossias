@@ -216,14 +216,6 @@ export default function AdminUsers() {
     });
   };
 
-  const selectAll = () => {
-    setSelectedUsers(new Set(filteredUsers.map((u) => u.id)));
-  };
-
-  const selectNone = () => {
-    setSelectedUsers(new Set());
-  };
-
   const handleStatusChange = async (
     userId: string,
     newStatus: "active" | "past" | "future"
@@ -311,6 +303,14 @@ export default function AdminUsers() {
       const statusOrder = { active: 0, future: 1, past: 2 };
       return statusOrder[a.status] - statusOrder[b.status];
     });
+
+  const selectAll = () => {
+    setSelectedUsers(new Set(filteredUsers.map((u) => u.id)));
+  };
+
+  const selectNone = () => {
+    setSelectedUsers(new Set());
+  };
 
   if (loading) {
     return (

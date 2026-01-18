@@ -101,6 +101,7 @@ export function CourseStudentPerformance() {
   const [loadingPerformance, setLoadingPerformance] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<string>("active");
 
   useEffect(() => {
     const fetchStories = async () => {
@@ -141,6 +142,7 @@ export function CourseStudentPerformance() {
       try {
         const response = await api.getStoryStudentPerformance(
           selectedStoryId.toString(),
+          statusFilter,
         );
         if (response.success && response.data) {
           setPerformanceData(response.data);
@@ -189,7 +191,7 @@ export function CourseStudentPerformance() {
     };
 
     fetchPerformance();
-  }, [selectedStoryId, api]);
+  }, [selectedStoryId, statusFilter, api]);
 
   // Sort performance data by:
   // 1. Most combined correct (vocab + grammar)
@@ -264,20 +266,41 @@ export function CourseStudentPerformance() {
               ))}
             </select>
             {selectedStoryId && (
-              <button
-                onClick={() => {
-                  const story = stories.find((s) => s.metadata.storyId === selectedStoryId);
-                  const title = story?.metadata.title;
-                  const titleStr = typeof title === 'string' 
-                    ? title 
-                    : (title as { [key: string]: string })?.en || "story";
-                  downloadCSV(sortedPerformanceData, titleStr);
-                }}
-                disabled={performanceData.length === 0}
-                className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                Download CSV
-              </button>
+              <div className="mt-4 flex gap-4 items-center">
+                <div>
+                  <label htmlFor="status-filter" className="block font-semibold mb-2">
+                    Filter by Status:
+                  </label>
+                  <select
+                    id="status-filter"
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="border border-gray-300 rounded px-3 py-2"
+                  >
+                    <option value="active">Current Students</option>
+                    <option value="">All Students</option>
+                    <option value="future">Future Students</option>
+                    <option value="past">Past Students</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-2">&nbsp;</label>
+                  <button
+                    onClick={() => {
+                      const story = stories.find((s) => s.metadata.storyId === selectedStoryId);
+                      const title = story?.metadata.title;
+                      const titleStr = typeof title === 'string' 
+                        ? title 
+                        : (title as { [key: string]: string })?.en || "story";
+                      downloadCSV(sortedPerformanceData, titleStr);
+                    }}
+                    disabled={performanceData.length === 0}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    Download CSV
+                  </button>
+                </div>
+              </div>
             )}
           </div>
 

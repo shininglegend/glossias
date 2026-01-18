@@ -15,6 +15,7 @@ export interface Story {
   title: string;
   week_number: number;
   day_letter: string;
+  course_id?: number;
 }
 
 export interface Description {
@@ -299,8 +300,10 @@ export function useApiService() {
 
       getStoryStudentPerformance: (
         storyId: string,
+        status?: string,
       ): Promise<APIResponse<any>> => {
-        return fetchAPI(`/admin/courses/${storyId}/student-performance`);
+        const queryParams = status ? `?status=${encodeURIComponent(status)}` : '';
+        return fetchAPI(`/admin/courses/${storyId}/student-performance${queryParams}`);
       },
     }),
     [fetchAPI],

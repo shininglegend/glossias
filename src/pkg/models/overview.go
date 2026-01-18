@@ -90,11 +90,16 @@ IsUserCourseAdmin(userID string, courseID int32) bool // Uses IsUserCourseAdmin
 GetUserCourseAdminRights(userID string) ([]CourseAdminRight, error) // Uses GetUserCourseAdminRights
 
 Course User Operations (SQLC-based):
-AddUserToCourseByEmail(email string, courseID int) error // Uses GetUserByEmail, AddUserToCourse
+AddUserToCourseByEmail(email string, courseID int) error // Uses GetUserByEmail, AddUserToCourse (defaults to 'active' status)
+AddUserToCourseByEmailWithStatus(email string, courseID int, status string) error // Adds user with specific status ('active', 'past', 'future')
 RemoveUserFromCourse(courseID int, userID string) error // Uses RemoveUserFromCourse
+UpdateCourseUserStatus(courseID int, userID string, status string) error // Updates course status for a user
+BulkUpdateUserStatusInCourse(courseID int, userIDs []string, status string) error // Updates multiple users' status in a course
 DeleteAllUsersFromCourse(courseID int) error // Uses DeleteAllUsersFromCourse
-GetCoursesForUser(userID string) ([]UserCourse, error) // Uses GetCoursesForUser
+GetCoursesForUser(userID string) ([]UserCourse, error) // Uses GetCoursesForUser (includes status field)
+GetCoursesForUserByStatus(userID string, status string) ([]UserCourse, error) // Gets courses filtered by status
 GetUsersForCourse(courseID int) ([]CourseUser, error) // Uses GetUsersForCourse
+GetStoryStudentPerformance(ctx context.Context, storyID int32, status string) ([]CourseStudentPerformance, error) // Gets performance data for students filtered by course status
 
 Time Tracking Types:
 - TimeTrackingSession: {SessionID, UserID, Route, StoryID}

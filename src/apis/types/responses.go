@@ -17,6 +17,7 @@ type Story struct {
 	Title      string `json:"title"`
 	WeekNumber int    `json:"week_number"`
 	DayLetter  string `json:"day_letter"`
+	CourseID   *int   `json:"course_id,omitempty"`
 }
 
 // StoriesResponse contains array of stories
@@ -192,6 +193,7 @@ func ConvertStoryToAPI(dbStory models.Story) Story {
 		Title:      dbStory.Metadata.Title["en"], // Using English title if possible
 		WeekNumber: dbStory.Metadata.WeekNumber,
 		DayLetter:  dbStory.Metadata.DayLetter,
+		CourseID:   dbStory.Metadata.CourseID,
 	}
 }
 

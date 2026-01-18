@@ -18,9 +18,10 @@ export default function NavBar() {
   );
 
   return (
-    <header className="sticky top-0 z-50 bg-slate-900 text-white border-b border-white/10">
+    <header className="sticky top-0 z-50 bg-primary-800 text-white border-b border-white/10">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
         <NavLink to="/" className="font-bold tracking-tight text-3xl">
+        <img src="/logo.png" alt="Glossias Logo" className="inline-block h-10 w-10 mr-2" />
           Glossias
         </NavLink>
 
@@ -47,7 +48,7 @@ export default function NavBar() {
                   </span>
                 ) : userInfo.course_admin_rights &&
                   userInfo.course_admin_rights.length > 0 ? (
-                  <span className="bg-blue-500/20 text-blue-300 px-2 py-1 rounded">
+                  <span className="bg-primary-500/20 text-primary-300 px-2 py-1 rounded">
                     Course Admin
                   </span>
                 ) : (
@@ -63,7 +64,7 @@ export default function NavBar() {
         <div
           role="navigation"
           aria-label="Admin"
-          className="bg-gray-900 border-t border-white/10"
+          className="border-t border-white/15"
         >
           <div className="max-w-6xl mx-auto px-4 py-2 items-center gap-2">
             <NavItem to="/admin" end>
@@ -103,7 +104,7 @@ function NavItem({
       className={({ isActive }) =>
         [
           "px-2 py-1 rounded-md text-slate-300 hover:text-white hover:bg-white/10",
-          isActive ? "bg-blue-500/20 text-white" : "",
+          isActive ? "bg-primary-500/20 text-white" : "",
         ]
           .filter(Boolean)
           .join(" ")

@@ -36,7 +36,7 @@ export function StoryList() {
     console.log("Stories:", stories);
 
     stories.forEach(story => {
-      const status = story.course_id ? courseStatusMap.get(story.course_id) : 'past';
+      const status = story.course_id ? courseStatusMap.get(story.course_id) : 'active';
       if (status === 'past') {
         past.push(story);
       } else if (status === 'future') {

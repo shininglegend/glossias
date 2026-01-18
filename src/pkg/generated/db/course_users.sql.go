@@ -28,17 +28,35 @@ func (q *Queries) AddMultiUsersToCourse(ctx context.Context, arg AddMultiUsersTo
 }
 
 const addUserToCourse = `-- name: AddUserToCourse :exec
-INSERT INTO course_users (course_id, user_id, enrolled_at)
-VALUES ($1, $2, CURRENT_TIMESTAMP)
+INSERT INTO course_users (course_id, user_id, enrolled_at, status)
+VALUES ($1, $2, CURRENT_TIMESTAMP, COALESCE($3, 'active'))
 `
 
 type AddUserToCourseParams struct {
-	CourseID int32  `json:"course_id"`
-	UserID   string `json:"user_id"`
+	CourseID int32       `json:"course_id"`
+	UserID   string      `json:"user_id"`
+	Column3  interface{} `json:"column_3"`
 }
 
 func (q *Queries) AddUserToCourse(ctx context.Context, arg AddUserToCourseParams) error {
-	_, err := q.db.Exec(ctx, addUserToCourse, arg.CourseID, arg.UserID)
+	_, err := q.db.Exec(ctx, addUserToCourse, arg.CourseID, arg.UserID, arg.Column3)
+	return err
+}
+
+const bulkUpdateCourseUserStatus = `-- name: BulkUpdateCourseUserStatus :exec
+UPDATE course_users
+SET status = $3
+WHERE course_id = $1 AND user_id = ANY($2::text[])
+`
+
+type BulkUpdateCourseUserStatusParams struct {
+	CourseID int32       `json:"course_id"`
+	Column2  []string    `json:"column_2"`
+	Status   pgtype.Text `json:"status"`
+}
+
+func (q *Queries) BulkUpdateCourseUserStatus(ctx context.Context, arg BulkUpdateCourseUserStatusParams) error {
+	_, err := q.db.Exec(ctx, bulkUpdateCourseUserStatus, arg.CourseID, arg.Column2, arg.Status)
 	return err
 }
 
@@ -75,7 +93,7 @@ func (q *Queries) DeleteAllUsersFromCourse(ctx context.Context, courseID int32) 
 }
 
 const getCoursesForUser = `-- name: GetCoursesForUser :many
-SELECT c.course_id, c.course_number, c.name, c.description, cu.enrolled_at
+SELECT c.course_id, c.course_number, c.name, c.description, cu.enrolled_at, cu.status
 FROM courses c
 JOIN course_users cu ON c.course_id = cu.course_id
 WHERE cu.user_id = $1
@@ -88,6 +106,7 @@ type GetCoursesForUserRow struct {
 	Name         string           `json:"name"`
 	Description  pgtype.Text      `json:"description"`
 	EnrolledAt   pgtype.Timestamp `json:"enrolled_at"`
+	Status       pgtype.Text      `json:"status"`
 }
 
 func (q *Queries) GetCoursesForUser(ctx context.Context, userID string) ([]GetCoursesForUserRow, error) {
@@ -105,6 +124,56 @@ func (q *Queries) GetCoursesForUser(ctx context.Context, userID string) ([]GetCo
 			&i.Name,
 			&i.Description,
 			&i.EnrolledAt,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCoursesForUserByStatus = `-- name: GetCoursesForUserByStatus :many
+SELECT c.course_id, c.course_number, c.name, c.description, cu.enrolled_at, cu.status
+FROM courses c
+JOIN course_users cu ON c.course_id = cu.course_id
+WHERE cu.user_id = $1 AND cu.status = $2
+ORDER BY c.course_number
+`
+
+type GetCoursesForUserByStatusParams struct {
+	UserID string      `json:"user_id"`
+	Status pgtype.Text `json:"status"`
+}
+
+type GetCoursesForUserByStatusRow struct {
+	CourseID     int32            `json:"course_id"`
+	CourseNumber string           `json:"course_number"`
+	Name         string           `json:"name"`
+	Description  pgtype.Text      `json:"description"`
+	EnrolledAt   pgtype.Timestamp `json:"enrolled_at"`
+	Status       pgtype.Text      `json:"status"`
+}
+
+func (q *Queries) GetCoursesForUserByStatus(ctx context.Context, arg GetCoursesForUserByStatusParams) ([]GetCoursesForUserByStatusRow, error) {
+	rows, err := q.db.Query(ctx, getCoursesForUserByStatus, arg.UserID, arg.Status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetCoursesForUserByStatusRow{}
+	for rows.Next() {
+		var i GetCoursesForUserByStatusRow
+		if err := rows.Scan(
+			&i.CourseID,
+			&i.CourseNumber,
+			&i.Name,
+			&i.Description,
+			&i.EnrolledAt,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}
@@ -117,7 +186,7 @@ func (q *Queries) GetCoursesForUser(ctx context.Context, userID string) ([]GetCo
 }
 
 const getUsersForCourse = `-- name: GetUsersForCourse :many
-SELECT u.user_id, u.email, u.name, cu.enrolled_at
+SELECT u.user_id, u.email, u.name, cu.enrolled_at, cu.status
 FROM users u
 JOIN course_users cu ON u.user_id = cu.user_id
 WHERE cu.course_id = $1
@@ -129,6 +198,7 @@ type GetUsersForCourseRow struct {
 	Email      string           `json:"email"`
 	Name       string           `json:"name"`
 	EnrolledAt pgtype.Timestamp `json:"enrolled_at"`
+	Status     pgtype.Text      `json:"status"`
 }
 
 func (q *Queries) GetUsersForCourse(ctx context.Context, courseID int32) ([]GetUsersForCourseRow, error) {
@@ -145,6 +215,7 @@ func (q *Queries) GetUsersForCourse(ctx context.Context, courseID int32) ([]GetU
 			&i.Email,
 			&i.Name,
 			&i.EnrolledAt,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}
@@ -168,5 +239,22 @@ type RemoveUserFromCourseParams struct {
 
 func (q *Queries) RemoveUserFromCourse(ctx context.Context, arg RemoveUserFromCourseParams) error {
 	_, err := q.db.Exec(ctx, removeUserFromCourse, arg.CourseID, arg.UserID)
+	return err
+}
+
+const updateCourseUserStatus = `-- name: UpdateCourseUserStatus :exec
+UPDATE course_users
+SET status = $3
+WHERE course_id = $1 AND user_id = $2
+`
+
+type UpdateCourseUserStatusParams struct {
+	CourseID int32       `json:"course_id"`
+	UserID   string      `json:"user_id"`
+	Status   pgtype.Text `json:"status"`
+}
+
+func (q *Queries) UpdateCourseUserStatus(ctx context.Context, arg UpdateCourseUserStatusParams) error {
+	_, err := q.db.Exec(ctx, updateCourseUserStatus, arg.CourseID, arg.UserID, arg.Status)
 	return err
 }

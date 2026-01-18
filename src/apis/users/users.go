@@ -26,6 +26,7 @@ type UserResponse struct {
 	Name              string                    `json:"name"`
 	IsSuperAdmin      bool                      `json:"is_super_admin"`
 	CourseAdminRights []models.CourseAdminRight `json:"course_admin_rights"`
+	EnrolledCourses   []models.UserCourse       `json:"enrolled_courses"`
 }
 
 type APIResponse struct {
@@ -63,6 +64,14 @@ func (h *Handler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 		courseRights = []models.CourseAdminRight{}
 	}
 
+	// Get user's enrolled courses
+	enrolledCourses, err := models.GetCoursesForUser(r.Context(), userID)
+	if err != nil {
+		h.log.Error("Failed to fetch user enrolled courses", "user_id", userID, "error", err)
+		// Continue without enrolled courses rather than failing completely
+		enrolledCourses = []models.UserCourse{}
+	}
+
 	response := APIResponse{
 		Success: true,
 		Data: UserResponse{
@@ -71,6 +80,7 @@ func (h *Handler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 			Name:              user.Name,
 			IsSuperAdmin:      user.IsSuperAdmin,
 			CourseAdminRights: courseRights,
+			EnrolledCourses:   enrolledCourses,
 		},
 	}
 

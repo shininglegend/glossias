@@ -235,8 +235,14 @@ LEFT JOIN LATERAL (
     WHERE user_id = u.user_id AND story_id = s.story_id AND ended_at IS NOT NULL
 ) time_stats ON true
 WHERE s.story_id = $1
+  AND ($2 = '' OR cu.status = $2)
 ORDER BY u.name
 `
+
+type GetStoryStudentPerformanceParams struct {
+	StoryID int32       `json:"story_id"`
+	Column2 interface{} `json:"column_2"`
+}
 
 type GetStoryStudentPerformanceRow struct {
 	UserID                 string      `json:"user_id"`
@@ -256,8 +262,8 @@ type GetStoryStudentPerformanceRow struct {
 	TotalTimeSeconds       int32       `json:"total_time_seconds"`
 }
 
-func (q *Queries) GetStoryStudentPerformance(ctx context.Context, storyID int32) ([]GetStoryStudentPerformanceRow, error) {
-	rows, err := q.db.Query(ctx, getStoryStudentPerformance, storyID)
+func (q *Queries) GetStoryStudentPerformance(ctx context.Context, arg GetStoryStudentPerformanceParams) ([]GetStoryStudentPerformanceRow, error) {
+	rows, err := q.db.Query(ctx, getStoryStudentPerformance, arg.StoryID, arg.Column2)
 	if err != nil {
 		return nil, err
 	}

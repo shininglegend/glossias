@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"glossias/src/pkg/generated/db"
 	"slices"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -88,7 +89,8 @@ func CalculateScoreWithRetriesAllowed(correctCount, incorrectCount, totalPossibl
 }
 
 // GetStoryStudentPerformance retrieves performance data for all students in a specific story
-func GetStoryStudentPerformance(ctx context.Context, storyID int32) ([]CourseStudentPerformance, error) {
+// status parameter filters by course status: "active", "future", "past", or "" for all
+func GetStoryStudentPerformance(ctx context.Context, storyID int32, status string) ([]CourseStudentPerformance, error) {
 	// Get total vocab and grammar items for this story
 	totalVocab, err := queries.CountStoryVocabItems(ctx, pgtype.Int4{Int32: storyID, Valid: true})
 	if err != nil {
@@ -99,7 +101,10 @@ func GetStoryStudentPerformance(ctx context.Context, storyID int32) ([]CourseStu
 		return nil, err
 	}
 
-	rows, err := queries.GetStoryStudentPerformance(ctx, storyID)
+	rows, err := queries.GetStoryStudentPerformance(ctx, db.GetStoryStudentPerformanceParams{
+		StoryID: storyID,
+		Column2: status,
+	})
 	if err != nil {
 		return nil, err
 	}

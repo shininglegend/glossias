@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS course_users (
     course_id INTEGER REFERENCES courses (course_id) ON DELETE CASCADE,
     user_id TEXT REFERENCES users (user_id) ON DELETE CASCADE,
     enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status TEXT DEFAULT 'active' CHECK (status IN ('active', 'past', 'future')),
     PRIMARY KEY (course_id, user_id)
 );
 

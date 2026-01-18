@@ -50,3 +50,6 @@ logs/*
 
 # Ai instruction files and such
 .github/copilot-instructions.md
+
+# Migration SQL files
+migrations/*.sql

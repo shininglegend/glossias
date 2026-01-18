@@ -176,4 +176,5 @@ LEFT JOIN LATERAL (
     WHERE user_id = u.user_id AND story_id = s.story_id AND ended_at IS NOT NULL
 ) time_stats ON true
 WHERE s.story_id = $1
+  AND ($2 = '' OR cu.status = $2)
 ORDER BY u.name;

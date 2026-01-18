@@ -38,6 +38,7 @@ type CourseUser struct {
 	CourseID   int32            `json:"course_id"`
 	UserID     string           `json:"user_id"`
 	EnrolledAt pgtype.Timestamp `json:"enrolled_at"`
+	Status     pgtype.Text      `json:"status"`
 }
 
 type Footnote struct {

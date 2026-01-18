@@ -586,6 +586,10 @@ func getAllStoriesFromDB(ctx context.Context, language string, userID string) ([
 				Title:      map[string]string{language: basicStory.Title},
 			},
 		}
+		if basicStory.CourseID.Valid {
+			courseID := int(basicStory.CourseID.Int32)
+			story.Metadata.CourseID = &courseID
+		}
 		stories = append(stories, story)
 	}
 	return stories, nil

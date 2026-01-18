@@ -1,0 +1,28 @@
+meta {
+  name: Update status for user
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseURL}}/api/admin/course-users/2/status?status=past
+  body: json
+  auth: inherit
+}
+
+params:query {
+  status: past
+}
+
+body:json {
+  {
+    "user_ids" : [
+      "user_31IA0eMmooygsFh0DGS9x99Yh6b"
+    ]
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

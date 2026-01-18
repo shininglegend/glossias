@@ -32,8 +32,6 @@ export function StoryList() {
     const active: Story[] = [];
     const past: Story[] = [];
     const future: Story[] = [];
-    console.log("Course Status Map:", courseStatusMap);
-    console.log("Stories:", stories);
 
     stories.forEach(story => {
       const status = story.course_id ? courseStatusMap.get(story.course_id) : 'past';

@@ -235,9 +235,12 @@ export function StoriesTranslate() {
     if (!id) return;
 
     try {
-      const url = new URL(`/api/stories/${id}/translate`, window.location.origin);
+      const url = new URL(
+        `/api/stories/${id}/translate`,
+        window.location.origin
+      );
       url.searchParams.set("lines", `[${lines.join(",")}]`);
-      
+
       const response = await authenticatedFetch(url.toString(), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -311,6 +314,14 @@ export function StoriesTranslate() {
         <h1>{pageData.story_title}</h1>
         <h2>Translation</h2>
 
+        {allLinesCompleted && (
+          <CompletionMessage
+            currentStepName="translation"
+            nextStepName={nextStepName}
+            onContinue={handleContinue}
+          />
+        )}
+
         <div className="bg-gray-50 border border-gray-300 p-4 mb-4 rounded-lg text-center">
           <div className="flex items-start justify-center">
             <span className="material-icons text-gray-600 mr-2 mt-1">info</span>
@@ -383,19 +394,11 @@ export function StoriesTranslate() {
             </div>
           )}
         </div>
-
-        {allLinesCompleted && (
-          <CompletionMessage
-            currentStepName="translation"
-            nextStepName={nextStepName}
-            onContinue={handleContinue}
-          />
-        )}
       </div>
 
       {/* Comprehension Prompt - Inline at bottom */}
       {showComprehensionPrompt && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t-4 border-blue-500 shadow-2xl z-50">
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t-4 border-primary-500 shadow-2xl z-50">
           <div className="max-w-2xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between gap-6">
               <p className="text-lg font-semibold text-gray-800">
@@ -404,13 +407,13 @@ export function StoriesTranslate() {
               <div className="flex gap-3">
                 <button
                   onClick={handleComprehendYes}
-                  className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium transition-colors"
+                  className="px-6 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 font-medium transition-colors"
                 >
                   Yes
                 </button>
                 <button
                   onClick={handleComprehendNo}
-                  className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-medium transition-colors"
+                  className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium transition-colors"
                 >
                   No, show translation
                 </button>
@@ -422,7 +425,7 @@ export function StoriesTranslate() {
 
       {/* Auto-waiting indicator */}
       {isAutoWaiting && (
-        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg">
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-primary-500 text-white px-6 py-3 rounded-lg shadow-lg">
           <p className="text-center">
             Translation revealed. Continuing in a moment...
           </p>

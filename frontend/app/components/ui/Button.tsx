@@ -35,13 +35,13 @@ export default function Button({
   };
 
   const variants: Record<Variant, string> = {
-    primary: "bg-blue-600 text-white hover:bg-blue-700 shadow-sm",
+    primary: "bg-primary-500 text-white hover:bg-primary-600 shadow-sm",
     secondary:
       "bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-200",
     ghost: "bg-transparent hover:bg-slate-100 text-slate-700",
     danger: "bg-rose-600 text-white hover:bg-rose-700",
     warning:
-      "bg-amber-50 text-amber-800 hover:bg-amber-100 ring-1 ring-amber-200",
+      "bg-secondary-50 text-secondary-800 hover:bg-secondary-100 ring-1 ring-secondary-200",
     outline:
       "bg-white text-slate-700 border border-slate-300 hover:bg-slate-50",
   };

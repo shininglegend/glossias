@@ -364,7 +364,7 @@ export default function AdminUsers() {
             <select
               value={selectedCourse || ""}
               onChange={(e) => setSelectedCourse(Number(e.target.value))}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
             >
               {courses.map((course) => (
                 <option key={course.course_id} value={course.course_id}>
@@ -551,7 +551,7 @@ export default function AdminUsers() {
                   name="emails"
                   required
                   rows={4}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                   placeholder="user1@example.com&#10;user2@example.com&#10;user3@example.com"
                 />
               </div>
@@ -562,7 +562,7 @@ export default function AdminUsers() {
                 <select
                   name="courseId"
                   required
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
                 >
                   <option value="">Select a course</option>
                   {courses.map((course) => (

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useApiService } from "../services/api";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
+import { CompletionMessage } from "./story-components/CompletionMessage";
 import type { StoryMetadata } from "../services/api";
 
 function getYouTubeEmbedUrl(url: string): string | null {
@@ -109,7 +110,7 @@ export function StoriesVideo() {
                 console.error("Failed to get navigation guidance:", error);
               }
             }}
-            className="inline-flex items-center px-8 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 text-lg font-semibold transition-all duration-200 shadow-lg"
+            className="inline-flex items-center px-8 py-4 bg-secondary-500 text-white rounded-lg hover:bg-secondary-600 text-lg font-semibold transition-all duration-200 shadow-lg"
           >
             <span>Skip to {nextStepName}</span>
             <span className="material-icons ml-2">arrow_forward</span>
@@ -209,30 +210,21 @@ export function StoriesVideo() {
             </video>
           )}
         </div>
-        <div className="text-center mt-8">
-          <button
-            onClick={async () => {
-              try {
-                const guidance =
-                  guidanceCache || (await getNavigationGuidance(id!, "video"));
-                if (guidance) {
-                  navigate(`/stories/${id}/${guidance.nextPage}`);
-                }
-              } catch (error) {
-                console.error("Failed to get navigation guidance:", error);
+        <CompletionMessage
+          currentStepName="video"
+          nextStepName={nextStepName}
+          onContinue={async () => {
+            try {
+              const guidance =
+                guidanceCache || (await getNavigationGuidance(id!, "video"));
+              if (guidance) {
+                navigate(`/stories/${id}/${guidance.nextPage}`);
               }
-            }}
-            disabled={isYouTubeUrl(metadata.videoUrl) && !iframeLoaded}
-            className={`inline-flex items-center px-6 py-3 rounded-lg text-base font-normal transition-all duration-200 shadow-sm ${
-              isYouTubeUrl(metadata.videoUrl) && !iframeLoaded
-                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                : "bg-gray-400 text-gray-700 hover:bg-gray-500 hover:text-white"
-            }`}
-          >
-            <span>Continue to {nextStepName}</span>
-            <span className="material-icons ml-2">arrow_forward</span>
-          </button>
-        </div>
+            } catch (error) {
+              console.error("Failed to get navigation guidance:", error);
+            }
+          }}
+        />
       </div>
     </>
   );

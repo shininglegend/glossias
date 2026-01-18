@@ -59,7 +59,7 @@ export const StoryLine: React.FC<StoryLineProps> = ({
   return (
     <div
       className={`story-line inline ${hasVocab ? "has-vocab" : ""} ${
-        isCurrentLine ? "bg-yellow-100 px-1 py-0.5 rounded" : ""
+        isCurrentLine ? "bg-secondary-100 px-1 py-0.5 rounded" : ""
       }`}
     >
       <VocabTextRenderer
@@ -89,10 +89,10 @@ export const StoryLine: React.FC<StoryLineProps> = ({
       )}
       {showTranslation && translation && (
         <div
-          className="mt-2 mb-4 bg-blue-50 border-l-4 border-blue-400 p-3 rounded-r-lg text-left block"
+          className="mt-2 mb-4 bg-primary-50 border-l-4 border-primary-400 p-3 rounded-r-lg text-left block"
           dir="ltr"
         >
-          <p className="text-lg text-blue-900">{translation}</p>
+          <p className="text-lg text-primary-900">{translation}</p>
         </div>
       )}
     </div>

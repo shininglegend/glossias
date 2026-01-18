@@ -5,7 +5,6 @@ import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import { useAuthenticatedFetch } from "../lib/authFetch";
 import type { VocabData, VocabLine } from "../services/api";
 import { useAudioPlayer } from "./story-components/AudioPlayer";
-import { StoryHeader } from "./story-components/StoryHeader";
 import { StoryLine } from "./story-components/StoryLine";
 import { CompletionMessage } from "./story-components/CompletionMessage";
 
@@ -41,7 +40,7 @@ export function StoriesVocab() {
   const [lockedAnswers, setLockedAnswers] = useState<Set<string>>(new Set());
   const [completedLines, setCompletedLines] = useState<Set<number>>(new Set());
   const [originalLines, setOriginalLines] = useState<Record<number, string>>(
-    {},
+    {}
   );
   const [playedLines, setPlayedLines] = useState<Set<number>>(new Set());
   const [checkingLines, setCheckingLines] = useState<Set<number>>(new Set());
@@ -56,7 +55,7 @@ export function StoriesVocab() {
     if (!id) return {};
     try {
       const response = await authenticatedFetch(
-        `/api/stories/${id}/audio/signed?label=complete`,
+        `/api/stories/${id}/audio/signed?label=complete`
       );
       if (!response.ok) return {};
       const data: AudioURLsResponse = await response.json();
@@ -251,11 +250,49 @@ export function StoriesVocab() {
 
   return (
     <>
-      <StoryHeader
-        storyTitle={pageData.story_title}
-        isPlaying={isPlaying}
-        onPlayStoryAudio={audioPlayer.playStoryAudio}
-      />
+      <header>
+        <h1>{pageData.story_title}</h1>
+        <h2>Vocabulary Practice</h2>
+
+        {allVocabCompleted() && (
+          <CompletionMessage
+            currentStepName="vocabulary"
+            nextStepName={nextStepName}
+            onContinue={handleContinue}
+          />
+        )}
+
+        <div className="bg-gray-50 border border-gray-300 p-4 mb-4 rounded-lg text-center">
+          <div className="flex items-start justify-center">
+            <span className="material-icons text-gray-600 mr-2 mt-1">info</span>
+            <div>
+              <p className="text-gray-700 mb-2">
+                Listen to the audio and fill in the blanks with the correct
+                vocabulary words (in their lexical form).
+              </p>
+              <p className="text-gray-700">
+                Click the play button first, then select answers for the
+                highlighted vocabulary gaps.
+              </p>
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={audioPlayer.playStoryAudio}
+          className={`inline-flex items-center gap-2 px-5 py-3 my-5 text-white border-none rounded-lg text-base cursor-pointer transition-colors duration-200 ${
+            isPlaying
+              ? "bg-red-500 hover:bg-red-600"
+              : "bg-green-500 hover:bg-green-600"
+          }`}
+          type="button"
+        >
+          <span className="material-icons">
+            {isPlaying ? "pause" : "play_arrow"}
+          </span>
+          {isPlaying ? "Pause Audio" : "Play Audio"}
+        </button>
+      </header>
+
       <div className="max-w-4xl mx-auto px-5">
         <div className="story-lines text-2xl max-w-3xl mx-auto">
           {pageData.lines.length > 0 && (
@@ -287,14 +324,6 @@ export function StoriesVocab() {
             </div>
           )}
         </div>
-
-        {allVocabCompleted() && (
-          <CompletionMessage
-          currentStepName="vocabulary"
-            nextStepName={nextStepName}
-            onContinue={handleContinue}
-          />
-        )}
       </div>
     </>
   );

@@ -86,7 +86,7 @@ export const VocabTextRenderer: React.FC<VocabTextRendererProps> = ({
               className="vocab-container inline-block mx-1"
             >
               <select
-                className={`vocab-select inline-block min-w-24 px-2 py-1 text-2xl border-2 rounded cursor-pointer bg-white transition-all duration-200 focus:outline-none focus:border-blue-500 ${
+                className={`vocab-select inline-block min-w-24 px-2 py-1 text-2xl border-2 rounded cursor-pointer bg-white transition-all duration-200 focus:outline-none focus:border-primary-500 ${
                   result === true
                     ? "border-green-500 bg-green-50"
                     : result === false
@@ -122,7 +122,7 @@ export const VocabTextRenderer: React.FC<VocabTextRendererProps> = ({
 
               {isPending && (
                 <span className="loading-indicator ml-1 inline-flex items-center">
-                  <div className="animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                  <div className="animate-spin w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full"></div>
                 </span>
               )}
               {result === false && !isPending && (

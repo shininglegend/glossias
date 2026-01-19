@@ -27,8 +27,8 @@ export function LandingPage() {
       <div className="max-w-6xl mx-auto px-4 py-16">
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
           <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-6">
-              <span className="material-icons text-blue-600 text-2xl">
+            <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center mb-6">
+              <span className="material-icons text-primary-600 text-2xl">
                 play_circle
               </span>
             </div>
@@ -100,7 +100,7 @@ export function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <SignUpButton>
-              <button className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-colors">
+              <button className="bg-primary-500 hover:bg-primary-600 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-colors">
                 Start Learning Free
               </button>
             </SignUpButton>

@@ -26,7 +26,7 @@ export default function AdminPerformance() {
           </p>
           <Link
             to="/admin"
-            className="text-blue-600 hover:underline mt-4 inline-block"
+            className="text-primary-600 hover:underline mt-4 inline-block"
           >
             ← Back to Admin Dashboard
           </Link>

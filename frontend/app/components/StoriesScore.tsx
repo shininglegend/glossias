@@ -164,13 +164,13 @@ export function StoriesScore() {
           <h1>{incompleteData.story_title}</h1>
           <h2>Complete Your Activities</h2>
 
-          <div className="bg-yellow-50 border border-yellow-300 p-6 mb-4 rounded-lg text-center">
+          <div className="bg-secondary-50 border border-secondary-300 p-6 mb-4 rounded-lg text-center">
             <div className="flex items-center justify-center mb-4">
-              <span className="material-icons text-yellow-600 mr-2 text-2xl">
+              <span className="material-icons text-secondary-600 mr-2 text-2xl">
                 warning
               </span>
               <div>
-                <p className="text-yellow-700 text-lg font-medium">
+                <p className="text-secondary-700 text-lg font-medium">
                   {incompleteData.message}
                 </p>
               </div>
@@ -267,7 +267,7 @@ export function StoriesScore() {
         <div className="text-center">
           <button
             onClick={() => navigate("/")}
-            className="inline-flex items-center px-8 py-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-lg font-semibold transition-all duration-200 shadow-lg"
+            className="inline-flex items-center px-8 py-4 bg-primary-500 text-white rounded-lg hover:bg-primary-600 text-lg font-semibold transition-all duration-200 shadow-lg"
           >
             <span>Back to Stories</span>
             <span className="material-icons ml-2">home</span>
@@ -279,12 +279,12 @@ export function StoriesScore() {
         {/* Detailed Scores */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           {/* Vocabulary Score */}
-          <div className="bg-white border-2 border-blue-200 rounded-lg p-6">
+          <div className="bg-white border-2 border-primary-200 rounded-lg p-6">
             <div className="flex items-center mb-4">
-              <span className="material-icons text-blue-600 mr-3 text-2xl">
+              <span className="material-icons text-primary-600 mr-3 text-2xl">
                 quiz
               </span>
-              <h3 className="text-xl font-bold text-blue-900">Vocabulary</h3>
+              <h3 className="text-xl font-bold text-primary-900">Vocabulary</h3>
             </div>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
@@ -294,7 +294,7 @@ export function StoriesScore() {
                     scoreData.vocab_accuracy >= 80
                       ? "text-green-600"
                       : scoreData.vocab_accuracy >= 60
-                        ? "text-yellow-600"
+                        ? "text-secondary-500"
                         : "text-red-600"
                   }`}
                 >
@@ -333,7 +333,7 @@ export function StoriesScore() {
                     scoreData.vocab_accuracy >= 80
                       ? "bg-green-500"
                       : scoreData.vocab_accuracy >= 60
-                        ? "bg-yellow-500"
+                        ? "bg-secondary-500"
                         : "bg-red-500"
                   }`}
                   style={{ width: `${scoreData.vocab_accuracy}%` }}
@@ -358,7 +358,7 @@ export function StoriesScore() {
                     scoreData.grammar_accuracy >= 80
                       ? "text-green-600"
                       : scoreData.grammar_accuracy >= 60
-                        ? "text-yellow-600"
+                        ? "text-secondary-500"
                         : "text-red-600"
                   }`}
                 >
@@ -397,7 +397,7 @@ export function StoriesScore() {
                     scoreData.grammar_accuracy >= 80
                       ? "bg-green-500"
                       : scoreData.grammar_accuracy >= 60
-                        ? "bg-yellow-500"
+                        ? "bg-secondary-500"
                         : "bg-red-500"
                   }`}
                   style={{ width: `${scoreData.grammar_accuracy}%` }}
@@ -423,13 +423,13 @@ export function StoriesScore() {
               <div className="text-sm text-gray-600">Video</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">
+              <div className="text-2xl font-bold text-primary-600">
                 {formatTime(scoreData.vocab_time_seconds)}
               </div>
               <div className="text-sm text-gray-600">Vocabulary</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-yellow-600">
+              <div className="text-2xl font-bold text-secondary-500">
                 {formatTime(scoreData.translation_time_seconds)}
               </div>
               <div className="text-sm text-gray-600">Translation</div>
@@ -444,7 +444,7 @@ export function StoriesScore() {
         </div>
 
         {/* Encouragement Message */}
-        <div className="text-center bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-8">
+        <div className="text-center bg-gradient-to-r from-primary-50 to-purple-50 border border-primary-200 rounded-lg p-8">
           <h3 className="text-2xl font-bold text-gray-800 mb-3">
             {overallScore >= 90
               ? "Outstanding work! 🌟"

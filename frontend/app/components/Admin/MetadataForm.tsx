@@ -82,7 +82,7 @@ export default function MetadataForm({
           {(meta.grammarPoints || []).map((gp, index) => (
             <div
               key={index}
-              className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+              className="inline-flex items-center gap-2 px-3 py-1 bg-primary-100 text-primary-800 rounded-full text-sm"
             >
               <span>{gp.name}</span>
               <button
@@ -93,7 +93,7 @@ export default function MetadataForm({
                   );
                   update("grammarPoints", newGrammarPoints);
                 }}
-                className="text-blue-600 hover:text-blue-800 font-bold"
+                className="text-primary-600 hover:text-primary-800 font-bold"
               >
                 ×
               </button>

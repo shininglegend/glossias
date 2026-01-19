@@ -236,7 +236,7 @@ function TranslationLineEditor({
             onInput={adjustHeight}
             onKeyDown={handleKeyDown}
             data-translation-field
-            className="w-full p-2 border border-gray-300 rounded text-sm resize-none overflow-hidden focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full p-2 border border-gray-300 rounded text-sm resize-none overflow-hidden focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             placeholder="Enter English translation..."
             rows={1}
           />

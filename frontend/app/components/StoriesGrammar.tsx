@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link, useSearchParams, useNavigate } from "react-router";
 import { useApiService } from "../services/api";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
+import { CompletionMessage } from "./story-components/CompletionMessage";
 import type { GrammarData } from "../services/api";
 
 interface ClickPosition {
@@ -27,13 +28,13 @@ export function StoriesGrammar() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [clickedPositions, setClickedPositions] = useState<Set<string>>(
-    new Set(),
+    new Set()
   );
   const [correctPositions, setCorrectPositions] = useState<Set<string>>(
-    new Set(),
+    new Set()
   );
   const [incorrectPositions, setIncorrectPositions] = useState<Set<string>>(
-    new Set(),
+    new Set()
   );
   const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false);
   const [nextGrammarPoint, setNextGrammarPoint] = useState<number | null>(null);
@@ -243,6 +244,37 @@ export function StoriesGrammar() {
       <header>
         <h1>{pageData.story_title}</h1>
         <h2>Grammar Focus</h2>
+        {foundInstances === pageData.instances_count && (
+          <div className="m-4 text-center">
+            {nextGrammarPoint ? (
+              <Link
+                to={`/stories/${id}/grammar?id=${nextGrammarPoint}`}
+                className="inline-flex items-center px-8 py-4 bg-primary-500 text-white rounded-lg hover:bg-primary-600 text-lg font-semibold transition-all duration-200 shadow-lg"
+              >
+                <span>Next Grammar Exercise</span>
+                <span className="material-icons ml-2">arrow_forward</span>
+              </Link>
+            ) : (
+              <CompletionMessage
+                currentStepName="grammar"
+                nextStepName={nextStepName}
+                onContinue={async () => {
+                  try {
+                    const guidance = await getNavigationGuidance(
+                      id!,
+                      "grammar"
+                    );
+                    if (guidance) {
+                      navigate(`/stories/${id}/${guidance.nextPage}`);
+                    }
+                  } catch (error) {
+                    console.error("Failed to get navigation guidance:", error);
+                  }
+                }}
+              />
+            )}
+          </div>
+        )}
         <div className="bg-gray-50 border border-gray-300 p-4 mb-4 rounded-lg text-center">
           <div className="flex items-start justify-center">
             <span className="material-icons text-gray-600 mr-2 mt-1">info</span>
@@ -265,8 +297,8 @@ export function StoriesGrammar() {
           </div>
         </div>
 
-        <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg mb-4 text-center">
-          <div className="flex items-center justify-center text-blue-700">
+        <div className="bg-primary-50 border border-primary-200 p-3 rounded-lg mb-4 text-center">
+          <div className="flex items-center justify-center text-primary-700">
             <span className="material-icons mr-2 text-sm">touch_app</span>
             <span className="text-sm">
               {isSubmittingAnswer
@@ -280,7 +312,7 @@ export function StoriesGrammar() {
           <h5 className="font-medium text-gray-700 mb-2 text-sm">Legend:</h5>
           <div className="flex flex-wrap gap-4 text-sm justify-center">
             <div className="flex items-center">
-              <span className="w-4 h-4 bg-yellow-100 border border-yellow-200 rounded-sm mr-2"></span>
+              <span className="w-4 h-4 bg-secondary-100 border border-secondary-200 rounded-sm mr-2"></span>
               <span className="text-gray-600">Hover to click</span>
             </div>
             <div className="flex items-center">
@@ -293,40 +325,6 @@ export function StoriesGrammar() {
             </div>
           </div>
         </div>
-
-        {foundInstances === pageData.instances_count && (
-          <div className="mt-4 text-center">
-            {nextGrammarPoint ? (
-              <Link
-                to={`/stories/${id}/grammar?id=${nextGrammarPoint}`}
-                className="inline-flex items-center px-8 py-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-lg font-semibold transition-all duration-200 shadow-lg"
-              >
-                <span>Next Grammar Exercise</span>
-                <span className="material-icons ml-2">arrow_forward</span>
-              </Link>
-            ) : (
-              <button
-                onClick={async () => {
-                  try {
-                    const guidance = await getNavigationGuidance(
-                      id!,
-                      "grammar",
-                    );
-                    if (guidance) {
-                      navigate(`/stories/${id}/${guidance.nextPage}`);
-                    }
-                  } catch (error) {
-                    console.error("Failed to get navigation guidance:", error);
-                  }
-                }}
-                className="inline-flex items-center px-8 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 text-lg font-semibold transition-all duration-200 shadow-lg"
-              >
-                <span>Continue to {nextStepName}</span>
-                <span className="material-icons ml-2">arrow_forward</span>
-              </button>
-            )}
-          </div>
-        )}
       </header>
       <div className="max-w-4xl mx-auto px-5">
         <div className="story-lines text-2xl max-w-3xl mx-auto">
@@ -359,7 +357,7 @@ export function StoriesGrammar() {
                           const indentLevel = getIndentLevel(line.text);
                           const firstNonTabIndex = Math.min(
                             indentLevel,
-                            line.text.length - 1,
+                            line.text.length - 1
                           );
                           return line.text.split("").map((char, charIndex) => {
                             let className = isSubmittingAnswer
@@ -376,7 +374,7 @@ export function StoriesGrammar() {
                                 " bg-red-500 bg-opacity-70 text-white rounded-sm shadow-sm";
                             } else if (!isSubmittingAnswer) {
                               className +=
-                                " hover:bg-yellow-100 hover:shadow-sm rounded-sm";
+                                " hover:bg-secondary-100 hover:shadow-sm rounded-sm";
                             }
 
                             return (

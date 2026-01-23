@@ -1,10 +1,12 @@
 import { useAuth } from "@clerk/react-router";
 import { useCallback } from "react";
 import { useNavigate } from "react-router";
+import { useErrorBanner } from "../contexts/ErrorBannerContext";
 
 export function useAuthenticatedFetch() {
   const { getToken, isSignedIn } = useAuth();
   const navigate = useNavigate();
+  const { setShowError } = useErrorBanner();
 
   const authenticatedFetch = useCallback(
     async (input: RequestInfo, init: RequestInit = {}) => {
@@ -40,9 +42,14 @@ export function useAuthenticatedFetch() {
         }
       }
       
+      // Show error banner for 500+ errors
+      if (response.status >= 500) {
+        setShowError(true);
+      }
+      
       return response;
     },
-    [getToken, isSignedIn, navigate],
+    [getToken, isSignedIn, navigate, setShowError],
   );
 
   return authenticatedFetch;

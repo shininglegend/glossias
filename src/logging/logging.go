@@ -4,6 +4,7 @@ package logging
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -37,8 +38,10 @@ type Options struct {
 	// Levels with lower levels are discarded.
 	// If nil, the Handler uses [slog.LevelInfo].
 	Level slog.Leveler
-	// Control color output
+	// Control color output (ignored if UseJSON is true)
 	UseColors bool
+	// Use JSON format for structured logging (Betterstack-compatible)
+	UseJSON bool
 }
 
 // groupOrAttrs holds either a group name or a list of slog.Attrs.
@@ -63,6 +66,12 @@ func (h *Logger) Enabled(_ context.Context, level slog.Level) bool {
 }
 
 func (h *Logger) Handle(ctx context.Context, r slog.Record) error {
+	// Use JSON format for production/Betterstack
+	if h.opts.UseJSON {
+		return h.handleJSON(ctx, r)
+	}
+
+	// Original colored format for development
 	buf := make([]byte, 0, 1024)
 
 	// Add color prefix based on level
@@ -120,6 +129,67 @@ func (h *Logger) Handle(ctx context.Context, r slog.Record) error {
 	defer h.mu.Unlock()
 	_, err := h.out.Write(buf)
 	return err
+}
+
+// handleJSON writes logs in JSON format for Betterstack
+func (h *Logger) handleJSON(_ context.Context, r slog.Record) error {
+	logEntry := make(map[string]interface{})
+
+	// Standard fields for Betterstack
+	logEntry["timestamp"] = r.Time.Format(time.RFC3339Nano)
+	logEntry["level"] = r.Level.String()
+	logEntry["message"] = r.Message
+
+	// Add source location
+	if r.PC != 0 {
+		fs := runtime.CallersFrames([]uintptr{r.PC})
+		f, _ := fs.Next()
+		logEntry["source"] = fmt.Sprintf("%s:%d", f.File, f.Line)
+	}
+
+	// Add all attributes
+	r.Attrs(func(a slog.Attr) bool {
+		h.addJSONAttr(logEntry, a)
+		return true
+	})
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	encoder := json.NewEncoder(h.out)
+	return encoder.Encode(logEntry)
+}
+
+// addJSONAttr recursively adds attributes to the JSON log entry
+func (h *Logger) addJSONAttr(logEntry map[string]interface{}, a slog.Attr) {
+	a.Value = a.Value.Resolve()
+	if a.Equal(slog.Attr{}) {
+		return
+	}
+
+	switch a.Value.Kind() {
+	case slog.KindGroup:
+		attrs := a.Value.Group()
+		if len(attrs) == 0 {
+			return
+		}
+		if a.Key != "" {
+			group := make(map[string]interface{})
+			for _, ga := range attrs {
+				h.addJSONAttr(group, ga)
+			}
+			logEntry[a.Key] = group
+		} else {
+			// Inline group attributes
+			for _, ga := range attrs {
+				h.addJSONAttr(logEntry, ga)
+			}
+		}
+	case slog.KindTime:
+		logEntry[a.Key] = a.Value.Time().Format(time.RFC3339Nano)
+	default:
+		logEntry[a.Key] = a.Value.Any()
+	}
 }
 
 func (h *Logger) appendAttr(buf []byte, a slog.Attr, indentLevel int) []byte {

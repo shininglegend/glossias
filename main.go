@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"glossias/src/admin"
 	"glossias/src/apis"
 	"glossias/src/auth"
@@ -12,8 +13,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -23,9 +26,12 @@ import (
 )
 
 func main() {
+	// Use JSON logging in production for Betterstack, colored logs in dev
+	useJSON := false // JSON LOGGING
 	logger := slog.New(logging.New(os.Stdout, &logging.Options{
 		Level:     slog.LevelDebug,
-		UseColors: true,
+		UseColors: !useJSON,
+		UseJSON:   useJSON,
 	}))
 
 	// Load environment variables from .env file if present
@@ -69,6 +75,7 @@ func main() {
 	r := mux.NewRouter()
 
 	// Setup middleware if needed
+	r.Use(requestIDMiddleware())
 	r.Use(auth.RateLimitMiddleware(logger))
 	r.Use(auth.Middleware(logger))
 	r.Use(loggingMiddleware(logger))
@@ -131,25 +138,60 @@ func main() {
 		ReadTimeout:  15 * time.Second,
 	}
 
-	logger.Info("starting server", "addr", srv.Addr)
+	logger.Info("starting server", "addr", srv.Addr, "use_json_logging", useJSON)
 	if err := srv.ListenAndServe(); err != nil {
 		logger.Error("server error", "error", err)
 		os.Exit(1)
 	}
 }
 
+func requestIDMiddleware() mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requestID := uuid.New().String()
+			ctx := context.WithValue(r.Context(), "request_id", requestID)
+			w.Header().Set("X-Request-ID", requestID)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
 func loggingMiddleware(logger *slog.Logger) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			requestID := r.Context().Value("request_id").(string)
+			userID := auth.GetUserID(r)
+
 			// Wrap ResponseWriter to capture status code
 			ww := &responseWriter{ResponseWriter: w, status: 200}
+
+			// Recover from panics
+			defer func() {
+				if err := recover(); err != nil {
+					logger.Error("PANIC RECOVERED", "error", fmt.Sprintf("%v", err), "error.stack_trace", string(debug.Stack()),
+						"http.request_id", requestID, "http.method", r.Method, "http.url", r.URL.Path, "http.status_code", 500,
+						"user.id", userID, "client.address", r.RemoteAddr, "client.user_agent", r.UserAgent())
+					ww.WriteHeader(http.StatusInternalServerError)
+					fmt.Fprintf(ww, `{"success":false,"error":"Internal Server Error, the developer has been notified."}`)
+				}
+			}()
+
 			next.ServeHTTP(ww, r)
+
+			// Skip health checks, minimal logging for success, detailed for errors
 			if r.URL.Path != "/api/health" {
-				logger.Info("request completed",
-					"method", r.Method,
-					"path", r.URL.Path,
-					"status", ww.status,
-					"requester", r.RemoteAddr)
+				if ww.status >= 500 {
+					logger.Error("HTTP 5xx error", "http.method", r.Method, "http.url", r.URL.Path, "http.status_code", ww.status,
+						"http.request_id", requestID, "duration_ms", time.Since(start).Milliseconds(), "user.id", userID,
+						"client.address", r.RemoteAddr, "client.user_agent", r.UserAgent(),
+						"http.query", r.URL.RawQuery, "http.host", r.Host)
+				} else if ww.status >= 400 {
+					logger.Warn("HTTP 4xx error", "http.method", r.Method, "http.url", r.URL.Path,
+						"http.status_code", ww.status, "http.request_id", requestID, "http.query", r.URL.RawQuery,  "duration_ms", time.Since(start).Milliseconds(), "http.host", r.Host)
+				} else {
+					logger.Debug("HTTP request", "http.method", r.Method, "http.url", r.URL.Path, "http.status_code", ww.status, "duration_ms", time.Since(start).Milliseconds(), "http.host", r.Host)
+				}
 			}
 		})
 	}

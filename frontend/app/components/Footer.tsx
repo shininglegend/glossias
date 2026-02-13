@@ -72,12 +72,20 @@ export function Footer() {
               <ul className="space-y-2">
                 <li>
                   <a
+                    href="https://status.glossias.org/"
+                    className="text-slate-600 hover:text-slate-900 transition-colors"
+                  >
+                    Status Page
+                  </a>
+                </li>
+                {/* <li>
+                  <a
                     href="https://github.com/shininglegend/glossias/wiki"
                     className="text-slate-600 hover:text-slate-900 transition-colors"
                   >
                     Help Center
                   </a>
-                </li>
+                </li> */}
                 <li>
                   <a
                     href="https://github.com/shininglegend/glossias/issues"

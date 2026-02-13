@@ -620,3 +620,51 @@ func GetStoriesForCourse(ctx context.Context, courseID int) ([]Story, error) {
 
 	return result, nil
 }
+
+// GetAllStoriesForAdmin returns all stories without access control filtering
+// Used by admin interfaces to manage all stories
+func GetAllStoriesForAdmin(ctx context.Context, userID string) ([]Story, error) {
+	// Check if user is super admin
+	isSuperAdmin := IsUserSuperAdmin(ctx, userID)
+
+	dbStories, err := queries.GetAllStoriesWithTitlesForAdmin(ctx, db.GetAllStoriesWithTitlesForAdminParams{
+		Column1: isSuperAdmin,
+		UserID:  userID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Group stories by story_id and collect titles per language
+	storiesMap := make(map[int32]*Story)
+	for _, row := range dbStories {
+		story, exists := storiesMap[row.StoryID]
+		if !exists {
+			story = &Story{
+				Metadata: StoryMetadata{
+					StoryID:    int(row.StoryID),
+					WeekNumber: int(row.WeekNumber),
+					DayLetter:  row.DayLetter,
+					Title:      make(map[string]string),
+				},
+			}
+			if row.CourseID.Valid {
+				courseID := int(row.CourseID.Int32)
+				story.Metadata.CourseID = &courseID
+			}
+			if row.CourseName.Valid {
+				story.Metadata.CourseName = row.CourseName.String
+			}
+			storiesMap[row.StoryID] = story
+		}
+		story.Metadata.Title[row.LanguageCode] = row.Title
+	}
+
+	// Convert map to slice
+	result := make([]Story, 0, len(storiesMap))
+	for _, story := range storiesMap {
+		result = append(result, *story)
+	}
+
+	return result, nil
+}

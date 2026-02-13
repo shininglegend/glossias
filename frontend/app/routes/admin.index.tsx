@@ -29,7 +29,7 @@ export default function AdminHome() {
   React.useEffect(() => {
     async function fetchStories() {
       try {
-        const res = await authenticatedFetch("/api/stories", {
+        const res = await authenticatedFetch("/api/admin/stories", {
           headers: { Accept: "application/json" },
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);

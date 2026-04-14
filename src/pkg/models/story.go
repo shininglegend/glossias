@@ -167,6 +167,7 @@ type StoryMetadata struct {
 	VideoURL      string            `json:"videoUrl,omitempty"`
 	Description   Description       `json:"description"`
 	CourseID      *int              `json:"courseId,omitempty"`
+	CourseName    string            `json:"courseName,omitempty"`
 	LastRevision  *time.Time        `json:"lastRevision,omitempty"`
 	GrammarPoints []GrammarPoint    `json:"grammarPoints"`
 	Language      string            `json:"languageCode,omitempty"`

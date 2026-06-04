@@ -1,8 +1,7 @@
 import { NavLink, useLocation } from "react-router";
 import { useMemo } from "react";
 import {
-  SignedIn,
-  SignedOut,
+  Show,
   UserButton,
   SignInButton,
 } from "@clerk/react-router";
@@ -34,12 +33,12 @@ export default function NavBar() {
           )}
           {/* User management */}
           <UserButton />
-          <SignedOut>
+          <Show when="signed-out">
             <SignInButton>
               <Button className="button">Sign In</Button>
             </SignInButton>
-          </SignedOut>
-          <SignedIn>
+          </Show>
+          <Show when="signed-in">
             {userInfo && !loading && (
               <div className="text-xs text-slate-300">
                 {userInfo.is_super_admin ? (
@@ -56,7 +55,7 @@ export default function NavBar() {
                 )}
               </div>
             )}
-          </SignedIn>
+          </Show>
         </nav>
       </div>
 

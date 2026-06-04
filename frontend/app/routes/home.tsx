@@ -1,5 +1,5 @@
 import type { Route } from "./+types/home";
-import { SignedIn, SignedOut } from "@clerk/react-router";
+import { Show } from "@clerk/react-router";
 import { StoryList } from "../components/StoryList";
 import { LandingPage } from "../components/LandingPage";
 import { Footer } from "~/components/Footer";
@@ -19,12 +19,12 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col">
       <div className="flex-1">
-        <SignedOut>
+        <Show when="signed-out">
           <LandingPage />
-        </SignedOut>
-        <SignedIn>
+        </Show>
+        <Show when="signed-in">
           <StoryList />
-        </SignedIn>
+        </Show>
       </div>
       <Footer />
     </div>

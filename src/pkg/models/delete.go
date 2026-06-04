@@ -18,35 +18,35 @@ func Delete(ctx context.Context, storyID int) error {
 		return ErrNotFound
 	}
 
-	return withTransaction(func() error {
+	return withTransaction(ctx, func(txCtx context.Context) error {
 		// Delete in proper order to respect foreign key relationships
 		// Though CASCADE would handle this, we're explicit for control
-		if err := deleteFootnoteData(ctx, storyID); err != nil {
+		if err := deleteFootnoteData(txCtx, storyID); err != nil {
 			return err
 		}
 
-		if err := deleteAnnotations(ctx, storyID); err != nil {
+		if err := deleteAnnotations(txCtx, storyID); err != nil {
 			return err
 		}
 
-		if err := deleteAudioFiles(ctx, storyID); err != nil {
+		if err := deleteAudioFiles(txCtx, storyID); err != nil {
 			return err
 		}
 
-		if err := deleteStoryContent(ctx, storyID); err != nil {
+		if err := deleteStoryContent(txCtx, storyID); err != nil {
 			return err
 		}
 
-		if err := deleteMetadata(ctx, storyID); err != nil {
+		if err := deleteMetadata(txCtx, storyID); err != nil {
 			return err
 		}
 
-		if err := deleteStoryGrammarPoints(ctx, storyID); err != nil {
+		if err := deleteStoryGrammarPoints(txCtx, storyID); err != nil {
 			return err
 		}
 
 		// Finally delete the story itself using SQLC
-		if err := queries.DeleteStory(ctx, int32(storyID)); err != nil {
+		if err := queries.DeleteStory(txCtx, int32(storyID)); err != nil {
 			return err
 		}
 

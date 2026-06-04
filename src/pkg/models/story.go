@@ -10,6 +10,8 @@ import (
 	"glossias/src/pkg/generated/db"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	_ "github.com/lib/pq"
 	storage_go "github.com/supabase-community/storage-go"
@@ -38,18 +40,52 @@ var storageAPIKey string
 var cacheInstance *cache.Cache
 var keyBuilder *cache.KeyBuilder
 
+type TxContextKey struct{}
+
+type ContextTxRouter struct {
+	Base db.DBTX
+}
+
+func (r *ContextTxRouter) Exec(ctx context.Context, sql string, arguments ...interface{}) (pgconn.CommandTag, error) {
+	if tx, ok := ctx.Value(TxContextKey{}).(db.DBTX); ok {
+		return tx.Exec(ctx, sql, arguments...)
+	}
+	return r.Base.Exec(ctx, sql, arguments...)
+}
+
+func (r *ContextTxRouter) Query(ctx context.Context, sql string, arguments ...interface{}) (pgx.Rows, error) {
+	if tx, ok := ctx.Value(TxContextKey{}).(db.DBTX); ok {
+		return tx.Query(ctx, sql, arguments...)
+	}
+	return r.Base.Query(ctx, sql, arguments...)
+}
+
+func (r *ContextTxRouter) QueryRow(ctx context.Context, sql string, arguments ...interface{}) pgx.Row {
+	if tx, ok := ctx.Value(TxContextKey{}).(db.DBTX); ok {
+		return tx.QueryRow(ctx, sql, arguments...)
+	}
+	return r.Base.QueryRow(ctx, sql, arguments...)
+}
+
+func (r *ContextTxRouter) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
+	if tx, ok := ctx.Value(TxContextKey{}).(db.DBTX); ok {
+		return tx.CopyFrom(ctx, tableName, columnNames, rowSrc)
+	}
+	return r.Base.CopyFrom(ctx, tableName, columnNames, rowSrc)
+}
+
 func SetDB(d any) {
 	if d == nil {
 		panic("database connection is nil")
 	}
 	rawConn = d
 	if conn, ok := d.(db.DBTX); ok {
-		queries = db.New(conn)
+		queries = db.New(&ContextTxRouter{Base: conn})
 	} else if mockConn, ok := d.(*database.MockDBTX); ok {
 		queries = db.New(mockConn)
 	} else if reconnectConn, ok := d.(*database.ReconnectableDBTX); ok {
 		// ReconnectableDBTX implements DBTX with reconnection logic
-		queries = db.New(reconnectConn)
+		queries = db.New(&ContextTxRouter{Base: reconnectConn})
 	} else {
 		// For testing - allow nil queries when no real DB connection
 		queries = nil

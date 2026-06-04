@@ -11,14 +11,14 @@ import (
 )
 
 func SaveNewStory(ctx context.Context, story *Story) error {
-	err := withTransaction(func() error {
+	err := withTransaction(ctx, func(txCtx context.Context) error {
 		// Create story using SQLC
 		courseID := pgtype.Int4{Valid: false}
 		if story.Metadata.CourseID != nil {
 			courseID = pgtype.Int4{Int32: int32(*story.Metadata.CourseID), Valid: true}
 		}
 
-		result, err := queries.CreateStory(ctx, db.CreateStoryParams{
+		result, err := queries.CreateStory(txCtx, db.CreateStoryParams{
 			WeekNumber: int32(story.Metadata.WeekNumber),
 			DayLetter:  story.Metadata.DayLetter,
 			VideoUrl:   pgtype.Text{String: story.Metadata.VideoURL, Valid: story.Metadata.VideoURL != ""},
@@ -31,7 +31,7 @@ func SaveNewStory(ctx context.Context, story *Story) error {
 		}
 
 		story.Metadata.StoryID = int(result.StoryID)
-		return saveStoryComponents(ctx, story)
+		return saveStoryComponents(txCtx, story)
 	})
 
 	// Invalidate cache after successful save
@@ -51,14 +51,14 @@ func SaveStoryData(ctx context.Context, storyID int, story *Story) error {
 		return ErrNotFound
 	}
 
-	err = withTransaction(func() error {
+	err = withTransaction(ctx, func(txCtx context.Context) error {
 		// Update story using SQLC
 		courseID := pgtype.Int4{Valid: false}
 		if story.Metadata.CourseID != nil {
 			courseID = pgtype.Int4{Int32: int32(*story.Metadata.CourseID), Valid: true}
 		}
 
-		err := queries.UpdateStory(ctx, db.UpdateStoryParams{
+		err := queries.UpdateStory(txCtx, db.UpdateStoryParams{
 			StoryID:    int32(storyID),
 			WeekNumber: int32(story.Metadata.WeekNumber),
 			DayLetter:  story.Metadata.DayLetter,
@@ -71,7 +71,7 @@ func SaveStoryData(ctx context.Context, storyID int, story *Story) error {
 			return err
 		}
 
-		return saveStoryComponents(ctx, story)
+		return saveStoryComponents(txCtx, story)
 	})
 
 	// Invalidate cache after successful save

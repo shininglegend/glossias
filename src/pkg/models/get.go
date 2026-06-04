@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"glossias/src/pkg/database"
 	"glossias/src/pkg/generated/db"
 
 	"github.com/jackc/pgx/v5"
@@ -179,94 +180,128 @@ func getStoryDataFromDB(ctx context.Context, id int, userID string) (*Story, err
 	return story, nil
 }
 
-func getStoryLines(ctx context.Context, storyID int) ([]StoryLine, error) {
+func convertReferences(ref interface{}) []string {
+	if ref == nil {
+		return nil
+	}
+	switch v := ref.(type) {
+	case []string:
+		return v
+	case []interface{}:
+		res := make([]string, len(v))
+		for i, x := range v {
+			if s, ok := x.(string); ok {
+				res[i] = s
+			}
+		}
+		return res
+	}
+	return nil
+}
 
+func getStoryLines(ctx context.Context, storyID int) ([]StoryLine, error) {
 	dbLines, err := queries.GetStoryLines(ctx, int32(storyID))
 	if err != nil {
 		return nil, err
 	}
 
+	// Map for Vocabulary items grouped by line number
+	vocabMap := make(map[int][]VocabularyItem)
+	vocabRows, err := queries.GetAllVocabularyForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+	if err != nil {
+		return nil, err
+	}
+	for _, v := range vocabRows {
+		lineNum := int(v.LineNumber.Int32)
+		vocabMap[lineNum] = append(vocabMap[lineNum], VocabularyItem{
+			Word:        v.Word,
+			LexicalForm: v.LexicalForm,
+			Position:    [2]int{int(v.PositionStart), int(v.PositionEnd)},
+		})
+	}
+
+	// Map for Grammar items grouped by line number
+	grammarMap := make(map[int][]GrammarItem)
+	grammarRows, err := queries.GetAllGrammarForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+	if err != nil {
+		return nil, err
+	}
+	for _, g := range grammarRows {
+		lineNum := int(g.LineNumber.Int32)
+		grammarItem := GrammarItem{
+			Text:     g.Text,
+			Position: [2]int{int(g.PositionStart), int(g.PositionEnd)},
+		}
+		if g.GrammarPointID.Valid {
+			gpID := int(g.GrammarPointID.Int32)
+			grammarItem.GrammarPointID = &gpID
+		}
+		grammarMap[lineNum] = append(grammarMap[lineNum], grammarItem)
+	}
+
+	// Map for Audio files grouped by line number
+	audioMap := make(map[int][]AudioFile)
+	audioRows, err := queries.GetAllStoryAudioFiles(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+	if err != nil {
+		return nil, err
+	}
+	for _, a := range audioRows {
+		lineNum := int(a.LineNumber.Int32)
+		audioMap[lineNum] = append(audioMap[lineNum], AudioFile{
+			ID:         int(a.AudioFileID),
+			FilePath:   a.FilePath,
+			FileBucket: a.FileBucket,
+			Label:      a.Label,
+		})
+	}
+
+	// Map for Footnotes grouped by line number
+	footnoteMap := make(map[int][]Footnote)
+	footnoteRows, err := queries.GetStoryFootnotesWithReferences(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range footnoteRows {
+		lineNum := int(f.LineNumber.Int32)
+		footnoteMap[lineNum] = append(footnoteMap[lineNum], Footnote{
+			ID:         int(f.ID),
+			Text:       f.FootnoteText,
+			References: convertReferences(f.References),
+		})
+	}
+
 	var lines []StoryLine
 	for _, dbLine := range dbLines {
+		lineNum := int(dbLine.LineNumber)
+
+		vocabItems := vocabMap[lineNum]
+		if vocabItems == nil {
+			vocabItems = []VocabularyItem{}
+		}
+
+		grammarItems := grammarMap[lineNum]
+		if grammarItems == nil {
+			grammarItems = []GrammarItem{}
+		}
+
+		audioFiles := audioMap[lineNum]
+		if audioFiles == nil {
+			audioFiles = []AudioFile{}
+		}
+
+		footnotes := footnoteMap[lineNum]
+		if footnotes == nil {
+			footnotes = []Footnote{}
+		}
+
 		line := StoryLine{
-			LineNumber: int(dbLine.LineNumber),
+			LineNumber: lineNum,
 			Text:       dbLine.Text,
-			Vocabulary: []VocabularyItem{}, // Init with empty arrays
-			Grammar:    []GrammarItem{},
-			AudioFiles: []AudioFile{},
-			Footnotes:  []Footnote{},
+			Vocabulary: vocabItems,
+			Grammar:    grammarItems,
+			AudioFiles: audioFiles,
+			Footnotes:  footnotes,
 		}
-
-		// Get vocabulary items for this line
-		vocabItems, err := queries.GetAllVocabularyForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
-		if err != nil {
-			return nil, err
-		}
-		for _, vocab := range vocabItems {
-			if int(vocab.LineNumber.Int32) == int(dbLine.LineNumber) {
-				line.Vocabulary = append(line.Vocabulary, VocabularyItem{
-					Word:        vocab.Word,
-					LexicalForm: vocab.LexicalForm,
-					Position:    [2]int{int(vocab.PositionStart), int(vocab.PositionEnd)},
-				})
-			}
-		}
-
-		// Get grammar items for this line
-		grammarItems, err := queries.GetAllGrammarForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
-		if err != nil {
-			return nil, err
-		}
-		for _, grammar := range grammarItems {
-			if int(grammar.LineNumber.Int32) == int(dbLine.LineNumber) {
-				grammarItem := GrammarItem{
-					Text:     grammar.Text,
-					Position: [2]int{int(grammar.PositionStart), int(grammar.PositionEnd)},
-				}
-				if grammar.GrammarPointID.Valid {
-					gpID := int(grammar.GrammarPointID.Int32)
-					grammarItem.GrammarPointID = &gpID
-				}
-				line.Grammar = append(line.Grammar, grammarItem)
-			}
-		}
-
-		// Get audio files for this line
-		audioFiles, err := queries.GetLineAudioFiles(ctx, db.GetLineAudioFilesParams{
-			StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
-			LineNumber: pgtype.Int4{Int32: int32(dbLine.LineNumber), Valid: true},
-		})
-		if err != nil {
-			return nil, err
-		}
-		for _, audio := range audioFiles {
-			line.AudioFiles = append(line.AudioFiles, AudioFile{
-				ID:         int(audio.AudioFileID),
-				FilePath:   audio.FilePath,
-				FileBucket: audio.FileBucket,
-				Label:      audio.Label,
-			})
-		}
-
-		// Get footnotes for this line
-		footnotes, err := queries.GetAllFootnotesForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
-		if err != nil {
-			return nil, err
-		}
-		for _, fn := range footnotes {
-			if int(fn.LineNumber.Int32) == int(dbLine.LineNumber) {
-				refs, err := queries.GetFootnoteReferences(ctx, fn.ID)
-				if err != nil {
-					return nil, err
-				}
-				line.Footnotes = append(line.Footnotes, Footnote{
-					ID:         int(fn.ID),
-					Text:       fn.FootnoteText,
-					References: refs,
-				})
-			}
-		}
-
 		lines = append(lines, line)
 	}
 	return lines, nil
@@ -302,37 +337,39 @@ func getLineAnnotationsFromDB(ctx context.Context, storyID int, lineNumber int) 
 	}
 
 	// Get vocabulary items for this line
-	vocabItems, err := queries.GetAllVocabularyForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+	vocabItems, err := queries.GetVocabularyItems(ctx, db.GetVocabularyItemsParams{
+		StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
+		LineNumber: pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+	})
 	if err != nil {
 		return nil, err
 	}
 	for _, vocab := range vocabItems {
-		if int(vocab.LineNumber.Int32) == lineNumber {
-			line.Vocabulary = append(line.Vocabulary, VocabularyItem{
-				Word:        vocab.Word,
-				LexicalForm: vocab.LexicalForm,
-				Position:    [2]int{int(vocab.PositionStart), int(vocab.PositionEnd)},
-			})
-		}
+		line.Vocabulary = append(line.Vocabulary, VocabularyItem{
+			Word:        vocab.Word,
+			LexicalForm: vocab.LexicalForm,
+			Position:    [2]int{int(vocab.PositionStart), int(vocab.PositionEnd)},
+		})
 	}
 
 	// Get grammar items for this line
-	grammarItems, err := queries.GetAllGrammarForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+	grammarItems, err := queries.GetGrammarItems(ctx, db.GetGrammarItemsParams{
+		StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
+		LineNumber: pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+	})
 	if err != nil {
 		return nil, err
 	}
 	for _, grammar := range grammarItems {
-		if int(grammar.LineNumber.Int32) == lineNumber {
-			grammarItem := GrammarItem{
-				Text:     grammar.Text,
-				Position: [2]int{int(grammar.PositionStart), int(grammar.PositionEnd)},
-			}
-			if grammar.GrammarPointID.Valid {
-				gpID := int(grammar.GrammarPointID.Int32)
-				grammarItem.GrammarPointID = &gpID
-			}
-			line.Grammar = append(line.Grammar, grammarItem)
+		grammarItem := GrammarItem{
+			Text:     grammar.Text,
+			Position: [2]int{int(grammar.PositionStart), int(grammar.PositionEnd)},
 		}
+		if grammar.GrammarPointID.Valid {
+			gpID := int(grammar.GrammarPointID.Int32)
+			grammarItem.GrammarPointID = &gpID
+		}
+		line.Grammar = append(line.Grammar, grammarItem)
 	}
 
 	// Get audio files for this line
@@ -353,22 +390,23 @@ func getLineAnnotationsFromDB(ctx context.Context, storyID int, lineNumber int) 
 	}
 
 	// Get footnotes for this line
-	footnotes, err := queries.GetAllFootnotesForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+	footnotes, err := queries.GetFootnotes(ctx, db.GetFootnotesParams{
+		StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
+		LineNumber: pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+	})
 	if err != nil {
 		return nil, err
 	}
 	for _, fn := range footnotes {
-		if int(fn.LineNumber.Int32) == lineNumber {
-			refs, err := queries.GetFootnoteReferences(ctx, fn.ID)
-			if err != nil {
-				return nil, err
-			}
-			line.Footnotes = append(line.Footnotes, Footnote{
-				ID:         int(fn.ID),
-				Text:       fn.FootnoteText,
-				References: refs,
-			})
+		refs, err := queries.GetFootnoteReferences(ctx, fn.ID)
+		if err != nil {
+			return nil, err
 		}
+		line.Footnotes = append(line.Footnotes, Footnote{
+			ID:         int(fn.ID),
+			Text:       fn.FootnoteText,
+			References: refs,
+		})
 	}
 
 	return line, nil
@@ -527,27 +565,24 @@ func GetLineText(ctx context.Context, storyID int, lineNumber int) (string, erro
 }
 
 // withTransaction executes a function within a database transaction
-func withTransaction(fn func() error) error {
-	// Check if we're using pgxpool
-	if pool, ok := rawConn.(*pgxpool.Pool); ok {
-		// Use pgx transaction
-		ctx := context.Background()
+func withTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
+	var pool *pgxpool.Pool
+	if p, ok := rawConn.(*pgxpool.Pool); ok {
+		pool = p
+	} else if r, ok := rawConn.(*database.ReconnectableDBTX); ok {
+		pool = r.Pool()
+	}
+
+	if pool != nil {
 		tx, err := pool.Begin(ctx)
 		if err != nil {
 			return err
 		}
 		defer tx.Rollback(ctx)
 
-		// Create new queries instance with transaction
-		oldQueries := queries
-		queries = queries.WithTx(tx)
+		txCtx := context.WithValue(ctx, TxContextKey{}, tx)
 
-		// Execute function (tx parameter is ignored for SQLC)
-		err = fn()
-
-		// Restore original queries
-		queries = oldQueries
-
+		err = fn(txCtx)
 		if err != nil {
 			return err
 		}
@@ -557,7 +592,7 @@ func withTransaction(fn func() error) error {
 
 	// Fallback for other connection types
 	fmt.Println("# Connection type not recognized. Transactions disabled.")
-	return fn()
+	return fn(ctx)
 }
 
 func GetAllStories(ctx context.Context, language string, userID string) ([]Story, error) {

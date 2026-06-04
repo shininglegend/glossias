@@ -11,7 +11,7 @@ export default defineConfig({
   ].filter(Boolean) as any,
   test: {
     globals: true,
-    environment: "jsdom",
+    environment: "happy-dom",
     setupFiles: ["./app/test/setup.ts"],
   },
   server: {

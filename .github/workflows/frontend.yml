@@ -24,11 +24,23 @@ jobs:
         run: npm ci
         working-directory: frontend
 
+      - name: Format check
+        run: npm run format:check
+        working-directory: frontend
+
+      - name: Lint check
+        run: npm run lint
+        working-directory: frontend
+
       - name: Type check
         run: npm run typecheck
         working-directory: frontend
         env:
           VITE_CLERK_PUBLISHABLE_KEY: pk_test_dummy_key_for_ci
+
+      - name: Run tests
+        run: npm run test
+        working-directory: frontend
 
       - name: Build
         run: npm run build

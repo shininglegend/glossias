@@ -40,22 +40,18 @@ export function StoriesVocab() {
   const [lockedAnswers, setLockedAnswers] = useState<Set<string>>(new Set());
   const [completedLines, setCompletedLines] = useState<Set<number>>(new Set());
   const [originalLines, setOriginalLines] = useState<Record<number, string>>(
-    {}
+    {},
   );
   const [playedLines, setPlayedLines] = useState<Set<number>>(new Set());
-  const [checkingLines, setCheckingLines] = useState<Set<number>>(new Set());
   const [currentLineIndex, setCurrentLineIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [prefetchedAudio, setPrefetchedAudio] = useState<
-    Record<string, HTMLAudioElement>
-  >({});
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
 
   const fetchAudioURLs = async () => {
     if (!id) return {};
     try {
       const response = await authenticatedFetch(
-        `/api/stories/${id}/audio/signed?label=complete`
+        `/api/stories/${id}/audio/signed?label=complete`,
       );
       if (!response.ok) return {};
       const data: AudioURLsResponse = await response.json();
@@ -86,7 +82,7 @@ export function StoriesVocab() {
         // Fetch signed audio URLs
         const urls = await fetchAudioURLs();
         setAudioURLs(urls);
-      } catch (err) {
+      } catch {
         setError("Failed to fetch page data");
       } finally {
         setLoading(false);
@@ -94,6 +90,7 @@ export function StoriesVocab() {
     };
 
     fetchPageData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
@@ -310,7 +307,7 @@ export function StoriesVocab() {
                   lineResults={lineResults}
                   completedLines={completedLines}
                   playedLines={playedLines}
-                  checkingLines={checkingLines}
+                  checkingLines={new Set()}
                   isCurrentLine={currentLineIndex === lineIndex && isPlaying}
                   isRTL={!!isRTL}
                   prefetchedAudio={audioPlayer.prefetchedAudio}

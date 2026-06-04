@@ -39,6 +39,7 @@ export default function EditStory() {
       }
     }
     fetchStory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   if (loading) {

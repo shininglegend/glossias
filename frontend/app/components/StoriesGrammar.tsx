@@ -5,18 +5,6 @@ import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import { CompletionMessage } from "./story-components/CompletionMessage";
 import type { GrammarData } from "../services/api";
 
-interface ClickPosition {
-  lineNumber: number;
-  position: number;
-}
-
-interface CheckGrammarResponse {
-  correct: boolean;
-  matched_position?: [number, number];
-  total_instances: number;
-  next_grammar_point: number | null;
-}
-
 export function StoriesGrammar() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
@@ -28,13 +16,13 @@ export function StoriesGrammar() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [clickedPositions, setClickedPositions] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [correctPositions, setCorrectPositions] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [incorrectPositions, setIncorrectPositions] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [isSubmittingAnswer, setIsSubmittingAnswer] = useState(false);
   const [nextGrammarPoint, setNextGrammarPoint] = useState<number | null>(null);
@@ -64,8 +52,8 @@ export function StoriesGrammar() {
           if (response.data.found_instances) {
             response.data.found_instances.forEach((instance) => {
               const lineIndex = instance.line_number - 1;
-              const [start, end] = instance.position;
-              for (let i = start; i <= end; i++) {
+              const [start, _end] = instance.position;
+              for (let i = start; i <= _end; i++) {
                 newCorrect.add(`${lineIndex}-${i}`);
                 newClicked.add(`${lineIndex}-${i}`);
               }
@@ -76,7 +64,7 @@ export function StoriesGrammar() {
           if (response.data.incorrect_instances) {
             response.data.incorrect_instances.forEach((instance) => {
               const lineIndex = instance.line_number - 1;
-              const [start, end] = instance.position;
+              const [start] = instance.position;
               const positionKey = `${lineIndex}-${start}`;
               setIncorrectPositions((prev) => new Set([...prev, positionKey]));
               newClicked.add(positionKey);
@@ -93,7 +81,7 @@ export function StoriesGrammar() {
         } else {
           setError(response.error || "Failed to fetch page data");
         }
-      } catch (err) {
+      } catch {
         setError("Failed to fetch page data");
       } finally {
         setLoading(false);
@@ -108,6 +96,7 @@ export function StoriesGrammar() {
     setNextGrammarPoint(null);
 
     fetchPageData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, grammarPointId]);
 
   useEffect(() => {
@@ -208,11 +197,6 @@ export function StoriesGrammar() {
     return incorrectPositions.has(positionKey);
   };
 
-  const isPositionClicked = (lineIndex: number, charIndex: number) => {
-    const positionKey = `${lineIndex}-${charIndex}`;
-    return clickedPositions.has(positionKey);
-  };
-
   if (loading) {
     return (
       <div className="container">
@@ -262,7 +246,7 @@ export function StoriesGrammar() {
                   try {
                     const guidance = await getNavigationGuidance(
                       id!,
-                      "grammar"
+                      "grammar",
                     );
                     if (guidance) {
                       navigate(`/stories/${id}/${guidance.nextPage}`);
@@ -357,7 +341,7 @@ export function StoriesGrammar() {
                           const indentLevel = getIndentLevel(line.text);
                           const firstNonTabIndex = Math.min(
                             indentLevel,
-                            line.text.length - 1
+                            line.text.length - 1,
                           );
                           return line.text.split("").map((char, charIndex) => {
                             let className = isSubmittingAnswer

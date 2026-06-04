@@ -33,7 +33,7 @@ export default function TranslateStory() {
           setStory(storyData);
 
           const translationMap = new Map(
-            translationsData.map((t) => [t.lineNumber, t.translationText])
+            translationsData.map((t) => [t.lineNumber, t.translationText]),
           );
 
           setTranslations(
@@ -42,7 +42,7 @@ export default function TranslateStory() {
               hebrew: line.text,
               english: translationMap.get(line.lineNumber) || "",
               hasChanges: false,
-            }))
+            })),
           );
         }
       } catch (error) {
@@ -52,13 +52,14 @@ export default function TranslateStory() {
       }
     }
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const updateTranslation = (lineNumber: number, english: string) => {
     setTranslations((prev) =>
       prev.map((t) =>
-        t.lineNumber === lineNumber ? { ...t, english, hasChanges: true } : t
-      )
+        t.lineNumber === lineNumber ? { ...t, english, hasChanges: true } : t,
+      ),
     );
   };
 
@@ -70,13 +71,13 @@ export default function TranslateStory() {
         await adminApi.saveTranslation(
           Number(id),
           lineNumber,
-          translation.english
+          translation.english,
         );
 
         setTranslations((prev) =>
           prev.map((t) =>
-            t.lineNumber === lineNumber ? { ...t, hasChanges: false } : t
-          )
+            t.lineNumber === lineNumber ? { ...t, hasChanges: false } : t,
+          ),
         );
       }
     } catch (error) {
@@ -196,19 +197,21 @@ function TranslationLineEditor({
     if (e.key === "Tab") {
       e.preventDefault();
       const allTextareas = document.querySelectorAll<HTMLTextAreaElement>(
-        'textarea[data-translation-field]'
+        "textarea[data-translation-field]",
       );
       const currentIndex = Array.from(allTextareas).indexOf(
-        textareaRef.current!
+        textareaRef.current!,
       );
 
       if (e.shiftKey) {
         // Shift+Tab: Move to previous field
-        const prevIndex = currentIndex > 0 ? currentIndex - 1 : allTextareas.length - 1;
+        const prevIndex =
+          currentIndex > 0 ? currentIndex - 1 : allTextareas.length - 1;
         allTextareas[prevIndex]?.focus();
       } else {
         // Tab: Move to next field
-        const nextIndex = currentIndex < allTextareas.length - 1 ? currentIndex + 1 : 0;
+        const nextIndex =
+          currentIndex < allTextareas.length - 1 ? currentIndex + 1 : 0;
         allTextareas[nextIndex]?.focus();
       }
     }

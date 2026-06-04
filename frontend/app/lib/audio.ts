@@ -31,7 +31,7 @@ export class AudioUploadError extends Error {
   }
 }
 
-export function createAudioUploader() {
+export function useAudioUploader() {
   const authenticatedFetch = useAuthenticatedFetch();
 
   return async function uploadAudioFile(
@@ -122,7 +122,7 @@ export function createAudioUploader() {
   };
 }
 
-export function createAudioDeleter() {
+export function useAudioDeleter() {
   const authenticatedFetch = useAuthenticatedFetch();
 
   return async function deleteLineAudio(

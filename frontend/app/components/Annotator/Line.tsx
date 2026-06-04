@@ -6,8 +6,8 @@ import AnnotationModal from "./AnnotationModal";
 import Button from "~/components/ui/Button";
 import ConfirmDialog from "~/components/ui/ConfirmDialog";
 import {
-  createAudioUploader,
-  createAudioDeleter,
+  useAudioUploader,
+  useAudioDeleter,
   AudioUploadError,
 } from "~/lib/audio";
 import { useAuthenticatedFetch } from "../../lib/authFetch";
@@ -112,8 +112,8 @@ export default function Line({
   const [localCompleteAudioURL, setLocalCompleteAudioURL] = useState<
     string | undefined
   >(completeAudioURL);
-  const uploadAudioFile = createAudioUploader();
-  const deleteLineAudio = createAudioDeleter();
+  const uploadAudioFile = useAudioUploader();
+  const deleteLineAudio = useAudioDeleter();
 
   // Check if audio exists based on provided URLs
   const hasAudio = (label: string) => {
@@ -182,7 +182,7 @@ export default function Line({
         alert("Failed to play audio");
       };
       await audio.play();
-    } catch (error) {
+    } catch {
       setAudioPlaying(null);
       alert("Failed to play audio");
     }

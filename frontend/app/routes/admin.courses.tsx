@@ -40,10 +40,6 @@ export default function AdminCourses() {
   // Check if user is super admin
   const isSuperAdmin = userInfo?.is_super_admin || false;
 
-  React.useEffect(() => {
-    fetchCourses();
-  }, []);
-
   const fetchCourses = async () => {
     try {
       setLoading(true);
@@ -57,6 +53,11 @@ export default function AdminCourses() {
       setLoading(false);
     }
   };
+
+  React.useEffect(() => {
+    fetchCourses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const resetForm = () => {
     setFormData({ course_number: "", name: "", description: "" });
@@ -366,7 +367,9 @@ export default function AdminCourses() {
                       className="flex items-center justify-between p-3 bg-slate-50 rounded"
                     >
                       <div>
-                        <div className="font-medium">{admin.name || admin.email || admin.user_id}</div>
+                        <div className="font-medium">
+                          {admin.name || admin.email || admin.user_id}
+                        </div>
                         <div className="text-sm text-slate-500">
                           {admin.email}
                         </div>

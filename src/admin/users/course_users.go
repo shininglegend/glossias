@@ -103,7 +103,7 @@ func (h *Handler) GetUsersForCourse(w http.ResponseWriter, r *http.Request) {
 			Name:       user.Name,
 			Role:       role,
 			EnrolledAt: user.EnrolledAt.Format("2006-01-02T15:04:05Z07:00"),
-			Status:    user.Status,
+			Status:     user.Status,
 		}
 	}
 

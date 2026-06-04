@@ -133,14 +133,14 @@ func TestDBConnection(ctx context.Context) error {
 	if rawConn == nil {
 		return errors.New("database not initialized")
 	}
-	
+
 	// Use the simplest possible query to test connection
 	if conn, ok := rawConn.(db.DBTX); ok {
 		var result int
 		err := conn.QueryRow(ctx, "SELECT 1").Scan(&result)
 		return err
 	}
-	
+
 	return errors.New("unable to test database connection")
 }
 

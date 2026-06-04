@@ -108,11 +108,11 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
         <div className="w-16 h-16 bg-red-50 dark:bg-red-950/30 rounded-full flex items-center justify-center mx-auto mb-6 text-red-500 dark:text-red-400">
           <span className="material-icons text-3xl">error_outline</span>
         </div>
-        
+
         <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-3">
           {message}
         </h1>
-        
+
         <p className="text-slate-600 dark:text-slate-400 mb-8 leading-relaxed">
           {details}
         </p>

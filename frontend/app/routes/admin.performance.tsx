@@ -51,7 +51,8 @@ export default function AdminPerformance() {
 
         {courses.length === 0 ? (
           <div className="text-center py-8 text-slate-500">
-            No courses assigned. Contact a super admin to be assigned to a course.
+            No courses assigned. Contact a super admin to be assigned to a
+            course.
           </div>
         ) : (
           <div className="grid gap-4">
@@ -70,7 +71,8 @@ export default function AdminPerformance() {
                         <Badge>{course.course_number}</Badge>
                       </div>
                       <div className="text-xs text-slate-500">
-                        Assigned: {new Date(course.assigned_at).toLocaleDateString()}
+                        Assigned:{" "}
+                        {new Date(course.assigned_at).toLocaleDateString()}
                       </div>
                     </div>
                     <span className="material-icons text-slate-400">

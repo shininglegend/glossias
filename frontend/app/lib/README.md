@@ -5,7 +5,7 @@ Simple time tracking for user sessions with automatic duplicate prevention and c
 ## Usage
 
 ```tsx
-import { useTimeTracking } from './timeTracking';
+import { useTimeTracking } from "./timeTracking";
 
 export default function MyComponent() {
   const { startTracking } = useTimeTracking();
@@ -32,6 +32,7 @@ export default function MyComponent() {
 - `endTracking(trackingId?: number)` - Manual end (usually not needed)
 
 Backend handles:
+
 - Sessions > 5 minutes auto-close and create new ones
 - Duplicate end requests are ignored
 - Same user/route/story returns existing session ID

@@ -23,9 +23,9 @@ export function StoriesVideo() {
   const [metadata, setMetadata] = useState<StoryMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [videoWatched, setVideoWatched] = useState(false);
+  const [, setVideoWatched] = useState(false);
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
-  const [guidanceCache, setGuidanceCache] = useState<any>(null);
+  const [guidanceCache, setGuidanceCache] = useState<unknown>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
 
   useEffect(() => {
@@ -52,7 +52,7 @@ export function StoriesVideo() {
           setNextStepName(guidance.displayName);
           setGuidanceCache(guidance);
         }
-      } catch (err) {
+      } catch {
         setError("Failed to fetch story metadata");
       } finally {
         setLoading(false);
@@ -60,7 +60,8 @@ export function StoriesVideo() {
     };
 
     fetchMetadataAndGuidance();
-  }, [id, getNavigationGuidance]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   if (loading) {
     return (

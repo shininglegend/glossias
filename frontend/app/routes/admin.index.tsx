@@ -42,6 +42,7 @@ export default function AdminHome() {
       }
     }
     fetchStories();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleAction = async (intent: string, storyId: number) => {

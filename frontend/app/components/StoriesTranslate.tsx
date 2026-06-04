@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router";
-import { useApiService } from "../services/api";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import { useAuthenticatedFetch } from "../lib/authFetch";
 import type { VocabLine } from "../services/api";
@@ -26,7 +25,7 @@ const WAIT_TIME_WHEN_NOT_KNOWN = 2.5 * 1000;
 
 // Transform translate line to vocab line format
 const transformToVocabLine = (
-  translateLine: LineWithTranslation
+  translateLine: LineWithTranslation,
 ): VocabLine => {
   return {
     text: [{ type: "text", text: translateLine.text }],
@@ -37,7 +36,6 @@ const transformToVocabLine = (
 
 export function StoriesTranslate() {
   const { id } = useParams<{ id: string }>();
-  const api = useApiService();
   const navigate = useNavigate();
   const { getNavigationGuidance } = useNavigationGuidance();
   const authenticatedFetch = useAuthenticatedFetch();
@@ -52,10 +50,10 @@ export function StoriesTranslate() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [showComprehensionPrompt, setShowComprehensionPrompt] = useState(false);
   const [revealedTranslations, setRevealedTranslations] = useState<Set<number>>(
-    new Set()
+    new Set(),
   );
   const [requestedLineIndices, setRequestedLineIndices] = useState<number[]>(
-    []
+    [],
   );
   const [completedLines, setCompletedLines] = useState<Set<number>>(new Set());
   const [playedLines, setPlayedLines] = useState<Set<number>>(new Set());
@@ -77,7 +75,7 @@ export function StoriesTranslate() {
       try {
         // Fetch translation page data (GET request returns all lines with translations)
         const translateResponse = await authenticatedFetch(
-          `/api/stories/${id}/translate`
+          `/api/stories/${id}/translate`,
         );
         if (translateResponse.ok) {
           const translateData = await translateResponse.json();
@@ -86,13 +84,13 @@ export function StoriesTranslate() {
 
             // Transform lines to VocabLine format
             const transformed = translateData.data.lines.map(
-              (line: LineWithTranslation) => transformToVocabLine(line)
+              (line: LineWithTranslation) => transformToVocabLine(line),
             );
             setVocabLines(transformed);
 
             // Fetch audio URLs
             const audioResponse = await authenticatedFetch(
-              `/api/stories/${id}/audio/signed?label=complete`
+              `/api/stories/${id}/audio/signed?label=complete`,
             );
             if (audioResponse.ok) {
               const audioData = await audioResponse.json();
@@ -115,7 +113,8 @@ export function StoriesTranslate() {
     };
 
     fetchData();
-  }, [id, authenticatedFetch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   useEffect(() => {
     const fetchNextStep = async () => {
@@ -157,13 +156,11 @@ export function StoriesTranslate() {
 
   // Cleanup on unmount
   useEffect(() => {
+    const audio = currentAudioRef.current;
+    const timeout = autoWaitTimeoutRef.current;
     return () => {
-      if (currentAudioRef.current) {
-        currentAudioRef.current.pause();
-      }
-      if (autoWaitTimeoutRef.current) {
-        clearTimeout(autoWaitTimeoutRef.current);
-      }
+      if (audio) audio.pause();
+      if (timeout) clearTimeout(timeout);
     };
   }, []);
 
@@ -237,7 +234,7 @@ export function StoriesTranslate() {
     try {
       const url = new URL(
         `/api/stories/${id}/translate`,
-        window.location.origin
+        window.location.origin,
       );
       url.searchParams.set("lines", `[${lines.join(",")}]`);
 

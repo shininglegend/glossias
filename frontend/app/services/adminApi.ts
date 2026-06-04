@@ -2,17 +2,12 @@
 
 import { useCallback } from "react";
 import { useAuthenticatedFetch } from "../lib/authFetch";
-import type {
-  Story,
-  StoryMetadata,
-  StoryContent,
-  GrammarPoint,
-} from "../types/admin";
+import type { Story, StoryMetadata, StoryContent } from "../types/admin";
 
 type Json<T> = Promise<T>;
 
 // Cache for pending requests to prevent duplicates
-const pendingRequests = new Map<string, Promise<any>>();
+const pendingRequests = new Map<string, Promise<unknown>>();
 
 export function useAdminApi() {
   const authenticatedFetch = useAuthenticatedFetch();
@@ -63,7 +58,7 @@ export function useAdminApi() {
     // GET stories/:id -> { Story, Success }
     getStoryForEdit: useCallback(
       async (id: number, baseUrl?: string): Json<Story | undefined> => {
-        const data = await request<any>(
+        const data = await request<unknown>(
           `/stories/${id}`,
           {
             headers: { Accept: "application/json" },
@@ -104,7 +99,7 @@ export function useAdminApi() {
         story: Story;
         success: boolean;
       }> => {
-        const data = await request<any>(
+        const data = await request<unknown>(
           `/stories/${id}/metadata`,
           {
             headers: { Accept: "application/json" },

@@ -35,9 +35,6 @@ export default function AnnotatedText({
 }: Props) {
   const isRTL = languageCode && RTL_LANGUAGES.includes(languageCode);
 
-  // Store original text for position calculations
-  const originalText = useMemo(() => text, [text]);
-
   // Handle RTL indentation by converting leading tabs to padding
   const { displayText, indentLevel } = useMemo(() => {
     if (!isRTL) return { displayText: text, indentLevel: 0 };

@@ -1,5 +1,5 @@
 import React from "react";
-import type { StoryMetadata, GrammarPoint } from "../../types/admin";
+import type { StoryMetadata } from "../../types/admin";
 import Input from "~/components/ui/Input";
 import Textarea from "~/components/ui/Textarea";
 import Label from "~/components/ui/Label";

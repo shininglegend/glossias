@@ -85,7 +85,7 @@ export function StoriesScore() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confettiFired, setConfettiFired] = useState(false);
-  const [nextStepName, setNextStepName] = useState<string>("Back to Stories");
+  const [, setNextStepName] = useState<string>("Back to Stories");
 
   useEffect(() => {
     const fetchScoreData = async () => {
@@ -106,7 +106,7 @@ export function StoriesScore() {
         } else {
           setError(response.error || "Failed to fetch score data");
         }
-      } catch (err) {
+      } catch {
         setError("Failed to fetch score data");
       } finally {
         setLoading(false);
@@ -114,6 +114,7 @@ export function StoriesScore() {
     };
 
     fetchScoreData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
@@ -241,7 +242,7 @@ export function StoriesScore() {
       </div>
     );
   }
-  
+
   // Simply round this
   const overallScore = Math.round(scoreData.overall_accuracy);
 

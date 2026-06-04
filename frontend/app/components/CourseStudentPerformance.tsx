@@ -100,7 +100,6 @@ export function CourseStudentPerformance() {
   const [loadingStories, setLoadingStories] = useState(true);
   const [loadingPerformance, setLoadingPerformance] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
   const [statusFilter, setStatusFilter] = useState<string>("active");
 
   useEffect(() => {
@@ -118,7 +117,7 @@ export function CourseStudentPerformance() {
         } else {
           setError(response.error || "Failed to fetch course stories");
         }
-      } catch (err) {
+      } catch {
         setError("Failed to fetch course stories");
       } finally {
         setLoadingStories(false);
@@ -126,7 +125,8 @@ export function CourseStudentPerformance() {
     };
 
     fetchStories();
-  }, [id, api]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   useEffect(() => {
     const fetchPerformance = async (attempt = 0) => {
@@ -137,7 +137,6 @@ export function CourseStudentPerformance() {
 
       setLoadingPerformance(true);
       setError(null);
-      setRetryCount(attempt);
 
       try {
         const response = await api.getStoryStudentPerformance(
@@ -191,7 +190,8 @@ export function CourseStudentPerformance() {
     };
 
     fetchPerformance();
-  }, [selectedStoryId, statusFilter, api]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStoryId, statusFilter]);
 
   // Sort performance data by:
   // 1. Most combined correct (vocab + grammar)
@@ -200,18 +200,18 @@ export function CourseStudentPerformance() {
   const sortedPerformanceData = performanceData.slice().sort((a, b) => {
     const totalCorrectA = a.vocab_correct + a.grammar_correct;
     const totalCorrectB = b.vocab_correct + b.grammar_correct;
-    
+
     if (totalCorrectB !== totalCorrectA) {
       return totalCorrectB - totalCorrectA; // Higher correct first
     }
-    
+
     const totalIncorrectA = a.vocab_incorrect + a.grammar_incorrect;
     const totalIncorrectB = b.vocab_incorrect + b.grammar_incorrect;
-    
+
     if (totalIncorrectA !== totalIncorrectB) {
       return totalIncorrectA - totalIncorrectB; // Lower incorrect first
     }
-    
+
     return a.email.localeCompare(b.email); // Alphabetical by email
   });
 
@@ -259,8 +259,8 @@ export function CourseStudentPerformance() {
                   key={story.metadata.storyId}
                   value={story.metadata.storyId}
                 >
-                  {typeof story.metadata.title === 'string' 
-                    ? story.metadata.title 
+                  {typeof story.metadata.title === "string"
+                    ? story.metadata.title
                     : story.metadata.title?.en || "Untitled"}
                 </option>
               ))}
@@ -268,7 +268,10 @@ export function CourseStudentPerformance() {
             {selectedStoryId && (
               <div className="mt-4 flex gap-4 items-center">
                 <div>
-                  <label htmlFor="status-filter" className="block font-semibold mb-2">
+                  <label
+                    htmlFor="status-filter"
+                    className="block font-semibold mb-2"
+                  >
                     Filter by Status:
                   </label>
                   <select
@@ -287,11 +290,14 @@ export function CourseStudentPerformance() {
                   <label className="block font-semibold mb-2">&nbsp;</label>
                   <button
                     onClick={() => {
-                      const story = stories.find((s) => s.metadata.storyId === selectedStoryId);
+                      const story = stories.find(
+                        (s) => s.metadata.storyId === selectedStoryId,
+                      );
                       const title = story?.metadata.title;
-                      const titleStr = typeof title === 'string' 
-                        ? title 
-                        : (title as { [key: string]: string })?.en || "story";
+                      const titleStr =
+                        typeof title === "string"
+                          ? title
+                          : (title as { [key: string]: string })?.en || "story";
                       downloadCSV(sortedPerformanceData, titleStr);
                     }}
                     disabled={performanceData.length === 0}
@@ -370,7 +376,8 @@ export function CourseStudentPerformance() {
                           {formatAccuracy(student.vocab_accuracy)}
                         </span>
                         <div className="text-xs text-gray-500">
-                          {student.vocab_correct} correct / {student.vocab_incorrect} incorrect
+                          {student.vocab_correct} correct /{" "}
+                          {student.vocab_incorrect} incorrect
                         </div>
                       </td>
                       <td className="border border-gray-300 p-3 text-center">
@@ -383,7 +390,8 @@ export function CourseStudentPerformance() {
                           {formatAccuracy(student.grammar_accuracy)}
                         </span>
                         <div className="text-xs text-gray-500">
-                          {student.grammar_correct} correct / {student.grammar_incorrect} incorrect
+                          {student.grammar_correct} correct /{" "}
+                          {student.grammar_incorrect} incorrect
                         </div>
                       </td>
                       <td className="border border-gray-300 p-3 text-center">

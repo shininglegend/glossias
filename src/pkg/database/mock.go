@@ -4,6 +4,9 @@ package database
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"reflect"
+	"strings"
 	"sync"
 
 	"github.com/jackc/pgx/v5"
@@ -104,19 +107,70 @@ func (m *MockDB) QueryRow(query string, args ...interface{}) Row {
 	return &MockRow{}
 }
 
-// MockDBTX implements db.DBTX for testing
-type MockDBTX struct{}
+// MockQueryResult stores the expected return values for a query
+type MockQueryResult struct {
+	Rows [][]interface{}
+	Err  error
+}
+
+// MockDBTX implements db.DBTX for testing with query stubbing
+type MockDBTX struct {
+	queries map[string]MockQueryResult
+	execs   map[string]error
+}
+
+// NewMockDBTX creates a new mock DBTX connection with query stubbing capabilities
+func NewMockDBTX() *MockDBTX {
+	return &MockDBTX{
+		queries: make(map[string]MockQueryResult),
+		execs:   make(map[string]error),
+	}
+}
+
+// StubQuery registers a mocked result for any query containing the given substring
+func (m *MockDBTX) StubQuery(querySubstr string, rows [][]interface{}, err error) {
+	m.queries[querySubstr] = MockQueryResult{Rows: rows, Err: err}
+}
+
+// StubExec registers a mocked error (or nil for success) for exec queries matching substring
+func (m *MockDBTX) StubExec(querySubstr string, err error) {
+	m.execs[querySubstr] = err
+}
 
 func (m *MockDBTX) Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) {
+	for k, err := range m.execs {
+		if strings.Contains(sql, k) {
+			return pgconn.CommandTag{}, err
+		}
+	}
 	return pgconn.CommandTag{}, nil
 }
 
 func (m *MockDBTX) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
+	for k, qr := range m.queries {
+		if strings.Contains(sql, k) {
+			if qr.Err != nil {
+				return nil, qr.Err
+			}
+			return &MockPgxRows{rows: qr.Rows}, nil
+		}
+	}
 	return &MockPgxRows{}, nil
 }
 
 func (m *MockDBTX) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
-	return &MockPgxRow{}
+	for k, qr := range m.queries {
+		if strings.Contains(sql, k) {
+			if qr.Err != nil {
+				return &MockPgxRow{err: qr.Err}
+			}
+			if len(qr.Rows) > 0 {
+				return &MockPgxRow{row: qr.Rows[0]}
+			}
+			return &MockPgxRow{err: pgx.ErrNoRows}
+		}
+	}
+	return &MockPgxRow{err: pgx.ErrNoRows}
 }
 
 func (m *MockDBTX) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
@@ -124,18 +178,83 @@ func (m *MockDBTX) CopyFrom(ctx context.Context, tableName pgx.Identifier, colum
 }
 
 // Mock implementations for pgx types
-type MockPgxRows struct{}
+type MockPgxRows struct {
+	rows [][]interface{}
+	curr int
+	err  error
+}
 
-func (m *MockPgxRows) Next() bool                                   { return false }
-func (m *MockPgxRows) Scan(dest ...interface{}) error               { return nil }
+func (m *MockPgxRows) Next() bool {
+	if m.err != nil || m.curr >= len(m.rows) {
+		return false
+	}
+	return true
+}
+
+func (m *MockPgxRows) Scan(dest ...interface{}) error {
+	if m.err != nil {
+		return m.err
+	}
+	if m.curr >= len(m.rows) {
+		return pgx.ErrNoRows
+	}
+	err := scanValues(m.rows[m.curr], dest)
+	if err != nil {
+		return err
+	}
+	m.curr++
+	return nil
+}
+
 func (m *MockPgxRows) Values() ([]interface{}, error)               { return nil, nil }
 func (m *MockPgxRows) Close()                                       {}
-func (m *MockPgxRows) Err() error                                   { return nil }
+func (m *MockPgxRows) Err() error                                   { return m.err }
 func (m *MockPgxRows) CommandTag() pgconn.CommandTag                { return pgconn.CommandTag{} }
 func (m *MockPgxRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
 func (m *MockPgxRows) RawValues() [][]byte                          { return nil }
 func (m *MockPgxRows) Conn() *pgx.Conn                              { return nil }
 
-type MockPgxRow struct{}
+type MockPgxRow struct {
+	row []interface{}
+	err error
+}
 
-func (m *MockPgxRow) Scan(dest ...interface{}) error { return nil }
+func (m *MockPgxRow) Scan(dest ...interface{}) error {
+	if m.err != nil {
+		return m.err
+	}
+	if len(m.row) == 0 {
+		return pgx.ErrNoRows
+	}
+	return scanValues(m.row, dest)
+}
+
+func scanValues(src []interface{}, dest []interface{}) error {
+	if len(src) != len(dest) {
+		return fmt.Errorf("column count mismatch: src %d, dest %d", len(src), len(dest))
+	}
+	for i, val := range src {
+		d := reflect.ValueOf(dest[i])
+		if d.Kind() != reflect.Ptr {
+			return fmt.Errorf("dest element %d is not a pointer", i)
+		}
+		if d.IsNil() {
+			return fmt.Errorf("dest element %d is nil pointer", i)
+		}
+
+		if val == nil {
+			d.Elem().Set(reflect.Zero(d.Elem().Type()))
+			continue
+		}
+
+		sVal := reflect.ValueOf(val)
+		if sVal.Type().AssignableTo(d.Elem().Type()) {
+			d.Elem().Set(sVal)
+		} else if sVal.Type().ConvertibleTo(d.Elem().Type()) {
+			d.Elem().Set(sVal.Convert(d.Elem().Type()))
+		} else {
+			return fmt.Errorf("cannot assign %s to %s at index %d", sVal.Type(), d.Elem().Type(), i)
+		}
+	}
+	return nil
+}

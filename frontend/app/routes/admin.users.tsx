@@ -1,5 +1,4 @@
 import React from "react";
-import { Link } from "react-router";
 import Button from "~/components/ui/Button";
 import { Card } from "~/components/ui/Card";
 import Badge from "~/components/ui/Badge";
@@ -22,17 +21,19 @@ export default function AdminUsers() {
   const [users, setUsers] = React.useState<User[]>([]);
   const [courses, setCourses] = React.useState<CourseType[]>([]);
   const [selectedCourse, setSelectedCourse] = React.useState<number | null>(
-    null
+    null,
   );
   const [loading, setLoading] = React.useState(true);
   const [showAddForm, setShowAddForm] = React.useState(false);
   const [adding, setAdding] = React.useState(false);
   const [removing, setRemoving] = React.useState<string | null>(null);
   const [selectedUsers, setSelectedUsers] = React.useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
-  const [updatingStatus, setUpdatingStatus] = React.useState<string | null>(null);
+  const [updatingStatus, setUpdatingStatus] = React.useState<string | null>(
+    null,
+  );
   const [showBulkStatusModal, setShowBulkStatusModal] = React.useState(false);
   const authenticatedFetch = useAuthenticatedFetch();
   const coursesApi = useCoursesApi();
@@ -52,6 +53,7 @@ export default function AdminUsers() {
       }
     }
     fetchCourses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   React.useEffect(() => {
@@ -63,7 +65,7 @@ export default function AdminUsers() {
           `/api/admin/course-users/${selectedCourse}`,
           {
             headers: { Accept: "application/json" },
-          }
+          },
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
@@ -84,7 +86,7 @@ export default function AdminUsers() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ emails }),
-        }
+        },
       );
 
       if (!res.ok) {
@@ -98,7 +100,7 @@ export default function AdminUsers() {
         `/api/admin/course-users/${courseId}`,
         {
           headers: { Accept: "application/json" },
-        }
+        },
       );
       if (usersRes.ok) {
         const json = await usersRes.json();
@@ -129,7 +131,7 @@ export default function AdminUsers() {
         `/api/admin/course-users/${courseId}/users/${userId}`,
         {
           method: "DELETE",
-        }
+        },
       );
 
       if (!res.ok) {
@@ -167,7 +169,7 @@ export default function AdminUsers() {
 
     if (
       !confirm(
-        `Are you sure you want to remove ${selectedUsers.size} user(s) from the course?`
+        `Are you sure you want to remove ${selectedUsers.size} user(s) from the course?`,
       )
     ) {
       return;
@@ -178,9 +180,9 @@ export default function AdminUsers() {
       userIds.map((userId) =>
         authenticatedFetch(
           `/api/admin/course-users/${selectedCourse}/users/${userId}`,
-          { method: "DELETE" }
-        )
-      )
+          { method: "DELETE" },
+        ),
+      ),
     );
 
     const successful = results.filter((r) => r.status === "fulfilled").length;
@@ -188,14 +190,14 @@ export default function AdminUsers() {
 
     if (failed > 0) {
       alert(
-        `Removed ${successful} user(s). Failed to remove ${failed} user(s).`
+        `Removed ${successful} user(s). Failed to remove ${failed} user(s).`,
       );
     }
 
     // Refresh users list
     const usersRes = await authenticatedFetch(
       `/api/admin/course-users/${selectedCourse}`,
-      { headers: { Accept: "application/json" } }
+      { headers: { Accept: "application/json" } },
     );
     if (usersRes.ok) {
       const json = await usersRes.json();
@@ -218,7 +220,7 @@ export default function AdminUsers() {
 
   const handleStatusChange = async (
     userId: string,
-    newStatus: "active" | "past" | "future"
+    newStatus: "active" | "past" | "future",
   ) => {
     if (!selectedCourse) return;
 
@@ -230,7 +232,7 @@ export default function AdminUsers() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_ids: [userId] }),
-        }
+        },
       );
 
       if (!res.ok) {
@@ -240,7 +242,7 @@ export default function AdminUsers() {
 
       // Update local state
       setUsers((prev) =>
-        prev.map((u) => (u.id === userId ? { ...u, status: newStatus } : u))
+        prev.map((u) => (u.id === userId ? { ...u, status: newStatus } : u)),
       );
     } catch (error) {
       console.error("Failed to update status:", error);
@@ -253,7 +255,7 @@ export default function AdminUsers() {
   };
 
   const handleBulkStatusChange = async (
-    newStatus: "active" | "past" | "future"
+    newStatus: "active" | "past" | "future",
   ) => {
     if (selectedUsers.size === 0 || !selectedCourse) return;
 
@@ -265,7 +267,7 @@ export default function AdminUsers() {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_ids: Array.from(selectedUsers) }),
-        }
+        },
       );
 
       if (!res.ok) {
@@ -276,8 +278,8 @@ export default function AdminUsers() {
       // Update local state for all selected users
       setUsers((prev) =>
         prev.map((u) =>
-          selectedUsers.has(u.id) ? { ...u, status: newStatus } : u
-        )
+          selectedUsers.has(u.id) ? { ...u, status: newStatus } : u,
+        ),
       );
       setSelectedUsers(new Set());
       setShowBulkStatusModal(false);
@@ -407,7 +409,9 @@ export default function AdminUsers() {
                     onClick={handleRemoveSelected}
                     variant="outline"
                     size="sm"
-                    icon={<span className="material-icons text-sm">delete</span>}
+                    icon={
+                      <span className="material-icons text-sm">delete</span>
+                    }
                     disabled={removing !== null}
                   >
                     Remove Selected ({selectedUsers.size})
@@ -427,7 +431,9 @@ export default function AdminUsers() {
         <div className="grid gap-2">
           {filteredUsers.length === 0 ? (
             <Card className="p-8 text-center">
-              <p className="text-slate-500">No users found for this course, or filters are hiding all users.</p>
+              <p className="text-slate-500">
+                No users found for this course, or filters are hiding all users.
+              </p>
             </Card>
           ) : (
             filteredUsers.map((user) => {
@@ -437,72 +443,77 @@ export default function AdminUsers() {
                 future: "!bg-blue-50 !border-blue-200",
               };
               return (
-              <Card key={user.id} className={`p-3 ${statusColors[user.status]}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedUsers.has(user.id)}
-                      onChange={() => toggleUserSelection(user.id)}
-                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <div className="flex items-center gap-6">
-                      <h3 className="font-medium text-slate-900">
-                      {user.name}
-                      </h3>
-                      <p className="text-sm text-slate-500">{user.email}</p>
-                      <p className="text-xs text-slate-400">
-                      Enrolled:{" "}
-                      {new Date(user.enrolled_at).toLocaleDateString()}
-                      </p>
+                <Card
+                  key={user.id}
+                  className={`p-3 ${statusColors[user.status]}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedUsers.has(user.id)}
+                        onChange={() => toggleUserSelection(user.id)}
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div className="flex items-center gap-6">
+                        <h3 className="font-medium text-slate-900">
+                          {user.name}
+                        </h3>
+                        <p className="text-sm text-slate-500">{user.email}</p>
+                        <p className="text-xs text-slate-400">
+                          Enrolled:{" "}
+                          {new Date(user.enrolled_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={user.status}
+                        onChange={(e) =>
+                          handleStatusChange(
+                            user.id,
+                            e.target.value as "active" | "past" | "future",
+                          )
+                        }
+                        disabled={updatingStatus === user.id}
+                        className="rounded border border-slate-300 bg-white px-2 py-1 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="active">Active</option>
+                        <option value="future">Future</option>
+                        <option value="past">Past</option>
+                      </select>
+                      <Badge
+                        variant={
+                          user.role === "super_admin"
+                            ? "danger"
+                            : user.role === "course_admin"
+                              ? "warning"
+                              : "default"
+                        }
+                      >
+                        {user.role.replace("_", " ")}
+                      </Badge>
+                      {selectedCourse && (
+                        <Button
+                          onClick={() =>
+                            handleRemoveUser(user.id, selectedCourse)
+                          }
+                          variant="outline"
+                          size="sm"
+                          icon={
+                            <span className="material-icons text-sm">
+                              remove
+                            </span>
+                          }
+                          disabled={removing === user.id}
+                        >
+                          {removing === user.id ? "Removing..." : "Remove"}
+                        </Button>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={user.status}
-                      onChange={(e) =>
-                        handleStatusChange(
-                          user.id,
-                          e.target.value as "active" | "past" | "future"
-                        )
-                      }
-                      disabled={updatingStatus === user.id}
-                      className="rounded border border-slate-300 bg-white px-2 py-1 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    >
-                      <option value="active">Active</option>
-                      <option value="future">Future</option>
-                      <option value="past">Past</option>
-                    </select>
-                    <Badge
-                      variant={
-                        user.role === "super_admin"
-                          ? "danger"
-                          : user.role === "course_admin"
-                            ? "warning"
-                            : "default"
-                      }
-                    >
-                      {user.role.replace("_", " ")}
-                    </Badge>
-                    {selectedCourse && (
-                      <Button
-                        onClick={() =>
-                          handleRemoveUser(user.id, selectedCourse)
-                        }
-                        variant="outline"
-                        size="sm"
-                        icon={
-                          <span className="material-icons text-sm">remove</span>
-                        }
-                        disabled={removing === user.id}
-                      >
-                        {removing === user.id ? "Removing..." : "Remove"}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            );
+                </Card>
+              );
             })
           )}
         </div>
@@ -518,25 +529,27 @@ export default function AdminUsers() {
                 const formData = new FormData(e.currentTarget);
                 const emailsText = formData.get("emails") as string;
                 const courseId = Number(formData.get("courseId"));
-                
+
                 // Split by newlines, commas, or spaces and filter out empty strings
                 const emails = emailsText
                   .split(/[\n,\s]+/)
-                  .map(email => email.trim())
-                  .filter(email => email.length > 0);
+                  .map((email) => email.trim())
+                  .filter((email) => email.length > 0);
 
                 // Basic email format validation before submitting to backend
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                const invalidEmails = emails.filter(email => !emailRegex.test(email));
+                const invalidEmails = emails.filter(
+                  (email) => !emailRegex.test(email),
+                );
                 if (invalidEmails.length > 0) {
                   alert(
                     `The following email address(es) are invalid:\n\n${invalidEmails.join(
-                      "\n"
-                    )}\n\nPlease correct them and try again.`
+                      "\n",
+                    )}\n\nPlease correct them and try again.`,
                   );
                   return;
                 }
-                
+
                 if (emails.length > 0 && courseId) {
                   handleAddUser(emails, courseId);
                 }
@@ -595,7 +608,8 @@ export default function AdminUsers() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4">
           <Card className="w-full max-w-md p-6">
             <h2 className="text-lg font-semibold mb-4">
-              Change Status for {selectedUsers.size} User{selectedUsers.size !== 1 ? 's' : ''}
+              Change Status for {selectedUsers.size} User
+              {selectedUsers.size !== 1 ? "s" : ""}
             </h2>
             <div className="space-y-4">
               <p className="text-sm text-slate-600">

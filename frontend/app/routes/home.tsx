@@ -1,10 +1,9 @@
-import type { Route } from "./+types/home";
 import { Show } from "@clerk/react-router";
 import { StoryList } from "../components/StoryList";
 import { LandingPage } from "../components/LandingPage";
 import { Footer } from "~/components/Footer";
 
-export function meta({}: Route.MetaArgs) {
+export function meta() {
   return [
     { title: "Glossias - Interactive Language Learning" },
     {

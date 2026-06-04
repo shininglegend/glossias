@@ -68,6 +68,7 @@ export function useUserSync() {
     if (isLoaded && isSignedIn && user && !userInfo && !loading) {
       syncUser();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, isSignedIn, user?.id, userInfo, loading]);
 
   return {

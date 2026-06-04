@@ -4,6 +4,7 @@ import { useApiService } from "../services/api";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import { CompletionMessage } from "./story-components/CompletionMessage";
 import type { StoryMetadata } from "../services/api";
+import type { NavigationGuidanceResponse } from "../types/api";
 
 function getYouTubeEmbedUrl(url: string): string | null {
   const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -25,7 +26,8 @@ export function StoriesVideo() {
   const [error, setError] = useState<string | null>(null);
   const [, setVideoWatched] = useState(false);
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
-  const [guidanceCache, setGuidanceCache] = useState<unknown>(null);
+  const [guidanceCache, setGuidanceCache] =
+    useState<NavigationGuidanceResponse | null>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
 
   useEffect(() => {

@@ -20,7 +20,7 @@ export function useAdminApi() {
 
       // For GET requests, check if there's already a pending request
       if (method === "GET" && pendingRequests.has(cacheKey)) {
-        return pendingRequests.get(cacheKey);
+        return pendingRequests.get(cacheKey) as Promise<T>;
       }
 
       const requestPromise = (async () => {
@@ -58,7 +58,7 @@ export function useAdminApi() {
     // GET stories/:id -> { Story, Success }
     getStoryForEdit: useCallback(
       async (id: number, baseUrl?: string): Json<Story | undefined> => {
-        const data = await request<unknown>(
+        const data = await request<{ story: Story }>(
           `/stories/${id}`,
           {
             headers: { Accept: "application/json" },
@@ -99,7 +99,7 @@ export function useAdminApi() {
         story: Story;
         success: boolean;
       }> => {
-        const data = await request<unknown>(
+        const data = await request<{ story: Story; success: boolean }>(
           `/stories/${id}/metadata`,
           {
             headers: { Accept: "application/json" },

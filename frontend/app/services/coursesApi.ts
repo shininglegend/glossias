@@ -51,7 +51,7 @@ export function useCoursesApi() {
 
       // For GET requests, check if there's already a pending request
       if (method === "GET" && pendingRequests.has(cacheKey)) {
-        return pendingRequests.get(cacheKey);
+        return pendingRequests.get(cacheKey) as Promise<T>;
       }
 
       const requestPromise = (async () => {

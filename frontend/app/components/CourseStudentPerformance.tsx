@@ -144,7 +144,7 @@ export function CourseStudentPerformance() {
           statusFilter,
         );
         if (response.success && response.data) {
-          setPerformanceData(response.data);
+          setPerformanceData(response.data as StudentPerformanceData[]);
         } else {
           if (
             response.error?.includes("504") ||

@@ -98,10 +98,11 @@ export function StoriesScore() {
       try {
         const response = await api.getStoryScore(id);
         if (response.success && response.data) {
-          if ("complete" in response.data && response.data.complete === false) {
-            setIncompleteData(response.data);
+          const data = response.data as Record<string, unknown>;
+          if ("complete" in data && data.complete === false) {
+            setIncompleteData(data as unknown as IncompleteResponse);
           } else {
-            setScoreData(response.data as ScoreData);
+            setScoreData(data as unknown as ScoreData);
           }
         } else {
           setError(response.error || "Failed to fetch score data");

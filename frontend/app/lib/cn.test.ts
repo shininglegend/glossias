@@ -7,7 +7,9 @@ describe("cn classname utility", () => {
   });
 
   it("filters out falsy values", () => {
-    expect(cn("class1", false, "class2", null, undefined)).toBe("class1 class2");
+    expect(cn("class1", false, "class2", null, undefined)).toBe(
+      "class1 class2",
+    );
   });
 
   it("returns an empty string if all inputs are falsy", () => {

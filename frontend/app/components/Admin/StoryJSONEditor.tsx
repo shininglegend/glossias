@@ -10,7 +10,7 @@ type Props = {
 
 export default function StoryJSONEditor({ value, onSubmit }: Props) {
   const [text, setText] = React.useState<string>(
-    JSON.stringify(value, null, 2)
+    JSON.stringify(value, null, 2),
   );
   const [error, setError] = React.useState<string | null>(null);
 

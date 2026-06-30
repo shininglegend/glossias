@@ -16,7 +16,11 @@ export default function AdminSystem() {
   const isSuperAdmin = userInfo?.is_super_admin || false;
 
   const handleClearCache = async () => {
-    if (!confirm("Are you sure you want to clear all cache? This will affect performance temporarily.")) {
+    if (
+      !confirm(
+        "Are you sure you want to clear all cache? This will affect performance temporarily.",
+      )
+    ) {
       return;
     }
 
@@ -101,13 +105,14 @@ export default function AdminSystem() {
             <div className="min-w-0 flex-1">
               <h2 className="text-xl font-semibold mb-2">Cache Management</h2>
               <p className="text-slate-600 text-sm mb-4">
-                Clear all cached data including story content, user access permissions,
-                and vocabulary scores. This will temporarily impact performance as data
-                is re-cached on demand.
+                Clear all cached data including story content, user access
+                permissions, and vocabulary scores. This will temporarily impact
+                performance as data is re-cached on demand.
               </p>
               <div className="text-xs text-slate-500">
-                <strong>Warning:</strong> This action cannot be undone. All cached data
-                will be permanently removed and will need to be regenerated.
+                <strong>Warning:</strong> This action cannot be undone. All
+                cached data will be permanently removed and will need to be
+                regenerated.
               </div>
             </div>
             <Button

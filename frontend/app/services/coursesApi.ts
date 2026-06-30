@@ -38,7 +38,7 @@ export interface AddCourseAdminRequest {
 type Json<T> = Promise<T>;
 
 // Cache for pending requests to prevent duplicates
-const pendingRequests = new Map<string, Promise<any>>();
+const pendingRequests = new Map<string, Promise<unknown>>();
 
 export function useCoursesApi() {
   const authenticatedFetch = useAuthenticatedFetch();
@@ -51,7 +51,7 @@ export function useCoursesApi() {
 
       // For GET requests, check if there's already a pending request
       if (method === "GET" && pendingRequests.has(cacheKey)) {
-        return pendingRequests.get(cacheKey);
+        return pendingRequests.get(cacheKey) as Promise<T>;
       }
 
       const requestPromise = (async () => {

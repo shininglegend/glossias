@@ -16,10 +16,24 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: "1.23"
+          go-version: "1.25.0"
 
       - name: Install dependencies
         run: go mod tidy
+
+      - name: Check Go format
+        run: |
+          if [ -n "$(gofmt -l .)" ]; then
+            echo "The following Go files are not formatted properly:"
+            gofmt -l .
+            exit 1
+          fi
+
+      - name: Lint with go vet
+        run: go vet ./...
+
+      - name: Run unit tests
+        run: go test -v ./...
 
       - name: Build
         run: go build -v ./...

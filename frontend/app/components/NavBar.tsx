@@ -1,10 +1,6 @@
 import { NavLink, useLocation } from "react-router";
 import { useMemo } from "react";
-import {
-  Show,
-  UserButton,
-  SignInButton,
-} from "@clerk/react-router";
+import { Show, UserButton, SignInButton } from "@clerk/react-router";
 import { useUserContext, isUserAdminOfCourses } from "../contexts/UserContext";
 import Button from "./ui/Button";
 
@@ -20,7 +16,11 @@ export default function NavBar() {
     <header className="sticky top-0 z-50 bg-primary-800 text-white border-b border-white/10">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
         <NavLink to="/" className="font-bold tracking-tight text-3xl">
-        <img src="/logo.png" alt="Glossias Logo" className="inline-block h-10 w-10 mr-2" />
+          <img
+            src="/logo.png"
+            alt="Glossias Logo"
+            className="inline-block h-10 w-10 mr-2"
+          />
           Glossias
         </NavLink>
 

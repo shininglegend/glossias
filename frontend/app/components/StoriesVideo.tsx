@@ -4,6 +4,7 @@ import { useApiService } from "../services/api";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import { CompletionMessage } from "./story-components/CompletionMessage";
 import type { StoryMetadata } from "../services/api";
+import type { NavigationGuidanceResponse } from "../types/api";
 
 function getYouTubeEmbedUrl(url: string): string | null {
   const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -23,9 +24,10 @@ export function StoriesVideo() {
   const [metadata, setMetadata] = useState<StoryMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [videoWatched, setVideoWatched] = useState(false);
+  const [, setVideoWatched] = useState(false);
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
-  const [guidanceCache, setGuidanceCache] = useState<any>(null);
+  const [guidanceCache, setGuidanceCache] =
+    useState<NavigationGuidanceResponse | null>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
 
   useEffect(() => {
@@ -52,7 +54,7 @@ export function StoriesVideo() {
           setNextStepName(guidance.displayName);
           setGuidanceCache(guidance);
         }
-      } catch (err) {
+      } catch {
         setError("Failed to fetch story metadata");
       } finally {
         setLoading(false);
@@ -60,7 +62,8 @@ export function StoriesVideo() {
     };
 
     fetchMetadataAndGuidance();
-  }, [id, getNavigationGuidance]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   if (loading) {
     return (

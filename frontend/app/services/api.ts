@@ -112,7 +112,7 @@ export interface TranslateData {
   returned_lines: number[];
 }
 
-export interface APIResponse<T = any> {
+export interface APIResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
@@ -124,7 +124,7 @@ interface StoriesResponse {
 
 export function useApiService() {
   const authenticatedFetch = useAuthenticatedFetch();
-  const pendingRequests = useRef<Map<string, Promise<APIResponse<any>>>>(
+  const pendingRequests = useRef<Map<string, Promise<APIResponse<unknown>>>>(
     new Map(),
   );
 
@@ -212,7 +212,10 @@ export function useApiService() {
         return fetchAPI<StoryMetadata>(`/stories/${id}/metadata`);
       },
 
-      checkVocab: (id: string, answers: any[]): Promise<APIResponse<any>> => {
+      checkVocab: (
+        id: string,
+        answers: unknown[],
+      ): Promise<APIResponse<unknown>> => {
         return fetchAPI(`/stories/${id}/check-vocab`, {
           method: "POST",
           body: JSON.stringify({ answers }),
@@ -274,7 +277,7 @@ export function useApiService() {
         );
       },
 
-      getStoryScore: (id: string): Promise<APIResponse<any>> => {
+      getStoryScore: (id: string): Promise<APIResponse<unknown>> => {
         return fetchAPI(`/stories/${id}/scores`);
       },
 
@@ -301,9 +304,13 @@ export function useApiService() {
       getStoryStudentPerformance: (
         storyId: string,
         status?: string,
-      ): Promise<APIResponse<any>> => {
-        const queryParams = status ? `?status=${encodeURIComponent(status)}` : '';
-        return fetchAPI(`/admin/courses/${storyId}/student-performance${queryParams}`);
+      ): Promise<APIResponse<unknown>> => {
+        const queryParams = status
+          ? `?status=${encodeURIComponent(status)}`
+          : "";
+        return fetchAPI(
+          `/admin/courses/${storyId}/student-performance${queryParams}`,
+        );
       },
     }),
     [fetchAPI],

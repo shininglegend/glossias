@@ -13,11 +13,13 @@ Language-learning platform for introductory students: interactive stories with v
 ## Running Locally
 
 **Backend** (port 8080):
+
 ```bash
 go run main.go
 ```
 
 **Frontend** (port 5173, proxies `/api` to `:8080`):
+
 ```bash
 cd frontend
 npm install
@@ -36,17 +38,35 @@ go build ./...
 cd frontend && npm run build   # output: frontend/build/
 ```
 
-## Type Checking / Lint
+## After every non-trivial change
+
+Run the checks for whichever side was touched before considering a task done. Do not skip steps.
+
+### Backend (Go)
 
 ```bash
-cd frontend && npm run typecheck
+gofmt -w .
+go vet ./...
+go test ./...
+go build ./...
 ```
 
-There are currently no Go unit tests in CI — the workflow only builds and hits a health endpoint.
+Optionally, run `go test -v ./src/pkg/models/...` for verbose package tests
+
+### Frontend
+
+```bash
+cd frontend
+npm run format    # prettier
+npm run lint      # eslint
+npm run typecheck
+npm run build
+```
 
 ## Key Environment Variables
 
 Backend (`.env`):
+
 - `PORT` — defaults to 8080
 - `CLERK_SECRET_KEY`, `AUTHORIZED_PARTY`
 - `DATABASE_URL`
@@ -54,6 +74,7 @@ Backend (`.env`):
 - `DEV_USER` — when set, bypasses Clerk auth (dev only)
 
 Frontend:
+
 - `VITE_CLERK_PUBLISHABLE_KEY`
 
 ## Directory Layout

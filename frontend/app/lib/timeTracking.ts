@@ -104,7 +104,7 @@ class TimeTracker {
       });
       const data = await response.json();
       this.trackingId = data.tracking_id;
-    } catch (error) {
+    } catch {
       // Silent fail for tracking ID
     }
   }

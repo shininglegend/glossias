@@ -97,7 +97,7 @@ type GrammarPageData struct {
 type TranslationPageData struct {
 	PageData
 	Lines         []LineTranslation `json:"lines"`
-	HasTranslated bool `json:"has_translation"`
+	HasTranslated bool              `json:"has_translation"`
 }
 
 // SaveTranslationRequest saves the translation to the database

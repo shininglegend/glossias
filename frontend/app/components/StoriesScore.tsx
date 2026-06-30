@@ -85,7 +85,7 @@ export function StoriesScore() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confettiFired, setConfettiFired] = useState(false);
-  const [nextStepName, setNextStepName] = useState<string>("Back to Stories");
+  const [, setNextStepName] = useState<string>("Back to Stories");
 
   useEffect(() => {
     const fetchScoreData = async () => {
@@ -98,15 +98,16 @@ export function StoriesScore() {
       try {
         const response = await api.getStoryScore(id);
         if (response.success && response.data) {
-          if ("complete" in response.data && response.data.complete === false) {
-            setIncompleteData(response.data);
+          const data = response.data as Record<string, unknown>;
+          if ("complete" in data && data.complete === false) {
+            setIncompleteData(data as unknown as IncompleteResponse);
           } else {
-            setScoreData(response.data as ScoreData);
+            setScoreData(data as unknown as ScoreData);
           }
         } else {
           setError(response.error || "Failed to fetch score data");
         }
-      } catch (err) {
+      } catch {
         setError("Failed to fetch score data");
       } finally {
         setLoading(false);
@@ -114,6 +115,7 @@ export function StoriesScore() {
     };
 
     fetchScoreData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
@@ -241,7 +243,7 @@ export function StoriesScore() {
       </div>
     );
   }
-  
+
   // Simply round this
   const overallScore = Math.round(scoreData.overall_accuracy);
 

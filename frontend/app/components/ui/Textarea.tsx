@@ -8,7 +8,7 @@ export default function Textarea({ className, ...props }: TextareaProps) {
     <textarea
       className={cn(
         "w-full rounded-md border border-slate-300 bg-white py-2 px-3 text-sm shadow-sm outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-200",
-        className
+        className,
       )}
       {...props}
     />

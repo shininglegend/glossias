@@ -26,18 +26,20 @@ export function StoryList() {
     }
 
     const courseStatusMap = new Map(
-      userInfo.enrolled_courses.map(c => [c.course_id, c.status])
+      userInfo.enrolled_courses.map((c) => [c.course_id, c.status]),
     );
 
     const active: Story[] = [];
     const past: Story[] = [];
     const future: Story[] = [];
 
-    stories.forEach(story => {
-      const status = story.course_id ? courseStatusMap.get(story.course_id) : 'active';
-      if (status === 'past') {
+    stories.forEach((story) => {
+      const status = story.course_id
+        ? courseStatusMap.get(story.course_id)
+        : "active";
+      if (status === "past") {
         past.push(story);
-      } else if (status === 'future') {
+      } else if (status === "future") {
         future.push(story);
       } else {
         active.push(story);
@@ -62,7 +64,7 @@ export function StoryList() {
         } else {
           setError(response.error || "Failed to fetch stories");
         }
-      } catch (err) {
+      } catch {
         setError("Failed to fetch stories");
       } finally {
         setLoading(false);
@@ -70,7 +72,8 @@ export function StoryList() {
     };
 
     fetchStories();
-  }, [getNavigationGuidance]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleStoryClick = async (storyId: number) => {
     setLoadingStory(storyId);
@@ -162,7 +165,7 @@ export function StoryList() {
                   className="section-toggle"
                 >
                   <span>Upcoming Stories ({groupedStories.future.length})</span>
-                  <span className="toggle-icon">{showFuture ? '▼' : '▶'}</span>
+                  <span className="toggle-icon">{showFuture ? "▼" : "▶"}</span>
                 </button>
                 {showFuture && (
                   <div className="stories-list">
@@ -202,7 +205,7 @@ export function StoryList() {
                   className="section-toggle"
                 >
                   <span>Archived Stories ({groupedStories.past.length})</span>
-                  <span className="toggle-icon">{showPast ? '▼' : '▶'}</span>
+                  <span className="toggle-icon">{showPast ? "▼" : "▶"}</span>
                 </button>
                 {showPast && (
                   <div className="stories-list">

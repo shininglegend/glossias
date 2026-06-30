@@ -27,8 +27,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@react-router/dev": "^7.16.0",
-    "@tailwindcss/vite": "^4.1.4",
+    "@react-router/dev": "^8.1.0",
+    "@tailwindcss/vite": "^4.3.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^20",
@@ -42,7 +42,7 @@
     "tailwindcss": "^4.1.4",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.60.1",
-    "vite": "^6.4.2",
+    "vite": "^8.1.2",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^4.1.8"
   }

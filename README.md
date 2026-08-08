@@ -3,25 +3,122 @@
 A web application for engaging with stories to increase the fluency of introductionary-level students.
 
 ## Installation & Setup
-1. Run steps 1-3 of `Go`
 
-### Part 1: Go
-1. Install Go (1.21 or later) from [golang.org](https://golang.org)
-2. Clone this repository:
-   ```bash
-   git clone https://github.com/shininglegend/glossias
-   cd glossias
-   ```
-3. Install dependencies:
-   ```bash
-   go mod tidy
-   ```
-4. ```bash
-   go run main.go
-   ```
+The app has three moving parts that all need to be up: **Supabase** (Postgres + file storage), the **Go backend** (port 8080), and the **React frontend** (port 5173). The frontend proxies `/api` to the backend, and the backend needs the database, so start them in that order.
 
-### To stop:
-1. Ctrl-c
+Supabase provides both the database and the audio-file storage. The backend talks to Postgres directly over the wire with `pgx` — Supabase is simply the thing hosting that Postgres — and talks to storage over Supabase's HTTP API.
+
+### Prerequisites
+
+- **Go 1.25 or later** from [golang.org](https://golang.org). `go.mod` pins a `toolchain` of go1.26.5; with the default `GOTOOLCHAIN=auto` the Go command downloads it for you.
+- **Node.js 20 or later** (required by React Router 7)
+- **[Supabase](https://supabase.com)** — either the CLI running the stack locally (recommended for development) or a hosted project
+- **Docker**, if you are running Supabase locally — the CLI runs the stack in containers
+- A [Clerk](https://clerk.com) application, for auth keys
+
+### Step 1: Clone and install dependencies
+
+```bash
+git clone https://github.com/shininglegend/glossias
+cd glossias
+go mod tidy
+cd frontend && npm install && cd ..
+```
+
+### Step 2: Start Supabase
+
+**Option A — local stack via the CLI (recommended for development).** Install the CLI and start it from the repository root:
+
+```bash
+brew install supabase/tap/supabase
+supabase start
+```
+
+If the repository has no `supabase/` directory yet, run `supabase init` once first.
+
+The first start pulls several Docker images and takes a few minutes. When it finishes it prints the local URLs and keys — keep that output, step 3 needs it. You can reprint it at any time with:
+
+```bash
+supabase status
+```
+
+The CLI's default local ports are:
+
+| Service | URL |
+| --- | --- |
+| Postgres | `postgresql://postgres:postgres@localhost:54322/postgres` |
+| API / storage gateway | `http://127.0.0.1:54321` |
+| Studio (web UI) | `http://127.0.0.1:54323` |
+
+**Option B — hosted project.** Create a project at [supabase.com](https://supabase.com), then take the connection string from *Project Settings → Database* and the storage URL and service-role key from *Project Settings → API*.
+
+> If `DATABASE_URL` is unset the backend silently falls back to an in-memory mock store. The server will start and the UI will load, but nothing persists — so if data keeps vanishing, check this variable first.
+
+### Step 3: Configure environment variables
+
+Create a `.env` in the repository root. The values below match the local CLI stack from Option A; for a hosted project, substitute the ones from your dashboard.
+
+```bash
+PORT=8080                  # required — the server exits if this is unset, and the frontend proxy expects 8080
+
+# From `supabase status` → DB URL
+DATABASE_URL="postgresql://postgres:postgres@localhost:54322/postgres"
+
+# From `supabase status` → API URL (+ /storage/v1) and service_role key
+STORAGE_URL="http://127.0.0.1:54321/storage/v1"
+STORAGE_API_KEY="..."      # audio uploads fail without this
+
+CLERK_SECRET_KEY=sk_test_...
+AUTHORIZED_PARTY=http://localhost:5173
+# DEV_USER=some-user-id    # bypasses Clerk auth entirely — local development only, never in production
+```
+
+And a `frontend/.env`:
+
+```bash
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+```
+
+### Step 4: Apply the database schema
+
+The backend embeds `src/pkg/database/schema.sql` and runs it on every startup, so the tables create themselves the first time you launch — there is no separate setup command for the base schema.
+
+Files in `migrations/` are **not** applied automatically. Run them by hand against your database, in filename order:
+
+```bash
+psql "$DATABASE_URL" -f migrations/001_add_course_status.sql
+```
+
+If you would rather not install `psql`, paste the file's contents into the SQL editor in Supabase Studio instead (`http://127.0.0.1:54323` locally, or the dashboard for a hosted project).
+
+### Step 5: Run the backend
+
+```bash
+go run main.go
+```
+
+Listens on `http://localhost:8080`. Check it with `curl http://localhost:8080/api/health`.
+
+### Step 6: Run the frontend
+
+In a second terminal:
+
+```bash
+cd frontend
+npm run dev
+```
+
+Open `http://localhost:5173`. The Vite dev server proxies `/api` to the backend, so no CORS configuration is needed in development.
+
+### To stop
+
+Ctrl-C in the backend and frontend terminals. If you are running the local Supabase stack, stop its containers too:
+
+```bash
+supabase stop
+```
+
+Add `--no-backup` if you want to discard the local database contents rather than restore them on the next `supabase start`.
 
 
 ## Adding Content

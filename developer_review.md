@@ -12,6 +12,18 @@ Tackle these in roughly this order (numbers may be incorrect)
 4. **This. could take even longer** (#15 code splitting, #21 proper migrations, #8 component decomposition,)
 5. **Later, maybe** (#3 dev bypass)
 
+### Interaction with the Summer 2026 redesign (SUMMER_2026.md)
+
+The five-phase story-flow redesign changes the priority of several items below. Items marked **⚡S26** in their headers are affected. The short version:
+
+- **#17 (migrations) is promoted to a prerequisite.** The redesign adds new tables *and* alters existing ones; the current `CREATE TABLE IF NOT EXISTS`-on-startup approach cannot express ALTERs. Adopt a real migration tool (e.g., `golang-migrate` or `goose`) and un-gitignore `migrations/*.sql` **before** starting S26 schema work.
+- **#6 (modal a11y) should be fixed first, then reused.** S26 builds two new popups (Identify picture quiz, Produce explanation) on the `ConfirmDialog` pattern — fix the base before propagating it three more times.
+- **#7 (DI) matters more.** S26 adds ~6 new endpoints plus an AI-grading model function that badly wants to be mockable in tests; building them on package globals deepens the hole. At minimum, build the *new* S26 model code behind an injectable service even if the old code isn't migrated yet.
+- **#4 (god components): don't decompose `StoriesVocab`/`StoriesGrammar`** — S26 retires both pages. `StoriesTranslate` is rewritten by S26 anyway; do the decomposition (extract the audio/translation state machines into hooks) *as part of* that rewrite, not before.
+- **#2 (rate limiter) gains urgency**: the S26 Produce endpoint makes a paid AI API call per submission — an unbounded-cost endpoint needs working rate limiting, not a leaky one.
+- **#3 (dev bypass) and secrets**: S26 adds `ANTHROPIC_API_KEY`; same env hygiene concern, same fix window.
+- **#20 (beacon auth gap)**: S26 makes time tracking gate score completion across five phases, so the unauthenticated time endpoint becomes easier to abuse for marking phases "done." Verify/fix before S26 ships.
+
 ---
 
 ## 🔴 Critical — Fix Immediately
@@ -26,7 +38,7 @@ Tackle these in roughly this order (numbers may be incorrect)
 
 ## 🟠 High — Address Soon
 
-### 2. Rate Limiter Memory Leak
+### 2. Rate Limiter Memory Leak ⚡S26
 
 [ratelimit.go](file:///Users/jvcte/code/logos-stories/src/apis/ratelimit.go) stores a `rate.Limiter` per IP in a `map` that **never gets cleaned up**. Same pattern in `dbhealth.go`. Under sustained traffic this grows unboundedly — a DoS vector.
 
@@ -34,7 +46,7 @@ Tackle these in roughly this order (numbers may be incorrect)
 
 ---
 
-### 3. Hardcoded Dev Auth Bypass
+### 3. Hardcoded Dev Auth Bypass ⚡S26
 
 [auth.go](file:///Users/jvcte/code/logos-stories/src/apis/auth.go) has a dev bypass with password `"12345678"`. If `DEV_USER` is accidentally set in production, all auth is bypassable.
 
@@ -42,7 +54,7 @@ Tackle these in roughly this order (numbers may be incorrect)
 
 ---
 
-### 4. God Components (400–640 Lines Each)
+### 4. God Components (400–640 Lines Each) ⚡S26
 
 Several frontend components mix data fetching, audio state, business logic, and rendering in a single file:
 
@@ -56,6 +68,8 @@ Several frontend components mix data fetching, audio state, business logic, and 
 
 **Fix**: Extract custom hooks (`useStoryAudio`, `useStoryProgress`, `useTranslationState`) and decompose into sub-components. Consider `useReducer` for components with 10+ state variables.
 
+**S26 note**: `StoriesVocab` and `StoriesGrammar` are retired by the redesign — skip them. `StoriesTranslate` is rewritten by S26; fold the decomposition into that rewrite. The real risk is the three **new** phase components (Identify/Produce/Recall) repeating this pattern — extract the audio-sequencing and per-phase state machines into hooks from day one.
+
 ---
 
 ### 5. Duplicate Type Definitions
@@ -64,9 +78,11 @@ Several frontend components mix data fetching, audio state, business logic, and 
 
 **Fix**: Single source of truth in `types/api.ts`; have admin types extend/pick from base types.
 
+**S26 note**: there is actually a *third* parallel set of student-facing types declared inline in [services/api.ts](file:///Users/jvcte/code/logos-stories/frontend/app/services/api.ts) (`Line`, `VocabLine`, `TranslateData`, …), and these are the ones the student components import. S26 adds types for three new phases — unify first, or at least put all new S26 types in `types/api.ts` only.
+
 ---
 
-### 6. Modal Accessibility Failures
+### 6. Modal Accessibility Failures ⚡S26
 
 Custom modals in admin pages and `ConfirmDialog` lack:
 
@@ -81,7 +97,7 @@ Custom modals in admin pages and `ConfirmDialog` lack:
 
 ## 🟡 Medium — Improve When Convenient
 
-### 7. Package-Level Global State (Backend)
+### 7. Package-Level Global State (Backend) ⚡S26
 
 [story.go](file:///Users/jvcte/code/logos-stories/src/apis/stories/story.go) uses package globals for `queries`, `rawConn`, `storageClient`. The `SetDB` function accepts `any` and manually type-asserts. This prevents testing and caused the transaction race condition (#1).
 
@@ -178,9 +194,11 @@ The custom [cn()](file:///Users/jvcte/code/logos-stories/frontend/app/lib/cn.ts)
 
 ---
 
-### 17. Migrations Gitignored
+### 17. Migrations Gitignored ⚡S26 — PROMOTED TO PREREQUISITE
 
 [.gitignore](file:///Users/jvcte/code/logos-stories/.gitignore) contains `migrations/*.sql`, so migration files aren't version controlled. Schema is applied via embedded `schema.sql` on every startup (`CREATE TABLE IF NOT EXISTS`) — this isn't a proper migration system and will break when you need to ALTER tables.
+
+**S26 note**: no longer "nice to have." The Summer 2026 redesign adds ~8 new tables and likely ALTERs (`stories` columns, time-tracking additions). `CREATE TABLE IF NOT EXISTS` silently ignores column changes to existing tables, so S26 schema work done the current way would drift between environments. Adopt `golang-migrate` or `goose` and version-control migrations **before** the first S26 schema change.
 
 ---
 
@@ -196,6 +214,6 @@ Admin pages check `userInfo.is_super_admin` inside the component render, causing
 
 ---
 
-### 20. Beacon Auth Gap
+### 20. Beacon Auth Gap ⚡S26
 
 [timeTracking.ts](file:///Users/jvcte/code/logos-stories/frontend/app/services/timeTracking.ts) uses `navigator.sendBeacon` on page leave, but beacons can't carry auth headers. The endpoint apparently accepts unauthenticated `FormData` — worth verifying this is intentional and rate-limited.

@@ -223,6 +223,59 @@ func (q *Queries) GetAllStoriesWithTitles(ctx context.Context) ([]GetAllStoriesW
 	return items, nil
 }
 
+const getAllStoriesWithTitlesForAdmin = `-- name: GetAllStoriesWithTitlesForAdmin :many
+SELECT DISTINCT s.story_id, s.week_number, s.day_letter, st.title, st.language_code, s.course_id, c.name as course_name
+FROM stories s
+JOIN story_titles st ON s.story_id = st.story_id
+LEFT JOIN courses c ON s.course_id = c.course_id
+LEFT JOIN course_admins ca ON s.course_id = ca.course_id AND ca.user_id = $2
+WHERE $1 = true OR ca.user_id IS NOT NULL
+ORDER BY s.week_number, s.day_letter
+`
+
+type GetAllStoriesWithTitlesForAdminParams struct {
+	Column1 interface{} `json:"column_1"`
+	UserID  string      `json:"user_id"`
+}
+
+type GetAllStoriesWithTitlesForAdminRow struct {
+	StoryID      int32       `json:"story_id"`
+	WeekNumber   int32       `json:"week_number"`
+	DayLetter    string      `json:"day_letter"`
+	Title        string      `json:"title"`
+	LanguageCode string      `json:"language_code"`
+	CourseID     pgtype.Int4 `json:"course_id"`
+	CourseName   pgtype.Text `json:"course_name"`
+}
+
+func (q *Queries) GetAllStoriesWithTitlesForAdmin(ctx context.Context, arg GetAllStoriesWithTitlesForAdminParams) ([]GetAllStoriesWithTitlesForAdminRow, error) {
+	rows, err := q.db.Query(ctx, getAllStoriesWithTitlesForAdmin, arg.Column1, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetAllStoriesWithTitlesForAdminRow{}
+	for rows.Next() {
+		var i GetAllStoriesWithTitlesForAdminRow
+		if err := rows.Scan(
+			&i.StoryID,
+			&i.WeekNumber,
+			&i.DayLetter,
+			&i.Title,
+			&i.LanguageCode,
+			&i.CourseID,
+			&i.CourseName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getCourseIdForStory = `-- name: GetCourseIdForStory :one
 SELECT course_id FROM stories WHERE story_id = $1
 `

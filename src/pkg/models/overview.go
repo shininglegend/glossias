@@ -17,6 +17,7 @@ Core Types:
 Database Functions (SQLC-based):
 GetStoryData(id int, userID string) (*Story, error) // Full story with all components (cached)
 GetAllStories(language string, userID string) ([]Story, error) // Basic story list (NOT cached - user-specific access controls)
+GetAllStoriesForAdmin(userID string) ([]Story, error) // Stories filtered by admin rights: all for super admins, course-specific for course admins
 GetLineAnnotations(storyID, lineNumber int) (*StoryLine, error)
 GetStoryAnnotations(storyID int) (map[int]*StoryLine, error)
 GetLineText(storyID, lineNumber int) (string, error)

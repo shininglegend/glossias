@@ -96,6 +96,7 @@ type Querier interface {
 	GetAllStoriesBasic(ctx context.Context, languageCode string) ([]GetAllStoriesBasicRow, error)
 	GetAllStoriesForUser(ctx context.Context, arg GetAllStoriesForUserParams) ([]GetAllStoriesForUserRow, error)
 	GetAllStoriesWithTitles(ctx context.Context) ([]GetAllStoriesWithTitlesRow, error)
+	GetAllStoriesWithTitlesForAdmin(ctx context.Context, arg GetAllStoriesWithTitlesForAdminParams) ([]GetAllStoriesWithTitlesForAdminRow, error)
 	GetAllStoryAudioFiles(ctx context.Context, storyID pgtype.Int4) ([]LineAudioFile, error)
 	GetAllTranslationsForStory(ctx context.Context, storyID int32) ([]LineTranslation, error)
 	GetAllUsersStoryGrammarSummary(ctx context.Context, storyID int32) ([]GetAllUsersStoryGrammarSummaryRow, error)

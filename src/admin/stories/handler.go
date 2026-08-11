@@ -64,6 +64,9 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 		json.NewEncoder(w).Encode(map[string]string{"message": "Hello from admin/stories!"})
 	}).Methods("GET", "OPTIONS")
 
+	// List all stories for admins
+	stories.HandleFunc("", h.listStoriesHandler).Methods("GET", "OPTIONS")
+
 	// Individual story endpoints
 	stories.HandleFunc("", h.addStoryHandler).Methods("POST", "OPTIONS")
 	stories.HandleFunc("/{id:[0-9]+}", h.validateStoryID(h.editStoryHandler)).Methods("GET", "PUT", "DELETE", "OPTIONS")

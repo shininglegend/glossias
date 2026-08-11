@@ -47,6 +47,15 @@ FROM stories s
 JOIN story_titles st ON s.story_id = st.story_id
 ORDER BY s.week_number, s.day_letter;
 
+-- name: GetAllStoriesWithTitlesForAdmin :many
+SELECT DISTINCT s.story_id, s.week_number, s.day_letter, st.title, st.language_code, s.course_id, c.name as course_name
+FROM stories s
+JOIN story_titles st ON s.story_id = st.story_id
+LEFT JOIN courses c ON s.course_id = c.course_id
+LEFT JOIN course_admins ca ON s.course_id = ca.course_id AND ca.user_id = $2
+WHERE $1 = true OR ca.user_id IS NOT NULL
+ORDER BY s.week_number, s.day_letter;
+
 -- name: GetStoryWithDescription :one
 SELECT s.story_id, s.week_number, s.day_letter, s.video_url, s.last_revision, s.author_id, s.author_name, s.course_id,
        sd.language_code, sd.description_text

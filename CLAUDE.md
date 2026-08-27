@@ -121,6 +121,7 @@ Never edit files under `src/pkg/generated/db/` by hand.
 ## Auth
 
 Clerk is used for both frontend (ClerkProvider in `root.tsx`) and backend (JWT middleware in `src/auth/`). Role-based access: `super_admin`, `course_admin`, `student`. The `DEV_USER` env var bypasses auth entirely — never set it in production.
+If you want to cURL a request, include `'dev_auth: 12345678'` as a header to be authenticated as admin.
 
 ## Routing Conventions
 

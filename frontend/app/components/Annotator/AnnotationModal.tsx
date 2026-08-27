@@ -1,5 +1,5 @@
 // [moved from annotator/src/components/AnnotationModal.tsx]
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Button from "~/components/ui/Button";
 import Input from "~/components/ui/Input";
 import Label from "~/components/ui/Label";
@@ -29,7 +29,20 @@ export default function AnnotationModal({
     number | undefined
   >();
 
+  const canSave =
+    type !== "grammar" ||
+    (!!selectedGrammarPointId && storyGrammarPoints.length > 0);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   const handleSave = () => {
+    if (!canSave) return;
     if (type === "grammar") {
       onSave({ text: selectedText, grammarPointId: selectedGrammarPointId });
     } else if (type === "vocab") {
@@ -41,7 +54,13 @@ export default function AnnotationModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-      <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-4 shadow-xl">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleSave();
+        }}
+        className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-4 shadow-xl"
+      >
         <h3 className="text-lg font-semibold">Add {type}</h3>
         <p className="mt-1 text-sm text-slate-600">
           Selected: <span className="font-medium">{selectedText}</span>
@@ -56,6 +75,7 @@ export default function AnnotationModal({
               </div>
             ) : (
               <select
+                autoFocus
                 value={selectedGrammarPointId || ""}
                 onChange={(e) =>
                   setSelectedGrammarPointId(
@@ -81,25 +101,19 @@ export default function AnnotationModal({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={type === "vocab" ? "e.g. lemma" : "Enter note"}
-              autoFocus={type === "vocab"}
+              autoFocus
             />
           </div>
         )}
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>
+          <Button type="button" variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={
-              type === "grammar" &&
-              (!selectedGrammarPointId || storyGrammarPoints.length === 0)
-            }
-          >
+          <Button type="submit" disabled={!canSave}>
             Save
           </Button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

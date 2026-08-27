@@ -66,6 +66,16 @@ export default function ConfirmDialog({
   const finalTitle = title ?? config.title;
   const finalMessage = message ?? config.message;
   const finalConfirmText = confirmText ?? config.confirmText;
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !loading) onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isOpen, loading, onClose]);
+
   if (!isOpen) return null;
 
   return (
@@ -78,6 +88,7 @@ export default function ConfirmDialog({
             {cancelText}
           </Button>
           <Button
+            autoFocus
             variant={config.buttonVariant}
             onClick={onConfirm}
             disabled={loading}

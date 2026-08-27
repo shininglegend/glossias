@@ -27,6 +27,8 @@ type produceSegmentRequest struct {
 	EnglishText     string `json:"englishText"`
 	ReferenceHebrew string `json:"referenceHebrew"`
 	GrammarPointID  *int   `json:"grammarPointId,omitempty"`
+	// LineNumber places the segment in the story text (1-based). Optional.
+	LineNumber *int `json:"lineNumber,omitempty"`
 }
 
 type produceExplanationRequest struct {
@@ -142,12 +144,28 @@ func (h *Handler) saveProduceSegment(w http.ResponseWriter, r *http.Request, sto
 		}
 	}
 
+	// The line number drives where the student page marks the segment's slot;
+	// a line that doesn't exist would leave the marker nowhere.
+	if req.LineNumber != nil {
+		lineCount, err := models.CountStoryLines(ctx, storyID)
+		if err != nil {
+			h.log.Error("Failed to count story lines", "error", err, "storyID", storyID)
+			writeJSONError(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		if *req.LineNumber < 1 || *req.LineNumber > lineCount {
+			writeJSONError(w, "lineNumber must be between 1 and "+strconv.Itoa(lineCount), http.StatusBadRequest)
+			return
+		}
+	}
+
 	segment, err := models.UpsertProduceSegment(ctx, models.ProduceSegment{
 		StoryID:         storyID,
 		SegmentOrder:    order,
 		EnglishText:     englishText,
 		ReferenceHebrew: referenceHebrew,
 		GrammarPointID:  req.GrammarPointID,
+		LineNumber:      req.LineNumber,
 	})
 	if err != nil {
 		h.log.Error("Failed to save produce segment", "error", err, "storyID", storyID, "order", order)

@@ -133,6 +133,61 @@ export interface CheckRecallResult {
   all_correct: boolean;
 }
 
+export interface ProduceSlot {
+  /** 0-based story line the segment belongs to. */
+  line_index: number;
+  /**
+   * True when the reference was found verbatim in the line, so `start`/`end`
+   * (code-point offsets) can be blanked out. False marks the whole line.
+   */
+  exact: boolean;
+  start: number;
+  end: number;
+}
+
+export interface ProduceAttemptStartView {
+  segment_id: number;
+  /** Countdown remaining as of the response. */
+  seconds_left: number;
+}
+
+export interface ProduceSegmentView {
+  id: number;
+  segment_order: number;
+  english_text: string;
+  grammar_point_name?: string;
+  /** Where the reference sits in the story text; absent if not found verbatim. */
+  slot?: ProduceSlot;
+}
+
+export interface ProduceSubmissionView {
+  segment_id: number;
+  student_text: string;
+  reference_hebrew: string;
+}
+
+export interface ProduceData {
+  story_id: string;
+  story_title: string;
+  language: string;
+  lines: { text: string }[];
+  segments: ProduceSegmentView[];
+  /** Authored contrastive grammar explanation; empty if none yet. */
+  explanation: string;
+  /** Attempts already stored on earlier visits, in segment order. */
+  submissions: ProduceSubmissionView[];
+  /** Segments started but not yet submitted, with time remaining. */
+  starts: ProduceAttemptStartView[];
+  /** Every segment has a submission. */
+  completed: boolean;
+  time_limit_seconds: number;
+}
+
+export interface SubmitProduceResponse {
+  submission: ProduceSubmissionView;
+  completed: boolean;
+}
+
 export interface GrammarData extends GrammarPageData {
   grammar_point_id: number;
   grammar_point: string;
@@ -297,6 +352,37 @@ export function useApiService() {
         return fetchAPI(`/stories/${id}/check-recall`, {
           method: "POST",
           body: JSON.stringify({ ordered_sentence_ids: orderedSentenceIds }),
+        });
+      },
+
+      getStoryProduce: (id: string): Promise<APIResponse<ProduceData>> => {
+        return fetchAPI<ProduceData>(`/stories/${id}/produce`);
+      },
+
+      startProduce: (
+        id: string,
+        segmentId: number,
+      ): Promise<APIResponse<ProduceAttemptStartView>> => {
+        return fetchAPI<ProduceAttemptStartView>(
+          `/stories/${id}/produce/start`,
+          {
+            method: "POST",
+            body: JSON.stringify({ segment_id: segmentId }),
+          },
+        );
+      },
+
+      submitProduce: (
+        id: string,
+        segmentId: number,
+        studentText: string,
+      ): Promise<APIResponse<SubmitProduceResponse>> => {
+        return fetchAPI<SubmitProduceResponse>(`/stories/${id}/produce`, {
+          method: "POST",
+          body: JSON.stringify({
+            segment_id: segmentId,
+            student_text: studentText,
+          }),
         });
       },
 

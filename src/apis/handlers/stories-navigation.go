@@ -155,6 +155,13 @@ func (h *Handler) getPageCompletionStatus(ctx context.Context, userID string, st
 	}
 	status[PageTypeRecall] = recallComplete
 
+	// Produce is complete once every segment has a submission
+	produceComplete, err := h.isProduceCompleted(ctx, userID, int(storyID))
+	if err != nil {
+		return nil, err
+	}
+	status[PageTypeProduce] = produceComplete
+
 	// Score is never considered "complete" for skipping
 	status[PageTypeScore] = false
 

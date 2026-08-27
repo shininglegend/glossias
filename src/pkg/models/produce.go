@@ -26,6 +26,33 @@ type ProduceSegment struct {
 	ReferenceHebrew  string `json:"referenceHebrew"`
 	GrammarPointID   *int   `json:"grammarPointId,omitempty"`
 	GrammarPointName string `json:"grammarPointName,omitempty"`
+	// LineNumber is the 1-based story line the reference belongs to, so the
+	// student page can mark the segment's slot in the text. Nil when the
+	// author has not placed it.
+	LineNumber *int `json:"lineNumber,omitempty"`
+}
+
+// ProduceAttemptStart is when a student began writing a segment, with the
+// elapsed time computed by the database.
+type ProduceAttemptStart struct {
+	SegmentID      int       `json:"segmentId"`
+	StartedAt      time.Time `json:"startedAt"`
+	ElapsedSeconds int       `json:"elapsedSeconds"`
+}
+
+func optionalInt(v pgtype.Int4) *int {
+	if !v.Valid {
+		return nil
+	}
+	n := int(v.Int32)
+	return &n
+}
+
+func toPgInt4(v *int) pgtype.Int4 {
+	if v == nil {
+		return pgtype.Int4{}
+	}
+	return pgtype.Int4{Int32: int32(*v), Valid: true}
 }
 
 // ProduceSubmission is a student's attempt at one segment. AiScore is nil while
@@ -73,10 +100,8 @@ func GetStoryProduceSegments(ctx context.Context, storyID int) ([]ProduceSegment
 			EnglishText:      row.EnglishText,
 			ReferenceHebrew:  row.ReferenceHebrew,
 			GrammarPointName: row.GrammarPointName.String,
-		}
-		if row.GrammarPointID.Valid {
-			id := int(row.GrammarPointID.Int32)
-			segment.GrammarPointID = &id
+			GrammarPointID:   optionalInt(row.GrammarPointID),
+			LineNumber:       optionalInt(row.LineNumber),
 		}
 		segments = append(segments, segment)
 	}
@@ -105,10 +130,8 @@ func GetProduceSegment(ctx context.Context, id int) (*ProduceSegment, error) {
 		EnglishText:      row.EnglishText,
 		ReferenceHebrew:  row.ReferenceHebrew,
 		GrammarPointName: row.GrammarPointName.String,
-	}
-	if row.GrammarPointID.Valid {
-		gpID := int(row.GrammarPointID.Int32)
-		segment.GrammarPointID = &gpID
+		GrammarPointID:   optionalInt(row.GrammarPointID),
+		LineNumber:       optionalInt(row.LineNumber),
 	}
 
 	return segment, nil
@@ -121,17 +144,13 @@ func UpsertProduceSegment(ctx context.Context, segment ProduceSegment) (*Produce
 		return nil, errors.New("database not initialized")
 	}
 
-	grammarPointID := pgtype.Int4{}
-	if segment.GrammarPointID != nil {
-		grammarPointID = pgtype.Int4{Int32: int32(*segment.GrammarPointID), Valid: true}
-	}
-
 	row, err := queries.UpsertProduceSegment(ctx, db.UpsertProduceSegmentParams{
 		StoryID:         int32(segment.StoryID),
 		SegmentOrder:    int32(segment.SegmentOrder),
 		EnglishText:     segment.EnglishText,
 		ReferenceHebrew: segment.ReferenceHebrew,
-		GrammarPointID:  grammarPointID,
+		GrammarPointID:  toPgInt4(segment.GrammarPointID),
+		LineNumber:      toPgInt4(segment.LineNumber),
 	})
 	if err != nil {
 		return nil, err
@@ -143,10 +162,8 @@ func UpsertProduceSegment(ctx context.Context, segment ProduceSegment) (*Produce
 		SegmentOrder:    int(row.SegmentOrder),
 		EnglishText:     row.EnglishText,
 		ReferenceHebrew: row.ReferenceHebrew,
-	}
-	if row.GrammarPointID.Valid {
-		gpID := int(row.GrammarPointID.Int32)
-		saved.GrammarPointID = &gpID
+		GrammarPointID:  optionalInt(row.GrammarPointID),
+		LineNumber:      optionalInt(row.LineNumber),
 	}
 
 	InvalidateStoryContentReadiness(saved.StoryID)
@@ -235,6 +252,68 @@ func DeleteStoryProduceExplanation(ctx context.Context, storyID int) error {
 	}
 	InvalidateStoryContentReadiness(storyID)
 	return nil
+}
+
+// CountStoryLines returns how many lines a story has, for validating a
+// segment's line number.
+func CountStoryLines(ctx context.Context, storyID int) (int, error) {
+	if queries == nil {
+		return 0, errors.New("database not initialized")
+	}
+	lines, err := queries.GetStoryLines(ctx, int32(storyID))
+	if err != nil {
+		return 0, err
+	}
+	return len(lines), nil
+}
+
+// StartProduceAttempt records that the user began writing a segment and
+// returns the start — the original one if the segment was already started, so
+// a reload cannot reset the countdown.
+func StartProduceAttempt(ctx context.Context, userID string, storyID, segmentID int) (ProduceAttemptStart, error) {
+	if queries == nil {
+		return ProduceAttemptStart{}, errors.New("database not initialized")
+	}
+
+	row, err := queries.StartProduceAttempt(ctx, db.StartProduceAttemptParams{
+		UserID:    userID,
+		StoryID:   int32(storyID),
+		SegmentID: int32(segmentID),
+	})
+	if err != nil {
+		return ProduceAttemptStart{}, err
+	}
+	return ProduceAttemptStart{
+		SegmentID:      int(row.SegmentID),
+		StartedAt:      row.StartedAt.Time,
+		ElapsedSeconds: int(row.ElapsedSeconds),
+	}, nil
+}
+
+// GetUserStoryProduceAttemptStarts returns every segment the user has started
+// in a story, with the time elapsed since.
+func GetUserStoryProduceAttemptStarts(ctx context.Context, userID string, storyID int) ([]ProduceAttemptStart, error) {
+	if queries == nil {
+		return nil, errors.New("database not initialized")
+	}
+
+	rows, err := queries.GetUserStoryProduceAttemptStarts(ctx, db.GetUserStoryProduceAttemptStartsParams{
+		UserID:  userID,
+		StoryID: int32(storyID),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	starts := make([]ProduceAttemptStart, 0, len(rows))
+	for _, row := range rows {
+		starts = append(starts, ProduceAttemptStart{
+			SegmentID:      int(row.SegmentID),
+			StartedAt:      row.StartedAt.Time,
+			ElapsedSeconds: int(row.ElapsedSeconds),
+		})
+	}
+	return starts, nil
 }
 
 // CreateProduceSubmission stores an ungraded student attempt and returns it so

@@ -24,7 +24,6 @@ Complexity is 1–10 on the difficulty of getting it *right* (state, races, exte
 - [ ] **T12 — Produce phase (frontend + submit endpoint).** Timed two-segment translation UI, reference reveal, explanation popup, and `POST /produce` storing submissions (ungraded). *Depends on: T2, T3, T5.* *Complexity: 6/10 · ~10 files.*
 - [ ] **T13 — AI grading.** Anthropic SDK integration, grading prompt + iteration on sample answers, fail-open behavior, and rate limiting on the submit path. *Depends on: T12 (and developer_review.md #2 rate-limiter fix).* *Complexity: 7/10 · ~8 files — small diff, high risk: external API, cost, latency, prompt iteration.*
 - [ ] **T14 — Score page rework.** New accuracy categories, five-phase time breakdown, and incomplete-detection for the new phases in `stories-score.go` + `StoriesScore.tsx`. *Depends on: T10, T11, T12 (T13 for graded produce scores).* *Complexity: 6/10 · ~9 files — must tolerate mixed-generation data.*
-- [ ] **T15 — Content authoring (non-code).** Produce videos, images, word audio, segments, and recall sentences per story via the T7 editors. *Depends on: T7.* *Complexity: n/a (non-code) · 0 code files — content work, not code; effort scales with story count.*
 
 Parallel-start set: **T1, T2, T4, T5, T6** can all begin immediately.
 
@@ -171,7 +170,7 @@ This phase is almost entirely a frontend rewrite of `StoriesTranslate.tsx` plus 
 - **The consecutive cap is checked by line adjacency**, not by a temporal streak: a request is refused if it would make a run of more than 3 translated lines, joined from either side. This matters on restart passes, where a request can sit next to lines translated on an earlier pass.
 - **Restart passes end as soon as the minimum is met** (right after that reveal), rather than replaying to the end again; the first pass always plays through.
 - **Short stories lower the minimum.** `effectiveMinRequests(lineCount)` is `min(4, lineCount − ⌊lineCount/4⌋)`, so a story too short to hold four requests under the cap can still complete instead of looping forever.
-- **`useAudioPlayer` gained `onPlaybackEnd`** (T6 style: optional, default unchanged, tested) so the component learns "the story ran out" from the hook rather than inferring it from `isPlaying` / `currentLineIndex` flips. Pending requests use `pauseOnLines = {currentLine}`, which the hook reads at `ended` time — if a click lands as a line ends, the pause simply happens after the next line.
+- **`useAudioPlayer` gained `onPlaybackEnd` and `onPauseAfterLine`** (T6 style: optional, default unchanged, tested) so the component learns "the story ran out" and "I stopped after line N" as explicit events from the hook rather than inferring them from `isPlaying` / `currentLineIndex` flips — inferring from `isPlaying` misfired when the student paused and resumed while a request was waiting. Pending requests use `pauseOnLines = {currentLine}`, which the hook reads at `ended` time — if a click lands as a line ends, the pause simply happens after the next line. Pausing while a request waits keeps the request; resume replays the current line and waits for its end again.
 - Requested lines are still persisted 0-indexed via the unchanged `PUT /api/stories/:id/translate?lines=[…]`, once, on completion.
 
 ## Phase 4 — Produce (5:00)

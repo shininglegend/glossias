@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, act, fireEvent } from "@testing-library/react";
+import {
+  render,
+  screen,
+  act,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { IdentifySession } from "./StoriesIdentify";
 import type { IdentifyData } from "../services/api";
 
@@ -176,13 +182,17 @@ describe("IdentifySession", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByTestId("identify-option-12")).toBeDisabled();
     expect(screen.getByText(/not quite/i)).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("identify-correct-flash"),
+    ).not.toBeInTheDocument();
 
-    // Right pick: closes, replays line 2.
+    // Right pick: closes, flashes a checkmark, replays line 2.
     await act(async () => {
       fireEvent.click(screen.getByTestId("identify-option-10"));
     });
     expect(onCheckPick).toHaveBeenCalledWith(1, 10, 10);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByTestId("identify-correct-flash")).toBeInTheDocument();
     expect(FakeAudio.byLine(2).playCalls).toBe(2);
     expect(screen.getByTestId("identify-counter")).toHaveTextContent("1 / 1");
     expect(FakeAudio.byLine(3).playCalls).toBe(0);
@@ -195,6 +205,15 @@ describe("IdentifySession", () => {
     // Story ends → completion message.
     await endLine(3);
     expect(screen.getByText(/great job/i)).toBeInTheDocument();
+
+    // The checkmark removes itself after its animation.
+    await waitFor(
+      () =>
+        expect(
+          screen.queryByTestId("identify-correct-flash"),
+        ).not.toBeInTheDocument(),
+      { timeout: 3000 },
+    );
     expect(
       screen.getByRole("button", { name: /continue to translate/i }),
     ).toBeInTheDocument();

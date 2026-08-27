@@ -19,6 +19,10 @@ import { StoryLine } from "./story-components/StoryLine";
 import { CompletionMessage } from "./story-components/CompletionMessage";
 import { IdentifyQuizModal } from "./story-components/IdentifyQuizModal";
 import {
+  CorrectFlash,
+  CORRECT_FLASH_MS,
+} from "./story-components/CorrectFlash";
+import {
   identifyReducer,
   createIdentifyState,
   linesWithUnansweredTargets,
@@ -260,6 +264,16 @@ export function IdentifySession({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commandSeq]);
 
+  // Flash a big checkmark for each correct pick while the story carries on.
+  // Keyed on the count so back-to-back correct picks each restart the timer.
+  const [flashVisible, setFlashVisible] = useState(false);
+  useEffect(() => {
+    if (state.correct === 0) return;
+    setFlashVisible(true);
+    const t = setTimeout(() => setFlashVisible(false), CORRECT_FLASH_MS);
+    return () => clearTimeout(t);
+  }, [state.correct]);
+
   // Picture picks: graded by the server, then fed back to the machine.
   const [checking, setChecking] = useState(false);
   const [pickError, setPickError] = useState<string | null>(null);
@@ -476,6 +490,8 @@ export function IdentifySession({
         isRTL={isRTL}
         onPick={handlePick}
       />
+
+      <CorrectFlash visible={flashVisible} />
     </>
   );
 }

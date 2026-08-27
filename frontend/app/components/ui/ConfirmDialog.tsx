@@ -1,5 +1,6 @@
 import React from "react";
 import Button from "./Button";
+import Modal from "./Modal";
 
 type ConfirmDialogVariant =
   "delete" | "clear" | "danger" | "warning" | "default";
@@ -63,40 +64,30 @@ export default function ConfirmDialog({
   loading = false,
 }: ConfirmDialogProps) {
   const config = variantConfig[variant];
-  const finalTitle = title ?? config.title;
-  const finalMessage = message ?? config.message;
-  const finalConfirmText = confirmText ?? config.confirmText;
-
-  React.useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !loading) onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [isOpen, loading, onClose]);
-
-  if (!isOpen) return null;
+  const confirmRef = React.useRef<HTMLButtonElement>(null);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-lg">
-        <h2 className="text-lg font-semibold mb-2">{finalTitle}</h2>
-        <p className="text-gray-600 mb-6">{finalMessage}</p>
-        <div className="flex gap-3 justify-end">
-          <Button variant="outline" onClick={onClose} disabled={loading}>
-            {cancelText}
-          </Button>
-          <Button
-            autoFocus
-            variant={config.buttonVariant}
-            onClick={onConfirm}
-            disabled={loading}
-          >
-            {loading ? "Processing..." : finalConfirmText}
-          </Button>
-        </div>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title ?? config.title}
+      description={message ?? config.message}
+      closeDisabled={loading}
+      initialFocusRef={confirmRef}
+    >
+      <div className="mt-6 flex gap-3 justify-end">
+        <Button variant="outline" onClick={onClose} disabled={loading}>
+          {cancelText}
+        </Button>
+        <Button
+          ref={confirmRef}
+          variant={config.buttonVariant}
+          onClick={onConfirm}
+          disabled={loading}
+        >
+          {loading ? "Processing..." : (confirmText ?? config.confirmText)}
+        </Button>
       </div>
-    </div>
+    </Modal>
   );
 }

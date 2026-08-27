@@ -42,6 +42,18 @@ func (r StoryContentReadiness) AllReady() bool {
 	return r.Identify.Ready && r.Produce.Ready && r.Recall.Ready
 }
 
+// MissingPhases lists the phases that are not ready, in phase order. Empty
+// when AllReady.
+func (r StoryContentReadiness) MissingPhases() []string {
+	var missing []string
+	for _, p := range []PhaseReadiness{r.Identify, r.Produce, r.Recall} {
+		if !p.Ready {
+			missing = append(missing, p.Phase)
+		}
+	}
+	return missing
+}
+
 // newReadiness builds a report from the issues collected for a phase.
 func newReadiness(phase string, issues []ContentIssue) PhaseReadiness {
 	return PhaseReadiness{
@@ -220,9 +232,23 @@ func ValidateRecallSentences(sentences []RecallSentence, storyTargetVocabIDs map
 	return newReadiness("recall", issues)
 }
 
-// GetStoryContentReadiness loads a story's Summer 2026 content and validates
+// GetStoryContentReadiness returns a story's phase readiness report, computing
+// it from the story's Summer 2026 content on a cache miss. The report costs
+// several queries to build, so it is cached per story and invalidated by
+// InvalidateStoryContentReadiness on every write that can change it.
 // every phase.
 func GetStoryContentReadiness(ctx context.Context, storyID int) (StoryContentReadiness, error) {
+	if cacheInstance == nil || keyBuilder == nil {
+		return buildStoryContentReadiness(ctx, storyID)
+	}
+	var readiness StoryContentReadiness
+	err := cacheInstance.GetOrSetJSON(keyBuilder.StoryContentReadiness(storyID), &readiness, func() (any, error) {
+		return buildStoryContentReadiness(ctx, storyID)
+	})
+	return readiness, err
+}
+
+func buildStoryContentReadiness(ctx context.Context, storyID int) (StoryContentReadiness, error) {
 	if queries == nil {
 		return StoryContentReadiness{}, errors.New("database not initialized")
 	}

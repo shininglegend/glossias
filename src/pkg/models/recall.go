@@ -135,15 +135,20 @@ func UpsertRecallSentence(ctx context.Context, sentence RecallSentence) (*Recall
 		saved.TargetVocabID = &targetID
 	}
 
+	InvalidateStoryContentReadiness(saved.StoryID)
 	return saved, nil
 }
 
 // DeleteRecallSentence removes a single sentence.
-func DeleteRecallSentence(ctx context.Context, id int) error {
+func DeleteRecallSentence(ctx context.Context, storyID, id int) error {
 	if queries == nil {
 		return errors.New("database not initialized")
 	}
-	return queries.DeleteRecallSentence(ctx, int32(id))
+	if err := queries.DeleteRecallSentence(ctx, int32(id)); err != nil {
+		return err
+	}
+	InvalidateStoryContentReadiness(storyID)
+	return nil
 }
 
 // DeleteStoryRecallSentences removes every sentence for a story.
@@ -151,7 +156,11 @@ func DeleteStoryRecallSentences(ctx context.Context, storyID int) error {
 	if queries == nil {
 		return errors.New("database not initialized")
 	}
-	return queries.DeleteStoryRecallSentences(ctx, int32(storyID))
+	if err := queries.DeleteStoryRecallSentences(ctx, int32(storyID)); err != nil {
+		return err
+	}
+	InvalidateStoryContentReadiness(storyID)
+	return nil
 }
 
 // CountStoryRecallSentences returns how many sentences a story has.

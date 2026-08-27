@@ -17,10 +17,11 @@ var (
 	rateLimiterMutex sync.RWMutex
 	tokensPerSecond  = 15
 
-	// Every admin story editor page fetches the story's metadata to show its
-	// title in the header, on top of the page's own requests. That read is
-	// cheap and cached, so it doesn't count against the per-IP budget.
-	rateLimitExempt = regexp.MustCompile(`^/api/admin/stories/\d+/metadata$`)
+	// Every admin story editor page fetches the story's metadata (header title)
+	// and content readiness (nav warnings) on top of the page's own requests.
+	// Both are served from cache after the first hit, so they don't count
+	// against the per-IP budget.
+	rateLimitExempt = regexp.MustCompile(`^/api/admin/stories/\d+/(metadata|content-readiness)$`)
 )
 
 func getRateLimiter(ip string) *rate.Limiter {

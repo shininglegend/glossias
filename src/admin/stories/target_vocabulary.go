@@ -257,7 +257,7 @@ func (h *Handler) updateTargetVocabulary(w http.ResponseWriter, r *http.Request,
 }
 
 func (h *Handler) deleteTargetVocabulary(w http.ResponseWriter, r *http.Request, storyID int, word *models.TargetVocabulary) {
-	if err := models.DeleteTargetVocabulary(r.Context(), word.ID); err != nil {
+	if err := models.DeleteTargetVocabulary(r.Context(), storyID, word.ID); err != nil {
 		h.log.Error("Failed to delete target vocabulary", "error", err, "wordID", word.ID, "storyID", storyID)
 		writeJSONError(w, "Failed to delete target word", http.StatusInternalServerError)
 		return

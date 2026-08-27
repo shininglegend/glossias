@@ -15,7 +15,32 @@ type StoryListItem = {
   week_number: number; // keeping backend field name
   day_letter: string;
   course_name?: string;
+  missing_phases?: string[];
 };
+
+// Where to send an admin to fix each incomplete phase.
+const PHASE_EDITOR: Record<string, { label: string; path: string }> = {
+  identify: { label: "Identify", path: "target-vocab" },
+  produce: { label: "Produce", path: "produce" },
+  recall: { label: "Recall", path: "recall" },
+};
+
+function IncompleteWarning({ story }: { story: StoryListItem }) {
+  const missing = story.missing_phases ?? [];
+  if (missing.length === 0) return null;
+  const labels = missing.map((p) => PHASE_EDITOR[p]?.label ?? p);
+  const first = PHASE_EDITOR[missing[0]]?.path ?? "target-vocab";
+  return (
+    <Link
+      to={`/admin/stories/${story.id}/${first}`}
+      title={`Incomplete — needs: ${labels.join(", ")}`}
+      aria-label={`Incomplete story, needs ${labels.join(", ")}`}
+      className="material-icons shrink-0 text-lg leading-none text-amber-500 hover:text-amber-600"
+    >
+      warning
+    </Link>
+  );
+}
 
 export default function AdminHome() {
   const adminApi = useAdminApi();
@@ -135,12 +160,15 @@ export default function AdminHome() {
                 <Card className="p-4">
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <Link
-                        to={`/admin/stories/${s.id}/metadata`}
-                        className="block truncate font-medium text-slate-900 hover:underline"
-                      >
-                        {s.title || `Story #${s.id}`}
-                      </Link>
+                      <div className="flex items-center gap-1.5">
+                        <IncompleteWarning story={s} />
+                        <Link
+                          to={`/admin/stories/${s.id}/metadata`}
+                          className="block truncate font-medium text-slate-900 hover:underline"
+                        >
+                          {s.title || `Story #${s.id}`}
+                        </Link>
+                      </div>
                       <div className="mt-1 text-xs text-slate-500">
                         {s.course_name && <div>{s.course_name}</div>}
                         Week {s.week_number}

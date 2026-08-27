@@ -149,15 +149,20 @@ func UpsertProduceSegment(ctx context.Context, segment ProduceSegment) (*Produce
 		saved.GrammarPointID = &gpID
 	}
 
+	InvalidateStoryContentReadiness(saved.StoryID)
 	return saved, nil
 }
 
 // DeleteProduceSegment removes a single segment.
-func DeleteProduceSegment(ctx context.Context, id int) error {
+func DeleteProduceSegment(ctx context.Context, storyID, id int) error {
 	if queries == nil {
 		return errors.New("database not initialized")
 	}
-	return queries.DeleteProduceSegment(ctx, int32(id))
+	if err := queries.DeleteProduceSegment(ctx, int32(id)); err != nil {
+		return err
+	}
+	InvalidateStoryContentReadiness(storyID)
+	return nil
 }
 
 // DeleteStoryProduceSegments removes every segment for a story.
@@ -165,7 +170,11 @@ func DeleteStoryProduceSegments(ctx context.Context, storyID int) error {
 	if queries == nil {
 		return errors.New("database not initialized")
 	}
-	return queries.DeleteStoryProduceSegments(ctx, int32(storyID))
+	if err := queries.DeleteStoryProduceSegments(ctx, int32(storyID)); err != nil {
+		return err
+	}
+	InvalidateStoryContentReadiness(storyID)
+	return nil
 }
 
 // CountStoryProduceSegments returns how many segments a story has.
@@ -209,7 +218,11 @@ func UpsertStoryProduceExplanation(ctx context.Context, storyID int, explanation
 		StoryID:         int32(storyID),
 		ExplanationText: explanation,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	InvalidateStoryContentReadiness(storyID)
+	return nil
 }
 
 // DeleteStoryProduceExplanation removes a story's explanation.
@@ -217,7 +230,11 @@ func DeleteStoryProduceExplanation(ctx context.Context, storyID int) error {
 	if queries == nil {
 		return errors.New("database not initialized")
 	}
-	return queries.DeleteStoryProduceExplanation(ctx, int32(storyID))
+	if err := queries.DeleteStoryProduceExplanation(ctx, int32(storyID)); err != nil {
+		return err
+	}
+	InvalidateStoryContentReadiness(storyID)
+	return nil
 }
 
 // CreateProduceSubmission stores an ungraded student attempt and returns it so

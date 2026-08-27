@@ -175,7 +175,7 @@ func (h *Handler) deleteProduceSegment(w http.ResponseWriter, r *http.Request, s
 		}
 		// produce_submissions.segment_id cascades, so this discards any student
 		// attempts at the segment along with it.
-		if err := models.DeleteProduceSegment(ctx, segment.ID); err != nil {
+		if err := models.DeleteProduceSegment(ctx, storyID, segment.ID); err != nil {
 			h.log.Error("Failed to delete produce segment", "error", err, "segmentID", segment.ID)
 			writeJSONError(w, "Failed to delete segment", http.StatusInternalServerError)
 			return

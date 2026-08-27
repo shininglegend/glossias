@@ -118,6 +118,7 @@ func CreateTargetVocabulary(ctx context.Context, word TargetVocabulary) (*Target
 	if err != nil {
 		return nil, asDuplicate(err)
 	}
+	InvalidateStoryContentReadiness(int(row.StoryID))
 
 	return &TargetVocabulary{
 		ID:               int(row.ID),
@@ -150,6 +151,7 @@ func UpdateTargetVocabulary(ctx context.Context, word TargetVocabulary) (*Target
 	if err != nil {
 		return nil, asDuplicate(err)
 	}
+	InvalidateStoryContentReadiness(int(row.StoryID))
 
 	return &TargetVocabulary{
 		ID:               int(row.ID),
@@ -163,11 +165,15 @@ func UpdateTargetVocabulary(ctx context.Context, word TargetVocabulary) (*Target
 }
 
 // DeleteTargetVocabulary removes a single target word.
-func DeleteTargetVocabulary(ctx context.Context, id int) error {
+func DeleteTargetVocabulary(ctx context.Context, storyID, id int) error {
 	if queries == nil {
 		return errors.New("database not initialized")
 	}
-	return queries.DeleteTargetVocabulary(ctx, int32(id))
+	if err := queries.DeleteTargetVocabulary(ctx, int32(id)); err != nil {
+		return err
+	}
+	InvalidateStoryContentReadiness(storyID)
+	return nil
 }
 
 // DeleteStoryTargetVocabulary removes every target word for a story.
@@ -175,7 +181,11 @@ func DeleteStoryTargetVocabulary(ctx context.Context, storyID int) error {
 	if queries == nil {
 		return errors.New("database not initialized")
 	}
-	return queries.DeleteStoryTargetVocabulary(ctx, int32(storyID))
+	if err := queries.DeleteStoryTargetVocabulary(ctx, int32(storyID)); err != nil {
+		return err
+	}
+	InvalidateStoryContentReadiness(storyID)
+	return nil
 }
 
 // CountStoryTargetVocabulary returns how many target words a story has.

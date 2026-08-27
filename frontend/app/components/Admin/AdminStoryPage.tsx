@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import AdminStoryNavigation from "./AdminStoryNavigation";
 import { useAdminApi } from "~/services/adminApi";
+import type { StoryContentReadiness } from "~/types/admin";
 
 interface AdminStoryPageProps {
   storyId: string | number;
@@ -25,6 +26,9 @@ export default function AdminStoryPage({
 }: AdminStoryPageProps) {
   const adminApi = useAdminApi();
   const [storyTitle, setStoryTitle] = useState<string | null>(null);
+  const [readiness, setReadiness] = useState<StoryContentReadiness | null>(
+    null,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -35,6 +39,14 @@ export default function AdminStoryPage({
       })
       .catch(() => {
         if (!cancelled) setStoryTitle(null);
+      });
+    adminApi
+      .getContentReadiness(Number(storyId))
+      .then((r) => {
+        if (!cancelled) setReadiness(r);
+      })
+      .catch(() => {
+        if (!cancelled) setReadiness(null);
       });
     return () => {
       cancelled = true;
@@ -58,7 +70,7 @@ export default function AdminStoryPage({
           <div className="flex items-center gap-2 sm:shrink-0">{actions}</div>
         )}
       </div>
-      <AdminStoryNavigation storyId={storyId} />
+      <AdminStoryNavigation storyId={storyId} readiness={readiness} />
       {children}
     </main>
   );

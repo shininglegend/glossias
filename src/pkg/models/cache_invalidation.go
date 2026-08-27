@@ -30,6 +30,9 @@ func InvalidateStoryCache(storyID int, userID string) {
 	accessKey := keyBuilder.UserAccess(userID, storyID)
 	_ = cacheInstance.Delete(accessKey)
 
+	// Annotations feed the lexical-form counts the readiness report checks
+	InvalidateStoryContentReadiness(storyID)
+
 	fmt.Printf("Invalidated cache for story %d, user %s\n", storyID, userID)
 }
 
@@ -55,7 +58,20 @@ func InvalidateStoryMetadata(storyID int) {
 	vocabCountKey := keyBuilder.StoryVocabCount(storyID)
 	_ = cacheInstance.Delete(vocabCountKey)
 
+	// Annotations feed the lexical-form counts the readiness report checks
+	InvalidateStoryContentReadiness(storyID)
+
 	fmt.Printf("Invalidated metadata cache for story %d\n", storyID)
+}
+
+// InvalidateStoryContentReadiness drops the cached phase readiness report for a
+// story. Call it after any write to target vocabulary, produce content, recall
+// sentences, or annotations.
+func InvalidateStoryContentReadiness(storyID int) {
+	if cacheInstance == nil || keyBuilder == nil {
+		return
+	}
+	_ = cacheInstance.Delete(keyBuilder.StoryContentReadiness(storyID))
 }
 
 // InvalidateUserStoryCache removes all cached data for a user's story interactions

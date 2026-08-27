@@ -18,6 +18,10 @@ type Story struct {
 	WeekNumber int    `json:"week_number"`
 	DayLetter  string `json:"day_letter"`
 	CourseID   *int   `json:"course_id,omitempty"`
+	// MissingPhases lists the Summer 2026 phases ("identify", "produce",
+	// "recall") whose content is not fully authored. Populated only for admin
+	// callers; omitted when the story is complete.
+	MissingPhases []string `json:"missing_phases,omitempty"`
 }
 
 // StoriesResponse contains array of stories

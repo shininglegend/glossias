@@ -191,7 +191,7 @@ func (h *Handler) deleteRecallSentence(w http.ResponseWriter, r *http.Request, s
 		return
 	}
 
-	if err := models.DeleteRecallSentence(r.Context(), existing.ID); err != nil {
+	if err := models.DeleteRecallSentence(r.Context(), storyID, existing.ID); err != nil {
 		h.log.Error("Failed to delete recall sentence", "error", err, "sentenceID", existing.ID)
 		writeJSONError(w, "Failed to delete sentence", http.StatusInternalServerError)
 		return

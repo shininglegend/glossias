@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"regexp"
 	"sync"
 	"time"
 
@@ -15,6 +16,11 @@ var (
 	rateLimiters     = make(map[string]*rate.Limiter)
 	rateLimiterMutex sync.RWMutex
 	tokensPerSecond  = 15
+
+	// Every admin story editor page fetches the story's metadata to show its
+	// title in the header, on top of the page's own requests. That read is
+	// cheap and cached, so it doesn't count against the per-IP budget.
+	rateLimitExempt = regexp.MustCompile(`^/api/admin/stories/\d+/metadata$`)
 )
 
 func getRateLimiter(ip string) *rate.Limiter {
@@ -24,7 +30,7 @@ func getRateLimiter(ip string) *rate.Limiter {
 
 	if !exists {
 		rateLimiterMutex.Lock()
-		limiter = rate.NewLimiter(rate.Every(time.Second), tokensPerSecond) // 10 requests per second
+		limiter = rate.NewLimiter(rate.Every(time.Second), tokensPerSecond) // burst of tokensPerSecond, refilling 1/sec
 		rateLimiters[ip] = limiter
 		rateLimiterMutex.Unlock()
 	}
@@ -36,6 +42,11 @@ func getRateLimiter(ip string) *rate.Limiter {
 func RateLimitMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet && rateLimitExempt.MatchString(r.URL.Path) {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			clientIP := r.Header.Get("X-Forwarded-For")
 			if clientIP == "" {
 				clientIP = r.RemoteAddr

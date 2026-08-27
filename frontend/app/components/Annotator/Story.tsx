@@ -49,7 +49,12 @@ export default function Story({ storyId }: { storyId: number }) {
         const response = await authenticatedFetch(
           `/api/admin/stories/${storyId}`,
         );
-        if (!response.ok) throw new Error("Failed to fetch story");
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(
+            `Failed to fetch story (HTTP ${response.status}${text ? `: ${text.trim()}` : ""})`,
+          );
+        }
         const data: ApiResponse = await response.json();
 
         // Map lines with empty audioFiles for now - backend doesn't return them in admin endpoint

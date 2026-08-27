@@ -170,15 +170,8 @@ export default function MetadataForm({
           </div>
         )}
       </div>
-      <div>
-        <Label>Author ID</Label>
-        <Input
-          value={meta.author.id}
-          onChange={(e) =>
-            update("author", { ...meta.author, id: e.target.value })
-          }
-        />
-      </div>
+      {/* author.id is preserved in state and submitted unchanged; it is not
+          shown or editable here. */}
       <div>
         <Label>Author Name</Label>
         <Input

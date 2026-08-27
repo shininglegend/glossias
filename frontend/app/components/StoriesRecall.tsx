@@ -325,8 +325,11 @@ export function RecallSession({
 
   const isRTL = RTL_LANGUAGES.includes(pageData.language);
   const lineCount = pageData.line_count;
+  // The bar shows where playback *is* (lines before the current one), so
+  // stepping back moves it back. Before Start it shows the saved resume point.
+  const linesBehind = phase === "idle" ? furthestHeard : audioLineIndex;
   const progressPercent =
-    lineCount > 0 ? Math.round((furthestHeard / lineCount) * 100) : 0;
+    lineCount > 0 ? Math.round((linesBehind / lineCount) * 100) : 0;
   const isListeningPhase =
     phase === "idle" || phase === "listening" || phase === "paused";
   const correctCount = lastResults?.filter(Boolean).length ?? 0;

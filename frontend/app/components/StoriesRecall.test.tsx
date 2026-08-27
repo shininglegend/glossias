@@ -226,16 +226,36 @@ describe("RecallSession", () => {
       screen.getByRole("button", { name: /pause audio/i }),
     ).toBeInTheDocument();
 
-    // On line 1 it just restarts line 1.
-    fireEvent.click(screen.getByRole("button", { name: /back 1 line/i }));
-    fireEvent.click(screen.getByRole("button", { name: /back 1 line/i }));
-    expect(FakeAudio.byLine(1).playCalls).toBe(3);
-
-    // Going back never lowers the progress already made.
+    // The bar follows the current position back.
     expect(screen.getByRole("progressbar")).toHaveAttribute(
       "aria-valuenow",
-      "67",
+      "33",
     );
+    expect(screen.getByTestId("recall-progress")).toHaveTextContent(
+      "Line 2 of 3",
+    );
+
+    // Stepping back again reaches line 1 and the bar goes to zero; on line 1
+    // it just restarts line 1.
+    fireEvent.click(screen.getByRole("button", { name: /back 1 line/i }));
+    expect(FakeAudio.byLine(1).playCalls).toBe(2);
+    expect(screen.getByRole("progressbar")).toHaveAttribute(
+      "aria-valuenow",
+      "0",
+    );
+    fireEvent.click(screen.getByRole("button", { name: /back 1 line/i }));
+    expect(FakeAudio.byLine(1).playCalls).toBe(3);
+    expect(screen.getByTestId("recall-progress")).toHaveTextContent(
+      "Line 1 of 3",
+    );
+
+    // Playing forward again moves it up; the saved resume point is unchanged.
+    await endLine(1);
+    expect(screen.getByRole("progressbar")).toHaveAttribute(
+      "aria-valuenow",
+      "33",
+    );
+    expect(window.localStorage.getItem("recall-listened:1")).toBe("2");
   });
 
   it("remembers the furthest line heard and resumes there on reload", async () => {

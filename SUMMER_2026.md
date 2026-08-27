@@ -18,7 +18,7 @@ Complexity is 1–10 on the difficulty of getting it *right* (state, races, exte
 - [X] **T6 — `useAudioPlayer` extensions (F4).** Add pause-on-specific-lines, replay-single-line, skip-lines set, and timed resume behind new options with unchanged defaults, plus isolated hook tests. *Depends on: nothing.* *Complexity: 6/10 · ~3 files — few files, but dense concurrent-audio logic + tests.*
 - [X] **T7 — Admin authoring editors.** Admin CRUD UI + endpoints for target vocab (with audio/image upload), produce segments/explanation, and recall sentences, including validation (5 words, ≥2 occurrences, 5 ordered sentences). *Depends on: T3, T4.* *Complexity: 8/10 · ~18 files — largest surface area: 3 editors x (admin handler + model + UI).*
 - [X] **T8 — Watch phase.** Pre-video plot-summary screen and `videoWatched` gating in `StoriesVideo.tsx`. *Depends on: T2.* *Complexity: 2/10 · ~3 files.*
-- [ ] **T9 — Translate rework.** Rewrite `StoriesTranslate.tsx` as an explicit state machine (quota, consecutive cap, restart/fast-forward, auto-skip); backend unchanged. *Depends on: T2, T6.* *Complexity: 9/10 · ~5 files — single-file rewrite, but the hardest state machine in the app.*
+- [X] **T9 — Translate rework.** Rewrite `StoriesTranslate.tsx` as an explicit state machine (quota, consecutive cap, restart/fast-forward, auto-skip); backend unchanged. *Depends on: T2, T6.* *Complexity: 9/10 · ~5 files — single-file rewrite, but the hardest state machine in the app.*
 - [ ] **T10 — Identify phase.** New `GET /identify` + `POST /check-identify` endpoints, target-word rendering, and the picture-quiz popup with line replay. *Depends on: T2, T3, T4, T5, T6.* *Complexity: 8/10 · ~14 files — spans schema, storage, audio, segment rendering, and a new popup.*
 - [ ] **T11 — Recall phase.** Audio-only playback, `@dnd-kit` sequencing UI, and `GET /recall` + `POST /check-recall` endpoints with answer logging. *Depends on: T2, T3, T6.* *Complexity: 7/10 · ~11 files — includes adding and wiring @dnd-kit.*
 - [ ] **T12 — Produce phase (frontend + submit endpoint).** Timed two-segment translation UI, reference reveal, explanation popup, and `POST /produce` storing submissions (ungraded). *Depends on: T2, T3, T5.* *Complexity: 6/10 · ~10 files.*
@@ -163,6 +163,16 @@ New behavior (audio plays continuously; the student interrupts):
 6. On completion, persist the requested line set via the existing `PUT /api/stories/:id/translate` — `translation_requests.requested_lines` already fits. The existing `GET /api/stories/:id/translate` (all lines + translations, from `line_translations`) also fits unchanged.
 
 This phase is almost entirely a frontend rewrite of `StoriesTranslate.tsx` plus the `useAudioPlayer` extensions; backend is unchanged.
+
+**As built (T9)** — the interaction logic is a pure reducer in `frontend/app/lib/translateMachine.ts` (phases `idle → playing ⇄ paused`, `playing → awaitingLineEnd → predicting → revealing → playing`, and `complete`), unit-tested in `translateMachine.test.ts` before being wired to audio. `StoriesTranslate.tsx` is split into a data-loading shell and a `TranslateSession` that owns the machine and the audio hook. Decisions worth knowing:
+
+- **Side effects are commands, not flags.** The reducer emits `{type: "playFrom", index}` with a `commandSeq`; the component runs each command once from an effect. The 2s/5s beats are single component timers keyed on the phase, so there is never more than one timer or one pending resume in flight.
+- **One request in flight at a time.** Clicks during `awaitingLineEnd` / `predicting` / `revealing` are ignored; eligibility is re-evaluated against the new current/previous line once playback resumes.
+- **The consecutive cap is checked by line adjacency**, not by a temporal streak: a request is refused if it would make a run of more than 3 translated lines, joined from either side. This matters on restart passes, where a request can sit next to lines translated on an earlier pass.
+- **Restart passes end as soon as the minimum is met** (right after that reveal), rather than replaying to the end again; the first pass always plays through.
+- **Short stories lower the minimum.** `effectiveMinRequests(lineCount)` is `min(4, lineCount − ⌊lineCount/4⌋)`, so a story too short to hold four requests under the cap can still complete instead of looping forever.
+- **`useAudioPlayer` gained `onPlaybackEnd`** (T6 style: optional, default unchanged, tested) so the component learns "the story ran out" from the hook rather than inferring it from `isPlaying` / `currentLineIndex` flips. Pending requests use `pauseOnLines = {currentLine}`, which the hook reads at `ended` time — if a click lands as a line ends, the pause simply happens after the next line.
+- Requested lines are still persisted 0-indexed via the unchanged `PUT /api/stories/:id/translate?lines=[…]`, once, on completion.
 
 ## Phase 4 — Produce (5:00)
 

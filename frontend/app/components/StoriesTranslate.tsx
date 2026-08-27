@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useReducer, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import { useAuthenticatedFetch } from "../lib/authFetch";
@@ -6,6 +6,17 @@ import type { VocabLine } from "../services/api";
 import { useAudioPlayer } from "./story-components/AudioPlayer";
 import { StoryLine } from "./story-components/StoryLine";
 import { CompletionMessage } from "./story-components/CompletionMessage";
+import {
+  translateReducer,
+  createTranslateState,
+  canRequest,
+  canFastForward,
+  requestBlockReason,
+  effectiveMinRequests,
+  MAX_REQUESTS,
+  PREDICT_MS,
+  REVEAL_MS,
+} from "../lib/translateMachine";
 
 interface LineWithTranslation {
   text: string;
@@ -21,7 +32,8 @@ interface TranslatePageData {
   has_translation: boolean;
 }
 
-const WAIT_TIME_WHEN_NOT_KNOWN = 2.5 * 1000;
+const RTL_LANGUAGES = ["he", "ar", "fa", "ur"];
+const EMPTY_SET = new Set<number>();
 
 // Transform translate line to vocab line format
 const transformToVocabLine = (
@@ -34,6 +46,10 @@ const transformToVocabLine = (
   };
 };
 
+/**
+ * Loads the story and hands it to `TranslateSession`, which owns the
+ * playback state machine (created with the real line count on mount).
+ */
 export function StoriesTranslate() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -41,28 +57,10 @@ export function StoriesTranslate() {
   const authenticatedFetch = useAuthenticatedFetch();
 
   const [pageData, setPageData] = useState<TranslatePageData | null>(null);
-  const [vocabLines, setVocabLines] = useState<VocabLine[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [audioURLs, setAudioURLs] = useState<Record<string, string>>({});
-
-  const [currentLineIndex, setCurrentLineIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [showComprehensionPrompt, setShowComprehensionPrompt] = useState(false);
-  const [revealedTranslations, setRevealedTranslations] = useState<Set<number>>(
-    new Set(),
-  );
-  const [requestedLineIndices, setRequestedLineIndices] = useState<number[]>(
-    [],
-  );
-  const [completedLines, setCompletedLines] = useState<Set<number>>(new Set());
-  const [playedLines, setPlayedLines] = useState<Set<number>>(new Set());
-  const [isAutoWaiting, setIsAutoWaiting] = useState(false);
-  const [allLinesCompleted, setAllLinesCompleted] = useState(false);
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
-
-  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
-  const autoWaitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -81,12 +79,6 @@ export function StoriesTranslate() {
           const translateData = await translateResponse.json();
           if (translateData.success && translateData.data) {
             setPageData(translateData.data);
-
-            // Transform lines to VocabLine format
-            const transformed = translateData.data.lines.map(
-              (line: LineWithTranslation) => transformToVocabLine(line),
-            );
-            setVocabLines(transformed);
 
             // Fetch audio URLs
             const audioResponse = await authenticatedFetch(
@@ -132,124 +124,30 @@ export function StoriesTranslate() {
     fetchNextStep();
   }, [id, getNavigationGuidance]);
 
-  // Audio player integration
-  const audioPlayerData =
-    vocabLines.length > 0
-      ? {
-          story_id: pageData?.story_id || "",
-          story_title: pageData?.story_title || "",
-          language: pageData?.language || "he",
-          lines: vocabLines,
-          vocab_bank: [],
+  const saveRequestedLines = useCallback(
+    async (lines: number[]) => {
+      if (!id) return;
+      try {
+        const url = new URL(
+          `/api/stories/${id}/translate`,
+          window.location.origin,
+        );
+        url.searchParams.set("lines", `[${lines.join(",")}]`);
+
+        const response = await authenticatedFetch(url.toString(), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        if (!response.ok) {
+          console.warn("Failed to save requested lines:", response.statusText);
         }
-      : null;
-
-  const audioPlayer = useAudioPlayer({
-    audioURLs,
-    pageData: audioPlayerData,
-    onPlayedLinesChange: setPlayedLines,
-    onCurrentLineChange: setCurrentLineIndex,
-    onPlayingStateChange: setIsPlaying,
-    completedLines,
-    pauseAfterEveryLine: true,
-  });
-
-  // Cleanup on unmount
-  useEffect(() => {
-    const audio = currentAudioRef.current;
-    const timeout = autoWaitTimeoutRef.current;
-    return () => {
-      if (audio) audio.pause();
-      if (timeout) clearTimeout(timeout);
-    };
-  }, []);
-
-  // Watch for line completion to show comprehension prompt
-  // When a line finishes playing, it gets added to playedLines and isPlaying becomes false
-  useEffect(() => {
-    // Check if the current line just finished playing (is in playedLines but not completed)
-    if (
-      playedLines.has(currentLineIndex) &&
-      !completedLines.has(currentLineIndex) &&
-      !showComprehensionPrompt &&
-      !allLinesCompleted &&
-      !isAutoWaiting
-    ) {
-      // Pause audio before showing prompt
-      audioPlayer.pauseAudio();
-      setShowComprehensionPrompt(true);
-    }
-  }, [
-    playedLines,
-    currentLineIndex,
-    completedLines,
-    showComprehensionPrompt,
-    allLinesCompleted,
-    isAutoWaiting,
-    audioPlayer,
-  ]);
-
-  const handleComprehendYes = () => {
-    setShowComprehensionPrompt(false);
-    moveToNextLine();
-  };
-
-  const handleComprehendNo = async () => {
-    setShowComprehensionPrompt(false);
-    const lineNumber = currentLineIndex + 1;
-    setRevealedTranslations((prev) => new Set([...prev, lineNumber]));
-
-    // Track this line as requested (0-indexed for API)
-    setRequestedLineIndices((prev) => [...prev, currentLineIndex]);
-
-    setIsAutoWaiting(true);
-
-    // Wait x seconds before auto-continuing
-    autoWaitTimeoutRef.current = setTimeout(() => {
-      setIsAutoWaiting(false);
-      moveToNextLine();
-    }, WAIT_TIME_WHEN_NOT_KNOWN);
-  };
-
-  const moveToNextLine = async () => {
-    if (!pageData) return;
-
-    // Mark current line as completed
-    setCompletedLines((prev) => new Set([...prev, currentLineIndex]));
-
-    const nextIndex = currentLineIndex + 1;
-    if (nextIndex < pageData.lines.length) {
-      audioPlayer.playNextLineFromIndex(currentLineIndex);
-    } else {
-      // All lines completed - save final requested lines
-      await saveRequestedLines(requestedLineIndices);
-      setAllLinesCompleted(true);
-      setIsPlaying(false);
-    }
-  };
-
-  const saveRequestedLines = async (lines: number[]) => {
-    if (!id) return;
-
-    try {
-      const url = new URL(
-        `/api/stories/${id}/translate`,
-        window.location.origin,
-      );
-      url.searchParams.set("lines", `[${lines.join(",")}]`);
-
-      const response = await authenticatedFetch(url.toString(), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!response.ok) {
-        console.warn("Failed to save requested lines:", response.statusText);
+      } catch (error) {
+        console.warn("Failed to save requested lines:", error);
       }
-    } catch (error) {
-      console.warn("Failed to save requested lines:", error);
-    }
-  };
+    },
+    [id, authenticatedFetch],
+  );
 
   const handleContinue = async () => {
     try {
@@ -288,22 +186,184 @@ export function StoriesTranslate() {
     );
   }
 
-  const RTL_LANGUAGES = ["he", "ar", "fa", "ur"];
-  const isRTL = RTL_LANGUAGES.includes(pageData.language);
+  return (
+    <TranslateSession
+      pageData={pageData}
+      audioURLs={audioURLs}
+      nextStepName={nextStepName}
+      onComplete={saveRequestedLines}
+      onContinue={handleContinue}
+    />
+  );
+}
 
-  const togglePlayPause = () => {
-    if (isPlaying) {
+interface TranslateSessionProps {
+  pageData: TranslatePageData;
+  audioURLs: Record<string, string>;
+  nextStepName: string;
+  /** Called once with the 0-based requested line indices when the phase ends. */
+  onComplete: (requestedLines: number[]) => void;
+  onContinue: () => void;
+}
+
+function TranslateSession({
+  pageData,
+  audioURLs,
+  nextStepName,
+  onComplete,
+  onContinue,
+}: TranslateSessionProps) {
+  const [vocabLines] = useState<VocabLine[]>(() =>
+    pageData.lines.map(transformToVocabLine),
+  );
+
+  // Audio-player status mirrored into React state.
+  const [audioLineIndex, setAudioLineIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playedLines, setPlayedLines] = useState<Set<number>>(new Set());
+
+  const [state, dispatch] = useReducer(
+    translateReducer,
+    pageData.lines.length,
+    createTranslateState,
+  );
+  const { phase, pass, requested, revealed, lineCount, command, commandSeq } =
+    state;
+
+  const onStoryEnded = useCallback(() => dispatch({ type: "STORY_ENDED" }), []);
+
+  // While a request is pending, pause after whichever line is playing. The
+  // hook reads this at `ended` time, so if the click lands as a line ends the
+  // pause simply happens after the next line instead.
+  const pauseOnLines =
+    phase.kind === "awaitingLineEnd" ? new Set([audioLineIndex]) : EMPTY_SET;
+  // On restart passes, lines already translated are skipped.
+  const skipLines = pass > 1 ? new Set(requested) : EMPTY_SET;
+
+  const audioPlayer = useAudioPlayer({
+    audioURLs,
+    pageData: {
+      story_id: pageData.story_id,
+      story_title: pageData.story_title,
+      language: pageData.language,
+      lines: vocabLines,
+      vocab_bank: [],
+    },
+    onPlayedLinesChange: setPlayedLines,
+    onCurrentLineChange: setAudioLineIndex,
+    onPlayingStateChange: setIsPlaying,
+    completedLines: EMPTY_SET,
+    pauseOnLines,
+    skipLines,
+    onPlaybackEnd: onStoryEnded,
+  });
+
+  // Mirror the audio player's line into the machine.
+  useEffect(() => {
+    dispatch({ type: "LINE_CHANGED", index: audioLineIndex });
+  }, [audioLineIndex]);
+
+  // The hook paused at the end of the line a request was waiting on.
+  useEffect(() => {
+    if (!isPlaying && phase.kind === "awaitingLineEnd") {
+      dispatch({ type: "LINE_ENDED" });
+    }
+  }, [isPlaying, phase.kind]);
+
+  // Timed transitions: 2s prediction beat, then 5s reveal hold.
+  useEffect(() => {
+    if (phase.kind === "predicting") {
+      const t = setTimeout(
+        () => dispatch({ type: "PREDICT_DONE" }),
+        PREDICT_MS,
+      );
+      return () => clearTimeout(t);
+    }
+    if (phase.kind === "revealing") {
+      const t = setTimeout(() => dispatch({ type: "REVEAL_DONE" }), REVEAL_MS);
+      return () => clearTimeout(t);
+    }
+  }, [phase.kind]);
+
+  // Run each audio command the machine emits exactly once.
+  const lastCommandSeqRef = useRef(0);
+  const { playNextLineFromIndex } = audioPlayer;
+  useEffect(() => {
+    if (commandSeq === lastCommandSeqRef.current || !command) return;
+    lastCommandSeqRef.current = commandSeq;
+    if (command.type === "playFrom") {
+      // The continuation API starts at index + 1, honouring skipLines.
+      playNextLineFromIndex(command.index - 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commandSeq]);
+
+  // Persist the requested lines once, on completion.
+  const savedRef = useRef(false);
+  useEffect(() => {
+    if (phase.kind !== "complete" || savedRef.current) return;
+    savedRef.current = true;
+    onComplete(requested);
+  }, [phase.kind, requested, onComplete]);
+
+  const handlePlayPause = () => {
+    if (phase.kind === "idle") {
+      dispatch({ type: "START" });
+    } else if (phase.kind === "playing") {
       audioPlayer.pauseAudio();
-      if (autoWaitTimeoutRef.current) {
-        clearTimeout(autoWaitTimeoutRef.current);
-      }
-      setIsPlaying(false);
-      setIsAutoWaiting(false);
-    } else {
-      // Play/Resume
-      audioPlayer.playStoryAudio();
+      dispatch({ type: "PAUSE" });
+    } else if (phase.kind === "paused") {
+      dispatch({ type: "RESUME" });
     }
   };
+
+  const handleFastForward = () => {
+    if (!canFastForward(state)) return;
+    audioPlayer.playNextLineFromIndex(audioLineIndex);
+  };
+
+  const handleLineClick = (lineIndex: number) => {
+    if (!canRequest(state, lineIndex)) return;
+    dispatch({ type: "REQUEST", line: lineIndex });
+  };
+
+  const isRTL = RTL_LANGUAGES.includes(pageData.language);
+  const minRequests = effectiveMinRequests(lineCount);
+  const isComplete = phase.kind === "complete";
+  const isPending =
+    phase.kind === "awaitingLineEnd" ||
+    phase.kind === "predicting" ||
+    phase.kind === "revealing";
+  const activeLine =
+    phase.kind === "predicting" || phase.kind === "revealing"
+      ? phase.requestedLine
+      : phase.kind === "playing" || phase.kind === "awaitingLineEnd"
+        ? audioLineIndex
+        : null;
+
+  // Explain why the student cannot request right now, if playing.
+  const blockHint = (() => {
+    if (phase.kind !== "playing") return null;
+    if (requested.length >= MAX_REQUESTS) {
+      return `You've used all ${MAX_REQUESTS} translations.`;
+    }
+    const reasons = [audioLineIndex, audioLineIndex - 1].map((l) =>
+      requestBlockReason(state, l),
+    );
+    if (reasons.includes("consecutive-cap") && !reasons.includes(null)) {
+      return "Three lines in a row translated — let a line play untranslated first.";
+    }
+    return null;
+  })();
+
+  const playButtonLabel =
+    phase.kind === "idle"
+      ? "Start"
+      : phase.kind === "playing"
+        ? "Pause Audio"
+        : phase.kind === "paused"
+          ? "Resume Audio"
+          : "Playing…";
 
   return (
     <>
@@ -311,11 +371,11 @@ export function StoriesTranslate() {
         <h1>{pageData.story_title}</h1>
         <h2>Translation</h2>
 
-        {allLinesCompleted && (
+        {isComplete && (
           <CompletionMessage
             currentStepName="translation"
             nextStepName={nextStepName}
-            onContinue={handleContinue}
+            onContinue={onContinue}
           />
         )}
 
@@ -324,108 +384,162 @@ export function StoriesTranslate() {
             <span className="material-icons text-gray-600 mr-2 mt-1">info</span>
             <div>
               <p className="text-gray-700 mb-2">
-                Listen to each line of the story. After each line, indicate
-                whether you fully comprehend it. If not, the English translation
-                will be revealed.
+                Listen to the story. Click the line that is playing (or the one
+                just before it) to see its English translation.
+              </p>
+              <p className="text-gray-700">
+                Request between {minRequests} and {MAX_REQUESTS} translations,
+                with no more than 3 lines in a row.
               </p>
             </div>
           </div>
         </div>
 
-        <button
-          onClick={togglePlayPause}
-          className={`inline-flex items-center gap-2 px-5 py-3 my-5 text-white border-none rounded-lg text-base cursor-pointer transition-colors duration-200 ${
-            isPlaying
-              ? "bg-red-500 hover:bg-red-600"
-              : "bg-green-500 hover:bg-green-600"
-          }`}
-          type="button"
-        >
-          <span className="material-icons">
-            {isPlaying ? "pause" : "play_arrow"}
-          </span>
-          {isPlaying ? "Pause Audio" : "Play Audio"}
-        </button>
+        {!isComplete && (
+          <div className="flex flex-wrap items-center justify-center gap-4 my-5">
+            <button
+              onClick={handlePlayPause}
+              disabled={isPending}
+              className={`inline-flex items-center gap-2 px-5 py-3 text-white border-none rounded-lg text-base transition-colors duration-200 ${
+                isPending
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : phase.kind === "playing"
+                    ? "bg-red-500 hover:bg-red-600 cursor-pointer"
+                    : "bg-green-500 hover:bg-green-600 cursor-pointer"
+              }`}
+              type="button"
+            >
+              <span className="material-icons">
+                {phase.kind === "playing" || isPending ? "pause" : "play_arrow"}
+              </span>
+              {playButtonLabel}
+            </button>
+
+            {pass > 1 && (
+              <button
+                onClick={handleFastForward}
+                disabled={!canFastForward(state)}
+                className={`inline-flex items-center gap-2 px-5 py-3 text-white border-none rounded-lg text-base transition-colors duration-200 ${
+                  canFastForward(state)
+                    ? "bg-blue-500 hover:bg-blue-600 cursor-pointer"
+                    : "bg-gray-400 cursor-not-allowed"
+                }`}
+                type="button"
+                aria-label="Skip to the next line"
+              >
+                <span className="material-icons">fast_forward</span>
+                Skip line
+              </button>
+            )}
+
+            <div
+              className="text-gray-700 text-base"
+              aria-live="polite"
+              data-testid="translation-counter"
+            >
+              Translations: <strong>{requested.length}</strong> / {minRequests}–
+              {MAX_REQUESTS}
+            </div>
+          </div>
+        )}
+
+        {pass > 1 && !isComplete && (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4 rounded-r-lg text-left">
+            <p className="text-gray-800">
+              You need at least {minRequests} translations. The story is playing
+              again — lines you already translated are skipped, and you can skip
+              ahead with the button above.
+            </p>
+          </div>
+        )}
+
+        {blockHint && (
+          <p className="text-gray-600 text-sm mb-4" aria-live="polite">
+            {blockHint}
+          </p>
+        )}
       </header>
 
-      <div className={`max-w-4xl mx-auto px-5 pb-16`}>
+      <div className="max-w-4xl mx-auto px-5 pb-24">
         <div className="story-lines text-2xl max-w-3xl mx-auto">
-          {vocabLines.length > 0 && (
-            <div
-              className={isRTL ? "text-right" : "text-left"}
-              dir={isRTL ? "rtl" : "ltr"}
-            >
-              {vocabLines.map((line, lineIndex) => {
-                const lineNumber = pageData!.lines[lineIndex].line_number;
-                const translation = pageData!.lines[lineIndex].translation;
-                const showTranslation = revealedTranslations.has(lineNumber);
+          <div
+            className={isRTL ? "text-right" : "text-left"}
+            dir={isRTL ? "rtl" : "ltr"}
+          >
+            {vocabLines.map((line, lineIndex) => {
+              const translation = pageData.lines[lineIndex].translation;
+              const requestable = canRequest(state, lineIndex);
+              const isRequested = requested.includes(lineIndex);
 
-                return (
+              return (
+                <div
+                  key={lineIndex}
+                  className={`inline ${
+                    requestable
+                      ? "cursor-pointer hover:bg-primary-50 rounded"
+                      : isRequested
+                        ? "text-primary-800"
+                        : ""
+                  }`}
+                  role={requestable ? "button" : undefined}
+                  tabIndex={requestable ? 0 : undefined}
+                  aria-label={
+                    requestable
+                      ? `Show translation for line ${lineIndex + 1}`
+                      : undefined
+                  }
+                  onClick={() => handleLineClick(lineIndex)}
+                  onKeyDown={(e) => {
+                    if (requestable && (e.key === "Enter" || e.key === " ")) {
+                      e.preventDefault();
+                      handleLineClick(lineIndex);
+                    }
+                  }}
+                  data-testid={`translate-line-${lineIndex}`}
+                >
                   <StoryLine
-                    key={lineIndex}
                     line={line}
                     lineIndex={lineIndex}
                     vocabBank={[]}
                     selectedAnswers={{}}
                     lineResults={{}}
-                    completedLines={completedLines}
+                    completedLines={EMPTY_SET}
                     playedLines={playedLines}
-                    checkingLines={new Set()}
-                    isCurrentLine={
-                      (currentLineIndex === lineIndex && isPlaying) ||
-                      (currentLineIndex === lineIndex &&
-                        showComprehensionPrompt)
-                    }
-                    isRTL={!!isRTL}
+                    checkingLines={EMPTY_SET}
+                    isCurrentLine={activeLine === lineIndex}
+                    isRTL={isRTL}
                     prefetchedAudio={audioPlayer.prefetchedAudio}
                     originalLine={undefined}
                     pendingAnswers={new Set()}
                     lockedAnswers={new Set()}
                     onAnswerChange={() => {}}
-                    onPlayLineAudio={audioPlayer.playLineAudio}
+                    onPlayLineAudio={() => {}}
                     translation={translation}
-                    showTranslation={showTranslation}
+                    showTranslation={revealed.includes(lineIndex)}
                   />
-                );
-              })}
-            </div>
-          )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* Comprehension Prompt - Inline at bottom */}
-      {showComprehensionPrompt && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t-4 border-primary-500 shadow-2xl z-50">
-          <div className="max-w-2xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between gap-6">
-              <p className="text-lg font-semibold text-gray-800">
-                Do you fully comprehend this line?
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={handleComprehendYes}
-                  className="px-6 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 font-medium transition-colors"
-                >
-                  Yes
-                </button>
-                <button
-                  onClick={handleComprehendNo}
-                  className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium transition-colors"
-                >
-                  No, show translation
-                </button>
-              </div>
-            </div>
-          </div>
+      {/* Pending-request status */}
+      {phase.kind === "awaitingLineEnd" && (
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-700 text-white px-6 py-3 rounded-lg shadow-lg">
+          <p className="text-center">Finishing this line…</p>
         </div>
       )}
-
-      {/* Auto-waiting indicator */}
-      {isAutoWaiting && (
+      {phase.kind === "predicting" && (
         <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-primary-500 text-white px-6 py-3 rounded-lg shadow-lg">
           <p className="text-center">
-            Translation revealed. Continuing in a moment...
+            What do you think line {phase.requestedLine + 1} means?
           </p>
+        </div>
+      )}
+      {phase.kind === "revealing" && (
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-primary-500 text-white px-6 py-3 rounded-lg shadow-lg">
+          <p className="text-center">Translation revealed. Resuming shortly…</p>
         </div>
       )}
     </>

@@ -520,3 +520,62 @@ describe("useAudioPlayer — cleanup", () => {
     expect(FakeAudio.byLine(2).playCalls).toBe(0);
   });
 });
+
+describe("useAudioPlayer — onPlaybackEnd", () => {
+  it("fires once when sequential playback runs past the last line", async () => {
+    const onPlaybackEnd = vi.fn();
+    const { result } = await setup({ onPlaybackEnd });
+
+    act(() => result.current.playStoryAudio());
+    for (let n = 1; n <= LINE_COUNT; n++) await endLine(n);
+
+    expect(onPlaybackEnd).toHaveBeenCalledTimes(1);
+    expect(result.current.isPlaying).toBe(false);
+    expect(result.current.currentLineIndex).toBe(0);
+  });
+
+  it("fires when the trailing lines are all skipped", async () => {
+    const onPlaybackEnd = vi.fn();
+    const { result } = await setup({
+      onPlaybackEnd,
+      skipLines: new Set([3, 4]),
+    });
+
+    act(() => result.current.playStoryAudio());
+    for (let n = 1; n <= 3; n++) await endLine(n);
+
+    expect(onPlaybackEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it("is not fired by pauses, stops, or a pauseOnLines pause", async () => {
+    const onPlaybackEnd = vi.fn();
+    const { result } = await setup({
+      onPlaybackEnd,
+      pauseOnLines: new Set([LINE_COUNT - 1]),
+    });
+
+    act(() => result.current.playStoryAudio());
+    act(() => result.current.pauseAudio());
+    act(() => result.current.stopAudio());
+    act(() => result.current.playStoryAudio());
+    for (let n = 1; n <= LINE_COUNT; n++) await endLine(n);
+
+    // Paused after the last line rather than running off the end.
+    expect(result.current.isPlaying).toBe(false);
+    expect(onPlaybackEnd).not.toHaveBeenCalled();
+  });
+
+  it("uses the latest callback even when it changes mid-playback", async () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const { result, rerenderWith } = await setup({ onPlaybackEnd: first });
+
+    act(() => result.current.playStoryAudio());
+    await endLine(1);
+    rerenderWith({ onPlaybackEnd: second });
+    for (let n = 2; n <= LINE_COUNT; n++) await endLine(n);
+
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+});

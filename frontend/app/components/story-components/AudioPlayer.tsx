@@ -21,6 +21,12 @@ interface UseAudioPlayerProps {
    * are not played and are not added to `playedLines`.
    */
   skipLines?: Set<number>;
+  /**
+   * Called once when sequential playback runs past the last line (after
+   * `isPlaying` is cleared and the line index resets to 0). Not called by
+   * `stopAudio`, `pauseAudio`, or single-line playback.
+   */
+  onPlaybackEnd?: () => void;
 }
 
 // Helper function to check if a line contains vocabulary placeholders
@@ -38,6 +44,7 @@ export const useAudioPlayer = ({
   pauseAfterEveryLine = false,
   pauseOnLines,
   skipLines,
+  onPlaybackEnd,
 }: UseAudioPlayerProps) => {
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
     null,
@@ -60,6 +67,7 @@ export const useAudioPlayer = ({
     pauseAfterEveryLine,
     pauseOnLines,
     skipLines,
+    onPlaybackEnd,
   });
   optionsRef.current = {
     pageData,
@@ -67,6 +75,7 @@ export const useAudioPlayer = ({
     pauseAfterEveryLine,
     pauseOnLines,
     skipLines,
+    onPlaybackEnd,
   };
   const resumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Detach handler for the most recently started playback, so a new play
@@ -266,10 +275,11 @@ export const useAudioPlayer = ({
   };
 
   const playNextLineFromIndex = (startIndex: number) => {
-    const { pageData, skipLines } = optionsRef.current;
+    const { pageData, skipLines, onPlaybackEnd } = optionsRef.current;
     if (!pageData || startIndex >= pageData.lines.length) {
       setIsPlaying(false);
       setLineIndex(0);
+      onPlaybackEnd?.();
       return;
     }
 

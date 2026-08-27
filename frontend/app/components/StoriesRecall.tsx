@@ -34,7 +34,7 @@ export function StoriesRecall() {
         if (guidance) {
           setNextStepName(guidance.displayName);
         }
-      } catch (err) {
+      } catch {
         setError("Failed to fetch story metadata");
       } finally {
         setLoading(false);
@@ -68,17 +68,23 @@ export function StoriesRecall() {
     return (
       <div className="container max-w-xl mx-auto mt-10 p-6 bg-red-50 border border-red-200 rounded-lg text-center">
         <h2 className="text-red-700 font-bold mb-2">Error Loading Phase</h2>
-        <p className="text-red-600 mb-4">{error || "Could not retrieve story details."}</p>
-        <Link to="/" className="text-primary-600 hover:text-primary-700 underline font-medium">
+        <p className="text-red-600 mb-4">
+          {error || "Could not retrieve story details."}
+        </p>
+        <Link
+          to="/"
+          className="text-primary-600 hover:text-primary-700 underline font-medium"
+        >
           Back to Stories
         </Link>
       </div>
     );
   }
 
-  const storyTitle = typeof metadata.title === "string" 
-    ? metadata.title 
-    : metadata.title?.en || "Story";
+  const storyTitle =
+    typeof metadata.title === "string"
+      ? metadata.title
+      : metadata.title?.en || "Story";
 
   return (
     <div className="max-w-4xl mx-auto px-5 py-8">
@@ -103,18 +109,23 @@ export function StoriesRecall() {
               Story Sequencing & Recall
             </h3>
             <p className="text-gray-600 leading-relaxed max-w-md mx-auto">
-              In this phase, you will listen to the story narration with no text shown. 
-              Once the audio completes, you will drag-and-drop the key Hebrew sentences to place them back into their correct chronological order.
+              In this phase, you will listen to the story narration with no text
+              shown. Once the audio completes, you will drag-and-drop the key
+              Hebrew sentences to place them back into their correct
+              chronological order.
             </p>
           </div>
 
           <div className="bg-slate-50 rounded-xl p-5 border border-slate-100 mb-8">
             <div className="flex items-center gap-3 mb-2 text-slate-700 font-semibold text-sm">
-              <span className="material-icons text-slate-500 text-lg">build</span>
+              <span className="material-icons text-slate-500 text-lg">
+                build
+              </span>
               <span>Scaffolding Mode Active</span>
             </div>
             <p className="text-slate-600 text-sm leading-relaxed">
-              This phase is currently in placeholder/scaffolding mode. Click the button below to record completion and advance to the next step.
+              This phase is currently in placeholder/scaffolding mode. Click the
+              button below to record completion and advance to the next step.
             </p>
           </div>
 

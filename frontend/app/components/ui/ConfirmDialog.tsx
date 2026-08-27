@@ -2,11 +2,7 @@ import React from "react";
 import Button from "./Button";
 
 type ConfirmDialogVariant =
-  | "delete"
-  | "clear"
-  | "danger"
-  | "warning"
-  | "default";
+  "delete" | "clear" | "danger" | "warning" | "default";
 
 interface ConfirmDialogProps {
   isOpen: boolean;

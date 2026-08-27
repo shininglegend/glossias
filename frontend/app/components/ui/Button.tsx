@@ -2,12 +2,7 @@ import React from "react";
 import { cn } from "~/lib/cn";
 
 type Variant =
-  | "primary"
-  | "secondary"
-  | "ghost"
-  | "danger"
-  | "warning"
-  | "outline";
+  "primary" | "secondary" | "ghost" | "danger" | "warning" | "outline";
 
 type Size = "sm" | "md" | "lg";
 

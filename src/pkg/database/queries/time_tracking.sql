@@ -90,7 +90,10 @@ SELECT
     COALESCE(SUM(CASE WHEN route LIKE '%vocab%' THEN total_time_seconds END), 0) as vocab_time_seconds,
     COALESCE(SUM(CASE WHEN route LIKE '%grammar%' THEN total_time_seconds END), 0) as grammar_time_seconds,
     COALESCE(SUM(CASE WHEN route LIKE '%translate%' THEN total_time_seconds END), 0) as translation_time_seconds,
-    COALESCE(SUM(CASE WHEN route LIKE '%audio%' OR route LIKE '%video%' THEN total_time_seconds END), 0) as video_time_seconds
+    COALESCE(SUM(CASE WHEN route LIKE '%audio%' OR route LIKE '%video%' THEN total_time_seconds END), 0) as video_time_seconds,
+    COALESCE(SUM(CASE WHEN route LIKE '%identify%' THEN total_time_seconds END), 0) as identify_time_seconds,
+    COALESCE(SUM(CASE WHEN route LIKE '%produce%' THEN total_time_seconds END), 0) as produce_time_seconds,
+    COALESCE(SUM(CASE WHEN route LIKE '%recall%' THEN total_time_seconds END), 0) as recall_time_seconds
 FROM user_time_tracking
 WHERE user_id = $1 AND story_id = $2 AND ended_at IS NOT NULL;
 

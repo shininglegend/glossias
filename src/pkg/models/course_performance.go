@@ -38,6 +38,9 @@ type CourseStudentPerformance struct {
 	GrammarTimeSeconds     int32   `json:"grammar_time_seconds"`
 	TranslationTimeSeconds int32   `json:"translation_time_seconds"`
 	VideoTimeSeconds       int32   `json:"video_time_seconds"`
+	IdentifyTimeSeconds    int32   `json:"identify_time_seconds"`
+	ProduceTimeSeconds     int32   `json:"produce_time_seconds"`
+	RecallTimeSeconds      int32   `json:"recall_time_seconds"`
 	TotalTimeSeconds       int32   `json:"total_time_seconds"`
 }
 
@@ -167,6 +170,9 @@ func GetStoryStudentPerformance(ctx context.Context, storyID int32, status strin
 			GrammarTimeSeconds:     convertToInt32(row.GrammarTimeSeconds),
 			TranslationTimeSeconds: convertToInt32(row.TranslationTimeSeconds),
 			VideoTimeSeconds:       convertToInt32(row.VideoTimeSeconds),
+			IdentifyTimeSeconds:    convertToInt32(row.IdentifyTimeSeconds),
+			ProduceTimeSeconds:     convertToInt32(row.ProduceTimeSeconds),
+			RecallTimeSeconds:      convertToInt32(row.RecallTimeSeconds),
 			TotalTimeSeconds:       convertToInt32(row.TotalTimeSeconds),
 		}
 	}

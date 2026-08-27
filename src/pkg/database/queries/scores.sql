@@ -143,10 +143,16 @@ SELECT
     COALESCE(time_stats.grammar_time_seconds, 0) as grammar_time_seconds,
     COALESCE(time_stats.translation_time_seconds, 0) as translation_time_seconds,
     COALESCE(time_stats.video_time_seconds, 0) as video_time_seconds,
+    COALESCE(time_stats.identify_time_seconds, 0) as identify_time_seconds,
+    COALESCE(time_stats.produce_time_seconds, 0) as produce_time_seconds,
+    COALESCE(time_stats.recall_time_seconds, 0) as recall_time_seconds,
     COALESCE(time_stats.vocab_time_seconds, 0) +
     COALESCE(time_stats.grammar_time_seconds, 0) +
     COALESCE(time_stats.translation_time_seconds, 0) +
-    COALESCE(time_stats.video_time_seconds, 0) as total_time_seconds
+    COALESCE(time_stats.video_time_seconds, 0) +
+    COALESCE(time_stats.identify_time_seconds, 0) +
+    COALESCE(time_stats.produce_time_seconds, 0) +
+    COALESCE(time_stats.recall_time_seconds, 0) as total_time_seconds
 FROM users u
 JOIN course_users cu ON u.user_id = cu.user_id
 JOIN stories s ON cu.course_id = s.course_id
@@ -171,7 +177,10 @@ LEFT JOIN LATERAL (
         COALESCE(SUM(CASE WHEN route LIKE '%vocab%' THEN total_time_seconds END), 0) as vocab_time_seconds,
         COALESCE(SUM(CASE WHEN route LIKE '%grammar%' THEN total_time_seconds END), 0) as grammar_time_seconds,
         COALESCE(SUM(CASE WHEN route LIKE '%translate%' THEN total_time_seconds END), 0) as translation_time_seconds,
-        COALESCE(SUM(CASE WHEN route LIKE '%audio%' OR route LIKE '%video%' THEN total_time_seconds END), 0) as video_time_seconds
+        COALESCE(SUM(CASE WHEN route LIKE '%audio%' OR route LIKE '%video%' THEN total_time_seconds END), 0) as video_time_seconds,
+        COALESCE(SUM(CASE WHEN route LIKE '%identify%' THEN total_time_seconds END), 0) as identify_time_seconds,
+        COALESCE(SUM(CASE WHEN route LIKE '%produce%' THEN total_time_seconds END), 0) as produce_time_seconds,
+        COALESCE(SUM(CASE WHEN route LIKE '%recall%' THEN total_time_seconds END), 0) as recall_time_seconds
     FROM user_time_tracking
     WHERE user_id = u.user_id AND story_id = s.story_id AND ended_at IS NOT NULL
 ) time_stats ON true

@@ -37,16 +37,14 @@ func IsConnectionError(err error) bool {
 // ReconnectableDBTX wraps pgxpool.Pool with SQLC's DBTX interface and automatic reconnection
 // This ensures SQLC-generated queries benefit from reconnection logic
 type ReconnectableDBTX struct {
-	pool      *pgxpool.Pool
-	connStr   string
-	schemaSQL string
+	pool    *pgxpool.Pool
+	connStr string
 }
 
 // NewReconnectableDBTX creates a new DBTX wrapper with reconnection support
-func NewReconnectableDBTX(connStr string, schemaSQL string) (*ReconnectableDBTX, error) {
+func NewReconnectableDBTX(connStr string) (*ReconnectableDBTX, error) {
 	dbtx := &ReconnectableDBTX{
-		connStr:   connStr,
-		schemaSQL: schemaSQL,
+		connStr: connStr,
 	}
 
 	if err := dbtx.reconnect(); err != nil {
@@ -75,13 +73,6 @@ func (d *ReconnectableDBTX) reconnect() error {
 	if err := pool.Ping(context.Background()); err != nil {
 		pool.Close()
 		return fmt.Errorf("failed to ping: %w", err)
-	}
-
-	if d.schemaSQL != "" {
-		if _, err := pool.Exec(context.Background(), d.schemaSQL); err != nil {
-			pool.Close()
-			return fmt.Errorf("failed to execute schema: %w", err)
-		}
 	}
 
 	// Close old pool if exists
@@ -203,15 +194,9 @@ func InitDBWithReconnect(dbPath string) (Store, error) {
 		return &mockStore{}, nil
 	}
 
-	// Read schema
-	schema, err := schemaFS.ReadFile("schema.sql")
-	if err != nil {
-		return nil, err
-	}
-
 	if usePool {
 		// Create reconnectable DBTX wrapper for SQLC compatibility
-		dbtx, err := NewReconnectableDBTX(connStr, string(schema))
+		dbtx, err := NewReconnectableDBTX(connStr)
 		if err != nil {
 			return nil, err
 		}

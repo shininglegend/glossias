@@ -98,6 +98,9 @@ type UserStoryTimeTracking struct {
 	GrammarTimeSeconds     int
 	TranslationTimeSeconds int
 	VideoTimeSeconds       int
+	IdentifyTimeSeconds    int
+	ProduceTimeSeconds     int
+	RecallTimeSeconds      int
 }
 
 // GetUserStoryTimeTracking retrieves time tracking summary for a user and story
@@ -133,6 +136,9 @@ func GetUserStoryTimeTracking(ctx context.Context, userID string, storyID int32)
 		GrammarTimeSeconds:     convertToInt(result.GrammarTimeSeconds),
 		TranslationTimeSeconds: convertToInt(result.TranslationTimeSeconds),
 		VideoTimeSeconds:       convertToInt(result.VideoTimeSeconds),
+		IdentifyTimeSeconds:    convertToInt(result.IdentifyTimeSeconds),
+		ProduceTimeSeconds:     convertToInt(result.ProduceTimeSeconds),
+		RecallTimeSeconds:      convertToInt(result.RecallTimeSeconds),
 	}, nil
 }
 

@@ -5,8 +5,11 @@ export default [
   route("stories/:id/video", "routes/stories-video.tsx"),
   // route("stories/:id/audio", "routes/stories-audio.tsx"),
   route("stories/:id/vocab", "routes/stories-vocab.tsx"),
+  route("stories/:id/identify", "routes/stories-identify.tsx"),
   route("stories/:id/grammar", "routes/stories-grammar.tsx"),
   route("stories/:id/translate", "routes/stories-translate.tsx"),
+  route("stories/:id/produce", "routes/stories-produce.tsx"),
+  route("stories/:id/recall", "routes/stories-recall.tsx"),
   route("stories/:id/score", "routes/stories-score.tsx"),
   // Admin SPA routes replacing server templates
   route("admin", "routes/admin.index.tsx"),

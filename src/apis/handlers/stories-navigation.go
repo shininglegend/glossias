@@ -21,7 +21,10 @@ type PageType struct {
 var (
 	PageTypeVideo     = PageType{Path: "video", DisplayName: "Video"}
 	PageTypeVocab     = PageType{Path: "vocab", DisplayName: "Vocabulary"}
+	PageTypeIdentify  = PageType{Path: "identify", DisplayName: "Identify"}
 	PageTypeTranslate = PageType{Path: "translate", DisplayName: "Translation"}
+	PageTypeProduce   = PageType{Path: "produce", DisplayName: "Production"}
+	PageTypeRecall    = PageType{Path: "recall", DisplayName: "Recall"}
 	PageTypeGrammar   = PageType{Path: "grammar", DisplayName: "Grammar"}
 	PageTypeScore     = PageType{Path: "score", DisplayName: "Score"}
 )
@@ -29,9 +32,10 @@ var (
 // Default page order for MVP
 var defaultPageOrder = []PageType{
 	PageTypeVideo,
-	PageTypeVocab,
+	PageTypeIdentify,
 	PageTypeTranslate,
-	PageTypeGrammar,
+	PageTypeProduce,
+	PageTypeRecall,
 	PageTypeScore,
 }
 

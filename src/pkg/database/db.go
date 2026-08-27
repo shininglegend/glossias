@@ -10,10 +10,11 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pressly/goose/v3"
 )
 
-//go:embed schema.sql
-var schemaFS embed.FS
+//go:embed migrations/*.sql
+var migrationsFS embed.FS
 
 // InitDB selects PostgreSQL implementation based on USE_POOL environment variable
 // USE_POOL=false uses database/sql, otherwise defaults to pgxpool for SQLC compatibility
@@ -25,11 +26,21 @@ func InitDB(dbPath string) (Store, error) {
 		return &mockStore{}, nil
 	}
 
-	// Initialize schema
-	schema, err := schemaFS.ReadFile("schema.sql")
+	// Run migrations using goose on a temporary database/sql connection
+	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, err
 	}
+	goose.SetBaseFS(migrationsFS)
+	if err := goose.SetDialect("postgres"); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if err := goose.Up(db, "migrations"); err != nil {
+		db.Close()
+		return nil, err
+	}
+	db.Close()
 
 	if usePool {
 		// Use pgxpool for PostgreSQL
@@ -50,28 +61,21 @@ func InitDB(dbPath string) (Store, error) {
 			return nil, err
 		}
 
-		if _, err := pool.Exec(context.Background(), string(schema)); err != nil {
-			return nil, err
-		}
-
 		return &poolStore{pool: pool}, nil
 	}
 
 	// Use database/sql with postgres driver
-	db, err := sql.Open("postgres", connStr)
+	dbConn, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := db.Ping(); err != nil {
+	if err := dbConn.Ping(); err != nil {
+		dbConn.Close()
 		return nil, err
 	}
 
-	if _, err := db.Exec(string(schema)); err != nil {
-		return nil, err
-	}
-
-	return &sqlStore{db: &sqlDB{db}}, nil
+	return &sqlStore{db: &sqlDB{dbConn}}, nil
 }
 
 // mockStore for when no DATABASE_URL is provided

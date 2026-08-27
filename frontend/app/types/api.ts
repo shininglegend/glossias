@@ -106,7 +106,10 @@ export type PageType =
   | "list"
   | "video"
   | "vocab"
+  | "identify"
   | "translate"
+  | "produce"
+  | "recall"
   | "grammar"
   | "score";
 

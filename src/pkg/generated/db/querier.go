@@ -189,7 +189,7 @@ type Querier interface {
 	GetTranslationRequestByID(ctx context.Context, requestID int32) (TranslationRequest, error)
 	GetTranslationsByLanguage(ctx context.Context, arg GetTranslationsByLanguageParams) ([]GetTranslationsByLanguageRow, error)
 	GetUser(ctx context.Context, userID string) (User, error)
-	GetUserByEmail(ctx context.Context, email string) (User, error)
+	GetUserByEmail(ctx context.Context, lower string) (User, error)
 	GetUserCourseAdminRights(ctx context.Context, userID string) ([]GetUserCourseAdminRightsRow, error)
 	GetUserGrammarIncorrectAnswers(ctx context.Context, arg GetUserGrammarIncorrectAnswersParams) ([]GetUserGrammarIncorrectAnswersRow, error)
 	GetUserGrammarScores(ctx context.Context, arg GetUserGrammarScoresParams) ([]GetUserGrammarScoresRow, error)

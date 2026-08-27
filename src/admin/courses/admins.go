@@ -16,8 +16,10 @@ type CourseAdmin struct {
 	AssignedAt string `json:"assigned_at"`
 }
 
-// AddCourseAdminRequest represents the request body for adding a course admin
+// AddCourseAdminRequest represents the request body for adding a course admin.
+// Either email or user_id must be provided; email takes precedence.
 type AddCourseAdminRequest struct {
+	Email  string `json:"email"`
 	UserID string `json:"user_id"`
 }
 
@@ -68,22 +70,29 @@ func (h *Handler) handleCourseAdminAdd(w http.ResponseWriter, r *http.Request, c
 		return
 	}
 
-	if req.UserID == "" {
-		http.Error(w, "User ID is required", http.StatusBadRequest)
+	if req.Email == "" && req.UserID == "" {
+		http.Error(w, "Email or user ID is required", http.StatusBadRequest)
 		return
 	}
 
-	// Check if user exists
-	_, err := models.GetUser(r.Context(), req.UserID)
+	// Resolve the target user (by email if given, otherwise by ID) and check they exist
+	var user *models.User
+	var err error
+	if req.Email != "" {
+		user, err = models.GetUserByEmail(r.Context(), req.Email)
+	} else {
+		user, err = models.GetUser(r.Context(), req.UserID)
+	}
 	if err != nil {
 		if err == models.ErrNotFound {
-			http.Error(w, "User not found", http.StatusNotFound)
+			http.Error(w, "No user found with that email. They must sign in at least once first.", http.StatusNotFound)
 			return
 		}
-		h.log.Error("failed to check user existence", "error", err, "user_id", req.UserID)
+		h.log.Error("failed to look up user", "error", err, "email", req.Email, "user_id", req.UserID)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+	req.UserID = user.UserID
 
 	// Check if course exists
 	_, err = models.GetCourse(r.Context(), courseID)

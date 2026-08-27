@@ -32,7 +32,8 @@ export interface UpdateCourseRequest {
 }
 
 export interface AddCourseAdminRequest {
-  user_id: string;
+  email?: string;
+  user_id?: string;
 }
 
 type Json<T> = Promise<T>;

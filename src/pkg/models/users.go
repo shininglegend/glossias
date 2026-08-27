@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 
 	"glossias/src/pkg/generated/db"
@@ -54,6 +55,26 @@ func UpsertUser(ctx context.Context, userID, email, name string) (*User, error) 
 // GetUser retrieves a user by ID
 func GetUser(ctx context.Context, userID string) (*User, error) {
 	result, err := queries.GetUser(ctx, userID)
+	if err == sql.ErrNoRows || err == pgx.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &User{
+		UserID:       result.UserID,
+		Email:        result.Email,
+		Name:         result.Name,
+		IsSuperAdmin: result.IsSuperAdmin.Bool,
+		CreatedAt:    result.CreatedAt.Time,
+		UpdatedAt:    result.UpdatedAt.Time,
+	}, nil
+}
+
+// GetUserByEmail retrieves a user by email address (case-insensitive match)
+func GetUserByEmail(ctx context.Context, email string) (*User, error) {
+	result, err := queries.GetUserByEmail(ctx, strings.TrimSpace(email))
 	if err == sql.ErrNoRows || err == pgx.ErrNoRows {
 		return nil, ErrNotFound
 	}

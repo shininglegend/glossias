@@ -93,6 +93,38 @@ describe("Modal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("stays open under StrictMode and ignores a stale close event while open", () => {
+    // dialog.close() fires `close` asynchronously; StrictMode's double-run of
+    // the layout effect (mount → cleanup → mount) used to let that stale event
+    // dismiss the freshly re-opened dialog.
+    const onClose = vi.fn();
+    render(
+      <React.StrictMode>
+        <Modal isOpen onClose={onClose} title="Strict">
+          body
+        </Modal>
+      </React.StrictMode>,
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveAttribute("open");
+    fireEvent(dialog, new Event("close"));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("syncs state when the browser force-closes the dialog", () => {
+    const onClose = vi.fn();
+    render(
+      <Modal isOpen onClose={onClose} title="Forced">
+        body
+      </Modal>,
+    );
+    const dialog = screen.getByRole("dialog") as HTMLDialogElement;
+    dialog.removeAttribute("open");
+    fireEvent(dialog, new Event("close"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("focuses initialFocusRef on open and restores focus on close", () => {
     function Harness() {
       const [open, setOpen] = React.useState(false);

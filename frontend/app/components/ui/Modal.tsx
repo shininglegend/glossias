@@ -77,10 +77,15 @@ export default function Modal({
         e.preventDefault();
         if (!closeDisabled) onClose();
       }}
-      onClose={() => {
-        // The browser closed the dialog on its own (e.g. Chrome's close-watcher
-        // ignoring preventDefault); sync React state unless we caused it.
-        if (!unmountingRef.current) onClose();
+      onClose={(e) => {
+        // `close` is dispatched asynchronously after dialog.close(), so by the
+        // time it arrives the dialog may already have been re-opened (React
+        // StrictMode's mount → cleanup → mount of the layout effect does
+        // exactly this) or unmounted. Only treat it as a real dismissal when
+        // the browser closed the dialog on its own (e.g. Chrome's close-watcher
+        // ignoring preventDefault) and it is genuinely closed right now.
+        if (e.currentTarget.open || unmountingRef.current) return;
+        onClose();
       }}
       onClick={(e) => {
         // Clicks on ::backdrop are dispatched to the <dialog> element itself;

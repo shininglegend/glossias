@@ -39,9 +39,48 @@ type AudioFile struct {
 
 // TextSegment represents a segment of text in a line
 type TextSegment struct {
-	Text     string `json:"text"`
-	Type     string `json:"type"`                // "text", "blank", "completed"
-	VocabKey string `json:"vocab_key,omitempty"` // For blanks: "lineIndex-vocabIndex"
+	Text          string `json:"text"`
+	Type          string `json:"type"`                      // "text", "blank", "completed", "target"
+	VocabKey      string `json:"vocab_key,omitempty"`       // For blanks: "lineIndex-vocabIndex"
+	TargetVocabID int    `json:"target_vocab_id,omitempty"` // For targets: the target_vocabulary row
+}
+
+// IdentifyLine is a story line for the Identify phase: its text with target
+// words marked, and the target words whose picture quiz opens after it plays.
+type IdentifyLine struct {
+	Text           []TextSegment `json:"text"`
+	TargetVocabIDs []int         `json:"target_vocab_ids"`
+}
+
+// IdentifyTargetWord is one of the story's target words with signed asset URLs.
+type IdentifyTargetWord struct {
+	ID          int    `json:"id"`
+	LexicalForm string `json:"lexical_form"`
+	AudioURL    string `json:"audio_url,omitempty"`
+	ImageURL    string `json:"image_url,omitempty"`
+}
+
+// IdentifyPageData is the payload for the Identify phase.
+type IdentifyPageData struct {
+	PageData
+	Lines       []IdentifyLine       `json:"lines"`
+	TargetWords []IdentifyTargetWord `json:"target_words"`
+	// Signed narration URLs keyed by 1-based line number, as useAudioPlayer expects.
+	AudioURLs map[int]string `json:"audio_urls"`
+	// Target words the user has already identified correctly at least once.
+	CompletedTargetIDs []int `json:"completed_target_ids"`
+}
+
+// CheckIdentifyRequest is a picture pick in the Identify phase.
+type CheckIdentifyRequest struct {
+	LineIndex             int `json:"line_index"` // 0-based, matching Lines
+	TargetVocabID         int `json:"target_vocab_id"`
+	SelectedTargetVocabID int `json:"selected_target_vocab_id"`
+}
+
+// CheckIdentifyResponse reports whether the picked picture was the right one.
+type CheckIdentifyResponse struct {
+	Correct bool `json:"correct"`
 }
 
 // Line represents a story line in API responses

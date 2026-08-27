@@ -156,6 +156,20 @@ export const VocabTextRenderer: React.FC<VocabTextRendererProps> = ({
               </span>
             </span>
           );
+        } else if (segment.type === "target") {
+          // Identify phase: target vocabulary words stand out from the text
+          return (
+            <span
+              key={segmentIndex}
+              className="target-word text-amber-700 font-semibold underline decoration-amber-400 decoration-2 underline-offset-4"
+              data-target-vocab-id={segment.target_vocab_id}
+              style={
+                indentLevel > 0 ? { paddingRight: `${indentLevel * 2}em` } : {}
+              }
+            >
+              {displayText}
+            </span>
+          );
         } else {
           // For "text" segments, just display the text
           return (

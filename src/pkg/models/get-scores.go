@@ -48,6 +48,14 @@ func CheckAllVocabCompleteForLine(ctx context.Context, userID string, storyID, l
 	})
 }
 
+// AnswerSummary holds the correct/incorrect counts for one phase, in the shape
+// CalculateScoreWithRetriesAllowed expects. The Identify and Recall phases
+// share it; vocab and grammar predate it and keep their own types.
+type AnswerSummary struct {
+	CorrectCount   int64
+	IncorrectCount int64
+}
+
 // UserStoryVocabSummary represents vocabulary summary data
 type UserStoryVocabSummary struct {
 	CorrectCount   int64

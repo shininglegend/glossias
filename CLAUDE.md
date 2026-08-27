@@ -88,10 +88,11 @@ src/
   logging/                  # Structured logger
   pkg/
     database/               # DB connection pool
+    database/migrations/    # goose SQL migrations (also the SQLC schema source)
+    database/queries/       # SQLC query definitions
     generated/db/           # SQLC-generated query code (do not edit manually)
     models/                 # Business logic layer
     cache/                  # BigCache wrapper
-migrations/                 # SQL migration files
 frontend/
   app/
     routes/                 # File-based page components (admin.*, stories-*)
@@ -107,13 +108,15 @@ scripts/                    # Python analytics scripts
 
 ## Database / SQLC
 
-SQL queries live in source files and are compiled by SQLC into `src/pkg/generated/db/`. To regenerate after changing SQL:
+Queries live in `src/pkg/database/queries/*.sql` and are compiled by SQLC into `src/pkg/generated/db/`. To regenerate after changing a query or the schema:
 
 ```bash
 sqlc generate
 ```
 
 Never edit files under `src/pkg/generated/db/` by hand.
+
+**The goose migrations in `src/pkg/database/migrations/` are the single source of truth for the schema** — SQLC reads that directory directly (see `sqlc.yaml`), and the backend applies the migrations on startup. To change the schema, add a numbered migration with `-- +goose Up` / `-- +goose Down` sections and re-run `sqlc generate`. There is no separate `schema.sql` to keep in sync.
 
 ## Auth
 

@@ -91,6 +91,25 @@ type GrammarPoint struct {
 	CreatedAt      pgtype.Timestamp `json:"created_at"`
 }
 
+type IdentifyCorrectAnswer struct {
+	ID            int32            `json:"id"`
+	UserID        string           `json:"user_id"`
+	StoryID       int32            `json:"story_id"`
+	LineNumber    int32            `json:"line_number"`
+	TargetVocabID int32            `json:"target_vocab_id"`
+	AttemptedAt   pgtype.Timestamp `json:"attempted_at"`
+}
+
+type IdentifyIncorrectAnswer struct {
+	ID                    int32            `json:"id"`
+	UserID                string           `json:"user_id"`
+	StoryID               int32            `json:"story_id"`
+	LineNumber            int32            `json:"line_number"`
+	TargetVocabID         int32            `json:"target_vocab_id"`
+	SelectedTargetVocabID int32            `json:"selected_target_vocab_id"`
+	AttemptedAt           pgtype.Timestamp `json:"attempted_at"`
+}
+
 type LineAudioFile struct {
 	AudioFileID int32            `json:"audio_file_id"`
 	StoryID     pgtype.Int4      `json:"story_id"`
@@ -106,6 +125,56 @@ type LineTranslation struct {
 	LineNumber      int32  `json:"line_number"`
 	LanguageCode    string `json:"language_code"`
 	TranslationText string `json:"translation_text"`
+}
+
+type ProduceSegment struct {
+	ID              int32            `json:"id"`
+	StoryID         int32            `json:"story_id"`
+	SegmentOrder    int32            `json:"segment_order"`
+	EnglishText     string           `json:"english_text"`
+	ReferenceHebrew string           `json:"reference_hebrew"`
+	GrammarPointID  pgtype.Int4      `json:"grammar_point_id"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+}
+
+type ProduceSubmission struct {
+	ID          int32            `json:"id"`
+	UserID      string           `json:"user_id"`
+	StoryID     int32            `json:"story_id"`
+	SegmentID   int32            `json:"segment_id"`
+	StudentText string           `json:"student_text"`
+	AiScore     pgtype.Int4      `json:"ai_score"`
+	AiFeedback  pgtype.Text      `json:"ai_feedback"`
+	GradedAt    pgtype.Timestamp `json:"graded_at"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+}
+
+type RecallCorrectAnswer struct {
+	ID               int32            `json:"id"`
+	UserID           string           `json:"user_id"`
+	StoryID          int32            `json:"story_id"`
+	RecallSentenceID int32            `json:"recall_sentence_id"`
+	AttemptedAt      pgtype.Timestamp `json:"attempted_at"`
+}
+
+type RecallIncorrectAnswer struct {
+	ID               int32            `json:"id"`
+	UserID           string           `json:"user_id"`
+	StoryID          int32            `json:"story_id"`
+	RecallSentenceID int32            `json:"recall_sentence_id"`
+	SelectedPosition int32            `json:"selected_position"`
+	AttemptedAt      pgtype.Timestamp `json:"attempted_at"`
+}
+
+type RecallSentence struct {
+	ID            int32            `json:"id"`
+	StoryID       int32            `json:"story_id"`
+	SequenceOrder int32            `json:"sequence_order"`
+	HebrewText    string           `json:"hebrew_text"`
+	TargetVocabID pgtype.Int4      `json:"target_vocab_id"`
+	ImagePath     pgtype.Text      `json:"image_path"`
+	ImageBucket   pgtype.Text      `json:"image_bucket"`
+	CreatedAt     pgtype.Timestamp `json:"created_at"`
 }
 
 type Story struct {
@@ -131,10 +200,27 @@ type StoryLine struct {
 	Text       string `json:"text"`
 }
 
+type StoryProduceExplanation struct {
+	StoryID         int32            `json:"story_id"`
+	ExplanationText string           `json:"explanation_text"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+}
+
 type StoryTitle struct {
 	StoryID      int32  `json:"story_id"`
 	LanguageCode string `json:"language_code"`
 	Title        string `json:"title"`
+}
+
+type TargetVocabulary struct {
+	ID               int32            `json:"id"`
+	StoryID          int32            `json:"story_id"`
+	LexicalForm      string           `json:"lexical_form"`
+	AudioPath        pgtype.Text      `json:"audio_path"`
+	AudioBucket      pgtype.Text      `json:"audio_bucket"`
+	CorrectImagePath pgtype.Text      `json:"correct_image_path"`
+	ImageBucket      pgtype.Text      `json:"image_bucket"`
+	CreatedAt        pgtype.Timestamp `json:"created_at"`
 }
 
 type TranslationRequest struct {

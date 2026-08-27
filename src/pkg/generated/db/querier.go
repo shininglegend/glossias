@@ -32,6 +32,9 @@ type Querier interface {
 	CloseAnonymousTimeEntry(ctx context.Context, arg CloseAnonymousTimeEntryParams) error
 	CloseTimeEntry(ctx context.Context, arg CloseTimeEntryParams) error
 	CountStoryGrammarItems(ctx context.Context, storyID pgtype.Int4) (int64, error)
+	CountStoryProduceSegments(ctx context.Context, storyID int32) (int64, error)
+	CountStoryRecallSentences(ctx context.Context, storyID int32) (int64, error)
+	CountStoryTargetVocabulary(ctx context.Context, storyID int32) (int64, error)
 	CountStoryVocabItems(ctx context.Context, storyID pgtype.Int4) (int64, error)
 	// Anonymous time tracking queries
 	CreateAnonymousTimeEntry(ctx context.Context, arg CreateAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
@@ -45,7 +48,9 @@ type Querier interface {
 	CreateGrammarItem(ctx context.Context, arg CreateGrammarItemParams) (int32, error)
 	// Grammar points management queries
 	CreateGrammarPoint(ctx context.Context, arg CreateGrammarPointParams) (GrammarPoint, error)
+	CreateProduceSubmission(ctx context.Context, arg CreateProduceSubmissionParams) (ProduceSubmission, error)
 	CreateStory(ctx context.Context, arg CreateStoryParams) (CreateStoryRow, error)
+	CreateTargetVocabulary(ctx context.Context, arg CreateTargetVocabularyParams) (CreateTargetVocabularyRow, error)
 	// Time tracking queries
 	CreateTimeEntry(ctx context.Context, arg CreateTimeEntryParams) (UserTimeTracking, error)
 	// Translation requests management queries
@@ -75,12 +80,19 @@ type Querier interface {
 	DeleteLineTranslations(ctx context.Context, arg DeleteLineTranslationsParams) error
 	DeleteLineVocabulary(ctx context.Context, arg DeleteLineVocabularyParams) error
 	DeleteOldAnonymousEntries(ctx context.Context, createdAt pgtype.Timestamp) error
+	DeleteProduceSegment(ctx context.Context, id int32) error
+	DeleteRecallSentence(ctx context.Context, id int32) error
 	DeleteStory(ctx context.Context, storyID int32) error
 	DeleteStoryAudioFiles(ctx context.Context, storyID pgtype.Int4) error
 	DeleteStoryAudioFilesByLabel(ctx context.Context, arg DeleteStoryAudioFilesByLabelParams) error
 	DeleteStoryDescriptions(ctx context.Context, storyID int32) error
 	DeleteStoryLine(ctx context.Context, arg DeleteStoryLineParams) error
+	DeleteStoryProduceExplanation(ctx context.Context, storyID int32) error
+	DeleteStoryProduceSegments(ctx context.Context, storyID int32) error
+	DeleteStoryRecallSentences(ctx context.Context, storyID int32) error
+	DeleteStoryTargetVocabulary(ctx context.Context, storyID int32) error
 	DeleteStoryTitles(ctx context.Context, storyID int32) error
+	DeleteTargetVocabulary(ctx context.Context, id int32) error
 	DeleteTranslationRequest(ctx context.Context, arg DeleteTranslationRequestParams) error
 	DeleteUser(ctx context.Context, userID string) error
 	DeleteVocabularyItem(ctx context.Context, id int32) error
@@ -99,6 +111,8 @@ type Querier interface {
 	GetAllStoryAudioFiles(ctx context.Context, storyID pgtype.Int4) ([]LineAudioFile, error)
 	GetAllTranslationsForStory(ctx context.Context, storyID int32) ([]LineTranslation, error)
 	GetAllUsersStoryGrammarSummary(ctx context.Context, storyID int32) ([]GetAllUsersStoryGrammarSummaryRow, error)
+	GetAllUsersStoryIdentifySummary(ctx context.Context, storyID int32) ([]GetAllUsersStoryIdentifySummaryRow, error)
+	GetAllUsersStoryRecallSummary(ctx context.Context, storyID int32) ([]GetAllUsersStoryRecallSummaryRow, error)
 	GetAllUsersStoryVocabSummary(ctx context.Context, storyID int32) ([]GetAllUsersStoryVocabSummaryRow, error)
 	GetAllVocabularyForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllVocabularyForStoryRow, error)
 	GetAnonymousTimeEntryByID(ctx context.Context, trackingID int32) (AnonymousTimeTracking, error)
@@ -122,6 +136,8 @@ type Querier interface {
 	GetLineTranslation(ctx context.Context, arg GetLineTranslationParams) (string, error)
 	// Line translations management queries
 	GetLineTranslations(ctx context.Context, arg GetLineTranslationsParams) ([]LineTranslation, error)
+	GetProduceSegment(ctx context.Context, id int32) (GetProduceSegmentRow, error)
+	GetRecallSentence(ctx context.Context, id int32) (GetRecallSentenceRow, error)
 	GetRecentTimeEntriesForUser(ctx context.Context, arg GetRecentTimeEntriesForUserParams) ([]UserTimeTracking, error)
 	GetStoriesByCourse(ctx context.Context, courseID pgtype.Int4) ([]Story, error)
 	GetStoriesForUserCourses(ctx context.Context, userID string) ([]Story, error)
@@ -137,13 +153,26 @@ type Querier interface {
 	GetStoryLine(ctx context.Context, arg GetStoryLineParams) (StoryLine, error)
 	// Story lines
 	GetStoryLines(ctx context.Context, storyID int32) ([]StoryLine, error)
+	GetStoryProduceExplanation(ctx context.Context, storyID int32) (GetStoryProduceExplanationRow, error)
+	// Produce phase queries: segments, explanation, and student submissions
+	GetStoryProduceSegments(ctx context.Context, storyID int32) ([]GetStoryProduceSegmentsRow, error)
+	// Recall phase queries: sentences and answer logs
+	GetStoryRecallSentences(ctx context.Context, storyID int32) ([]GetStoryRecallSentencesRow, error)
 	GetStoryStudentPerformance(ctx context.Context, arg GetStoryStudentPerformanceParams) ([]GetStoryStudentPerformanceRow, error)
+	// Target vocabulary queries (Identify / Recall phases)
+	GetStoryTargetVocabulary(ctx context.Context, storyID int32) ([]GetStoryTargetVocabularyRow, error)
 	GetStoryTitle(ctx context.Context, arg GetStoryTitleParams) (string, error)
 	// Story titles
 	GetStoryTitles(ctx context.Context, storyID int32) ([]StoryTitle, error)
 	GetStoryTranslationRequests(ctx context.Context, storyID int32) ([]TranslationRequest, error)
 	GetStoryVocabScores(ctx context.Context, storyID int32) ([]GetStoryVocabScoresRow, error)
 	GetStoryWithDescription(ctx context.Context, storyID int32) (GetStoryWithDescriptionRow, error)
+	GetTargetVocabulary(ctx context.Context, id int32) (GetTargetVocabularyRow, error)
+	// GetTargetVocabularyOccurrences returns every place a target word appears in
+	// the story text, by joining vocabulary_items on lexical_form. The Identify
+	// phase uses this both to colour target words and to decide which lines to
+	// pause on.
+	GetTargetVocabularyOccurrences(ctx context.Context, storyID int32) ([]GetTargetVocabularyOccurrencesRow, error)
 	GetTimeEntriesForStory(ctx context.Context, storyID pgtype.Int4) ([]UserTimeTracking, error)
 	GetTimeEntriesForUser(ctx context.Context, userID string) ([]UserTimeTracking, error)
 	GetTimeEntryByID(ctx context.Context, trackingID int32) (UserTimeTracking, error)
@@ -156,9 +185,20 @@ type Querier interface {
 	GetUserGrammarIncorrectAnswers(ctx context.Context, arg GetUserGrammarIncorrectAnswersParams) ([]GetUserGrammarIncorrectAnswersRow, error)
 	GetUserGrammarScores(ctx context.Context, arg GetUserGrammarScoresParams) ([]GetUserGrammarScoresRow, error)
 	GetUserGrammarScoresByGrammarPoint(ctx context.Context, arg GetUserGrammarScoresByGrammarPointParams) ([]GetUserGrammarScoresByGrammarPointRow, error)
+	GetUserIdentifyCorrectAnswers(ctx context.Context, arg GetUserIdentifyCorrectAnswersParams) ([]GetUserIdentifyCorrectAnswersRow, error)
+	// GetUserIncompleteIdentifyTargets returns the target words the user has not
+	// yet identified correctly, used to resume a partially finished Identify phase.
+	GetUserIncompleteIdentifyTargets(ctx context.Context, arg GetUserIncompleteIdentifyTargetsParams) ([]GetUserIncompleteIdentifyTargetsRow, error)
 	GetUserLatestGrammarScoresByLine(ctx context.Context, arg GetUserLatestGrammarScoresByLineParams) ([]GetUserLatestGrammarScoresByLineRow, error)
 	GetUserLatestVocabScoresByLine(ctx context.Context, arg GetUserLatestVocabScoresByLineParams) ([]GetUserLatestVocabScoresByLineRow, error)
+	GetUserRecallCorrectAnswers(ctx context.Context, arg GetUserRecallCorrectAnswersParams) ([]GetUserRecallCorrectAnswersRow, error)
 	GetUserStoryGrammarSummary(ctx context.Context, arg GetUserStoryGrammarSummaryParams) (GetUserStoryGrammarSummaryRow, error)
+	GetUserStoryIdentifySummary(ctx context.Context, arg GetUserStoryIdentifySummaryParams) (GetUserStoryIdentifySummaryRow, error)
+	// GetUserStoryProduceSubmissions returns the latest submission per segment,
+	// which is what the Score page reports on.
+	GetUserStoryProduceSubmissions(ctx context.Context, arg GetUserStoryProduceSubmissionsParams) ([]GetUserStoryProduceSubmissionsRow, error)
+	GetUserStoryProduceSummary(ctx context.Context, arg GetUserStoryProduceSummaryParams) (GetUserStoryProduceSummaryRow, error)
+	GetUserStoryRecallSummary(ctx context.Context, arg GetUserStoryRecallSummaryParams) (GetUserStoryRecallSummaryRow, error)
 	GetUserStoryTimeTracking(ctx context.Context, arg GetUserStoryTimeTrackingParams) (GetUserStoryTimeTrackingRow, error)
 	GetUserStoryVocabSummary(ctx context.Context, arg GetUserStoryVocabSummaryParams) (GetUserStoryVocabSummaryRow, error)
 	GetUserTranslationRequests(ctx context.Context, userID string) ([]TranslationRequest, error)
@@ -167,6 +207,7 @@ type Querier interface {
 	GetUsersByEmails(ctx context.Context, dollar_1 []string) ([]User, error)
 	GetUsersForCourse(ctx context.Context, courseID int32) ([]GetUsersForCourseRow, error)
 	GetVocabularyItems(ctx context.Context, arg GetVocabularyItemsParams) ([]VocabularyItem, error)
+	GradeProduceSubmission(ctx context.Context, arg GradeProduceSubmissionParams) error
 	IsUserAdminOfAnyCourse(ctx context.Context, userID string) (bool, error)
 	IsUserCourseAdmin(ctx context.Context, arg IsUserCourseAdminParams) (bool, error)
 	LineExists(ctx context.Context, arg LineExistsParams) (bool, error)
@@ -179,6 +220,11 @@ type Querier interface {
 	SaveGrammarIncorrectAnswer(ctx context.Context, arg SaveGrammarIncorrectAnswerParams) error
 	// Score management queries
 	SaveGrammarScore(ctx context.Context, arg SaveGrammarScoreParams) error
+	// Identify phase answer-log queries
+	SaveIdentifyCorrectAnswer(ctx context.Context, arg SaveIdentifyCorrectAnswerParams) error
+	SaveIdentifyIncorrectAnswer(ctx context.Context, arg SaveIdentifyIncorrectAnswerParams) error
+	SaveRecallCorrectAnswer(ctx context.Context, arg SaveRecallCorrectAnswerParams) error
+	SaveRecallIncorrectAnswer(ctx context.Context, arg SaveRecallIncorrectAnswerParams) error
 	SaveVocabIncorrectAnswer(ctx context.Context, arg SaveVocabIncorrectAnswerParams) error
 	SaveVocabScore(ctx context.Context, arg SaveVocabScoreParams) error
 	StoryExists(ctx context.Context, storyID int32) (bool, error)
@@ -192,6 +238,7 @@ type Querier interface {
 	UpdateGrammarPoint(ctx context.Context, arg UpdateGrammarPointParams) (GrammarPoint, error)
 	UpdateStory(ctx context.Context, arg UpdateStoryParams) error
 	UpdateStoryRevision(ctx context.Context, storyID int32) error
+	UpdateTargetVocabulary(ctx context.Context, arg UpdateTargetVocabularyParams) (UpdateTargetVocabularyRow, error)
 	UpdateTimeEntry(ctx context.Context, arg UpdateTimeEntryParams) (UserTimeTracking, error)
 	UpdateTimeEntryIfBigger(ctx context.Context, arg UpdateTimeEntryIfBiggerParams) error
 	UpdateTranslationRequest(ctx context.Context, arg UpdateTranslationRequestParams) error
@@ -200,8 +247,11 @@ type Querier interface {
 	UpdateVocabularyByWord(ctx context.Context, arg UpdateVocabularyByWordParams) error
 	UpdateVocabularyItem(ctx context.Context, arg UpdateVocabularyItemParams) error
 	UpsertLineTranslation(ctx context.Context, arg UpsertLineTranslationParams) error
+	UpsertProduceSegment(ctx context.Context, arg UpsertProduceSegmentParams) (UpsertProduceSegmentRow, error)
+	UpsertRecallSentence(ctx context.Context, arg UpsertRecallSentenceParams) (UpsertRecallSentenceRow, error)
 	UpsertStoryDescription(ctx context.Context, arg UpsertStoryDescriptionParams) error
 	UpsertStoryLine(ctx context.Context, arg UpsertStoryLineParams) error
+	UpsertStoryProduceExplanation(ctx context.Context, arg UpsertStoryProduceExplanationParams) (UpsertStoryProduceExplanationRow, error)
 	UpsertStoryTitle(ctx context.Context, arg UpsertStoryTitleParams) error
 	UpsertTimeEntry(ctx context.Context, arg UpsertTimeEntryParams) (UserTimeTracking, error)
 	UpsertUser(ctx context.Context, arg UpsertUserParams) (User, error)

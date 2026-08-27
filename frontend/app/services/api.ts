@@ -106,11 +106,21 @@ export interface IdentifyData {
 }
 
 export interface ProduceSlot {
-  /** 0-based story line holding the reference sentence. */
+  /** 0-based story line the segment belongs to. */
   line_index: number;
-  /** Rune (code point) range of the reference within that line. */
+  /**
+   * True when the reference was found verbatim in the line, so `start`/`end`
+   * (code-point offsets) can be blanked out. False marks the whole line.
+   */
+  exact: boolean;
   start: number;
   end: number;
+}
+
+export interface ProduceAttemptStartView {
+  segment_id: number;
+  /** Countdown remaining as of the response. */
+  seconds_left: number;
 }
 
 export interface ProduceSegmentView {
@@ -138,6 +148,8 @@ export interface ProduceData {
   explanation: string;
   /** Attempts already stored on earlier visits, in segment order. */
   submissions: ProduceSubmissionView[];
+  /** Segments started but not yet submitted, with time remaining. */
+  starts: ProduceAttemptStartView[];
   /** Every segment has a submission. */
   completed: boolean;
   time_limit_seconds: number;
@@ -303,6 +315,19 @@ export function useApiService() {
 
       getStoryProduce: (id: string): Promise<APIResponse<ProduceData>> => {
         return fetchAPI<ProduceData>(`/stories/${id}/produce`);
+      },
+
+      startProduce: (
+        id: string,
+        segmentId: number,
+      ): Promise<APIResponse<ProduceAttemptStartView>> => {
+        return fetchAPI<ProduceAttemptStartView>(
+          `/stories/${id}/produce/start`,
+          {
+            method: "POST",
+            body: JSON.stringify({ segment_id: segmentId }),
+          },
+        );
       },
 
       submitProduce: (

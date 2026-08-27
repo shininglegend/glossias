@@ -167,17 +167,33 @@ type ProduceSegmentView struct {
 	SegmentOrder     int    `json:"segment_order"`
 	EnglishText      string `json:"english_text"`
 	GrammarPointName string `json:"grammar_point_name,omitempty"`
-	// Slot locates the reference sentence inside the story text so the page
-	// can show the surrounding Hebrew with a blank where the segment goes.
-	// Nil when the reference does not appear verbatim in any line.
+	// Slot locates the segment inside the story text so the page can show the
+	// surrounding Hebrew with the segment's place marked. Nil when the author
+	// has not placed it and the reference does not appear verbatim anywhere.
 	Slot *ProduceSlot `json:"slot,omitempty"`
 }
 
-// ProduceSlot is a rune range within a 0-based story line.
+// ProduceSlot is where a segment sits in the story: a 0-based line and, when
+// Exact, the rune range of the reference within it (blanked out on the page).
+// When not Exact the reference was not found verbatim in the line, so the
+// whole line is marked instead of a gap.
 type ProduceSlot struct {
-	LineIndex int `json:"line_index"`
-	Start     int `json:"start"`
-	End       int `json:"end"`
+	LineIndex int  `json:"line_index"`
+	Exact     bool `json:"exact"`
+	Start     int  `json:"start"`
+	End       int  `json:"end"`
+}
+
+// ProduceAttemptStartView is a segment the student has started writing, with
+// the countdown time remaining as of this response.
+type ProduceAttemptStartView struct {
+	SegmentID   int `json:"segment_id"`
+	SecondsLeft int `json:"seconds_left"`
+}
+
+// StartProduceRequest marks the start of the student's attempt at a segment.
+type StartProduceRequest struct {
+	SegmentID int `json:"segment_id"`
 }
 
 // ProduceSubmissionView is the student's stored attempt at a segment, with the
@@ -200,6 +216,9 @@ type ProducePageData struct {
 	// Submissions are the student's latest attempts so far, so a reload
 	// resumes at the first unanswered segment.
 	Submissions []ProduceSubmissionView `json:"submissions"`
+	// Starts are the segments the student has begun but not yet submitted,
+	// with their remaining time, so a reload resumes the same countdown.
+	Starts []ProduceAttemptStartView `json:"starts"`
 	// Completed is true once every segment has a submission.
 	Completed bool `json:"completed"`
 	// TimeLimitSeconds is the per-segment writing limit.

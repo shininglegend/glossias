@@ -2,7 +2,7 @@
 
 -- name: GetStoryProduceSegments :many
 SELECT ps.id, ps.story_id, ps.segment_order, ps.english_text, ps.reference_hebrew,
-       ps.grammar_point_id, gp.name AS grammar_point_name
+       ps.grammar_point_id, ps.line_number, gp.name AS grammar_point_name
 FROM produce_segments ps
 LEFT JOIN grammar_points gp ON gp.grammar_point_id = ps.grammar_point_id
 WHERE ps.story_id = $1
@@ -10,19 +10,20 @@ ORDER BY ps.segment_order;
 
 -- name: GetProduceSegment :one
 SELECT ps.id, ps.story_id, ps.segment_order, ps.english_text, ps.reference_hebrew,
-       ps.grammar_point_id, gp.name AS grammar_point_name
+       ps.grammar_point_id, ps.line_number, gp.name AS grammar_point_name
 FROM produce_segments ps
 LEFT JOIN grammar_points gp ON gp.grammar_point_id = ps.grammar_point_id
 WHERE ps.id = $1;
 
 -- name: UpsertProduceSegment :one
-INSERT INTO produce_segments (story_id, segment_order, english_text, reference_hebrew, grammar_point_id)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO produce_segments (story_id, segment_order, english_text, reference_hebrew, grammar_point_id, line_number)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (story_id, segment_order) DO UPDATE
 SET english_text = EXCLUDED.english_text,
     reference_hebrew = EXCLUDED.reference_hebrew,
-    grammar_point_id = EXCLUDED.grammar_point_id
-RETURNING id, story_id, segment_order, english_text, reference_hebrew, grammar_point_id;
+    grammar_point_id = EXCLUDED.grammar_point_id,
+    line_number = EXCLUDED.line_number
+RETURNING id, story_id, segment_order, english_text, reference_hebrew, grammar_point_id, line_number;
 
 -- name: DeleteProduceSegment :exec
 DELETE FROM produce_segments
@@ -88,3 +89,22 @@ FROM (
 SELECT COUNT(*) AS total_segments
 FROM produce_segments
 WHERE story_id = $1;
+
+-- StartProduceAttempt records when the student began a segment. A second call
+-- for the same segment is a no-op update so the original start is returned:
+-- the countdown cannot be reset by reloading.
+-- name: StartProduceAttempt :one
+INSERT INTO produce_attempt_starts (user_id, story_id, segment_id)
+VALUES ($1, $2, $3)
+ON CONFLICT (user_id, segment_id) DO UPDATE
+SET started_at = produce_attempt_starts.started_at
+RETURNING segment_id, started_at,
+          EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at))::INT AS elapsed_seconds;
+
+-- Elapsed time is computed in the database so it never depends on the app
+-- server and database clocks agreeing.
+-- name: GetUserStoryProduceAttemptStarts :many
+SELECT segment_id, started_at,
+       EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at))::INT AS elapsed_seconds
+FROM produce_attempt_starts
+WHERE user_id = $1 AND story_id = $2;

@@ -5,7 +5,7 @@ import Textarea from "~/components/ui/Textarea";
 import { Card, CardContent } from "~/components/ui/Card";
 import { useAdminApi } from "../../services/adminApi";
 import ReadinessPanel from "./ReadinessPanel";
-import type { ProducePage, GrammarPoint } from "../../types/admin";
+import type { ProducePage, GrammarPoint, StoryLine } from "../../types/admin";
 
 interface ProduceEditorProps {
   storyId: number;
@@ -25,6 +25,25 @@ export default function ProduceEditor({ storyId }: ProduceEditorProps) {
   const [error, setError] = React.useState<string | null>(null);
   const [explanation, setExplanation] = React.useState("");
   const [savingExplanation, setSavingExplanation] = React.useState(false);
+  const [storyLines, setStoryLines] = React.useState<StoryLine[] | null>(null);
+
+  // Story text only feeds the line picker; a failure here shouldn't block
+  // editing, so it's loaded separately and the picker falls back to numbers.
+  React.useEffect(() => {
+    let cancelled = false;
+    adminApi
+      .getStoryContent(storyId)
+      .then((res) => {
+        if (!cancelled) setStoryLines(res.story.content.lines);
+      })
+      .catch(() => {
+        if (!cancelled) setStoryLines(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storyId]);
 
   const load = React.useCallback(async () => {
     try {
@@ -107,6 +126,7 @@ export default function ProduceEditor({ storyId }: ProduceEditorProps) {
             order={order}
             segment={page.segments.find((s) => s.segmentOrder === order)}
             grammarPoints={page.grammarPoints}
+            storyLines={storyLines}
             onChanged={load}
           />
         ))}
@@ -149,7 +169,15 @@ interface SegmentCardProps {
   order: number;
   segment: ProducePage["segments"][number] | undefined;
   grammarPoints: GrammarPoint[];
+  /** Story text for the line picker; null while loading or if it failed. */
+  storyLines: StoryLine[] | null;
   onChanged: () => Promise<void>;
+}
+
+/** Shortens a story line for the picker's option label. */
+function lineLabel(line: StoryLine): string {
+  const text = line.text.length > 60 ? `${line.text.slice(0, 60)}…` : line.text;
+  return `${line.lineNumber}. ${text}`;
 }
 
 function SegmentCard({
@@ -157,6 +185,7 @@ function SegmentCard({
   order,
   segment,
   grammarPoints,
+  storyLines,
   onChanged,
 }: SegmentCardProps) {
   const adminApi = useAdminApi();
@@ -169,6 +198,9 @@ function SegmentCard({
   const [grammarPointId, setGrammarPointId] = React.useState<number | "">(
     segment?.grammarPointId ?? "",
   );
+  const [lineNumber, setLineNumber] = React.useState<number | "">(
+    segment?.lineNumber ?? "",
+  );
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -177,12 +209,30 @@ function SegmentCard({
     setEnglishText(segment?.englishText ?? "");
     setReferenceHebrew(segment?.referenceHebrew ?? "");
     setGrammarPointId(segment?.grammarPointId ?? "");
-  }, [segment?.englishText, segment?.referenceHebrew, segment?.grammarPointId]);
+    setLineNumber(segment?.lineNumber ?? "");
+  }, [
+    segment?.englishText,
+    segment?.referenceHebrew,
+    segment?.grammarPointId,
+    segment?.lineNumber,
+  ]);
 
   const changed =
     englishText !== (segment?.englishText ?? "") ||
     referenceHebrew !== (segment?.referenceHebrew ?? "") ||
-    grammarPointId !== (segment?.grammarPointId ?? "");
+    grammarPointId !== (segment?.grammarPointId ?? "") ||
+    lineNumber !== (segment?.lineNumber ?? "");
+
+  // Warn when the reference isn't in the chosen line verbatim: the student
+  // page then marks the whole line instead of blanking the sentence.
+  const chosenLine =
+    lineNumber === ""
+      ? undefined
+      : storyLines?.find((l) => l.lineNumber === lineNumber);
+  const referenceNotInLine =
+    chosenLine !== undefined &&
+    referenceHebrew.trim() !== "" &&
+    !chosenLine.text.includes(referenceHebrew.trim());
 
   const save = async () => {
     setSaving(true);
@@ -192,6 +242,7 @@ function SegmentCard({
         englishText,
         referenceHebrew,
         grammarPointId: grammarPointId === "" ? undefined : grammarPointId,
+        lineNumber: lineNumber === "" ? undefined : lineNumber,
       });
       await onChanged();
     } catch (err) {
@@ -263,6 +314,44 @@ function SegmentCard({
               placeholder="התרגום לדוגמה..."
             />
           </div>
+        </div>
+
+        <div className="mt-4">
+          <Label className="mb-1">Story line</Label>
+          <p className="text-xs text-slate-500 mb-1">
+            Where this sentence sits in the story. Students see the text with
+            this spot blanked out while they write.
+          </p>
+          <select
+            value={lineNumber}
+            onChange={(event) =>
+              setLineNumber(
+                event.target.value === "" ? "" : Number(event.target.value),
+              )
+            }
+            dir="auto"
+            className="w-full rounded-md border border-slate-300 bg-white py-2 px-3 text-sm shadow-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
+          >
+            <option value="">
+              Not placed (search the text for the reference)
+            </option>
+            {storyLines
+              ? storyLines.map((line) => (
+                  <option key={line.lineNumber} value={line.lineNumber}>
+                    {lineLabel(line)}
+                  </option>
+                ))
+              : lineNumber !== "" && (
+                  <option value={lineNumber}>Line {lineNumber}</option>
+                )}
+          </select>
+          {referenceNotInLine && (
+            <p className="text-xs text-amber-700 mt-1">
+              The reference Hebrew doesn't appear word-for-word in line{" "}
+              {lineNumber}, so students will see the whole line marked rather
+              than a blank for the sentence.
+            </p>
+          )}
         </div>
 
         <div className="mt-4 flex flex-col md:flex-row md:items-end gap-3">

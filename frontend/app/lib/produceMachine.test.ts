@@ -17,6 +17,14 @@ const attempt = (segmentId: number, studentText = "x") => ({
   referenceHebrew: `ref-${segmentId}`,
 });
 
+/** idle → starting → writing with the full limit. */
+const begin = (state: ProduceState) =>
+  run(
+    state,
+    { type: "START" },
+    { type: "STARTED", secondsLeft: state.timeLimit },
+  );
+
 describe("createProduceState", () => {
   it("opens idle at the first segment with no attempts", () => {
     const s = createProduceState([10, 20], 90);
@@ -31,6 +39,37 @@ describe("createProduceState", () => {
     });
     expect(s.phase).toEqual({ kind: "idle", segment: 1 });
     expect(s.attempts[10]).toEqual(attempt(10));
+  });
+
+  it("resumes mid-countdown when the server says the segment was started", () => {
+    const s = createProduceState([10, 20], 90, {
+      attempts: [attempt(10)],
+      starts: [{ segmentId: 20, secondsLeft: 42 }],
+      completed: false,
+    });
+    expect(s.phase).toEqual({ kind: "writing", segment: 1, secondsLeft: 42 });
+  });
+
+  it("submits at once when a started segment has run out of time", () => {
+    const s = createProduceState([10, 20], 90, {
+      attempts: [],
+      starts: [{ segmentId: 10, secondsLeft: 0 }],
+      completed: false,
+    });
+    expect(s.phase).toEqual({
+      kind: "submitting",
+      segment: 0,
+      timedOut: true,
+    });
+  });
+
+  it("ignores a start for a segment that is not the next one", () => {
+    const s = createProduceState([10, 20], 90, {
+      attempts: [],
+      starts: [{ segmentId: 20, secondsLeft: 42 }],
+      completed: false,
+    });
+    expect(s.phase).toEqual({ kind: "idle", segment: 0 });
   });
 
   it("opens complete when every segment has an attempt", () => {
@@ -57,8 +96,55 @@ describe("createProduceState", () => {
   });
 });
 
+describe("produceReducer — starting", () => {
+  const idle = () => createProduceState([10, 20], 90);
+
+  it("START waits on the server before the countdown runs", () => {
+    const s = run(idle(), { type: "START" });
+    expect(s.phase).toEqual({ kind: "starting", segment: 0 });
+    expect(run(s, { type: "TICK" })).toBe(s);
+    expect(run(s, { type: "SUBMIT" })).toBe(s);
+  });
+
+  it("STARTED runs the countdown with the server's remaining time", () => {
+    const s = run(
+      idle(),
+      { type: "START" },
+      { type: "STARTED", secondsLeft: 61 },
+    );
+    expect(s.phase).toEqual({ kind: "writing", segment: 0, secondsLeft: 61 });
+  });
+
+  it("STARTED never grants more than the time limit", () => {
+    const s = run(
+      idle(),
+      { type: "START" },
+      { type: "STARTED", secondsLeft: 500 },
+    );
+    expect(s.phase).toEqual({ kind: "writing", segment: 0, secondsLeft: 90 });
+  });
+
+  it("STARTED with no time left submits immediately as timed out", () => {
+    const s = run(
+      idle(),
+      { type: "START" },
+      { type: "STARTED", secondsLeft: 0 },
+    );
+    expect(s.phase).toEqual({
+      kind: "submitting",
+      segment: 0,
+      timedOut: true,
+    });
+  });
+
+  it("START_FAILED returns to idle so the student can retry", () => {
+    const s = run(idle(), { type: "START" }, { type: "START_FAILED" });
+    expect(s.phase).toEqual({ kind: "idle", segment: 0 });
+  });
+});
+
 describe("produceReducer — one segment end to end", () => {
-  const start = () => run(createProduceState([10, 20], 3), { type: "START" });
+  const start = () => begin(createProduceState([10, 20], 3));
 
   it("starts the countdown at the time limit", () => {
     expect(start().phase).toEqual({
@@ -135,11 +221,12 @@ describe("produceReducer — one segment end to end", () => {
 describe("produceReducer — finishing", () => {
   const afterSecondReveal = () =>
     run(
-      createProduceState([10, 20], 90, {
-        attempts: [attempt(10)],
-        completed: false,
-      }),
-      { type: "START" },
+      begin(
+        createProduceState([10, 20], 90, {
+          attempts: [attempt(10)],
+          completed: false,
+        }),
+      ),
       { type: "SUBMIT" },
       { type: "SUBMITTED", attempt: attempt(20) },
     );

@@ -74,6 +74,18 @@ export function StoriesProduce() {
     fetchNextStep();
   }, [id, getNavigationGuidance]);
 
+  const start = useCallback(
+    async (segmentId: number): Promise<number> => {
+      if (!id) throw new Error("Story ID is required");
+      const response = await api.startProduce(id, segmentId);
+      if (!response.success || !response.data) {
+        throw new Error(response.error || "Failed to start");
+      }
+      return response.data.seconds_left;
+    },
+    [id, api],
+  );
+
   const submit = useCallback(
     async (segmentId: number, studentText: string): Promise<ProduceAttempt> => {
       if (!id) throw new Error("Story ID is required");
@@ -130,6 +142,7 @@ export function StoriesProduce() {
     <ProduceSession
       pageData={pageData}
       nextStepName={nextStepName}
+      onStart={start}
       onSubmit={submit}
       onContinue={handleContinue}
     />
@@ -139,6 +152,8 @@ export function StoriesProduce() {
 interface ProduceSessionProps {
   pageData: ProduceData;
   nextStepName: string;
+  /** Records the attempt's start server-side; resolves with seconds left. */
+  onStart: (segmentId: number) => Promise<number>;
   /** Stores an attempt server-side; resolves with the reference revealed. */
   onSubmit: (segmentId: number, studentText: string) => Promise<ProduceAttempt>;
   onContinue: () => void;
@@ -147,6 +162,7 @@ interface ProduceSessionProps {
 export function ProduceSession({
   pageData,
   nextStepName,
+  onStart,
   onSubmit,
   onContinue,
 }: ProduceSessionProps) {
@@ -160,6 +176,10 @@ export function ProduceSession({
           studentText: s.student_text,
           referenceHebrew: s.reference_hebrew,
         })),
+        starts: (data.starts ?? []).map((s) => ({
+          segmentId: s.segment_id,
+          secondsLeft: s.seconds_left,
+        })),
         completed: data.completed,
       },
     ),
@@ -168,6 +188,7 @@ export function ProduceSession({
 
   const segmentIndex =
     phase.kind === "idle" ||
+    phase.kind === "starting" ||
     phase.kind === "writing" ||
     phase.kind === "submitting" ||
     phase.kind === "revealed"
@@ -185,6 +206,31 @@ export function ProduceSession({
   useEffect(() => {
     if (phase.kind === "idle") setDraft("");
   }, [phase.kind, segmentIndex]);
+
+  // Record the start server-side once the machine enters `starting`; the
+  // countdown only runs with the server's remaining time, so a reload picks
+  // up the same clock.
+  const [startError, setStartError] = useState<string | null>(null);
+  useEffect(() => {
+    if (phase.kind !== "starting" || !segment) return;
+    let cancelled = false;
+    setStartError(null);
+    onStart(segment.id).then(
+      (secondsLeft) => {
+        if (!cancelled) dispatch({ type: "STARTED", secondsLeft });
+      },
+      (err) => {
+        console.error("Failed to start produce segment:", err);
+        if (cancelled) return;
+        setStartError("Couldn't start the timer. Please try again.");
+        dispatch({ type: "START_FAILED" });
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase.kind, segment?.id]);
 
   // Countdown: one TICK per second while writing.
   useEffect(() => {
@@ -224,6 +270,13 @@ export function ProduceSession({
   const answered = Object.keys(attempts).length;
   const resumedMidway =
     phase.kind === "idle" && answered > 0 && phase.segment > 0;
+  // The server said this segment's countdown was already running when the
+  // page loaded (a reload mid-segment); the draft text was not kept.
+  const [resumedCountdown] = useState(
+    () =>
+      state.phase.kind === "writing" ||
+      (state.phase.kind === "submitting" && state.phase.timedOut),
+  );
   const currentAttempt = segment ? attempts[segment.id] : undefined;
   const grammarPointNames = pageData.segments
     .map((s) => s.grammar_point_name ?? "")
@@ -266,6 +319,19 @@ export function ProduceSession({
             <p className="text-gray-800">
               Welcome back — you already wrote segment {phase.segment} of{" "}
               {totalSegments}. Pick up with segment {phase.segment + 1}.
+            </p>
+          </div>
+        )}
+
+        {resumedCountdown && !isComplete && (
+          <div
+            className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4 rounded-r-lg text-left"
+            data-testid="produce-resumed-countdown"
+          >
+            <p className="text-gray-800">
+              Welcome back — the timer for this segment kept running while you
+              were away, so you're picking up with the time that's left.
+              Anything you'd typed wasn't saved.
             </p>
           </div>
         )}
@@ -346,19 +412,34 @@ export function ProduceSession({
               )}
             </div>
 
-            {phase.kind === "idle" && (
+            {(phase.kind === "idle" || phase.kind === "starting") && (
               <div className="text-center py-4">
                 <p className="text-gray-600 mb-4">
-                  The timer starts when you press Start.
+                  The timer starts when you press Start — and keeps running even
+                  if you leave the page.
                 </p>
+                {startError && (
+                  <p className="mb-3 text-sm text-red-600" role="alert">
+                    {startError}
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={() => dispatch({ type: "START" })}
-                  className="inline-flex items-center gap-2 px-5 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg text-base cursor-pointer transition-colors duration-200"
+                  disabled={phase.kind === "starting"}
+                  className={`inline-flex items-center gap-2 px-5 py-3 text-white rounded-lg text-base transition-colors duration-200 ${
+                    phase.kind === "starting"
+                      ? "bg-gray-400 cursor-wait"
+                      : "bg-green-500 hover:bg-green-600 cursor-pointer"
+                  }`}
                   data-testid="produce-start"
                 >
                   <span className="material-icons">edit</span>
-                  {phase.segment === 0 ? "Start" : "Start next segment"}
+                  {phase.kind === "starting"
+                    ? "Starting…"
+                    : phase.segment === 0
+                      ? "Start"
+                      : "Start next segment"}
                 </button>
               </div>
             )}
@@ -549,9 +630,11 @@ interface StoryContextProps {
 
 /**
  * The surrounding Hebrew story text with the current segment's place marked.
- * The slot is a rune range so the text is split by code point, matching the
- * backend. When the segment's reference isn't found in the text, the story is
- * shown without a marker.
+ * An exact slot is a rune range, so the text is split by code point to match
+ * the backend, and the reference is blanked out (then shown on reveal). A
+ * non-exact slot (the author placed the segment on a line but paraphrased the
+ * reference) highlights the whole line instead. With no slot at all the story
+ * is shown without a marker.
  */
 function StoryContext({ lines, slot, reveal, isRTL }: StoryContextProps) {
   return (
@@ -566,6 +649,27 @@ function StoryContext({ lines, slot, reveal, isRTL }: StoryContextProps) {
           return (
             <span key={i} className="inline">
               {line.text}{" "}
+            </span>
+          );
+        }
+        if (!slot.exact) {
+          return (
+            <span key={i} className="inline">
+              <mark
+                className={`rounded px-1 ${
+                  reveal
+                    ? "bg-green-100 text-green-900"
+                    : "bg-primary-50 text-gray-900 border-b-2 border-dashed border-primary-500"
+                }`}
+                aria-label={
+                  reveal ? undefined : "your sentence belongs in this line"
+                }
+                data-testid={
+                  reveal ? "produce-slot-revealed" : "produce-slot-line"
+                }
+              >
+                {line.text}
+              </mark>{" "}
             </span>
           );
         }

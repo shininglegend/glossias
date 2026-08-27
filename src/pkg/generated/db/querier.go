@@ -207,6 +207,9 @@ type Querier interface {
 	GetUserRecallCorrectAnswers(ctx context.Context, arg GetUserRecallCorrectAnswersParams) ([]GetUserRecallCorrectAnswersRow, error)
 	GetUserStoryGrammarSummary(ctx context.Context, arg GetUserStoryGrammarSummaryParams) (GetUserStoryGrammarSummaryRow, error)
 	GetUserStoryIdentifySummary(ctx context.Context, arg GetUserStoryIdentifySummaryParams) (GetUserStoryIdentifySummaryRow, error)
+	// Elapsed time is computed in the database so it never depends on the app
+	// server and database clocks agreeing.
+	GetUserStoryProduceAttemptStarts(ctx context.Context, arg GetUserStoryProduceAttemptStartsParams) ([]GetUserStoryProduceAttemptStartsRow, error)
 	// GetUserStoryProduceSubmissions returns the latest submission per segment,
 	// which is what the Score page reports on.
 	GetUserStoryProduceSubmissions(ctx context.Context, arg GetUserStoryProduceSubmissionsParams) ([]GetUserStoryProduceSubmissionsRow, error)
@@ -241,6 +244,10 @@ type Querier interface {
 	SaveRecallIncorrectAnswer(ctx context.Context, arg SaveRecallIncorrectAnswerParams) error
 	SaveVocabIncorrectAnswer(ctx context.Context, arg SaveVocabIncorrectAnswerParams) error
 	SaveVocabScore(ctx context.Context, arg SaveVocabScoreParams) error
+	// StartProduceAttempt records when the student began a segment. A second call
+	// for the same segment is a no-op update so the original start is returned:
+	// the countdown cannot be reset by reloading.
+	StartProduceAttempt(ctx context.Context, arg StartProduceAttemptParams) (StartProduceAttemptRow, error)
 	StoryExists(ctx context.Context, storyID int32) (bool, error)
 	TranslationRequestCompleted(ctx context.Context, arg TranslationRequestCompletedParams) (bool, error)
 	UpdateAnonymousTimeEntry(ctx context.Context, arg UpdateAnonymousTimeEntryParams) (AnonymousTimeTracking, error)

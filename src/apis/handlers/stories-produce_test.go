@@ -7,35 +7,104 @@ import (
 	"testing"
 )
 
-func TestFindProduceSlot(t *testing.T) {
+func intPtr(n int) *int { return &n }
+
+func TestProduceSlot(t *testing.T) {
 	// Hebrew text so rune offsets differ from byte offsets.
 	lines := []string{
 		"הילד רואה את הכלב",
 		"הכלב רץ אל הילד",
 	}
 
-	t.Run("finds the reference by rune offset", func(t *testing.T) {
-		got := findProduceSlot(lines, "רץ אל")
-		want := &types.ProduceSlot{LineIndex: 1, Start: 5, End: 10}
+	t.Run("authored line, reference found: exact range on that line", func(t *testing.T) {
+		got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: "רץ אל", LineNumber: intPtr(2)})
+		want := &types.ProduceSlot{LineIndex: 1, Exact: true, Start: 5, End: 10}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("slot = %+v, want %+v", got, want)
 		}
 	})
 
-	t.Run("whole line, surrounding whitespace ignored", func(t *testing.T) {
-		got := findProduceSlot(lines, " הכלב רץ אל הילד ")
-		want := &types.ProduceSlot{LineIndex: 1, Start: 0, End: 15}
+	t.Run("authored line beats a match elsewhere", func(t *testing.T) {
+		// "הכלב" appears in both lines; the authored line is 1.
+		got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: "הכלב", LineNumber: intPtr(1)})
+		want := &types.ProduceSlot{LineIndex: 0, Exact: true, Start: 13, End: 17}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("slot = %+v, want %+v", got, want)
 		}
 	})
 
-	t.Run("nil when absent or empty", func(t *testing.T) {
-		if got := findProduceSlot(lines, "שלום"); got != nil {
+	t.Run("authored line, paraphrased reference: whole line marked", func(t *testing.T) {
+		got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: "הכלב רץ לילד", LineNumber: intPtr(2)})
+		want := &types.ProduceSlot{LineIndex: 1, Exact: false}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("slot = %+v, want %+v", got, want)
+		}
+	})
+
+	t.Run("authored line out of range: nil", func(t *testing.T) {
+		if got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: "הכלב", LineNumber: intPtr(3)}); got != nil {
 			t.Errorf("expected nil, got %+v", got)
 		}
-		if got := findProduceSlot(lines, "  "); got != nil {
+		if got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: "הכלב", LineNumber: intPtr(0)}); got != nil {
+			t.Errorf("expected nil, got %+v", got)
+		}
+	})
+
+	t.Run("no authored line: first verbatim match, surrounding whitespace ignored", func(t *testing.T) {
+		got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: " הכלב רץ אל הילד "})
+		want := &types.ProduceSlot{LineIndex: 1, Exact: true, Start: 0, End: 15}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("slot = %+v, want %+v", got, want)
+		}
+	})
+
+	t.Run("no authored line, absent or empty reference: nil", func(t *testing.T) {
+		if got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: "שלום"}); got != nil {
+			t.Errorf("expected nil, got %+v", got)
+		}
+		if got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: "  "}); got != nil {
 			t.Errorf("expected nil for blank reference, got %+v", got)
+		}
+	})
+}
+
+func TestSecondsLeft(t *testing.T) {
+	cases := map[int]int{0: 90, 30: 60, 90: 0, 500: 0}
+	for elapsed, want := range cases {
+		if got := secondsLeft(elapsed); got != want {
+			t.Errorf("secondsLeft(%d) = %d, want %d", elapsed, got, want)
+		}
+	}
+}
+
+func TestProduceStartViews(t *testing.T) {
+	segments := []models.ProduceSegment{
+		{ID: 1, SegmentOrder: 1},
+		{ID: 2, SegmentOrder: 2},
+	}
+	starts := []models.ProduceAttemptStart{
+		{SegmentID: 2, ElapsedSeconds: 20},
+		{SegmentID: 1, ElapsedSeconds: 1000},
+		{SegmentID: 99, ElapsedSeconds: 0}, // deleted segment
+	}
+
+	t.Run("started segments in order, floored at zero", func(t *testing.T) {
+		got := produceStartViews(segments, nil, starts)
+		want := []types.ProduceAttemptStartView{
+			{SegmentID: 1, SecondsLeft: 0},
+			{SegmentID: 2, SecondsLeft: 70},
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("views = %+v, want %+v", got, want)
+		}
+	})
+
+	t.Run("submitted segments are omitted", func(t *testing.T) {
+		subs := []models.ProduceSubmission{{SegmentID: 1}}
+		got := produceStartViews(segments, subs, starts)
+		want := []types.ProduceAttemptStartView{{SegmentID: 2, SecondsLeft: 70}}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("views = %+v, want %+v", got, want)
 		}
 	})
 }

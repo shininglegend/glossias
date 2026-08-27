@@ -31,9 +31,11 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/{id}/grammar", h.GetGrammarPage).Methods("GET", "OPTIONS")
 	router.HandleFunc("/{id}/translate", h.GetTranslateData).Methods("GET", "PUT", "OPTIONS")
 	router.HandleFunc("/{id}/identify", h.GetIdentifyPage).Methods("GET", "OPTIONS")
-	// Produce phase: GET returns the segments, POST submits an attempt
+	// Produce phase: GET returns the segments, POST submits an attempt, and
+	// /start records when the countdown for a segment began
 	router.HandleFunc("/{id}/produce", h.GetProducePage).Methods("GET", "OPTIONS")
 	router.HandleFunc("/{id}/produce", h.SubmitProduce).Methods("POST")
+	router.HandleFunc("/{id}/produce/start", h.StartProduce).Methods("POST", "OPTIONS")
 	router.HandleFunc("/{id}/scores", h.GetScoresData).Methods("GET", "OPTIONS")
 
 	// Audio endpoints

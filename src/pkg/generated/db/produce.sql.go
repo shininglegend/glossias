@@ -91,7 +91,7 @@ func (q *Queries) DeleteStoryProduceSegments(ctx context.Context, storyID int32)
 
 const getProduceSegment = `-- name: GetProduceSegment :one
 SELECT ps.id, ps.story_id, ps.segment_order, ps.english_text, ps.reference_hebrew,
-       ps.grammar_point_id, gp.name AS grammar_point_name
+       ps.grammar_point_id, ps.line_number, gp.name AS grammar_point_name
 FROM produce_segments ps
 LEFT JOIN grammar_points gp ON gp.grammar_point_id = ps.grammar_point_id
 WHERE ps.id = $1
@@ -104,6 +104,7 @@ type GetProduceSegmentRow struct {
 	EnglishText      string      `json:"english_text"`
 	ReferenceHebrew  string      `json:"reference_hebrew"`
 	GrammarPointID   pgtype.Int4 `json:"grammar_point_id"`
+	LineNumber       pgtype.Int4 `json:"line_number"`
 	GrammarPointName pgtype.Text `json:"grammar_point_name"`
 }
 
@@ -117,6 +118,7 @@ func (q *Queries) GetProduceSegment(ctx context.Context, id int32) (GetProduceSe
 		&i.EnglishText,
 		&i.ReferenceHebrew,
 		&i.GrammarPointID,
+		&i.LineNumber,
 		&i.GrammarPointName,
 	)
 	return i, err
@@ -143,7 +145,7 @@ func (q *Queries) GetStoryProduceExplanation(ctx context.Context, storyID int32)
 const getStoryProduceSegments = `-- name: GetStoryProduceSegments :many
 
 SELECT ps.id, ps.story_id, ps.segment_order, ps.english_text, ps.reference_hebrew,
-       ps.grammar_point_id, gp.name AS grammar_point_name
+       ps.grammar_point_id, ps.line_number, gp.name AS grammar_point_name
 FROM produce_segments ps
 LEFT JOIN grammar_points gp ON gp.grammar_point_id = ps.grammar_point_id
 WHERE ps.story_id = $1
@@ -157,6 +159,7 @@ type GetStoryProduceSegmentsRow struct {
 	EnglishText      string      `json:"english_text"`
 	ReferenceHebrew  string      `json:"reference_hebrew"`
 	GrammarPointID   pgtype.Int4 `json:"grammar_point_id"`
+	LineNumber       pgtype.Int4 `json:"line_number"`
 	GrammarPointName pgtype.Text `json:"grammar_point_name"`
 }
 
@@ -177,8 +180,49 @@ func (q *Queries) GetStoryProduceSegments(ctx context.Context, storyID int32) ([
 			&i.EnglishText,
 			&i.ReferenceHebrew,
 			&i.GrammarPointID,
+			&i.LineNumber,
 			&i.GrammarPointName,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserStoryProduceAttemptStarts = `-- name: GetUserStoryProduceAttemptStarts :many
+SELECT segment_id, started_at,
+       EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at))::INT AS elapsed_seconds
+FROM produce_attempt_starts
+WHERE user_id = $1 AND story_id = $2
+`
+
+type GetUserStoryProduceAttemptStartsParams struct {
+	UserID  string `json:"user_id"`
+	StoryID int32  `json:"story_id"`
+}
+
+type GetUserStoryProduceAttemptStartsRow struct {
+	SegmentID      int32            `json:"segment_id"`
+	StartedAt      pgtype.Timestamp `json:"started_at"`
+	ElapsedSeconds int32            `json:"elapsed_seconds"`
+}
+
+// Elapsed time is computed in the database so it never depends on the app
+// server and database clocks agreeing.
+func (q *Queries) GetUserStoryProduceAttemptStarts(ctx context.Context, arg GetUserStoryProduceAttemptStartsParams) ([]GetUserStoryProduceAttemptStartsRow, error) {
+	rows, err := q.db.Query(ctx, getUserStoryProduceAttemptStarts, arg.UserID, arg.StoryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetUserStoryProduceAttemptStartsRow{}
+	for rows.Next() {
+		var i GetUserStoryProduceAttemptStartsRow
+		if err := rows.Scan(&i.SegmentID, &i.StartedAt, &i.ElapsedSeconds); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -300,14 +344,46 @@ func (q *Queries) GradeProduceSubmission(ctx context.Context, arg GradeProduceSu
 	return err
 }
 
+const startProduceAttempt = `-- name: StartProduceAttempt :one
+INSERT INTO produce_attempt_starts (user_id, story_id, segment_id)
+VALUES ($1, $2, $3)
+ON CONFLICT (user_id, segment_id) DO UPDATE
+SET started_at = produce_attempt_starts.started_at
+RETURNING segment_id, started_at,
+          EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at))::INT AS elapsed_seconds
+`
+
+type StartProduceAttemptParams struct {
+	UserID    string `json:"user_id"`
+	StoryID   int32  `json:"story_id"`
+	SegmentID int32  `json:"segment_id"`
+}
+
+type StartProduceAttemptRow struct {
+	SegmentID      int32            `json:"segment_id"`
+	StartedAt      pgtype.Timestamp `json:"started_at"`
+	ElapsedSeconds int32            `json:"elapsed_seconds"`
+}
+
+// StartProduceAttempt records when the student began a segment. A second call
+// for the same segment is a no-op update so the original start is returned:
+// the countdown cannot be reset by reloading.
+func (q *Queries) StartProduceAttempt(ctx context.Context, arg StartProduceAttemptParams) (StartProduceAttemptRow, error) {
+	row := q.db.QueryRow(ctx, startProduceAttempt, arg.UserID, arg.StoryID, arg.SegmentID)
+	var i StartProduceAttemptRow
+	err := row.Scan(&i.SegmentID, &i.StartedAt, &i.ElapsedSeconds)
+	return i, err
+}
+
 const upsertProduceSegment = `-- name: UpsertProduceSegment :one
-INSERT INTO produce_segments (story_id, segment_order, english_text, reference_hebrew, grammar_point_id)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO produce_segments (story_id, segment_order, english_text, reference_hebrew, grammar_point_id, line_number)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (story_id, segment_order) DO UPDATE
 SET english_text = EXCLUDED.english_text,
     reference_hebrew = EXCLUDED.reference_hebrew,
-    grammar_point_id = EXCLUDED.grammar_point_id
-RETURNING id, story_id, segment_order, english_text, reference_hebrew, grammar_point_id
+    grammar_point_id = EXCLUDED.grammar_point_id,
+    line_number = EXCLUDED.line_number
+RETURNING id, story_id, segment_order, english_text, reference_hebrew, grammar_point_id, line_number
 `
 
 type UpsertProduceSegmentParams struct {
@@ -316,6 +392,7 @@ type UpsertProduceSegmentParams struct {
 	EnglishText     string      `json:"english_text"`
 	ReferenceHebrew string      `json:"reference_hebrew"`
 	GrammarPointID  pgtype.Int4 `json:"grammar_point_id"`
+	LineNumber      pgtype.Int4 `json:"line_number"`
 }
 
 type UpsertProduceSegmentRow struct {
@@ -325,6 +402,7 @@ type UpsertProduceSegmentRow struct {
 	EnglishText     string      `json:"english_text"`
 	ReferenceHebrew string      `json:"reference_hebrew"`
 	GrammarPointID  pgtype.Int4 `json:"grammar_point_id"`
+	LineNumber      pgtype.Int4 `json:"line_number"`
 }
 
 func (q *Queries) UpsertProduceSegment(ctx context.Context, arg UpsertProduceSegmentParams) (UpsertProduceSegmentRow, error) {
@@ -334,6 +412,7 @@ func (q *Queries) UpsertProduceSegment(ctx context.Context, arg UpsertProduceSeg
 		arg.EnglishText,
 		arg.ReferenceHebrew,
 		arg.GrammarPointID,
+		arg.LineNumber,
 	)
 	var i UpsertProduceSegmentRow
 	err := row.Scan(
@@ -343,6 +422,7 @@ func (q *Queries) UpsertProduceSegment(ctx context.Context, arg UpsertProduceSeg
 		&i.EnglishText,
 		&i.ReferenceHebrew,
 		&i.GrammarPointID,
+		&i.LineNumber,
 	)
 	return i, err
 }

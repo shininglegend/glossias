@@ -127,6 +127,13 @@ type LineTranslation struct {
 	TranslationText string `json:"translation_text"`
 }
 
+type ProduceAttemptStart struct {
+	UserID    string           `json:"user_id"`
+	StoryID   int32            `json:"story_id"`
+	SegmentID int32            `json:"segment_id"`
+	StartedAt pgtype.Timestamp `json:"started_at"`
+}
+
 type ProduceSegment struct {
 	ID              int32            `json:"id"`
 	StoryID         int32            `json:"story_id"`
@@ -135,6 +142,7 @@ type ProduceSegment struct {
 	ReferenceHebrew string           `json:"reference_hebrew"`
 	GrammarPointID  pgtype.Int4      `json:"grammar_point_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	LineNumber      pgtype.Int4      `json:"line_number"`
 }
 
 type ProduceSubmission struct {

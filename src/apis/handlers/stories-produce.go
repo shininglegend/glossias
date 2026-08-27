@@ -25,7 +25,7 @@ const maxProduceStudentTextLen = 1000
 
 // GetProducePage returns the Produce phase payload: the story text, the two
 // segments (without their references), the authored explanation, and the
-// student's submissions so far.
+// student's progress — submissions so far and any countdown already running.
 //
 // A story with no segments authored yet returns an empty list rather than an
 // error, so the page degrades to a "nothing to do here" state.
@@ -76,6 +76,13 @@ func (h *Handler) GetProducePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	starts, err := models.GetUserStoryProduceAttemptStarts(ctx, userID, id)
+	if err != nil {
+		h.log.Error("Failed to fetch produce attempt starts", "error", err, "storyID", id, "userID", userID)
+		h.sendError(w, "Failed to fetch produce progress", http.StatusInternalServerError)
+		return
+	}
+
 	lines := make([]types.LineText, 0, len(story.Content.Lines))
 	lineTexts := make([]string, 0, len(story.Content.Lines))
 	for _, line := range story.Content.Lines {
@@ -90,7 +97,7 @@ func (h *Handler) GetProducePage(w http.ResponseWriter, r *http.Request) {
 			SegmentOrder:     s.SegmentOrder,
 			EnglishText:      s.EnglishText,
 			GrammarPointName: s.GrammarPointName,
-			Slot:             findProduceSlot(lineTexts, s.ReferenceHebrew),
+			Slot:             produceSlot(lineTexts, s),
 		})
 	}
 
@@ -104,11 +111,51 @@ func (h *Handler) GetProducePage(w http.ResponseWriter, r *http.Request) {
 		Segments:         views,
 		Explanation:      explanation,
 		Submissions:      produceSubmissionViews(segments, submissions),
+		Starts:           produceStartViews(segments, submissions, starts),
 		Completed:        produceCompleted(segments, submissions),
 		TimeLimitSeconds: produceTimeLimitSeconds,
 	}
 
 	json.NewEncoder(w).Encode(types.APIResponse{Success: true, Data: data})
+}
+
+// StartProduce records that the student began writing a segment and returns
+// the countdown's remaining time. Calling it again for the same segment (a
+// reload) returns the original countdown rather than restarting it.
+func (h *Handler) StartProduce(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var req types.StartProduceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.log.Warn("Invalid request body in StartProduce", "error", err, "ip", r.RemoteAddr)
+		h.sendError(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	id, userID, segments, ok := h.produceRequestContext(w, r, "StartProduce")
+	if !ok {
+		return
+	}
+	if !slices.ContainsFunc(segments, func(s models.ProduceSegment) bool { return s.ID == req.SegmentID }) {
+		h.log.Warn("Segment does not belong to story in StartProduce",
+			"storyID", id, "segment", req.SegmentID, "ip", r.RemoteAddr)
+		h.sendError(w, "Segment does not belong to this story", http.StatusBadRequest)
+		return
+	}
+
+	start, err := models.StartProduceAttempt(ctx, userID, id, req.SegmentID)
+	if err != nil {
+		h.log.Error("Failed to record produce attempt start", "error", err, "userID", userID, "storyID", id, "segment", req.SegmentID)
+		h.sendError(w, "Failed to start segment", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(types.APIResponse{
+		Success: true,
+		Data: types.ProduceAttemptStartView{
+			SegmentID:   start.SegmentID,
+			SecondsLeft: secondsLeft(start.ElapsedSeconds),
+		},
+	})
 }
 
 // SubmitProduce stores a student's attempt at one segment and reveals the
@@ -131,33 +178,8 @@ func (h *Handler) SubmitProduce(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storyID := mux.Vars(r)["id"]
-	id, err := strconv.Atoi(storyID)
-	if err != nil {
-		h.sendError(w, "Invalid story ID", http.StatusBadRequest)
-		return
-	}
-	userID := auth.GetUserID(r)
-	if userID == "" {
-		h.sendError(w, "Authentication required", http.StatusUnauthorized)
-		return
-	}
-
-	// Access check (course membership) — the returned story is otherwise unused.
-	if _, err := models.GetStoryData(ctx, id, userID); err != nil {
-		if err == models.ErrNotFound {
-			h.sendError(w, "Story not found", http.StatusNotFound)
-			return
-		}
-		h.log.Error("Failed to fetch story in SubmitProduce", "error", err, "storyID", id)
-		h.sendError(w, "Failed to fetch story", http.StatusInternalServerError)
-		return
-	}
-
-	segments, err := models.GetStoryProduceSegments(ctx, id)
-	if err != nil {
-		h.log.Error("Failed to fetch produce segments in SubmitProduce", "error", err, "storyID", id)
-		h.sendError(w, "Failed to fetch produce segments", http.StatusInternalServerError)
+	id, userID, segments, ok := h.produceRequestContext(w, r, "SubmitProduce")
+	if !ok {
 		return
 	}
 	idx := slices.IndexFunc(segments, func(s models.ProduceSegment) bool { return s.ID == req.SegmentID })
@@ -201,6 +223,70 @@ func (h *Handler) SubmitProduce(w http.ResponseWriter, r *http.Request) {
 			Completed: produceCompleted(segments, existing),
 		},
 	})
+}
+
+// produceRequestContext does the shared prologue of the Produce write
+// endpoints: parse the story ID, require a user, enforce course access, and
+// load the story's segments. It writes the error response itself and returns
+// ok=false when the caller should stop.
+func (h *Handler) produceRequestContext(w http.ResponseWriter, r *http.Request, op string) (id int, userID string, segments []models.ProduceSegment, ok bool) {
+	ctx := r.Context()
+	id, err := strconv.Atoi(mux.Vars(r)["id"])
+	if err != nil {
+		h.sendError(w, "Invalid story ID", http.StatusBadRequest)
+		return 0, "", nil, false
+	}
+	userID = auth.GetUserID(r)
+	if userID == "" {
+		h.sendError(w, "Authentication required", http.StatusUnauthorized)
+		return 0, "", nil, false
+	}
+
+	// Access check (course membership) — the returned story is otherwise unused.
+	if _, err := models.GetStoryData(ctx, id, userID); err != nil {
+		if err == models.ErrNotFound {
+			h.sendError(w, "Story not found", http.StatusNotFound)
+			return 0, "", nil, false
+		}
+		h.log.Error("Failed to fetch story in "+op, "error", err, "storyID", id)
+		h.sendError(w, "Failed to fetch story", http.StatusInternalServerError)
+		return 0, "", nil, false
+	}
+
+	segments, err = models.GetStoryProduceSegments(ctx, id)
+	if err != nil {
+		h.log.Error("Failed to fetch produce segments in "+op, "error", err, "storyID", id)
+		h.sendError(w, "Failed to fetch produce segments", http.StatusInternalServerError)
+		return 0, "", nil, false
+	}
+	return id, userID, segments, true
+}
+
+// secondsLeft converts elapsed time into the countdown remaining, floored at 0.
+func secondsLeft(elapsedSeconds int) int {
+	return max(0, produceTimeLimitSeconds-elapsedSeconds)
+}
+
+// produceStartViews reports, in segment order, the segments the student has
+// started but not submitted, with their remaining time. Starts for submitted
+// or deleted segments are omitted — they no longer drive anything.
+func produceStartViews(segments []models.ProduceSegment, submissions []models.ProduceSubmission, starts []models.ProduceAttemptStart) []types.ProduceAttemptStartView {
+	views := make([]types.ProduceAttemptStartView, 0, len(starts))
+	for _, seg := range segments {
+		if slices.ContainsFunc(submissions, func(s models.ProduceSubmission) bool { return s.SegmentID == seg.ID }) {
+			continue
+		}
+		for _, st := range starts {
+			if st.SegmentID == seg.ID {
+				views = append(views, types.ProduceAttemptStartView{
+					SegmentID:   seg.ID,
+					SecondsLeft: secondsLeft(st.ElapsedSeconds),
+				})
+				break
+			}
+		}
+	}
+	return views
 }
 
 // produceSubmissionViews pairs each stored submission with its segment's
@@ -249,26 +335,46 @@ func (h *Handler) isProduceCompleted(ctx context.Context, userID string, storyID
 	return produceCompleted(segments, submissions), nil
 }
 
-// findProduceSlot locates the first line containing the reference verbatim
-// and returns its rune range, or nil when the reference does not appear in
-// the text (authors may paraphrase). Offsets are runes, matching the vocab
-// and identify segmenters.
-func findProduceSlot(lines []string, reference string) *types.ProduceSlot {
-	ref := strings.TrimSpace(reference)
+// produceSlot locates a segment in the story text. The authored line number
+// wins: the reference is looked for within that line so the page can blank
+// exactly it, and if it isn't there verbatim the whole line is marked. With
+// no authored line (content from before the column existed) the reference is
+// searched for across every line, and nil means it was not found.
+func produceSlot(lines []string, segment models.ProduceSegment) *types.ProduceSlot {
+	ref := strings.TrimSpace(segment.ReferenceHebrew)
+
+	if segment.LineNumber != nil {
+		lineIndex := *segment.LineNumber - 1
+		if lineIndex < 0 || lineIndex >= len(lines) {
+			return nil
+		}
+		if start, end, found := runeRange(lines[lineIndex], ref); found {
+			return &types.ProduceSlot{LineIndex: lineIndex, Exact: true, Start: start, End: end}
+		}
+		return &types.ProduceSlot{LineIndex: lineIndex}
+	}
+
 	if ref == "" {
 		return nil
 	}
 	for i, line := range lines {
-		byteStart := strings.Index(line, ref)
-		if byteStart < 0 {
-			continue
-		}
-		start := utf8.RuneCountInString(line[:byteStart])
-		return &types.ProduceSlot{
-			LineIndex: i,
-			Start:     start,
-			End:       start + utf8.RuneCountInString(ref),
+		if start, end, found := runeRange(line, ref); found {
+			return &types.ProduceSlot{LineIndex: i, Exact: true, Start: start, End: end}
 		}
 	}
 	return nil
+}
+
+// runeRange finds needle in line and returns its rune offsets, matching the
+// vocab and identify segmenters.
+func runeRange(line, needle string) (start, end int, found bool) {
+	if needle == "" {
+		return 0, 0, false
+	}
+	byteStart := strings.Index(line, needle)
+	if byteStart < 0 {
+		return 0, 0, false
+	}
+	start = utf8.RuneCountInString(line[:byteStart])
+	return start, start + utf8.RuneCountInString(needle), true
 }

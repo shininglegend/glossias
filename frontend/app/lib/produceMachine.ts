@@ -9,15 +9,19 @@
  *
  * Like `identifyMachine`, this is a pure reducer so the transition table can
  * be unit-tested without timers or network. The component owns the interval
- * and the request; it reports back with TICK / SUBMITTED.
+ * and the requests; it reports back with STARTED / TICK / SUBMITTED.
  *
- * Progress is server-side: every attempt is stored as it is made, and the page
- * loads with the attempts so far. A reload resumes at the first unanswered
- * segment (with a fresh timer — the elapsed time is not persisted), and a
+ * Progress is server-side. Pressing Start records the attempt's start time,
+ * and every attempt is stored as it is made; the page loads with both. A
+ * reload therefore resumes at the first unanswered segment — mid-countdown if
+ * it was already started, with the remaining time the server computed — and a
  * phase the server reports as complete opens finished and cannot be redone.
+ * The draft text itself is not persisted: a reload mid-segment keeps the
+ * clock but clears the textarea.
  *
  * Phases:
  *   idle        – before the student presses Start (or Next segment)
+ *   starting    – Start pressed, waiting for the server to record the start
  *   writing     – textarea open, countdown running for `segment`
  *   submitting  – attempt sent, waiting for the reference
  *   revealed    – reference shown under the attempt
@@ -31,8 +35,15 @@ export interface ProduceAttempt {
   referenceHebrew: string;
 }
 
+/** A segment already started on the server, with the countdown remaining. */
+export interface ProduceStart {
+  segmentId: number;
+  secondsLeft: number;
+}
+
 export type ProducePhase =
   | { kind: "idle"; segment: number }
+  | { kind: "starting"; segment: number }
   | { kind: "writing"; segment: number; secondsLeft: number }
   | { kind: "submitting"; segment: number; timedOut: boolean }
   | { kind: "revealed"; segment: number; timedOut: boolean }
@@ -51,8 +62,12 @@ export interface ProduceState {
 }
 
 export type ProduceEvent =
-  /** Start writing the current segment (from idle). */
+  /** Student pressed Start on the current segment (from idle). */
   | { type: "START" }
+  /** The server recorded (or already had) the start; countdown to run. */
+  | { type: "STARTED"; secondsLeft: number }
+  /** Recording the start failed; back to idle so the student can retry. */
+  | { type: "START_FAILED" }
   /** One second elapsed on the countdown. */
   | { type: "TICK" }
   /** Student pressed Submit. */
@@ -70,13 +85,17 @@ export type ProduceEvent =
 
 export interface ProduceResume {
   attempts: ProduceAttempt[];
+  /** Segments started but not submitted, per the server. */
+  starts?: ProduceStart[];
   completed: boolean;
 }
 
 /**
  * Builds the initial state. With no segments there is nothing to do, so the
- * phase opens complete. Otherwise it opens idle at the first segment that has
- * no attempt yet, or complete when every segment has one.
+ * phase opens complete. Otherwise it opens at the first segment that has no
+ * attempt yet — idle, or straight into the countdown if the server says that
+ * segment was already started (out of time → submit at once) — or complete
+ * when every segment has an attempt.
  */
 export function createProduceState(
   segmentIds: number[],
@@ -90,6 +109,17 @@ export function createProduceState(
   const next = firstUnanswered(segmentIds, attempts);
   const completed =
     segmentIds.length === 0 || resume?.completed === true || next === -1;
+
+  let phase: ProducePhase;
+  if (completed) {
+    phase = { kind: "complete" };
+  } else {
+    const start = resume?.starts?.find((s) => s.segmentId === segmentIds[next]);
+    phase = start
+      ? countdownPhase(next, start.secondsLeft)
+      : { kind: "idle", segment: next };
+  }
+
   return {
     segmentIds,
     timeLimit,
@@ -97,8 +127,15 @@ export function createProduceState(
     // A finished phase never shows the popup again on load — the student can
     // re-open it with the button.
     explanationSeen: completed,
-    phase: completed ? { kind: "complete" } : { kind: "idle", segment: next },
+    phase,
   };
+}
+
+/** Writing with time left, or submitting as timed out when there is none. */
+function countdownPhase(segment: number, secondsLeft: number): ProducePhase {
+  return secondsLeft > 0
+    ? { kind: "writing", segment, secondsLeft }
+    : { kind: "submitting", segment, timedOut: true };
 }
 
 function firstUnanswered(
@@ -117,26 +154,31 @@ export function produceReducer(
   switch (event.type) {
     case "START": {
       if (phase.kind !== "idle") return state;
+      return { ...state, phase: { kind: "starting", segment: phase.segment } };
+    }
+
+    case "STARTED": {
+      if (phase.kind !== "starting") return state;
       return {
         ...state,
-        phase: {
-          kind: "writing",
-          segment: phase.segment,
-          secondsLeft: state.timeLimit,
-        },
+        phase: countdownPhase(
+          phase.segment,
+          Math.min(event.secondsLeft, state.timeLimit),
+        ),
       };
+    }
+
+    case "START_FAILED": {
+      if (phase.kind !== "starting") return state;
+      return { ...state, phase: { kind: "idle", segment: phase.segment } };
     }
 
     case "TICK": {
       if (phase.kind !== "writing") return state;
-      const secondsLeft = phase.secondsLeft - 1;
-      if (secondsLeft > 0) {
-        return { ...state, phase: { ...phase, secondsLeft } };
-      }
-      // Time's up: the component submits whatever is in the textarea.
+      // Time's up at zero: the component submits whatever is in the textarea.
       return {
         ...state,
-        phase: { kind: "submitting", segment: phase.segment, timedOut: true },
+        phase: countdownPhase(phase.segment, phase.secondsLeft - 1),
       };
     }
 

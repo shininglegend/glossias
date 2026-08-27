@@ -56,3 +56,13 @@ JOIN vocabulary_items vi
   ON vi.story_id = tv.story_id AND vi.lexical_form = tv.lexical_form
 WHERE tv.story_id = $1
 ORDER BY vi.line_number, vi.position_start;
+
+-- GetStoryLexicalFormCounts lists every annotated lexical form in a story with
+-- how many times it appears. The target-vocabulary editor uses it to show which
+-- candidates meet the two-occurrence minimum before a word is chosen.
+-- name: GetStoryLexicalFormCounts :many
+SELECT lexical_form, COUNT(*) AS occurrences
+FROM vocabulary_items
+WHERE story_id = $1
+GROUP BY lexical_form
+ORDER BY lexical_form;

@@ -2,7 +2,18 @@
 
 import { useCallback } from "react";
 import { useAuthenticatedFetch } from "../lib/authFetch";
-import type { Story, StoryMetadata, StoryContent } from "../types/admin";
+import type {
+  Story,
+  StoryMetadata,
+  StoryContent,
+  TargetVocabulary,
+  TargetVocabularyPage,
+  ProducePage,
+  ProduceSegment,
+  RecallPage,
+  RecallSentence,
+  StoryContentReadiness,
+} from "../types/admin";
 
 type Json<T> = Promise<T>;
 
@@ -50,6 +61,31 @@ export function useAdminApi() {
       }
 
       return requestPromise;
+    },
+    [authenticatedFetch],
+  );
+
+  // The phase-authoring deletes answer 204 No Content, which request() cannot
+  // parse as JSON.
+  const requestNoContent = useCallback(
+    async (
+      path: string,
+      init?: RequestInit,
+      baseUrl?: string,
+    ): Promise<void> => {
+      const url = baseUrl ? `${baseUrl}/api/admin${path}` : `/api/admin${path}`;
+      const res = await authenticatedFetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...(init?.headers || {}),
+        },
+        ...init,
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+      }
     },
     [authenticatedFetch],
   );
@@ -274,6 +310,200 @@ export function useAdminApi() {
         );
       },
       [request],
+    ),
+
+    // Summer 2026 phase authoring (T7).
+    //
+    // Assets are uploaded with usePhaseAssetUploader (lib/phaseAssets.ts), which
+    // returns a storage path; the path is then attached here by saving the target
+    // word or recall sentence that owns it. Passing an empty path clears the
+    // asset and deletes the stored file; omitting the field leaves it alone.
+
+    // GET /stories/:id/content-readiness
+    getContentReadiness: useCallback(
+      async (id: number, baseUrl?: string): Json<StoryContentReadiness> => {
+        return request<StoryContentReadiness>(
+          `/stories/${id}/content-readiness`,
+          undefined,
+          baseUrl,
+        );
+      },
+      [request],
+    ),
+
+    // GET /stories/:id/target-vocabulary
+    getTargetVocabulary: useCallback(
+      async (id: number, baseUrl?: string): Json<TargetVocabularyPage> => {
+        return request<TargetVocabularyPage>(
+          `/stories/${id}/target-vocabulary`,
+          undefined,
+          baseUrl,
+        );
+      },
+      [request],
+    ),
+
+    // POST /stories/:id/target-vocabulary
+    addTargetWord: useCallback(
+      async (
+        id: number,
+        lexicalForm: string,
+        baseUrl?: string,
+      ): Json<TargetVocabulary> => {
+        return request<TargetVocabulary>(
+          `/stories/${id}/target-vocabulary`,
+          { method: "POST", body: JSON.stringify({ lexicalForm }) },
+          baseUrl,
+        );
+      },
+      [request],
+    ),
+
+    // PUT /stories/:id/target-vocabulary/:wordId
+    saveTargetWord: useCallback(
+      async (
+        id: number,
+        wordId: number,
+        changes: {
+          lexicalForm?: string;
+          audioPath?: string;
+          imagePath?: string;
+        },
+        baseUrl?: string,
+      ): Json<TargetVocabulary> => {
+        return request<TargetVocabulary>(
+          `/stories/${id}/target-vocabulary/${wordId}`,
+          { method: "PUT", body: JSON.stringify(changes) },
+          baseUrl,
+        );
+      },
+      [request],
+    ),
+
+    // DELETE /stories/:id/target-vocabulary/:wordId
+    deleteTargetWord: useCallback(
+      async (id: number, wordId: number, baseUrl?: string): Promise<void> => {
+        await requestNoContent(
+          `/stories/${id}/target-vocabulary/${wordId}`,
+          { method: "DELETE" },
+          baseUrl,
+        );
+      },
+      [requestNoContent],
+    ),
+
+    // GET /stories/:id/produce
+    getProduce: useCallback(
+      async (id: number, baseUrl?: string): Json<ProducePage> => {
+        return request<ProducePage>(
+          `/stories/${id}/produce`,
+          undefined,
+          baseUrl,
+        );
+      },
+      [request],
+    ),
+
+    // PUT /stories/:id/produce/segments/:order
+    saveProduceSegment: useCallback(
+      async (
+        id: number,
+        order: number,
+        segment: {
+          englishText: string;
+          referenceHebrew: string;
+          grammarPointId?: number;
+        },
+        baseUrl?: string,
+      ): Json<ProduceSegment> => {
+        return request<ProduceSegment>(
+          `/stories/${id}/produce/segments/${order}`,
+          { method: "PUT", body: JSON.stringify(segment) },
+          baseUrl,
+        );
+      },
+      [request],
+    ),
+
+    // DELETE /stories/:id/produce/segments/:order
+    deleteProduceSegment: useCallback(
+      async (id: number, order: number, baseUrl?: string): Promise<void> => {
+        await requestNoContent(
+          `/stories/${id}/produce/segments/${order}`,
+          { method: "DELETE" },
+          baseUrl,
+        );
+      },
+      [requestNoContent],
+    ),
+
+    // PUT /stories/:id/produce/explanation
+    saveProduceExplanation: useCallback(
+      async (
+        id: number,
+        explanation: string,
+        baseUrl?: string,
+      ): Json<{ explanation: string }> => {
+        return request<{ explanation: string }>(
+          `/stories/${id}/produce/explanation`,
+          { method: "PUT", body: JSON.stringify({ explanation }) },
+          baseUrl,
+        );
+      },
+      [request],
+    ),
+
+    // DELETE /stories/:id/produce/explanation
+    deleteProduceExplanation: useCallback(
+      async (id: number, baseUrl?: string): Promise<void> => {
+        await requestNoContent(
+          `/stories/${id}/produce/explanation`,
+          { method: "DELETE" },
+          baseUrl,
+        );
+      },
+      [requestNoContent],
+    ),
+
+    // GET /stories/:id/recall
+    getRecall: useCallback(
+      async (id: number, baseUrl?: string): Json<RecallPage> => {
+        return request<RecallPage>(`/stories/${id}/recall`, undefined, baseUrl);
+      },
+      [request],
+    ),
+
+    // PUT /stories/:id/recall/sentences/:order
+    saveRecallSentence: useCallback(
+      async (
+        id: number,
+        order: number,
+        sentence: {
+          hebrewText: string;
+          targetVocabId?: number;
+          imagePath?: string;
+        },
+        baseUrl?: string,
+      ): Json<RecallSentence> => {
+        return request<RecallSentence>(
+          `/stories/${id}/recall/sentences/${order}`,
+          { method: "PUT", body: JSON.stringify(sentence) },
+          baseUrl,
+        );
+      },
+      [request],
+    ),
+
+    // DELETE /stories/:id/recall/sentences/:order
+    deleteRecallSentence: useCallback(
+      async (id: number, order: number, baseUrl?: string): Promise<void> => {
+        await requestNoContent(
+          `/stories/${id}/recall/sentences/${order}`,
+          { method: "DELETE" },
+          baseUrl,
+        );
+      },
+      [requestNoContent],
     ),
 
     // PUT /stories/:id/translations

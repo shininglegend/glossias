@@ -85,4 +85,49 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	stories.HandleFunc("/image/upload", h.imageUploadHandler).Methods("POST", "OPTIONS")
 	stories.HandleFunc("/image/confirm", h.confirmImageUploadHandler).Methods("POST", "OPTIONS")
 	stories.HandleFunc("/image/delete", h.imageDeleteHandler).Methods("DELETE", "OPTIONS")
+
+	// Summer 2026 phase authoring (T7). Assets for these editors are attached to
+	// the owning target_vocabulary / recall_sentences row rather than registered
+	// in story_images; see phase_assets.go.
+	stories.HandleFunc("/{id:[0-9]+}/content-readiness", h.validateStoryID(h.contentReadinessHandler)).
+		Methods("GET", "OPTIONS")
+	stories.HandleFunc("/{id:[0-9]+}/phase-assets/upload", h.validateStoryID(h.phaseAssetUploadHandler)).
+		Methods("POST", "OPTIONS")
+
+	stories.HandleFunc("/{id:[0-9]+}/target-vocabulary", h.validateStoryID(h.targetVocabularyHandler)).
+		Methods("GET", "POST", "OPTIONS")
+	stories.HandleFunc("/{id:[0-9]+}/target-vocabulary/{wordId:[0-9]+}", h.validateStoryID(h.targetVocabularyItemHandler)).
+		Methods("PUT", "DELETE", "OPTIONS")
+
+	stories.HandleFunc("/{id:[0-9]+}/produce", h.validateStoryID(h.produceHandler)).
+		Methods("GET", "OPTIONS")
+	stories.HandleFunc("/{id:[0-9]+}/produce/explanation", h.validateStoryID(h.produceExplanationHandler)).
+		Methods("PUT", "DELETE", "OPTIONS")
+	stories.HandleFunc("/{id:[0-9]+}/produce/segments/{order:[0-9]+}", h.validateStoryID(h.produceSegmentHandler)).
+		Methods("PUT", "DELETE", "OPTIONS")
+
+	stories.HandleFunc("/{id:[0-9]+}/recall", h.validateStoryID(h.recallHandler)).
+		Methods("GET", "OPTIONS")
+	stories.HandleFunc("/{id:[0-9]+}/recall/sentences/{order:[0-9]+}", h.validateStoryID(h.recallSentenceHandler)).
+		Methods("PUT", "DELETE", "OPTIONS")
+}
+
+// contentReadinessHandler reports which of the new phases are fully authored for
+// a story. The editors show it as a checklist, and it is the same report
+// navigation can use to skip phases whose content is absent.
+func (h *Handler) contentReadinessHandler(w http.ResponseWriter, r *http.Request) {
+	storyID, ok := h.authorizeStoryEdit(w, r)
+	if !ok {
+		return
+	}
+
+	readiness, err := models.GetStoryContentReadiness(r.Context(), storyID)
+	if err != nil {
+		h.log.Error("Failed to build content readiness report", "error", err, "storyID", storyID)
+		writeJSONError(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(readiness)
 }

@@ -70,10 +70,10 @@ func (h *Handler) requestImageUploadURL(w http.ResponseWriter, r *http.Request) 
 
 	// Generate file path: stories/{storyID}/image_{label}_{filename}
 	timestamp := time.Now().Unix()
-	// Sanitize filename to prevent path traversal
-	sanitizedFilename := strings.ReplaceAll(req.FileName, "/", "")
-	sanitizedFilename = strings.ReplaceAll(sanitizedFilename, "\\", "")
-	sanitizedFilename = strings.ReplaceAll(sanitizedFilename, "..", "")
+	// Sanitize both the label and the filename: each is caller-supplied and each
+	// ends up in the path, so either could otherwise escape the story prefix.
+	req.Label = sanitizeFileName(req.Label)
+	sanitizedFilename := sanitizeFileName(req.FileName)
 	filePath := "stories/" + strconv.Itoa(req.StoryID) + "/image_" +
 		req.Label + "_" + strconv.FormatInt(timestamp, 10) + "_" + sanitizedFilename
 
@@ -162,8 +162,10 @@ func (h *Handler) confirmImageUploadHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Verify file path matches expected pattern to prevent path manipulation
-	expectedPrefix := "stories/" + strconv.Itoa(req.StoryID) + "/image_" + req.Label + "_"
+	// Verify file path matches expected pattern to prevent path manipulation.
+	// The label is sanitized the same way the upload step sanitized it, so the
+	// two prefixes agree.
+	expectedPrefix := "stories/" + strconv.Itoa(req.StoryID) + "/image_" + sanitizeFileName(req.Label) + "_"
 	if !strings.HasPrefix(req.FilePath, expectedPrefix) {
 		http.Error(w, "Invalid file path", http.StatusBadRequest)
 		return

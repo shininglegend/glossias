@@ -91,6 +91,42 @@ func (q *Queries) DeleteTargetVocabulary(ctx context.Context, id int32) error {
 	return err
 }
 
+const getStoryLexicalFormCounts = `-- name: GetStoryLexicalFormCounts :many
+SELECT lexical_form, COUNT(*) AS occurrences
+FROM vocabulary_items
+WHERE story_id = $1
+GROUP BY lexical_form
+ORDER BY lexical_form
+`
+
+type GetStoryLexicalFormCountsRow struct {
+	LexicalForm string `json:"lexical_form"`
+	Occurrences int64  `json:"occurrences"`
+}
+
+// GetStoryLexicalFormCounts lists every annotated lexical form in a story with
+// how many times it appears. The target-vocabulary editor uses it to show which
+// candidates meet the two-occurrence minimum before a word is chosen.
+func (q *Queries) GetStoryLexicalFormCounts(ctx context.Context, storyID pgtype.Int4) ([]GetStoryLexicalFormCountsRow, error) {
+	rows, err := q.db.Query(ctx, getStoryLexicalFormCounts, storyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetStoryLexicalFormCountsRow{}
+	for rows.Next() {
+		var i GetStoryLexicalFormCountsRow
+		if err := rows.Scan(&i.LexicalForm, &i.Occurrences); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStoryTargetVocabulary = `-- name: GetStoryTargetVocabulary :many
 
 SELECT id, story_id, lexical_form, audio_path, audio_bucket, correct_image_path, image_bucket

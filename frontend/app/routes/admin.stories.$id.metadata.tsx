@@ -4,6 +4,7 @@ import type { StoryMetadata } from "../types/admin";
 import { useAdminApi } from "../services/adminApi";
 import MetadataForm from "../components/Admin/MetadataForm";
 import AdminStoryNavigation from "../components/Admin/AdminStoryNavigation";
+import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
 
 export default function EditMetadata() {
   const { id } = useParams();
@@ -14,6 +15,8 @@ export default function EditMetadata() {
   const [saving, setSaving] = React.useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
   const [justSaved, setJustSaved] = React.useState(false);
+
+  useUnsavedChangesGuard(hasUnsavedChanges);
 
   React.useEffect(() => {
     async function fetchMetadata() {

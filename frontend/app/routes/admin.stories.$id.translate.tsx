@@ -4,6 +4,7 @@ import type { Story } from "../types/admin";
 import { useAdminApi } from "../services/adminApi";
 import AdminStoryNavigation from "../components/Admin/AdminStoryNavigation";
 import Button from "~/components/ui/Button";
+import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
 
 interface TranslationLine {
   lineNumber: number;
@@ -18,6 +19,8 @@ export default function TranslateStory() {
   const [story, setStory] = useState<Story | null>(null);
   const [translations, setTranslations] = useState<TranslationLine[]>([]);
   const [loading, setLoading] = useState(true);
+  const hasAnyChanges = translations.some((t) => t.hasChanges);
+  useUnsavedChangesGuard(hasAnyChanges);
   const [saving, setSaving] = useState<Set<number>>(new Set());
   const [bulkSaving, setBulkSaving] = useState(false);
 
@@ -125,8 +128,6 @@ export default function TranslateStory() {
       </main>
     );
   }
-
-  const hasAnyChanges = translations.some((t) => t.hasChanges);
 
   return (
     <main className="container mx-auto p-6">

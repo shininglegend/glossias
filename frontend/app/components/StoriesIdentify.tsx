@@ -21,7 +21,6 @@ import { IdentifyQuizModal } from "./story-components/IdentifyQuizModal";
 import {
   identifyReducer,
   createIdentifyState,
-  identifiedWords,
   linesWithUnansweredTargets,
 } from "../lib/identifyMachine";
 import "./StoriesVocab.css";
@@ -304,10 +303,13 @@ export function IdentifySession({
         ? audioLineIndex
         : null;
   const hasTargets = pageData.target_words.length > 0;
-  const identified = identifiedWords(picks);
-  const identifiedCount = pageData.target_words.filter((w) =>
-    identified.includes(w.id),
-  ).length;
+  // Every occurrence of a target word is its own quiz, so count quizzes —
+  // counting distinct words would read 5 / 5 with repeats still to come.
+  const totalQuizzes = pageData.lines.reduce(
+    (n, l) => n + l.target_vocab_ids.length,
+    0,
+  );
+  const answeredQuizzes = picks.length;
   const resumedMidway =
     phase.kind === "idle" && picks.length > 0 && state.currentLine > 0;
 
@@ -418,8 +420,8 @@ export function IdentifySession({
                 aria-live="polite"
                 data-testid="identify-counter"
               >
-                Words identified: <strong>{identifiedCount}</strong> /{" "}
-                {pageData.target_words.length}
+                Words identified: <strong>{answeredQuizzes}</strong> /{" "}
+                {totalQuizzes}
               </div>
             )}
           </div>

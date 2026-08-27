@@ -138,7 +138,7 @@ describe("IdentifySession", () => {
     await setup();
     expect(screen.getByText("כלב")).toHaveClass("target-word");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByTestId("identify-counter")).toHaveTextContent("0 / 5");
+    expect(screen.getByTestId("identify-counter")).toHaveTextContent("0 / 1");
   });
 
   it("plays through, pauses after the target line, and opens the quiz", async () => {
@@ -184,7 +184,7 @@ describe("IdentifySession", () => {
     expect(onCheckPick).toHaveBeenCalledWith(1, 10, 10);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(FakeAudio.byLine(2).playCalls).toBe(2);
-    expect(screen.getByTestId("identify-counter")).toHaveTextContent("1 / 5");
+    expect(screen.getByTestId("identify-counter")).toHaveTextContent("1 / 1");
     expect(FakeAudio.byLine(3).playCalls).toBe(0);
 
     // Replay ends → continues with line 3, no second quiz.
@@ -218,6 +218,30 @@ describe("IdentifySession", () => {
     expect(screen.getByTestId("identify-option-10")).not.toBeDisabled();
   });
 
+  it("counts every occurrence as its own quiz, not distinct words", async () => {
+    const base = makePageData();
+    await setup(gradeLocally(), {
+      lines: [
+        ...base.lines,
+        {
+          text: [{ type: "target", text: "כלב", target_vocab_id: 10 }],
+          target_vocab_ids: [10],
+        },
+      ],
+      audio_urls: { ...base.audio_urls, "4": "url-4" },
+    });
+    // The same word appears twice → two quizzes, one target word.
+    expect(screen.getByTestId("identify-counter")).toHaveTextContent("0 / 2");
+
+    clickStart();
+    await endLine(1);
+    await endLine(2);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("identify-option-10"));
+    });
+    expect(screen.getByTestId("identify-counter")).toHaveTextContent("1 / 2");
+  });
+
   it("opens finished and cannot be replayed once the server says complete", async () => {
     await setup(gradeLocally(), {
       correct_picks: [{ line_index: 1, target_vocab_id: 10 }],
@@ -239,7 +263,7 @@ describe("IdentifySession", () => {
       completed: false,
     });
     expect(screen.getByTestId("identify-resumed")).toHaveTextContent("line 2");
-    expect(screen.getByTestId("identify-counter")).toHaveTextContent("1 / 5");
+    expect(screen.getByTestId("identify-counter")).toHaveTextContent("1 / 1");
 
     clickStart();
     // Starts at line 2, not line 1.

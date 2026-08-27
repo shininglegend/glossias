@@ -195,6 +195,12 @@ func InitDBWithReconnect(dbPath string) (Store, error) {
 	}
 
 	if usePool {
+		// Migrations must run before the pool opens; the non-pool path below
+		// delegates to InitDB, which runs them itself.
+		if err := RunMigrations(connStr); err != nil {
+			return nil, err
+		}
+
 		// Create reconnectable DBTX wrapper for SQLC compatibility
 		dbtx, err := NewReconnectableDBTX(connStr)
 		if err != nil {

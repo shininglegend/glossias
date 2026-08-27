@@ -16,6 +16,24 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
+// RunMigrations applies every pending goose migration over a temporary
+// database/sql connection, before any pool is opened. Both InitDB and
+// InitDBWithReconnect must call this: a startup path that skips it silently
+// runs against whatever schema the database happens to already have.
+func RunMigrations(connStr string) error {
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	goose.SetBaseFS(migrationsFS)
+	if err := goose.SetDialect("postgres"); err != nil {
+		return err
+	}
+	return goose.Up(db, "migrations")
+}
+
 // InitDB selects PostgreSQL implementation based on USE_POOL environment variable
 // USE_POOL=false uses database/sql, otherwise defaults to pgxpool for SQLC compatibility
 func InitDB(dbPath string) (Store, error) {
@@ -26,21 +44,9 @@ func InitDB(dbPath string) (Store, error) {
 		return &mockStore{}, nil
 	}
 
-	// Run migrations using goose on a temporary database/sql connection
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
+	if err := RunMigrations(connStr); err != nil {
 		return nil, err
 	}
-	goose.SetBaseFS(migrationsFS)
-	if err := goose.SetDialect("postgres"); err != nil {
-		db.Close()
-		return nil, err
-	}
-	if err := goose.Up(db, "migrations"); err != nil {
-		db.Close()
-		return nil, err
-	}
-	db.Close()
 
 	if usePool {
 		// Use pgxpool for PostgreSQL

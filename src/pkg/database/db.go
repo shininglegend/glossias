@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 )
 
@@ -20,11 +21,16 @@ var migrationsFS embed.FS
 // database/sql connection, before any pool is opened. Both InitDB and
 // InitDBWithReconnect must call this: a startup path that skips it silently
 // runs against whatever schema the database happens to already have.
+//
+// The connection goes through pgx's database/sql driver rather than lib/pq so
+// it shares pgx's connection defaults with the pool (notably sslmode=prefer;
+// lib/pq defaults to sslmode=require, which rejects the local Supabase DB).
 func RunMigrations(connStr string) error {
-	db, err := sql.Open("postgres", connStr)
+	config, err := pgx.ParseConfig(connStr)
 	if err != nil {
 		return err
 	}
+	db := stdlib.OpenDB(*config)
 	defer db.Close()
 
 	goose.SetBaseFS(migrationsFS)

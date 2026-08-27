@@ -1,8 +1,9 @@
 // [moved from annotator/src/components/AnnotationModal.tsx]
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Button from "~/components/ui/Button";
 import Input from "~/components/ui/Input";
 import Label from "~/components/ui/Label";
+import Modal from "~/components/ui/Modal";
 import type { GrammarPoint } from "../../types/admin";
 
 interface Props {
@@ -33,14 +34,6 @@ export default function AnnotationModal({
     type !== "grammar" ||
     (!!selectedGrammarPointId && storyGrammarPoints.length > 0);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   const handleSave = () => {
     if (!canSave) return;
     if (type === "grammar") {
@@ -52,19 +45,25 @@ export default function AnnotationModal({
     }
   };
 
+  // Escape, focus trapping and initial focus (first control) are handled by
+  // Modal's native <dialog>.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={`Add ${type}`}
+      description={
+        <>
+          Selected: <span className="font-medium">{selectedText}</span>
+        </>
+      }
+    >
       <form
         onSubmit={(e) => {
           e.preventDefault();
           handleSave();
         }}
-        className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-4 shadow-xl"
       >
-        <h3 className="text-lg font-semibold">Add {type}</h3>
-        <p className="mt-1 text-sm text-slate-600">
-          Selected: <span className="font-medium">{selectedText}</span>
-        </p>
         {type === "grammar" && (
           <div className="mt-3">
             <Label>Grammar Point</Label>
@@ -75,7 +74,6 @@ export default function AnnotationModal({
               </div>
             ) : (
               <select
-                autoFocus
                 value={selectedGrammarPointId || ""}
                 onChange={(e) =>
                   setSelectedGrammarPointId(
@@ -101,7 +99,6 @@ export default function AnnotationModal({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={type === "vocab" ? "e.g. lemma" : "Enter note"}
-              autoFocus
             />
           </div>
         )}
@@ -114,6 +111,6 @@ export default function AnnotationModal({
           </Button>
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }

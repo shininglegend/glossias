@@ -83,8 +83,11 @@ export const StoryLine: React.FC<StoryLineProps> = ({
           onClick={() => onPlayLineAudio(lineIndex)}
           className="inline-flex items-center justify-center w-8 h-8 bg-gray-500 text-white border-none rounded-full cursor-pointer ml-3 transition-colors duration-200 hover:bg-gray-600 align-middle"
           type="button"
+          aria-label={`Play audio for line ${lineIndex + 1}`}
         >
-          <span className="material-icons text-lg">play_arrow</span>
+          <span className="material-icons text-lg" aria-hidden="true">
+            play_arrow
+          </span>
         </button>
       )}
       {showTranslation && translation && (

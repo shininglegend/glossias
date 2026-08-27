@@ -79,6 +79,29 @@ export interface VocabData {
   vocab_bank: string[];
 }
 
+export interface IdentifyLine {
+  text: TextSegment[];
+  target_vocab_ids: number[];
+}
+
+export interface IdentifyTargetWord {
+  id: number;
+  lexical_form: string;
+  audio_url?: string;
+  image_url?: string;
+}
+
+export interface IdentifyData {
+  story_id: string;
+  story_title: string;
+  language: string;
+  lines: IdentifyLine[];
+  target_words: IdentifyTargetWord[];
+  /** Signed narration URLs keyed by 1-based line number. */
+  audio_urls: { [key: string]: string };
+  completed_target_ids: number[];
+}
+
 export interface GrammarData extends GrammarPageData {
   grammar_point_id: number;
   grammar_point: string;
@@ -210,6 +233,26 @@ export function useApiService() {
 
       getStoryMetadata: (id: string): Promise<APIResponse<StoryMetadata>> => {
         return fetchAPI<StoryMetadata>(`/stories/${id}/metadata`);
+      },
+
+      getStoryIdentify: (id: string): Promise<APIResponse<IdentifyData>> => {
+        return fetchAPI<IdentifyData>(`/stories/${id}/identify`);
+      },
+
+      checkIdentify: (
+        id: string,
+        lineIndex: number,
+        targetVocabId: number,
+        selectedTargetVocabId: number,
+      ): Promise<APIResponse<{ correct: boolean }>> => {
+        return fetchAPI(`/stories/${id}/check-identify`, {
+          method: "POST",
+          body: JSON.stringify({
+            line_index: lineIndex,
+            target_vocab_id: targetVocabId,
+            selected_target_vocab_id: selectedTargetVocabId,
+          }),
+        });
       },
 
       checkVocab: (

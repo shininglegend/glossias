@@ -1,56 +1,103 @@
-import { useState, useEffect } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useReducer,
+  useCallback,
+  useMemo,
+} from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import { useApiService } from "../services/api";
+import type {
+  IdentifyData,
+  IdentifyTargetWord,
+  VocabLine,
+} from "../services/api";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
+import { useAudioPlayer } from "./story-components/AudioPlayer";
+import { StoryLine } from "./story-components/StoryLine";
 import { CompletionMessage } from "./story-components/CompletionMessage";
-import type { StoryMetadata } from "../types/api";
+import { IdentifyQuizModal } from "./story-components/IdentifyQuizModal";
+import { identifyReducer, createIdentifyState } from "../lib/identifyMachine";
+import "./StoriesVocab.css";
 
+const RTL_LANGUAGES = ["he", "ar", "fa", "ur"];
+const EMPTY_SET = new Set<number>();
+
+/**
+ * Loads the Identify payload and hands it to `IdentifySession`, which owns the
+ * playback/quiz state machine (created with the real line count on mount).
+ */
 export function StoriesIdentify() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
   const navigate = useNavigate();
   const { getNavigationGuidance } = useNavigationGuidance();
-  const [metadata, setMetadata] = useState<StoryMetadata | null>(null);
+
+  const [pageData, setPageData] = useState<IdentifyData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
 
   useEffect(() => {
-    const fetchMetadata = async () => {
+    const fetchData = async () => {
       if (!id) {
         setError("Story ID is required");
         setLoading(false);
         return;
       }
       try {
-        const response = await api.getStoryMetadata(id);
+        const response = await api.getStoryIdentify(id);
         if (response.success && response.data) {
-          setMetadata(response.data);
+          setPageData(response.data);
         } else {
-          setError(response.error || "Failed to fetch story metadata");
+          setError(response.error || "Failed to fetch story");
         }
-
-        const guidance = await getNavigationGuidance(id, "identify");
-        if (guidance) {
-          setNextStepName(guidance.displayName);
-        }
-      } catch {
-        setError("Failed to fetch story metadata");
+      } catch (err) {
+        console.error("Failed to fetch identify data:", err);
+        setError("Failed to fetch story");
       } finally {
         setLoading(false);
       }
     };
+    fetchData();
+  }, [id, api]);
 
-    fetchMetadata();
-  }, [id, getNavigationGuidance, api]);
+  useEffect(() => {
+    const fetchNextStep = async () => {
+      if (!id) return;
+      try {
+        const guidance = await getNavigationGuidance(id, "identify");
+        if (guidance) setNextStepName(guidance.displayName);
+      } catch (err) {
+        console.error("Failed to get navigation guidance:", err);
+      }
+    };
+    fetchNextStep();
+  }, [id, getNavigationGuidance]);
+
+  const checkPick = useCallback(
+    async (lineIndex: number, targetId: number, selectedId: number) => {
+      if (!id) throw new Error("Story ID is required");
+      const response = await api.checkIdentify(
+        id,
+        lineIndex,
+        targetId,
+        selectedId,
+      );
+      if (!response.success || !response.data) {
+        throw new Error(response.error || "Failed to check answer");
+      }
+      return response.data.correct;
+    },
+    [id, api],
+  );
 
   const handleContinue = async () => {
     if (!id) return;
     try {
       const guidance = await getNavigationGuidance(id, "identify");
-      if (guidance) {
-        navigate(`/stories/${id}/${guidance.nextPage}`);
-      }
+      if (guidance) navigate(`/stories/${id}/${guidance.nextPage}`);
     } catch (err) {
       console.error("Failed to navigate to next phase:", err);
     }
@@ -64,7 +111,7 @@ export function StoriesIdentify() {
     );
   }
 
-  if (error || !metadata) {
+  if (error || !pageData) {
     return (
       <div className="container max-w-xl mx-auto mt-10 p-6 bg-red-50 border border-red-200 rounded-lg text-center">
         <h2 className="text-red-700 font-bold mb-2">Error Loading Phase</h2>
@@ -81,60 +128,314 @@ export function StoriesIdentify() {
     );
   }
 
-  const storyTitle =
-    typeof metadata.title === "string"
-      ? metadata.title
-      : metadata.title?.en || "Story";
+  return (
+    <IdentifySession
+      pageData={pageData}
+      nextStepName={nextStepName}
+      onCheckPick={checkPick}
+      onContinue={handleContinue}
+    />
+  );
+}
+
+interface IdentifySessionProps {
+  pageData: IdentifyData;
+  nextStepName: string;
+  /** Grades a pick server-side; resolves to whether it was correct. */
+  onCheckPick: (
+    lineIndex: number,
+    targetId: number,
+    selectedId: number,
+  ) => Promise<boolean>;
+  onContinue: () => void;
+}
+
+export function IdentifySession({
+  pageData,
+  nextStepName,
+  onCheckPick,
+  onContinue,
+}: IdentifySessionProps) {
+  // The audio hook speaks VocabData; adapt once.
+  const [vocabLines] = useState<VocabLine[]>(() =>
+    pageData.lines.map((line) => ({
+      text: line.text,
+      audio_files: [],
+      signed_audio_urls: {},
+    })),
+  );
+  const audioURLs = useMemo<Record<string, string>>(
+    () => ({ ...pageData.audio_urls }),
+    [pageData.audio_urls],
+  );
+  const targetLines = useMemo(
+    () =>
+      new Set(
+        pageData.lines
+          .map((line, i) => (line.target_vocab_ids.length > 0 ? i : -1))
+          .filter((i) => i >= 0),
+      ),
+    [pageData.lines],
+  );
+  const wordsById = useMemo(() => {
+    const map = new Map<number, IdentifyTargetWord>();
+    for (const w of pageData.target_words) map.set(w.id, w);
+    return map;
+  }, [pageData.target_words]);
+
+  // Audio-player status mirrored into React state.
+  const [audioLineIndex, setAudioLineIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playedLines, setPlayedLines] = useState<Set<number>>(new Set());
+
+  const [state, dispatch] = useReducer(
+    identifyReducer,
+    { lineCount: pageData.lines.length, done: pageData.completed_target_ids },
+    ({ lineCount, done }) => createIdentifyState(lineCount, done),
+  );
+  const { phase, command, commandSeq } = state;
+
+  const onStoryEnded = useCallback(() => dispatch({ type: "STORY_ENDED" }), []);
+  const linesRef = useRef(pageData.lines);
+  linesRef.current = pageData.lines;
+  const onPauseAfterLine = useCallback((lineIndex: number) => {
+    dispatch({
+      type: "LINE_ENDED",
+      line: lineIndex,
+      targets: linesRef.current[lineIndex]?.target_vocab_ids ?? [],
+    });
+  }, []);
+
+  const audioPlayer = useAudioPlayer({
+    audioURLs,
+    pageData: {
+      story_id: pageData.story_id,
+      story_title: pageData.story_title,
+      language: pageData.language,
+      lines: vocabLines,
+      vocab_bank: [],
+    },
+    onPlayedLinesChange: setPlayedLines,
+    onCurrentLineChange: setAudioLineIndex,
+    onPlayingStateChange: setIsPlaying,
+    completedLines: EMPTY_SET,
+    pauseOnLines: targetLines,
+    onPlaybackEnd: onStoryEnded,
+    onPauseAfterLine,
+  });
+
+  // Mirror the audio player's line into the machine.
+  useEffect(() => {
+    dispatch({ type: "LINE_CHANGED", index: audioLineIndex });
+  }, [audioLineIndex]);
+
+  // Run each audio command the machine emits exactly once.
+  const lastCommandSeqRef = useRef(0);
+  const { playNextLineFromIndex, replayLine } = audioPlayer;
+  useEffect(() => {
+    if (commandSeq === lastCommandSeqRef.current || !command) return;
+    lastCommandSeqRef.current = commandSeq;
+    if (command.type === "playFrom") {
+      // The continuation API starts at index + 1.
+      playNextLineFromIndex(command.index - 1);
+    } else if (command.type === "replay") {
+      let cancelled = false;
+      replayLine(command.line).then(() => {
+        if (!cancelled) dispatch({ type: "REPLAY_DONE" });
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commandSeq]);
+
+  // Picture picks: graded by the server, then fed back to the machine.
+  const [checking, setChecking] = useState(false);
+  const [pickError, setPickError] = useState<string | null>(null);
+  const handlePick = async (selectedId: number) => {
+    if (phase.kind !== "quiz" || checking) return;
+    const { line, targetId } = phase;
+    setChecking(true);
+    setPickError(null);
+    try {
+      const correct = await onCheckPick(line, targetId, selectedId);
+      dispatch({ type: "PICK_RESULT", selected: selectedId, correct });
+    } catch (err) {
+      console.error("Failed to check identify pick:", err);
+      setPickError("Couldn't save your answer. Please try again.");
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const handlePlayPause = () => {
+    if (phase.kind === "idle") {
+      dispatch({ type: "START" });
+    } else if (phase.kind === "playing") {
+      audioPlayer.pauseAudio();
+      dispatch({ type: "PAUSE" });
+    } else if (phase.kind === "paused") {
+      dispatch({ type: "RESUME" });
+    }
+  };
+
+  const isRTL = RTL_LANGUAGES.includes(pageData.language);
+  const isComplete = phase.kind === "complete";
+  const canToggle =
+    phase.kind === "idle" ||
+    phase.kind === "playing" ||
+    phase.kind === "paused";
+  const activeLine =
+    phase.kind === "quiz" || phase.kind === "replaying"
+      ? phase.line
+      : phase.kind === "playing" && isPlaying
+        ? audioLineIndex
+        : null;
+  const hasTargets = pageData.target_words.length > 0;
+  const identifiedCount = pageData.target_words.filter((w) =>
+    state.identified.includes(w.id),
+  ).length;
+
+  const playButtonLabel =
+    phase.kind === "idle"
+      ? "Start"
+      : phase.kind === "playing"
+        ? "Pause Audio"
+        : phase.kind === "paused"
+          ? "Resume Audio"
+          : phase.kind === "replaying"
+            ? "Replaying…"
+            : "Quiz…";
 
   return (
-    <div className="max-w-4xl mx-auto px-5 py-8">
-      <header className="mb-8 text-center">
-        <span className="inline-block px-3 py-1 bg-primary-50 text-primary-700 rounded-full text-xs font-semibold uppercase tracking-wider mb-3">
-          Phase 2 of 5
-        </span>
-        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight sm:text-4xl mb-2">
-          {storyTitle}
-        </h1>
-        <h2 className="text-lg font-medium text-gray-500">Identify Phase</h2>
-      </header>
+    <>
+      <header>
+        <h1>{pageData.story_title}</h1>
+        <h2>Identify</h2>
 
-      <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100 max-w-2xl mx-auto">
-        <div className="p-8">
-          <div className="flex items-center justify-center w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl mx-auto mb-6">
-            <span className="material-icons text-3xl">visibility</span>
-          </div>
-
-          <div className="text-center mb-8">
-            <h3 className="text-xl font-bold text-gray-900 mb-3">
-              Vocabulary Identification
-            </h3>
-            <p className="text-gray-600 leading-relaxed max-w-md mx-auto">
-              In this phase, you will listen to the Hebrew narration of the
-              story. When a target vocabulary word is played, the audio will
-              pause and you will complete a quick picture-association quiz.
-            </p>
-          </div>
-
-          <div className="bg-slate-50 rounded-xl p-5 border border-slate-100 mb-8">
-            <div className="flex items-center gap-3 mb-2 text-slate-700 font-semibold text-sm">
-              <span className="material-icons text-slate-500 text-lg">
-                build
-              </span>
-              <span>Scaffolding Mode Active</span>
-            </div>
-            <p className="text-slate-600 text-sm leading-relaxed">
-              This phase is currently in placeholder/scaffolding mode. Click the
-              button below to record completion and advance to the next step.
-            </p>
-          </div>
-
+        {isComplete && (
           <CompletionMessage
             currentStepName="identify"
             nextStepName={nextStepName}
-            onContinue={handleContinue}
+            onContinue={onContinue}
           />
+        )}
+
+        <div className="bg-gray-50 border border-gray-300 p-4 mb-4 rounded-lg text-center">
+          <div className="flex items-start justify-center">
+            <span className="material-icons text-gray-600 mr-2 mt-1">info</span>
+            <div>
+              <p className="text-gray-700 mb-2">
+                Listen to the story and follow along. The{" "}
+                <span className="text-amber-700 font-semibold underline decoration-amber-400 decoration-2 underline-offset-4">
+                  highlighted words
+                </span>{" "}
+                are this story's target vocabulary.
+              </p>
+              <p className="text-gray-700">
+                After a line with a target word, the audio pauses: pick the
+                picture that matches the word, then the line plays again.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {!hasTargets && (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4 rounded-r-lg text-left">
+            <p className="text-gray-800">
+              This story has no target vocabulary yet, so there are no picture
+              quizzes. Listen through, then continue.
+            </p>
+          </div>
+        )}
+
+        {!isComplete && (
+          <div className="flex flex-wrap items-center justify-center gap-4 my-5">
+            <button
+              onClick={handlePlayPause}
+              disabled={!canToggle}
+              className={`inline-flex items-center gap-2 px-5 py-3 text-white border-none rounded-lg text-base transition-colors duration-200 ${
+                !canToggle
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : phase.kind === "playing"
+                    ? "bg-red-500 hover:bg-red-600 cursor-pointer"
+                    : "bg-green-500 hover:bg-green-600 cursor-pointer"
+              }`}
+              type="button"
+            >
+              <span className="material-icons">
+                {phase.kind === "playing" || !canToggle
+                  ? "pause"
+                  : "play_arrow"}
+              </span>
+              {playButtonLabel}
+            </button>
+
+            {hasTargets && (
+              <div
+                className="text-gray-700 text-base"
+                aria-live="polite"
+                data-testid="identify-counter"
+              >
+                Words identified: <strong>{identifiedCount}</strong> /{" "}
+                {pageData.target_words.length}
+              </div>
+            )}
+          </div>
+        )}
+      </header>
+
+      <div className="max-w-4xl mx-auto px-5 pb-24">
+        <div className="story-lines text-2xl max-w-3xl mx-auto">
+          <div
+            className={isRTL ? "text-right" : "text-left"}
+            dir={isRTL ? "rtl" : "ltr"}
+          >
+            {vocabLines.map((line, lineIndex) => (
+              <div
+                key={lineIndex}
+                className="inline"
+                data-testid={`identify-line-${lineIndex}`}
+              >
+                <StoryLine
+                  line={line}
+                  lineIndex={lineIndex}
+                  vocabBank={[]}
+                  selectedAnswers={{}}
+                  lineResults={{}}
+                  completedLines={EMPTY_SET}
+                  playedLines={playedLines}
+                  checkingLines={EMPTY_SET}
+                  isCurrentLine={activeLine === lineIndex}
+                  isRTL={isRTL}
+                  prefetchedAudio={audioPlayer.prefetchedAudio}
+                  originalLine={undefined}
+                  pendingAnswers={EMPTY_STRING_SET}
+                  lockedAnswers={EMPTY_STRING_SET}
+                  onAnswerChange={() => {}}
+                  onPlayLineAudio={() => {}}
+                />{" "}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+
+      <IdentifyQuizModal
+        isOpen={phase.kind === "quiz"}
+        target={
+          phase.kind === "quiz" ? wordsById.get(phase.targetId) : undefined
+        }
+        options={pageData.target_words}
+        wrongPicks={phase.kind === "quiz" ? phase.wrongPicks : []}
+        checking={checking}
+        error={pickError}
+        isRTL={isRTL}
+        onPick={handlePick}
+      />
+    </>
   );
 }
+
+const EMPTY_STRING_SET = new Set<string>();

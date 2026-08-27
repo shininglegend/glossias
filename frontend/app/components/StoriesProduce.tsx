@@ -17,6 +17,11 @@ import {
   formatCountdown,
   type ProduceAttempt,
 } from "../lib/produceMachine";
+import {
+  loadProduceDraft,
+  saveProduceDraft,
+  clearProduceDraft,
+} from "../lib/produceDraft";
 
 const RTL_LANGUAGES = ["he", "ar", "fa", "ur"];
 /** Countdown turns urgent (red) at or below this many seconds. */
@@ -199,13 +204,27 @@ export function ProduceSession({
 
   // The textarea is uncontrolled by the machine: its value lives here and is
   // read through a ref when the countdown fires so the timeout submits what
-  // the student had typed so far.
-  const [draft, setDraft] = useState("");
+  // the student had typed so far. It is mirrored to localStorage so a reload
+  // mid-countdown restores it alongside the server-side clock.
+  const storyId = pageData.story_id;
+  const [draft, setDraftState] = useState(() =>
+    segment ? loadProduceDraft(storyId, segment.id) : "",
+  );
   const draftRef = useRef(draft);
   draftRef.current = draft;
+  const setDraft = (text: string) => {
+    setDraftState(text);
+    if (segment) saveProduceDraft(storyId, segment.id, text);
+  };
   useEffect(() => {
-    if (phase.kind === "idle") setDraft("");
+    if (phase.kind === "idle") setDraftState("");
   }, [phase.kind, segmentIndex]);
+  // Once an attempt is stored its draft has served its purpose.
+  useEffect(() => {
+    for (const id of Object.keys(attempts)) {
+      clearProduceDraft(storyId, Number(id));
+    }
+  }, [attempts, storyId]);
 
   // Record the start server-side once the machine enters `starting`; the
   // countdown only runs with the server's remaining time, so a reload picks
@@ -271,7 +290,7 @@ export function ProduceSession({
   const resumedMidway =
     phase.kind === "idle" && answered > 0 && phase.segment > 0;
   // The server said this segment's countdown was already running when the
-  // page loaded (a reload mid-segment); the draft text was not kept.
+  // page loaded (a reload mid-segment); the draft came back from localStorage.
   const [resumedCountdown] = useState(
     () =>
       state.phase.kind === "writing" ||
@@ -330,8 +349,8 @@ export function ProduceSession({
           >
             <p className="text-gray-800">
               Welcome back — the timer for this segment kept running while you
-              were away, so you're picking up with the time that's left.
-              Anything you'd typed wasn't saved.
+              were away, so you're picking up with the time that's left. What
+              you'd typed in this browser has been restored.
             </p>
           </div>
         )}

@@ -304,6 +304,62 @@ describe("translateReducer — end of story", () => {
   });
 });
 
+describe("resuming from saved progress", () => {
+  it("starts fresh without resume data", () => {
+    const s = createTranslateState(10);
+    expect(s.currentLine).toBe(0);
+    expect(s.requested).toEqual([]);
+  });
+
+  it("seeds requested/revealed lines and starts from the last translated line", () => {
+    const s = createTranslateState(10, {
+      requested: [7, 2, 4],
+      completed: false,
+    });
+    expect(s.phase.kind).toBe("idle");
+    expect(s.requested).toEqual([2, 4, 7]);
+    expect(s.revealed).toEqual([2, 4, 7]);
+    expect(s.currentLine).toBe(7);
+    const started = translateReducer(s, { type: "START" });
+    expect(started.command).toEqual({ type: "playFrom", index: 7 });
+    expect(started.currentLine).toBe(7);
+  });
+
+  it("drops duplicate and out-of-range saved lines", () => {
+    const s = createTranslateState(5, {
+      requested: [1, 1, 9, -1, 3],
+      completed: false,
+    });
+    expect(s.requested).toEqual([1, 3]);
+  });
+
+  it("resumed lines count toward the quota and the consecutive cap", () => {
+    const s = translateReducer(
+      createTranslateState(10, { requested: [1, 3, 5], completed: false }),
+      { type: "START" },
+    );
+    expect(requestBlockReason(at(s, 5), 5)).toBe("already-requested");
+    // 5 is translated; requesting 6 then 7 would be fine, 4 joins 3,5 → run 3.
+    expect(canRequest(at(s, 4), 4)).toBe(true);
+    // One more request meets the minimum, so the story completes at its end.
+    const done = translateReducer(requestCycle(s, 8), { type: "STORY_ENDED" });
+    expect(done.phase.kind).toBe("complete");
+  });
+
+  it("opens in the finished state when the phase was completed earlier", () => {
+    const s = createTranslateState(10, {
+      requested: [1, 3, 5, 7],
+      completed: true,
+    });
+    expect(s.phase.kind).toBe("complete");
+    expect(s.revealed).toEqual([1, 3, 5, 7]);
+    expect(s.command).toBeNull();
+    // Nothing restarts it.
+    expect(translateReducer(s, { type: "START" })).toBe(s);
+    expect(requestBlockReason(s, 0)).toBe("not-playing");
+  });
+});
+
 describe("effective minimum for short stories", () => {
   it("leaves every fourth line untranslated when computing capacity", () => {
     expect(maxRequestable(3)).toBe(3);

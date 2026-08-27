@@ -238,6 +238,7 @@ type TranslationRequest struct {
 	StoryID        int32            `json:"story_id"`
 	RequestedLines []int32          `json:"requested_lines"`
 	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	CompletedAt    pgtype.Timestamp `json:"completed_at"`
 }
 
 type User struct {

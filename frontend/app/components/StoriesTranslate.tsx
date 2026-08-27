@@ -29,7 +29,10 @@ interface TranslatePageData {
   story_title: string;
   language: string;
   lines: LineWithTranslation[];
-  has_translation: boolean;
+  /** 0-based lines already translated on earlier visits (saved per reveal). */
+  requested_lines: number[];
+  /** The student finished this phase on an earlier visit. */
+  completed: boolean;
 }
 
 const RTL_LANGUAGES = ["he", "ar", "fa", "ur"];
@@ -125,8 +128,9 @@ export function StoriesTranslate() {
     fetchNextStep();
   }, [id, getNavigationGuidance]);
 
+  // Merges `lines` into the saved request; `complete` marks the phase done.
   const saveRequestedLines = useCallback(
-    async (lines: number[]) => {
+    async (lines: number[], complete: boolean) => {
       if (!id) return;
       try {
         const url = new URL(
@@ -134,6 +138,7 @@ export function StoriesTranslate() {
           window.location.origin,
         );
         url.searchParams.set("lines", `[${lines.join(",")}]`);
+        if (complete) url.searchParams.set("complete", "true");
 
         const response = await authenticatedFetch(url.toString(), {
           method: "PUT",
@@ -192,7 +197,7 @@ export function StoriesTranslate() {
       pageData={pageData}
       audioURLs={audioURLs}
       nextStepName={nextStepName}
-      onComplete={saveRequestedLines}
+      onSave={saveRequestedLines}
       onContinue={handleContinue}
     />
   );
@@ -202,8 +207,11 @@ interface TranslateSessionProps {
   pageData: TranslatePageData;
   audioURLs: Record<string, string>;
   nextStepName: string;
-  /** Called once with the 0-based requested line indices when the phase ends. */
-  onComplete: (requestedLines: number[]) => void;
+  /**
+   * Called after each reveal with the newly revealed 0-based lines, and once
+   * more with every requested line and `complete = true` when the phase ends.
+   */
+  onSave: (lines: number[], complete: boolean) => void;
   onContinue: () => void;
 }
 
@@ -211,7 +219,7 @@ function TranslateSession({
   pageData,
   audioURLs,
   nextStepName,
-  onComplete,
+  onSave,
   onContinue,
 }: TranslateSessionProps) {
   const [vocabLines] = useState<VocabLine[]>(() =>
@@ -225,7 +233,11 @@ function TranslateSession({
   const [state, dispatch] = useReducer(
     translateReducer,
     pageData.lines.length,
-    createTranslateState,
+    (lineCount) =>
+      createTranslateState(lineCount, {
+        requested: pageData.requested_lines ?? [],
+        completed: pageData.completed,
+      }),
   );
   const { phase, pass, requested, revealed, lineCount, command, commandSeq } =
     state;
@@ -296,13 +308,23 @@ function TranslateSession({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [commandSeq]);
 
-  // Persist the requested lines once, on completion.
-  const savedRef = useRef(false);
+  // Persist each reveal as it happens, so a reload can resume. Lines seeded
+  // from the server are already saved.
+  const savedCountRef = useRef(revealed.length);
   useEffect(() => {
-    if (phase.kind !== "complete" || savedRef.current) return;
-    savedRef.current = true;
-    onComplete(requested);
-  }, [phase.kind, requested, onComplete]);
+    if (revealed.length <= savedCountRef.current) return;
+    const fresh = revealed.slice(savedCountRef.current);
+    savedCountRef.current = revealed.length;
+    onSave(fresh, false);
+  }, [revealed, onSave]);
+
+  // Mark the phase complete once (not again when opened already finished).
+  const completedRef = useRef(phase.kind === "complete");
+  useEffect(() => {
+    if (phase.kind !== "complete" || completedRef.current) return;
+    completedRef.current = true;
+    onSave(requested, true);
+  }, [phase.kind, requested, onSave]);
 
   const handlePlayPause = () => {
     if (phase.kind === "idle") {
@@ -376,6 +398,16 @@ function TranslateSession({
             nextStepName={nextStepName}
             onContinue={onContinue}
           />
+        )}
+
+        {isComplete && (
+          <div className="bg-green-50 border-l-4 border-green-400 p-3 mb-4 rounded-r-lg text-left">
+            <p className="text-gray-800">
+              You translated {requested.length}{" "}
+              {requested.length === 1 ? "line" : "lines"} of this story. The
+              translations you requested are shown below.
+            </p>
+          </div>
         )}
 
         <div className="bg-gray-50 border border-gray-300 p-4 mb-4 rounded-lg text-center">

@@ -228,7 +228,7 @@ LEFT JOIN LATERAL (
 ) grammar_stats ON true
 LEFT JOIN LATERAL (
     SELECT
-        EXISTS(SELECT 1 FROM translation_requests WHERE user_id = u.user_id AND story_id = s.story_id) as completed,
+        EXISTS(SELECT 1 FROM translation_requests WHERE user_id = u.user_id AND story_id = s.story_id AND completed_at IS NOT NULL) as completed,
         COALESCE((SELECT requested_lines FROM translation_requests WHERE user_id = u.user_id AND story_id = s.story_id LIMIT 1), ARRAY[]::INTEGER[]) as requested_lines
 ) tr ON true
 LEFT JOIN LATERAL (

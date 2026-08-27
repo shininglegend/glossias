@@ -68,16 +68,37 @@ export type TranslateEvent =
   /** Sequential playback ran off the end of the story. */
   | { type: "STORY_ENDED" };
 
-export const createTranslateState = (lineCount: number): TranslateState => ({
-  lineCount,
-  phase: { kind: "idle" },
-  currentLine: 0,
-  requested: [],
-  revealed: [],
-  pass: 1,
-  command: null,
-  commandSeq: 0,
-});
+/** Progress saved on the server from an earlier visit. */
+export interface TranslateResume {
+  /** 0-based lines already translated (saved after each reveal). */
+  requested: number[];
+  /** The phase was finished on an earlier visit. */
+  completed: boolean;
+}
+
+export const createTranslateState = (
+  lineCount: number,
+  resume?: TranslateResume,
+): TranslateState => {
+  const requested = resume
+    ? [...new Set(resume.requested)]
+        .filter((l) => Number.isInteger(l) && l >= 0 && l < lineCount)
+        .sort((a, b) => a - b)
+    : [];
+  const completed = resume?.completed ?? false;
+  return {
+    lineCount,
+    phase: completed ? { kind: "complete" } : { kind: "idle" },
+    // A reload resumes from the last line that was translated, so the
+    // student re-hears it in context rather than restarting from the top.
+    currentLine: requested.length > 0 ? requested[requested.length - 1] : 0,
+    requested,
+    revealed: requested,
+    pass: 1,
+    command: null,
+    commandSeq: 0,
+  };
+};
 
 /**
  * The most requests a story of `lineCount` lines can hold under the
@@ -170,8 +191,8 @@ export function translateReducer(
     case "START":
       if (phase.kind !== "idle") return state;
       return withCommand(
-        { ...state, phase: { kind: "playing" }, currentLine: 0 },
-        { type: "playFrom", index: 0 },
+        { ...state, phase: { kind: "playing" } },
+        { type: "playFrom", index: state.currentLine },
       );
 
     case "PAUSE":

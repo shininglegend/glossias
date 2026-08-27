@@ -33,7 +33,8 @@ DeleteStoryTranslations(storyID int) error
 Translation Request Operations:
 GetTranslationRequest(userID string, storyID int) (*TranslationRequest, error)
 CreateTranslationRequest(userID string, storyID int, requestedLines []int) (*TranslationRequest, error)
-TranslationRequestExists(userID string, storyID int) (bool, error)
+TranslationRequestCompleted(userID string, storyID int) (bool, error)
+MarkTranslationRequestComplete(userID string, storyID int) error
 
 Grammar Point Operations:
 CreateGrammarPoint(storyID int, name, description string) (*GrammarPoint, error)

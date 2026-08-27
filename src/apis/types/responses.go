@@ -97,11 +97,16 @@ type GrammarPageData struct {
 	NextGrammarPoint   *int              `json:"next_grammar_point"`
 }
 
-// TranslationPageData extends PageData with translation field
+// TranslationPageData extends PageData with the user's translate-phase progress
 type TranslationPageData struct {
 	PageData
-	Lines         []LineTranslation `json:"lines"`
-	HasTranslated bool              `json:"has_translation"`
+	Lines []LineTranslation `json:"lines"`
+	// RequestedLines are the 0-based line indices already translated (saved
+	// after each reveal), so a reload can resume.
+	RequestedLines []int `json:"requested_lines"`
+	// Completed is true once the phase was finished; the page then shows the
+	// finished state instead of replaying.
+	Completed bool `json:"completed"`
 }
 
 // SaveTranslationRequest saves the translation to the database

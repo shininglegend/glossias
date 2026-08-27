@@ -56,7 +56,7 @@ type Querier interface {
 	// Time tracking queries
 	CreateTimeEntry(ctx context.Context, arg CreateTimeEntryParams) (UserTimeTracking, error)
 	// Translation requests management queries
-	CreateTranslationRequest(ctx context.Context, arg CreateTranslationRequestParams) (TranslationRequest, error)
+	CreateTranslationRequest(ctx context.Context, arg CreateTranslationRequestParams) (CreateTranslationRequestRow, error)
 	// User management queries
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateVocabularyItem(ctx context.Context, arg CreateVocabularyItemParams) (int32, error)
@@ -177,7 +177,7 @@ type Querier interface {
 	GetStoryTitle(ctx context.Context, arg GetStoryTitleParams) (string, error)
 	// Story titles
 	GetStoryTitles(ctx context.Context, storyID int32) ([]StoryTitle, error)
-	GetStoryTranslationRequests(ctx context.Context, storyID int32) ([]TranslationRequest, error)
+	GetStoryTranslationRequests(ctx context.Context, storyID int32) ([]GetStoryTranslationRequestsRow, error)
 	GetStoryVocabScores(ctx context.Context, storyID int32) ([]GetStoryVocabScoresRow, error)
 	GetStoryWithDescription(ctx context.Context, storyID int32) (GetStoryWithDescriptionRow, error)
 	GetTargetVocabulary(ctx context.Context, id int32) (GetTargetVocabularyRow, error)
@@ -190,7 +190,7 @@ type Querier interface {
 	GetTimeEntriesForUser(ctx context.Context, userID string) ([]UserTimeTracking, error)
 	GetTimeEntryByID(ctx context.Context, trackingID int32) (UserTimeTracking, error)
 	GetTranslationRequest(ctx context.Context, arg GetTranslationRequestParams) (TranslationRequest, error)
-	GetTranslationRequestByID(ctx context.Context, requestID int32) (TranslationRequest, error)
+	GetTranslationRequestByID(ctx context.Context, requestID int32) (GetTranslationRequestByIDRow, error)
 	GetTranslationsByLanguage(ctx context.Context, arg GetTranslationsByLanguageParams) ([]GetTranslationsByLanguageRow, error)
 	GetUser(ctx context.Context, userID string) (User, error)
 	GetUserByEmail(ctx context.Context, lower string) (User, error)
@@ -214,7 +214,7 @@ type Querier interface {
 	GetUserStoryRecallSummary(ctx context.Context, arg GetUserStoryRecallSummaryParams) (GetUserStoryRecallSummaryRow, error)
 	GetUserStoryTimeTracking(ctx context.Context, arg GetUserStoryTimeTrackingParams) (GetUserStoryTimeTrackingRow, error)
 	GetUserStoryVocabSummary(ctx context.Context, arg GetUserStoryVocabSummaryParams) (GetUserStoryVocabSummaryRow, error)
-	GetUserTranslationRequests(ctx context.Context, userID string) ([]TranslationRequest, error)
+	GetUserTranslationRequests(ctx context.Context, userID string) ([]GetUserTranslationRequestsRow, error)
 	GetUserTranslationStatusForStory(ctx context.Context, arg GetUserTranslationStatusForStoryParams) (GetUserTranslationStatusForStoryRow, error)
 	GetUserVocabScores(ctx context.Context, arg GetUserVocabScoresParams) ([]GetUserVocabScoresRow, error)
 	GetUsersByEmails(ctx context.Context, dollar_1 []string) ([]User, error)
@@ -228,6 +228,7 @@ type Querier interface {
 	ListGrammarPoints(ctx context.Context) ([]GrammarPoint, error)
 	ListSuperAdmins(ctx context.Context) ([]User, error)
 	ListUsers(ctx context.Context) ([]User, error)
+	MarkTranslationRequestComplete(ctx context.Context, arg MarkTranslationRequestCompleteParams) error
 	RemoveCourseAdmin(ctx context.Context, arg RemoveCourseAdminParams) error
 	RemoveUserFromCourse(ctx context.Context, arg RemoveUserFromCourseParams) error
 	SaveGrammarIncorrectAnswer(ctx context.Context, arg SaveGrammarIncorrectAnswerParams) error
@@ -241,7 +242,7 @@ type Querier interface {
 	SaveVocabIncorrectAnswer(ctx context.Context, arg SaveVocabIncorrectAnswerParams) error
 	SaveVocabScore(ctx context.Context, arg SaveVocabScoreParams) error
 	StoryExists(ctx context.Context, storyID int32) (bool, error)
-	TranslationRequestExists(ctx context.Context, arg TranslationRequestExistsParams) (bool, error)
+	TranslationRequestCompleted(ctx context.Context, arg TranslationRequestCompletedParams) (bool, error)
 	UpdateAnonymousTimeEntry(ctx context.Context, arg UpdateAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
 	UpdateAudioFile(ctx context.Context, arg UpdateAudioFileParams) (LineAudioFile, error)
 	UpdateCourse(ctx context.Context, arg UpdateCourseParams) (Course, error)

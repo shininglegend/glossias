@@ -158,7 +158,7 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check translation completion
-	translationCompleted, err := models.TranslationRequestExists(r.Context(), userID, id)
+	translationCompleted, err := models.TranslationRequestCompleted(r.Context(), userID, id)
 	if err != nil {
 		h.log.Error("Failed to check translation completion", "error", err, "storyID", id, "userID", userID)
 		h.sendError(w, "Internal server error", http.StatusInternalServerError)

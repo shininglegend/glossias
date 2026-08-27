@@ -579,3 +579,55 @@ describe("useAudioPlayer — onPlaybackEnd", () => {
     expect(second).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("useAudioPlayer — onPauseAfterLine", () => {
+  it("reports the line when pauseOnLines stops sequential playback", async () => {
+    const onPauseAfterLine = vi.fn();
+    const { result } = await setup({
+      onPauseAfterLine,
+      pauseOnLines: new Set([1]),
+    });
+
+    act(() => result.current.playStoryAudio());
+    await endLine(1);
+    expect(onPauseAfterLine).not.toHaveBeenCalled();
+    await endLine(2);
+
+    expect(onPauseAfterLine).toHaveBeenCalledTimes(1);
+    expect(onPauseAfterLine).toHaveBeenCalledWith(1);
+    expect(result.current.isPlaying).toBe(false);
+  });
+
+  it("is not fired by user pauses, stops, or the end of the story", async () => {
+    const onPauseAfterLine = vi.fn();
+    const onPlaybackEnd = vi.fn();
+    const { result } = await setup({ onPauseAfterLine, onPlaybackEnd });
+
+    act(() => result.current.playStoryAudio());
+    act(() => result.current.pauseAudio());
+    act(() => result.current.stopAudio());
+    act(() => result.current.playStoryAudio());
+    for (let n = 1; n <= LINE_COUNT; n++) await endLine(n);
+
+    expect(onPauseAfterLine).not.toHaveBeenCalled();
+    expect(onPlaybackEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the latest pauseOnLines and callback at line end", async () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const { result, rerenderWith } = await setup({
+      onPauseAfterLine: first,
+      pauseOnLines: new Set<number>(),
+    });
+
+    act(() => result.current.playStoryAudio());
+    await endLine(1);
+    // Mid-line: a request arrives for the line that is playing.
+    rerenderWith({ onPauseAfterLine: second, pauseOnLines: new Set([1]) });
+    await endLine(2);
+
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledWith(1);
+  });
+});

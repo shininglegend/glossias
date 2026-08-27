@@ -34,6 +34,7 @@ interface TranslatePageData {
 
 const RTL_LANGUAGES = ["he", "ar", "fa", "ur"];
 const EMPTY_SET = new Set<number>();
+const noop = () => {};
 
 // Transform translate line to vocab line format
 const transformToVocabLine = (
@@ -219,7 +220,6 @@ function TranslateSession({
 
   // Audio-player status mirrored into React state.
   const [audioLineIndex, setAudioLineIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [playedLines, setPlayedLines] = useState<Set<number>>(new Set());
 
   const [state, dispatch] = useReducer(
@@ -231,6 +231,10 @@ function TranslateSession({
     state;
 
   const onStoryEnded = useCallback(() => dispatch({ type: "STORY_ENDED" }), []);
+  // The hook stopped at the end of the line a request was waiting on. This is
+  // an explicit event from the hook (not inferred from isPlaying), so a user
+  // pause/resume while waiting cannot be mistaken for the line ending.
+  const onLineEnded = useCallback(() => dispatch({ type: "LINE_ENDED" }), []);
 
   // While a request is pending, pause after whichever line is playing. The
   // hook reads this at `ended` time, so if the click lands as a line ends the
@@ -251,24 +255,18 @@ function TranslateSession({
     },
     onPlayedLinesChange: setPlayedLines,
     onCurrentLineChange: setAudioLineIndex,
-    onPlayingStateChange: setIsPlaying,
+    onPlayingStateChange: noop,
     completedLines: EMPTY_SET,
     pauseOnLines,
     skipLines,
     onPlaybackEnd: onStoryEnded,
+    onPauseAfterLine: onLineEnded,
   });
 
   // Mirror the audio player's line into the machine.
   useEffect(() => {
     dispatch({ type: "LINE_CHANGED", index: audioLineIndex });
   }, [audioLineIndex]);
-
-  // The hook paused at the end of the line a request was waiting on.
-  useEffect(() => {
-    if (!isPlaying && phase.kind === "awaitingLineEnd") {
-      dispatch({ type: "LINE_ENDED" });
-    }
-  }, [isPlaying, phase.kind]);
 
   // Timed transitions: 2s prediction beat, then 5s reveal hold.
   useEffect(() => {

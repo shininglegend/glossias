@@ -27,6 +27,12 @@ interface UseAudioPlayerProps {
    * `stopAudio`, `pauseAudio`, or single-line playback.
    */
   onPlaybackEnd?: () => void;
+  /**
+   * Called when sequential playback stops after `lineIndex` because
+   * `shouldPauseAfter` said so (pauseOnLines / pauseAfterEveryLine / vocab
+   * heuristic). Not called for user pauses, stops, or the end of the story.
+   */
+  onPauseAfterLine?: (lineIndex: number) => void;
 }
 
 // Helper function to check if a line contains vocabulary placeholders
@@ -45,6 +51,7 @@ export const useAudioPlayer = ({
   pauseOnLines,
   skipLines,
   onPlaybackEnd,
+  onPauseAfterLine,
 }: UseAudioPlayerProps) => {
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(
     null,
@@ -68,6 +75,7 @@ export const useAudioPlayer = ({
     pauseOnLines,
     skipLines,
     onPlaybackEnd,
+    onPauseAfterLine,
   });
   optionsRef.current = {
     pageData,
@@ -76,6 +84,7 @@ export const useAudioPlayer = ({
     pauseOnLines,
     skipLines,
     onPlaybackEnd,
+    onPauseAfterLine,
   };
   const resumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Detach handler for the most recently started playback, so a new play
@@ -304,6 +313,7 @@ export const useAudioPlayer = ({
 
         if (shouldPauseAfter(startIndex)) {
           setIsPlaying(false);
+          optionsRef.current.onPauseAfterLine?.(startIndex);
           return;
         }
 
@@ -325,6 +335,7 @@ export const useAudioPlayer = ({
 
       if (shouldPauseAfter(startIndex)) {
         setIsPlaying(false);
+        optionsRef.current.onPauseAfterLine?.(startIndex);
         return;
       }
       playNextLineFromIndex(startIndex + 1);

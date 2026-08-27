@@ -354,6 +354,7 @@ func TestStoryContentReadinessAllReady(t *testing.T) {
 	sentences, ids := fiveRecallSentences()
 
 	ready := StoryContentReadiness{
+		Video:    ValidateVideo("https://example.com/video"),
 		Identify: ValidateTargetVocabulary(words, occurrences),
 		Produce:  ValidateProduceContent(twoProduceSegments(), "explained"),
 		Recall:   ValidateRecallSentences(sentences, ids),
@@ -365,6 +366,18 @@ func TestStoryContentReadinessAllReady(t *testing.T) {
 	ready.Recall = ValidateRecallSentences(sentences[:2], ids)
 	if ready.AllReady() {
 		t.Error("AllReady must be false when one phase is incomplete")
+	}
+	if got := ready.MissingPhases(); len(got) != 1 || got[0] != "recall" {
+		t.Errorf("MissingPhases = %v, want [recall]", got)
+	}
+
+	ready.Recall = ValidateRecallSentences(sentences, ids)
+	ready.Video = ValidateVideo("  ")
+	if ready.AllReady() {
+		t.Error("AllReady must be false when the video link is missing")
+	}
+	if got := ready.MissingPhases(); len(got) != 1 || got[0] != "video" {
+		t.Errorf("MissingPhases = %v, want [video]", got)
 	}
 }
 

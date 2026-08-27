@@ -13,7 +13,7 @@ interface AdminStoryNavigationProps {
 // recall sentences).
 const EDITORS = [
   { path: "annotate", label: "Annotate" },
-  { path: "metadata", label: "Metadata" },
+  { path: "metadata", label: "Metadata", phase: "video" },
   { path: "translate", label: "Translate" },
   { path: "target-vocab", label: "Target Vocab", phase: "identify" },
   { path: "produce", label: "Produce", phase: "produce" },

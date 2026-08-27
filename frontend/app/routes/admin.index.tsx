@@ -20,6 +20,7 @@ type StoryListItem = {
 
 // Where to send an admin to fix each incomplete phase.
 const PHASE_EDITOR: Record<string, { label: string; path: string }> = {
+  video: { label: "Video link", path: "metadata" },
   identify: { label: "Identify", path: "target-vocab" },
   produce: { label: "Produce", path: "produce" },
   recall: { label: "Recall", path: "recall" },
@@ -29,7 +30,7 @@ function IncompleteWarning({ story }: { story: StoryListItem }) {
   const missing = story.missing_phases ?? [];
   if (missing.length === 0) return null;
   const labels = missing.map((p) => PHASE_EDITOR[p]?.label ?? p);
-  const first = PHASE_EDITOR[missing[0]]?.path ?? "target-vocab";
+  const first = PHASE_EDITOR[missing[0]]?.path ?? "metadata";
   return (
     <Link
       to={`/admin/stories/${story.id}/${first}`}

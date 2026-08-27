@@ -30,8 +30,11 @@ type PhaseReadiness struct {
 	Issues []ContentIssue `json:"issues"`
 }
 
-// StoryContentReadiness is the per-phase report for one story.
+// StoryContentReadiness is the per-phase report for one story. Video covers
+// the story-level link every phase flow starts from; it is edited on the
+// metadata page.
 type StoryContentReadiness struct {
+	Video    PhaseReadiness `json:"video"`
 	Identify PhaseReadiness `json:"identify"`
 	Produce  PhaseReadiness `json:"produce"`
 	Recall   PhaseReadiness `json:"recall"`
@@ -39,14 +42,14 @@ type StoryContentReadiness struct {
 
 // AllReady reports whether every new phase is fully authored.
 func (r StoryContentReadiness) AllReady() bool {
-	return r.Identify.Ready && r.Produce.Ready && r.Recall.Ready
+	return r.Video.Ready && r.Identify.Ready && r.Produce.Ready && r.Recall.Ready
 }
 
 // MissingPhases lists the phases that are not ready, in phase order. Empty
 // when AllReady.
 func (r StoryContentReadiness) MissingPhases() []string {
 	var missing []string
-	for _, p := range []PhaseReadiness{r.Identify, r.Produce, r.Recall} {
+	for _, p := range []PhaseReadiness{r.Video, r.Identify, r.Produce, r.Recall} {
 		if !p.Ready {
 			missing = append(missing, p.Phase)
 		}
@@ -61,6 +64,15 @@ func newReadiness(phase string, issues []ContentIssue) PhaseReadiness {
 		Ready:  len(issues) == 0,
 		Issues: issues,
 	}
+}
+
+// ValidateVideo checks that the story has a video link.
+func ValidateVideo(videoURL string) PhaseReadiness {
+	var issues []ContentIssue
+	if strings.TrimSpace(videoURL) == "" {
+		issues = append(issues, ContentIssue{Field: "videoUrl", Message: "story has no video link"})
+	}
+	return newReadiness("video", issues)
 }
 
 // ValidateTargetVocabulary checks the Identify phase's authoring rules against a
@@ -253,6 +265,11 @@ func buildStoryContentReadiness(ctx context.Context, storyID int) (StoryContentR
 		return StoryContentReadiness{}, errors.New("database not initialized")
 	}
 
+	dbStory, err := queries.GetStory(ctx, int32(storyID))
+	if err != nil {
+		return StoryContentReadiness{}, err
+	}
+
 	words, err := GetStoryTargetVocabulary(ctx, storyID)
 	if err != nil {
 		return StoryContentReadiness{}, err
@@ -288,6 +305,7 @@ func buildStoryContentReadiness(ctx context.Context, storyID int) (StoryContentR
 	}
 
 	return StoryContentReadiness{
+		Video:    ValidateVideo(dbStory.VideoUrl.String),
 		Identify: ValidateTargetVocabulary(words, occurrences),
 		Produce:  ValidateProduceContent(segments, explanation),
 		Recall:   ValidateRecallSentences(sentences, targetVocabIDs),

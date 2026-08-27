@@ -100,6 +100,7 @@ export interface PhaseReadiness {
 }
 
 export interface StoryContentReadiness {
+  video: PhaseReadiness;
   identify: PhaseReadiness;
   produce: PhaseReadiness;
   recall: PhaseReadiness;

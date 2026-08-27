@@ -208,12 +208,35 @@ export function RecallSession({
   const [isPlaying, setIsPlaying] = useState(false);
   const [playedLines, setPlayedLines] = useState<Set<number>>(new Set());
 
+  // How many lines the student has heard so far, persisted per story in this
+  // browser so a reload can pick up where they left off rather than
+  // restarting a two-minute narration. Cleared once the story finishes.
+  const progressKey = listeningProgressKey(pageData.story_id);
+  const [furthestHeard, setFurthestHeard] = useState(() =>
+    readListeningProgress(progressKey, pageData.line_count),
+  );
+  const resumeLine = furthestHeard > 0 && furthestHeard < pageData.line_count;
+  useEffect(() => {
+    if (playedLines.size === 0) return;
+    const heard = Math.max(...playedLines) + 1;
+    setFurthestHeard((current) => {
+      const next = Math.max(current, heard);
+      // Nothing to resume once every line is heard; onPlaybackEnd clears the
+      // key, and this effect can run after it for the final line.
+      if (next !== current && next < pageData.line_count) {
+        writeListeningProgress(progressKey, next);
+      }
+      return next;
+    });
+  }, [playedLines, progressKey, pageData.line_count]);
+
   const onPlaybackEnd = useCallback(() => {
+    clearListeningProgress(progressKey);
     setPhase((current) => {
       if (current !== "listening") return current;
       return hasSentences ? "arranging" : "complete";
     });
-  }, [hasSentences]);
+  }, [hasSentences, progressKey]);
 
   const audioPlayer = useAudioPlayer({
     audioURLs,
@@ -234,13 +257,26 @@ export function RecallSession({
   });
 
   const handlePlayPause = () => {
-    if (phase === "idle" || phase === "paused") {
+    if (phase === "idle" && resumeLine) {
+      // Continue from the furthest line heard on an earlier visit. The
+      // continuation API starts at index + 1.
+      setPhase("listening");
+      audioPlayer.playNextLineFromIndex(furthestHeard - 1);
+    } else if (phase === "idle" || phase === "paused") {
       setPhase("listening");
       audioPlayer.playStoryAudio();
     } else if (phase === "listening") {
       audioPlayer.pauseAudio();
       setPhase("paused");
     }
+  };
+
+  /** Replay the previous line (or the current one, on line 1) and carry on. */
+  const handleBackOneLine = () => {
+    if (phase !== "listening" && phase !== "paused") return;
+    const target = Math.max(audioLineIndex - 1, 0);
+    setPhase("listening");
+    audioPlayer.playNextLineFromIndex(target - 1);
   };
 
   // ---- Ordering -------------------------------------------------------------
@@ -289,9 +325,8 @@ export function RecallSession({
 
   const isRTL = RTL_LANGUAGES.includes(pageData.language);
   const lineCount = pageData.line_count;
-  const listened = playedLines.size;
   const progressPercent =
-    lineCount > 0 ? Math.round((listened / lineCount) * 100) : 0;
+    lineCount > 0 ? Math.round((furthestHeard / lineCount) * 100) : 0;
   const isListeningPhase =
     phase === "idle" || phase === "listening" || phase === "paused";
   const correctCount = lastResults?.filter(Boolean).length ?? 0;
@@ -328,10 +363,22 @@ export function RecallSession({
               Listen to the whole story
             </h3>
             <p className="text-gray-600 leading-relaxed max-w-md mx-auto">
-              The story plays with no text. When it ends, you'll put five key
+              Play the story audio here. When it ends, you'll put five key
               sentences back into story order.
             </p>
           </div>
+
+          {phase === "idle" && resumeLine && (
+            <div
+              className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4 rounded-r-lg text-left"
+              data-testid="recall-resume"
+            >
+              <p className="text-gray-800">
+                Welcome back — you'll pick up from line {furthestHeard + 1},
+                where you left off.
+              </p>
+            </div>
+          )}
 
           <div className="mb-6">
             <div
@@ -361,7 +408,17 @@ export function RecallSession({
             </div>
           </div>
 
-          <div className="flex justify-center">
+          <div className="flex flex-wrap justify-center gap-3">
+            {phase !== "idle" && (
+              <button
+                onClick={handleBackOneLine}
+                className="inline-flex items-center gap-2 px-4 py-3 bg-gray-100 text-gray-800 border border-gray-300 rounded-lg text-base transition-colors duration-200 cursor-pointer hover:bg-gray-200"
+                type="button"
+              >
+                <span className="material-icons">replay</span>
+                Back 1 line
+              </button>
+            )}
             <button
               onClick={handlePlayPause}
               className={`inline-flex items-center gap-2 px-5 py-3 text-white border-none rounded-lg text-base transition-colors duration-200 cursor-pointer ${
@@ -516,6 +573,41 @@ export function RecallSession({
       )}
     </div>
   );
+}
+
+// ---- Listening progress (per browser) --------------------------------------
+//
+// Only the listening position is kept client-side; answers are server-side.
+// localStorage can be missing or throw (private mode, blocked storage), so
+// every access is guarded and falls back to "start from the beginning".
+
+const listeningProgressKey = (storyId: string) => `recall-listened:${storyId}`;
+
+function readListeningProgress(key: string, lineCount: number): number {
+  try {
+    const raw = window.localStorage.getItem(key);
+    const heard = raw === null ? 0 : Number.parseInt(raw, 10);
+    if (!Number.isInteger(heard) || heard < 0) return 0;
+    return Math.min(heard, lineCount);
+  } catch {
+    return 0;
+  }
+}
+
+function writeListeningProgress(key: string, heard: number) {
+  try {
+    window.localStorage.setItem(key, String(heard));
+  } catch {
+    // Best effort only.
+  }
+}
+
+function clearListeningProgress(key: string) {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Best effort only.
+  }
 }
 
 interface SortableRecallCardProps {

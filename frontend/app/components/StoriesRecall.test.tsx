@@ -132,9 +132,22 @@ const submit = async () => {
   });
 };
 
+// happy-dom under vitest does not provide localStorage; a minimal in-memory
+// stand-in is enough to exercise the resume-on-reload behaviour.
+const makeStorage = () => {
+  const store = new Map<string, string>();
+  return {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => void store.set(k, String(v)),
+    removeItem: (k: string) => void store.delete(k),
+    clear: () => store.clear(),
+  };
+};
+
 beforeEach(() => {
   FakeAudio.instances = [];
   vi.stubGlobal("Audio", FakeAudio);
+  vi.stubGlobal("localStorage", makeStorage());
 });
 
 afterEach(() => {
@@ -183,6 +196,83 @@ describe("RecallSession", () => {
     fireEvent.click(screen.getByRole("button", { name: /resume audio/i }));
     expect(FakeAudio.byLine(2).playCalls).toBe(2);
     expect(FakeAudio.byLine(3).playCalls).toBe(0);
+  });
+
+  it("replays the previous line on Back 1 line and carries on from there", async () => {
+    await setup();
+    expect(
+      screen.queryByRole("button", { name: /back 1 line/i }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /start/i }));
+    await endLine(1);
+    await endLine(2);
+    expect(FakeAudio.byLine(3).playCalls).toBe(1);
+
+    // On line 3 → go back to line 2, then continue with 3 again.
+    fireEvent.click(screen.getByRole("button", { name: /back 1 line/i }));
+    expect(FakeAudio.byLine(2).playCalls).toBe(2);
+    expect(screen.getByTestId("recall-progress")).toHaveTextContent(
+      "Line 2 of 3",
+    );
+    await endLine(2);
+    expect(FakeAudio.byLine(3).playCalls).toBe(2);
+
+    // Works while paused too, and resumes playback.
+    fireEvent.click(screen.getByRole("button", { name: /pause audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /back 1 line/i }));
+    expect(FakeAudio.byLine(2).playCalls).toBe(3);
+    expect(
+      screen.getByRole("button", { name: /pause audio/i }),
+    ).toBeInTheDocument();
+
+    // On line 1 it just restarts line 1.
+    fireEvent.click(screen.getByRole("button", { name: /back 1 line/i }));
+    fireEvent.click(screen.getByRole("button", { name: /back 1 line/i }));
+    expect(FakeAudio.byLine(1).playCalls).toBe(3);
+
+    // Going back never lowers the progress already made.
+    expect(screen.getByRole("progressbar")).toHaveAttribute(
+      "aria-valuenow",
+      "67",
+    );
+  });
+
+  it("remembers the furthest line heard and resumes there on reload", async () => {
+    const { unmount } = await setup();
+    fireEvent.click(screen.getByRole("button", { name: /start/i }));
+    await endLine(1);
+    await endLine(2);
+    expect(window.localStorage.getItem("recall-listened:1")).toBe("2");
+    unmount();
+
+    FakeAudio.instances = [];
+    await setup();
+    expect(screen.getByTestId("recall-resume")).toHaveTextContent(
+      "pick up from line 3",
+    );
+    expect(screen.getByRole("progressbar")).toHaveAttribute(
+      "aria-valuenow",
+      "67",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /start/i }));
+    expect(FakeAudio.byLine(1).playCalls).toBe(0);
+    expect(FakeAudio.byLine(2).playCalls).toBe(0);
+    expect(FakeAudio.byLine(3).playCalls).toBe(1);
+
+    // Finishing clears the saved position.
+    await endLine(3);
+    expect(screen.getByTestId("recall-cards")).toBeInTheDocument();
+    expect(window.localStorage.getItem("recall-listened:1")).toBeNull();
+  });
+
+  it("ignores a saved position that is out of range", async () => {
+    window.localStorage.setItem("recall-listened:1", "99");
+    await setup();
+    expect(screen.queryByTestId("recall-resume")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /start/i }));
+    expect(FakeAudio.byLine(1).playCalls).toBe(1);
   });
 
   it("shows the cards in server order and lets the student reorder them", async () => {

@@ -34,15 +34,13 @@ brew install supabase/tap/supabase
 supabase start
 ```
 
-If the repository has no `supabase/` directory yet, run `supabase init` once first.
-
 The first start pulls several Docker images and takes a few minutes. When it finishes it prints the local URLs and keys — keep that output, step 3 needs it. You can reprint it at any time with:
 
 ```bash
 supabase status
 ```
 
-The CLI's default local ports are:
+The local ports are set in `supabase/config.toml`, which is committed:
 
 | Service | URL |
 | --- | --- |
@@ -79,17 +77,13 @@ And a `frontend/.env`:
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
 ```
 
-### Step 4: Apply the database schema
+### Step 4: Database schema
 
-The backend embeds `src/pkg/database/schema.sql` and runs it on every startup, so the tables create themselves the first time you launch — there is no separate setup command for the base schema.
+Nothing to do by hand. The backend embeds the SQL files in `src/pkg/database/migrations/` and runs them through [goose](https://github.com/pressly/goose) on every startup, so a fresh database migrates itself the first time you launch. Already-applied migrations are skipped.
 
-Files in `migrations/` are **not** applied automatically. Run them by hand against your database, in filename order:
+To add a schema change, drop a new numbered file in `src/pkg/database/migrations/` with goose's `-- +goose Up` / `-- +goose Down` annotations. It is applied on the next start.
 
-```bash
-psql "$DATABASE_URL" -f migrations/001_add_course_status.sql
-```
-
-If you would rather not install `psql`, paste the file's contents into the SQL editor in Supabase Studio instead (`http://127.0.0.1:54323` locally, or the dashboard for a hosted project).
+> Migrations run before the connection pool opens, so a failing migration stops the server with the error rather than leaving it half-started.
 
 ### Step 5: Run the backend
 

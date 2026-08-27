@@ -8,6 +8,11 @@ import Badge from "~/components/ui/Badge";
 
 import { useAdminApi } from "../services/adminApi";
 import { useAuthenticatedFetch } from "../lib/authFetch";
+import { pageMeta } from "~/lib/pageTitle";
+
+export function meta() {
+  return pageMeta("Admin Dashboard");
+}
 
 type StoryListItem = {
   id: number;

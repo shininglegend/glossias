@@ -4,6 +4,11 @@ import type { Story } from "../types/admin";
 import { useAdminApi } from "../services/adminApi";
 import StoryJSONEditor from "../components/Admin/StoryJSONEditor";
 import AdminStoryPage from "../components/Admin/AdminStoryPage";
+import { pageMeta } from "~/lib/pageTitle";
+
+export function meta() {
+  return pageMeta("Edit Story");
+}
 
 function Section({
   title,

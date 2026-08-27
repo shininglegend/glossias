@@ -1,6 +1,11 @@
 import { useParams } from "react-router";
 import AdminStoryPage from "../components/Admin/AdminStoryPage";
 import RecallEditor from "../components/Admin/RecallEditor";
+import { pageMeta } from "~/lib/pageTitle";
+
+export function meta() {
+  return pageMeta("Recall Authoring");
+}
 
 export default function RecallRoute() {
   const { id } = useParams();

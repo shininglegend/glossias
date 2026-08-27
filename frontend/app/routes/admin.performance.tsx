@@ -2,6 +2,11 @@ import { Link } from "react-router";
 import { useUserContext, isUserAdminOfCourses } from "../contexts/UserContext";
 import { Card } from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
+import { pageMeta } from "~/lib/pageTitle";
+
+export function meta() {
+  return pageMeta("Student Performance");
+}
 
 export default function AdminPerformance() {
   const { userInfo, loading } = useUserContext();

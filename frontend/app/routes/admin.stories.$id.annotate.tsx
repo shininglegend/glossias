@@ -6,6 +6,11 @@ import { useAdminApi } from "../services/adminApi";
 import Button from "~/components/ui/Button";
 import AdminStoryPage from "../components/Admin/AdminStoryPage";
 import ConfirmDialog from "~/components/ui/ConfirmDialog";
+import { pageMeta } from "~/lib/pageTitle";
+
+export function meta() {
+  return pageMeta("Annotate Story");
+}
 
 export default function AdminAnnotateRoute() {
   const params = useParams();

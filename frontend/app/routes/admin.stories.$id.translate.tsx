@@ -5,6 +5,11 @@ import { useAdminApi } from "../services/adminApi";
 import AdminStoryPage from "../components/Admin/AdminStoryPage";
 import Button from "~/components/ui/Button";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
+import { pageMeta } from "~/lib/pageTitle";
+
+export function meta() {
+  return pageMeta("Translate Story");
+}
 
 interface TranslationLine {
   lineNumber: number;

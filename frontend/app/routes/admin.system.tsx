@@ -4,6 +4,11 @@ import Button from "~/components/ui/Button";
 import { Card } from "~/components/ui/Card";
 import { useUserContext } from "../contexts/UserContext";
 import { useAuthenticatedFetch } from "../lib/authFetch";
+import { pageMeta } from "~/lib/pageTitle";
+
+export function meta() {
+  return pageMeta("System Management");
+}
 
 export default function AdminSystem() {
   const { userInfo } = useUserContext();

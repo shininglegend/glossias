@@ -1,6 +1,11 @@
 import { useParams } from "react-router";
 import AdminStoryPage from "../components/Admin/AdminStoryPage";
 import TargetVocabEditor from "../components/Admin/TargetVocabEditor";
+import { pageMeta } from "~/lib/pageTitle";
+
+export function meta() {
+  return pageMeta("Target Vocabulary");
+}
 
 export default function TargetVocabRoute() {
   const { id } = useParams();

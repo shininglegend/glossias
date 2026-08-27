@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 export function meta() {
   return [
-    { title: "Glossias - Video" },
+    { title: "Video | Glossias" },
     { name: "description", content: "Watch the story video" },
   ];
 }

@@ -12,6 +12,11 @@ import {
   type CourseAdmin,
 } from "../services/coursesApi";
 import { useUserContext } from "../contexts/UserContext";
+import { pageMeta } from "~/lib/pageTitle";
+
+export function meta() {
+  return pageMeta("Course Management");
+}
 
 export default function AdminCourses() {
   const coursesApi = useCoursesApi();

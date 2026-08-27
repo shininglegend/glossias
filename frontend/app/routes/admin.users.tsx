@@ -8,6 +8,11 @@ import {
   useCoursesApi,
   type Course as CourseType,
 } from "../services/coursesApi";
+import { pageMeta } from "~/lib/pageTitle";
+
+export function meta() {
+  return pageMeta("User Management");
+}
 
 type User = {
   id: string;

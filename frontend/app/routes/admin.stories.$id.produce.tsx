@@ -1,6 +1,11 @@
 import { useParams } from "react-router";
 import AdminStoryPage from "../components/Admin/AdminStoryPage";
 import ProduceEditor from "../components/Admin/ProduceEditor";
+import { pageMeta } from "~/lib/pageTitle";
+
+export function meta() {
+  return pageMeta("Produce Authoring");
+}
 
 export default function ProduceRoute() {
   const { id } = useParams();

@@ -13,6 +13,11 @@ import type { Route } from "./+types/root";
 import stylesheet from "./app.css?url";
 import NavBar from "./components/NavBar";
 import { UserProvider } from "./contexts/UserContext";
+import { pageTitle } from "./lib/pageTitle";
+
+export function meta() {
+  return [{ title: pageTitle() }];
+}
 
 // Clerk
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;

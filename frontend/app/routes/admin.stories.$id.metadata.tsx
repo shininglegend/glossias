@@ -5,6 +5,11 @@ import { useAdminApi } from "../services/adminApi";
 import MetadataForm from "../components/Admin/MetadataForm";
 import AdminStoryPage from "../components/Admin/AdminStoryPage";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
+import { pageMeta } from "~/lib/pageTitle";
+
+export function meta() {
+  return pageMeta("Edit Metadata");
+}
 
 export default function EditMetadata() {
   const { id } = useParams();

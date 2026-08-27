@@ -9,7 +9,9 @@ import type { NavigationGuidanceResponse } from "../types/api";
 function getYouTubeEmbedUrl(url: string): string | null {
   const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
   const match = url.match(regex);
-  return match ? `https://www.youtube.com/embed/${match[1]}` : null;
+  // autoplay=1 is honored because the embed is only mounted after the
+  // student clicks "Start video", which counts as a user gesture.
+  return match ? `https://www.youtube.com/embed/${match[1]}?autoplay=1` : null;
 }
 
 function isYouTubeUrl(url: string): boolean {
@@ -24,7 +26,8 @@ export function StoriesVideo() {
   const [metadata, setMetadata] = useState<StoryMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [, setVideoWatched] = useState(false);
+  const [videoStarted, setVideoStarted] = useState(false);
+  const [videoWatched, setVideoWatched] = useState(false);
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
   const [guidanceCache, setGuidanceCache] =
     useState<NavigationGuidanceResponse | null>(null);
@@ -123,33 +126,63 @@ export function StoriesVideo() {
     );
   }
 
+  const title =
+    typeof metadata.title === "string"
+      ? metadata.title
+      : metadata.title?.en || "Story";
+  const summary = metadata.description?.text || "";
+  const isYouTube = isYouTubeUrl(metadata.videoUrl);
+  // Direct <video> reports progress, so Continue is gated on it. YouTube
+  // embeds can't report progress without the IFrame API, so leave ungated.
+  const canContinue = isYouTube || videoWatched;
+
+  const goToNextStep = async () => {
+    try {
+      const guidance =
+        guidanceCache || (await getNavigationGuidance(id!, "video"));
+      if (guidance) {
+        navigate(`/stories/${id}/${guidance.nextPage}`);
+      }
+    } catch (error) {
+      console.error("Failed to get navigation guidance:", error);
+    }
+  };
+
+  if (!videoStarted) {
+    return (
+      <>
+        <header>
+          <h1>{title}</h1>
+          <h2>Before you watch</h2>
+        </header>
+        <div className="max-w-2xl mx-auto px-5 text-center">
+          {summary ? (
+            <p className="text-xl leading-relaxed text-gray-800 mb-8">
+              {summary}
+            </p>
+          ) : (
+            <p className="text-lg text-gray-600 mb-8">
+              Watch the video to get familiar with the story before the other
+              exercises.
+            </p>
+          )}
+          <button
+            onClick={() => setVideoStarted(true)}
+            className="inline-flex items-center px-8 py-4 bg-secondary-500 text-white rounded-lg hover:bg-secondary-600 text-lg font-semibold transition-all duration-200 shadow-lg"
+          >
+            <span className="material-icons mr-2">play_arrow</span>
+            <span>Start video</span>
+          </button>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <header>
-        <h1>
-          {typeof metadata.title === "string"
-            ? metadata.title
-            : metadata.title?.en || "Story"}
-        </h1>
+        <h1>{title}</h1>
         <h2>Watch the story video</h2>
-
-        <div className="bg-gray-50 border-2 border-yellow-400 p-4 mb-4 rounded-lg text-center">
-          <div className="flex items-start justify-center">
-            <span className="material-icons text-gray-600 mr-2 mt-1">info</span>
-            <div>
-              <p className="text-gray-700">
-                {metadata.description?.text || ""}
-              </p>
-              <p className="text-gray-700">
-                <strong>
-                  Please watch the entire video before continuing.
-                </strong>{" "}
-                This will help you get familiar with the story before the other
-                exercises.
-              </p>
-            </div>
-          </div>
-        </div>
       </header>
       <div className="max-w-4xl mx-auto px-5">
         <div
@@ -162,7 +195,7 @@ export function StoriesVideo() {
             position: "relative",
           }}
         >
-          {isYouTubeUrl(metadata.videoUrl) ? (
+          {isYouTube ? (
             <>
               {!iframeLoaded && (
                 <div
@@ -196,10 +229,14 @@ export function StoriesVideo() {
             <video
               src={metadata.videoUrl}
               controls
+              autoPlay
               onEnded={() => setVideoWatched(true)}
               onTimeUpdate={(e) => {
                 const video = e.target as HTMLVideoElement;
-                if (video.currentTime / video.duration > 0.8) {
+                if (
+                  video.duration &&
+                  video.currentTime / video.duration > 0.8
+                ) {
                   setVideoWatched(true);
                 }
               }}
@@ -213,21 +250,28 @@ export function StoriesVideo() {
             </video>
           )}
         </div>
-        <CompletionMessage
-          currentStepName="video"
-          nextStepName={nextStepName}
-          onContinue={async () => {
-            try {
-              const guidance =
-                guidanceCache || (await getNavigationGuidance(id!, "video"));
-              if (guidance) {
-                navigate(`/stories/${id}/${guidance.nextPage}`);
-              }
-            } catch (error) {
-              console.error("Failed to get navigation guidance:", error);
-            }
-          }}
-        />
+        {canContinue ? (
+          <CompletionMessage
+            currentStepName="video"
+            nextStepName={nextStepName}
+            onContinue={goToNextStep}
+          />
+        ) : (
+          <div className="text-center m-10 p-6 bg-gray-50 rounded-xl border-2 border-yellow-400">
+            <div className="flex items-start justify-center">
+              <span className="material-icons text-gray-600 mr-2 mt-1">
+                info
+              </span>
+              <p className="text-gray-700 m-0">
+                <strong>
+                  Please watch the entire video before continuing.
+                </strong>{" "}
+                The continue button will appear once the video is nearly
+                finished.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

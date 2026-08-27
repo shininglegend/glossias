@@ -198,63 +198,75 @@ describe("RecallSession", () => {
     expect(FakeAudio.byLine(3).playCalls).toBe(0);
   });
 
-  it("replays the previous line on Back 1 line and carries on from there", async () => {
+  it("lets the student step back and forward within the part already heard", async () => {
     await setup();
     expect(
       screen.queryByRole("button", { name: /back 1 line/i }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /forward 1 line/i }),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /start/i }));
+    // On line 1 with nothing heard yet: neither direction is available.
+    expect(screen.getByRole("button", { name: /back 1 line/i })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /forward 1 line/i }),
+    ).toBeDisabled();
+
     await endLine(1);
     await endLine(2);
     expect(FakeAudio.byLine(3).playCalls).toBe(1);
+    // On line 3, the furthest line: back yes, forward no.
+    expect(screen.getByRole("button", { name: /back 1 line/i })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: /forward 1 line/i }),
+    ).toBeDisabled();
 
-    // On line 3 → go back to line 2, then continue with 3 again.
+    // Back to line 2; the bar follows the current position.
     fireEvent.click(screen.getByRole("button", { name: /back 1 line/i }));
     expect(FakeAudio.byLine(2).playCalls).toBe(2);
     expect(screen.getByTestId("recall-progress")).toHaveTextContent(
       "Line 2 of 3",
     );
-    await endLine(2);
-    expect(FakeAudio.byLine(3).playCalls).toBe(2);
-
-    // Works while paused too, and resumes playback.
-    fireEvent.click(screen.getByRole("button", { name: /pause audio/i }));
-    fireEvent.click(screen.getByRole("button", { name: /back 1 line/i }));
-    expect(FakeAudio.byLine(2).playCalls).toBe(3);
-    expect(
-      screen.getByRole("button", { name: /pause audio/i }),
-    ).toBeInTheDocument();
-
-    // The bar follows the current position back.
     expect(screen.getByRole("progressbar")).toHaveAttribute(
       "aria-valuenow",
       "33",
     );
-    expect(screen.getByTestId("recall-progress")).toHaveTextContent(
-      "Line 2 of 3",
-    );
+    expect(
+      screen.getByRole("button", { name: /forward 1 line/i }),
+    ).toBeEnabled();
 
-    // Stepping back again reaches line 1 and the bar goes to zero; on line 1
-    // it just restarts line 1.
+    // Back again to line 1; the bar hits zero and Back is disabled.
     fireEvent.click(screen.getByRole("button", { name: /back 1 line/i }));
     expect(FakeAudio.byLine(1).playCalls).toBe(2);
     expect(screen.getByRole("progressbar")).toHaveAttribute(
       "aria-valuenow",
       "0",
     );
-    fireEvent.click(screen.getByRole("button", { name: /back 1 line/i }));
-    expect(FakeAudio.byLine(1).playCalls).toBe(3);
-    expect(screen.getByTestId("recall-progress")).toHaveTextContent(
-      "Line 1 of 3",
-    );
+    expect(screen.getByRole("button", { name: /back 1 line/i })).toBeDisabled();
 
-    // Playing forward again moves it up; the saved resume point is unchanged.
-    await endLine(1);
-    expect(screen.getByRole("progressbar")).toHaveAttribute(
-      "aria-valuenow",
-      "33",
+    // Forward twice returns to line 3, the furthest heard, then stops there.
+    fireEvent.click(screen.getByRole("button", { name: /forward 1 line/i }));
+    expect(FakeAudio.byLine(2).playCalls).toBe(3);
+    fireEvent.click(screen.getByRole("button", { name: /forward 1 line/i }));
+    expect(FakeAudio.byLine(3).playCalls).toBe(2);
+    expect(screen.getByTestId("recall-progress")).toHaveTextContent(
+      "Line 3 of 3",
     );
+    expect(
+      screen.getByRole("button", { name: /forward 1 line/i }),
+    ).toBeDisabled();
+
+    // Works while paused too, and resumes playback.
+    fireEvent.click(screen.getByRole("button", { name: /pause audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /back 1 line/i }));
+    expect(FakeAudio.byLine(2).playCalls).toBe(4);
+    expect(
+      screen.getByRole("button", { name: /pause audio/i }),
+    ).toBeInTheDocument();
+
+    // The saved resume point is the furthest line heard, not the current one.
     expect(window.localStorage.getItem("recall-listened:1")).toBe("2");
   });
 

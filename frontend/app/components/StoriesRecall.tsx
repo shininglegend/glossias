@@ -271,11 +271,20 @@ export function RecallSession({
     }
   };
 
-  /** Replay the previous line (or the current one, on line 1) and carry on. */
-  const handleBackOneLine = () => {
-    if (phase !== "listening" && phase !== "paused") return;
-    const target = Math.max(audioLineIndex - 1, 0);
+  // Free movement within the part already heard: back to line 1, forward no
+  // further than the first line not yet heard (index `furthestHeard`).
+  const canStepBack =
+    (phase === "listening" || phase === "paused") && audioLineIndex > 0;
+  const canStepForward =
+    (phase === "listening" || phase === "paused") &&
+    audioLineIndex < furthestHeard;
+
+  /** Jump `delta` lines from the current one and carry on playing from there. */
+  const stepLine = (delta: number) => {
+    const target = audioLineIndex + delta;
+    if (target < 0 || target > furthestHeard) return;
     setPhase("listening");
+    // The continuation API starts at index + 1.
     audioPlayer.playNextLineFromIndex(target - 1);
   };
 
@@ -414,11 +423,12 @@ export function RecallSession({
           <div className="flex flex-wrap justify-center gap-3">
             {phase !== "idle" && (
               <button
-                onClick={handleBackOneLine}
-                className="inline-flex items-center gap-2 px-4 py-3 bg-gray-100 text-gray-800 border border-gray-300 rounded-lg text-base transition-colors duration-200 cursor-pointer hover:bg-gray-200"
+                onClick={() => stepLine(-1)}
+                disabled={!canStepBack}
+                className="inline-flex items-center gap-2 px-4 py-3 bg-gray-100 text-gray-800 border border-gray-300 rounded-lg text-base transition-colors duration-200 cursor-pointer hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-gray-100"
                 type="button"
               >
-                <span className="material-icons">replay</span>
+                <span className="material-icons">skip_previous</span>
                 Back 1 line
               </button>
             )}
@@ -436,6 +446,17 @@ export function RecallSession({
               </span>
               {playButtonLabel}
             </button>
+            {phase !== "idle" && (
+              <button
+                onClick={() => stepLine(1)}
+                disabled={!canStepForward}
+                className="inline-flex items-center gap-2 px-4 py-3 bg-gray-100 text-gray-800 border border-gray-300 rounded-lg text-base transition-colors duration-200 cursor-pointer hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-gray-100"
+                type="button"
+              >
+                Forward 1 line
+                <span className="material-icons">skip_next</span>
+              </button>
+            )}
           </div>
         </section>
       )}

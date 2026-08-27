@@ -222,7 +222,14 @@ export function translateReducer(
     }
 
     case "LINE_CHANGED":
-      if (event.index === state.currentLine) return state;
+      // The audio player's index is only meaningful while it is playing; on
+      // mount it reports 0, which must not clobber a resumed position.
+      if (
+        (phase.kind !== "playing" && phase.kind !== "awaitingLineEnd") ||
+        event.index === state.currentLine
+      ) {
+        return state;
+      }
       return { ...state, currentLine: event.index };
 
     case "REQUEST":

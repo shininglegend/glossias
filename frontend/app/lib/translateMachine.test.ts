@@ -325,6 +325,23 @@ describe("resuming from saved progress", () => {
     expect(started.currentLine).toBe(7);
   });
 
+  it("ignores the audio player's line while idle, so the resume point survives mount", () => {
+    const idle = createTranslateState(10, {
+      requested: [2, 7],
+      completed: false,
+    });
+    // useAudioPlayer reports line 0 when it mounts.
+    const afterMount = translateReducer(idle, {
+      type: "LINE_CHANGED",
+      index: 0,
+    });
+    expect(afterMount).toBe(idle);
+    expect(translateReducer(afterMount, { type: "START" }).command).toEqual({
+      type: "playFrom",
+      index: 7,
+    });
+  });
+
   it("drops duplicate and out-of-range saved lines", () => {
     const s = createTranslateState(5, {
       requested: [1, 1, 9, -1, 3],

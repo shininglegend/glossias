@@ -5,7 +5,6 @@ import { useAuthenticatedFetch } from "../lib/authFetch";
 import type {
   Story,
   StoryMetadata,
-  StoryContent,
   TargetVocabulary,
   TargetVocabularyPage,
   ProducePage,
@@ -166,14 +165,10 @@ export function useAdminApi() {
       [request],
     ),
 
-    // GET /stories/:id -> { content }
+    // GET /stories/:id -> { story: { metadata, content } }
     getStoryContent: useCallback(
-      async (id: number, baseUrl?: string): Json<{ content: StoryContent }> => {
-        return request<{ content: StoryContent }>(
-          `/stories/${id}`,
-          undefined,
-          baseUrl,
-        );
+      async (id: number, baseUrl?: string): Json<{ story: Story }> => {
+        return request<{ story: Story }>(`/stories/${id}`, undefined, baseUrl);
       },
       [request],
     ),

@@ -7,9 +7,14 @@ import { useAdminApi } from "../../services/adminApi";
 import { usePhaseAssetUploader } from "../../lib/phaseAssets";
 import ReadinessPanel from "./ReadinessPanel";
 import AssetSlot from "./AssetSlot";
+import RecallSentencePicker, {
+  splitStoryIntoSentences,
+  type StorySentence,
+} from "./RecallSentencePicker";
 import type {
   RecallPage,
   RecallSentence,
+  StoryContent,
   TargetVocabulary,
 } from "../../types/admin";
 
@@ -27,6 +32,9 @@ interface RecallEditorProps {
 export default function RecallEditor({ storyId }: RecallEditorProps) {
   const adminApi = useAdminApi();
   const [page, setPage] = React.useState<RecallPage | null>(null);
+  const [storyContent, setStoryContent] = React.useState<StoryContent | null>(
+    null,
+  );
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -46,6 +54,29 @@ export default function RecallEditor({ storyId }: RecallEditorProps) {
     load();
   }, [load]);
 
+  // Story text only feeds the sentence picker; a failure here shouldn't block
+  // editing, so it's loaded separately and silently falls back to typing.
+  React.useEffect(() => {
+    let cancelled = false;
+    adminApi
+      .getStoryContent(storyId)
+      .then((res) => {
+        if (!cancelled) setStoryContent(res.story.content);
+      })
+      .catch(() => {
+        if (!cancelled) setStoryContent(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storyId]);
+
+  const storySentences = React.useMemo(
+    () => splitStoryIntoSentences(storyContent),
+    [storyContent],
+  );
+
   if (loading) {
     return <div className="text-center py-8">Loading recall sentences...</div>;
   }
@@ -59,6 +90,12 @@ export default function RecallEditor({ storyId }: RecallEditorProps) {
   }
 
   const slots = Array.from({ length: page.required }, (_, index) => index + 1);
+
+  // Which position already uses each sentence, so the picker can flag repeats.
+  const usedByPosition = new Map<string, number>();
+  for (const sentence of page.sentences) {
+    usedByPosition.set(sentence.hebrewText.trim(), sentence.sequenceOrder);
+  }
 
   return (
     <div>
@@ -88,6 +125,8 @@ export default function RecallEditor({ storyId }: RecallEditorProps) {
             order={order}
             sentence={page.sentences.find((s) => s.sequenceOrder === order)}
             targetVocabulary={page.targetVocabulary}
+            storySentences={storySentences}
+            usedByPosition={usedByPosition}
             usedTargetVocabIds={page.sentences
               .filter((s) => s.sequenceOrder !== order && s.targetVocabId)
               .map((s) => s.targetVocabId as number)}
@@ -104,6 +143,10 @@ interface RecallSentenceCardProps {
   order: number;
   sentence: RecallSentence | undefined;
   targetVocabulary: TargetVocabulary[];
+  /** The story split into sentences, for the picker. */
+  storySentences: StorySentence[];
+  /** Sentence text -> position already using it. */
+  usedByPosition: Map<string, number>;
   /** Target words already spoken for by another position. */
   usedTargetVocabIds: number[];
   onChanged: () => Promise<void>;
@@ -114,6 +157,8 @@ function RecallSentenceCard({
   order,
   sentence,
   targetVocabulary,
+  storySentences,
+  usedByPosition,
   usedTargetVocabIds,
   onChanged,
 }: RecallSentenceCardProps) {
@@ -127,6 +172,7 @@ function RecallSentenceCard({
   );
   const [saving, setSaving] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
+  const [pickerOpen, setPickerOpen] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   // Re-sync when a reload brings different content for this slot.
@@ -220,7 +266,26 @@ function RecallSentenceCard({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Label className="mb-1">Sentence (Hebrew)</Label>
+            <div className="flex items-center justify-between mb-1">
+              <Label>Sentence (Hebrew)</Label>
+              <Button
+                variant="secondary"
+                size="sm"
+                type="button"
+                disabled={storySentences.length === 0}
+                onClick={() => setPickerOpen(true)}
+              >
+                Pick from story
+              </Button>
+            </div>
+            <RecallSentencePicker
+              isOpen={pickerOpen}
+              onClose={() => setPickerOpen(false)}
+              sentences={storySentences}
+              usedByPosition={usedByPosition}
+              currentOrder={order}
+              onPick={setHebrewText}
+            />
             <Textarea
               value={hebrewText}
               onChange={(event) => setHebrewText(event.target.value)}

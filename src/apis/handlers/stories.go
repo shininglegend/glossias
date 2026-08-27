@@ -31,6 +31,7 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/{id}/grammar", h.GetGrammarPage).Methods("GET", "OPTIONS")
 	router.HandleFunc("/{id}/translate", h.GetTranslateData).Methods("GET", "PUT", "OPTIONS")
 	router.HandleFunc("/{id}/identify", h.GetIdentifyPage).Methods("GET", "OPTIONS")
+	router.HandleFunc("/{id}/recall", h.GetRecallPage).Methods("GET", "OPTIONS")
 	router.HandleFunc("/{id}/scores", h.GetScoresData).Methods("GET", "OPTIONS")
 
 	// Audio endpoints
@@ -45,6 +46,8 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/{id}/check-grammar", h.CheckGrammar).Methods("POST", "OPTIONS")
 	// Identify picture-quiz endpoint
 	router.HandleFunc("/{id}/check-identify", h.CheckIdentify).Methods("POST", "OPTIONS")
+	// Recall sequencing endpoint
+	router.HandleFunc("/{id}/check-recall", h.CheckRecall).Methods("POST", "OPTIONS")
 
 	// Navigation endpoint
 	router.HandleFunc("/{id}/next", h.Navigate).Methods("POST", "OPTIONS")

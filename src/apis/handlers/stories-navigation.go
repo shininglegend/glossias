@@ -148,6 +148,13 @@ func (h *Handler) getPageCompletionStatus(ctx context.Context, userID string, st
 	}
 	status[PageTypeTranslate] = translateComplete
 
+	// Recall is complete once every sentence has been placed correctly
+	recallComplete, err := h.isRecallCompleted(ctx, userID, int(storyID))
+	if err != nil {
+		return nil, err
+	}
+	status[PageTypeRecall] = recallComplete
+
 	// Score is never considered "complete" for skipping
 	status[PageTypeScore] = false
 

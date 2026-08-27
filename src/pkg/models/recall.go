@@ -22,6 +22,10 @@ var ErrInvalidRecallOrder = errors.New("submitted ordering does not match the st
 
 // RecallSentence is one card in the Recall sequencing exercise. SequenceOrder
 // is the correct position and must be withheld from student responses.
+//
+// ImagePath/ImageBucket are the source of truth for the card's picture; ImageURL
+// is a signed read URL filled in on demand by SignRecallSentenceURLs and is
+// never persisted.
 type RecallSentence struct {
 	ID            int    `json:"id"`
 	StoryID       int    `json:"storyId"`
@@ -30,6 +34,7 @@ type RecallSentence struct {
 	TargetVocabID *int   `json:"targetVocabId,omitempty"`
 	ImagePath     string `json:"imagePath,omitempty"`
 	ImageBucket   string `json:"imageBucket,omitempty"`
+	ImageURL      string `json:"imageUrl,omitempty"`
 }
 
 // GetStoryRecallSentences returns a story's sentences in correct order.

@@ -24,6 +24,13 @@ export default [
     "routes/admin.stories.$id.translate.tsx",
   ),
   route("admin/stories/:id/annotate", "routes/admin.stories.$id.annotate.tsx"),
+  // Summer 2026 phase authoring (T7)
+  route(
+    "admin/stories/:id/target-vocab",
+    "routes/admin.stories.$id.target-vocab.tsx",
+  ),
+  route("admin/stories/:id/produce", "routes/admin.stories.$id.produce.tsx"),
+  route("admin/stories/:id/recall", "routes/admin.stories.$id.recall.tsx"),
   route("admin/users", "routes/admin.users.tsx"),
   route("admin/system", "routes/admin.system.tsx"),
 ] satisfies RouteConfig;

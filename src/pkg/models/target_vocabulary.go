@@ -15,8 +15,17 @@ import (
 // have for the Identify and Recall phases.
 const TargetWordsPerStory = 5
 
+// MinTargetWordOccurrences is how many times a target word must appear in the
+// story text. The Identify phase pauses on every occurrence, so a word seen
+// only once gives the student no second look.
+const MinTargetWordOccurrences = 2
+
 // TargetVocabulary is one of a story's target words, with the pronunciation
 // audio and picture used by the Identify phase.
+//
+// The path/bucket pairs are the source of truth for which asset belongs to this
+// word; AudioURL and ImageURL are signed read URLs filled in on demand by
+// SignTargetVocabularyURLs and are never persisted.
 type TargetVocabulary struct {
 	ID               int    `json:"id"`
 	StoryID          int    `json:"storyId"`
@@ -25,6 +34,8 @@ type TargetVocabulary struct {
 	AudioBucket      string `json:"audioBucket,omitempty"`
 	CorrectImagePath string `json:"correctImagePath,omitempty"`
 	ImageBucket      string `json:"imageBucket,omitempty"`
+	AudioURL         string `json:"audioUrl,omitempty"`
+	ImageURL         string `json:"imageUrl,omitempty"`
 }
 
 // TargetVocabularyOccurrence is one appearance of a target word in the story
@@ -105,7 +116,7 @@ func CreateTargetVocabulary(ctx context.Context, word TargetVocabulary) (*Target
 		ImageBucket:      optionalText(word.ImageBucket),
 	})
 	if err != nil {
-		return nil, err
+		return nil, asDuplicate(err)
 	}
 
 	return &TargetVocabulary{
@@ -137,7 +148,7 @@ func UpdateTargetVocabulary(ctx context.Context, word TargetVocabulary) (*Target
 		return nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, asDuplicate(err)
 	}
 
 	return &TargetVocabulary{
@@ -205,6 +216,37 @@ func GetTargetVocabularyOccurrences(ctx context.Context, storyID int) ([]TargetV
 	}
 
 	return occurrences, nil
+}
+
+// LexicalFormCount is an annotated lexical form in a story and how many times it
+// appears. The target-vocabulary editor lists these so an author can only pick
+// words that already meet MinTargetWordOccurrences.
+type LexicalFormCount struct {
+	LexicalForm string `json:"lexicalForm"`
+	Occurrences int    `json:"occurrences"`
+}
+
+// GetStoryLexicalFormCounts returns every annotated lexical form in a story with
+// its occurrence count, ordered by lexical form.
+func GetStoryLexicalFormCounts(ctx context.Context, storyID int) ([]LexicalFormCount, error) {
+	if queries == nil {
+		return nil, errors.New("database not initialized")
+	}
+
+	rows, err := queries.GetStoryLexicalFormCounts(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+	if err != nil {
+		return nil, err
+	}
+
+	counts := make([]LexicalFormCount, 0, len(rows))
+	for _, row := range rows {
+		counts = append(counts, LexicalFormCount{
+			LexicalForm: row.LexicalForm,
+			Occurrences: int(row.Occurrences),
+		})
+	}
+
+	return counts, nil
 }
 
 // optionalText maps an empty string to a NULL text column.

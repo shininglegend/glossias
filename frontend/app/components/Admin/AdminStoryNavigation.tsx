@@ -5,40 +5,39 @@ interface AdminStoryNavigationProps {
   storyId: string | number;
 }
 
+// The first three editors cover a story's shared content; the last three author
+// the Summer 2026 phases (target vocabulary for Identify, produce segments, and
+// recall sentences).
+const EDITORS = [
+  { path: "annotate", label: "Annotate" },
+  { path: "metadata", label: "Metadata" },
+  { path: "translate", label: "Translate" },
+  { path: "target-vocab", label: "Target Vocab" },
+  { path: "produce", label: "Produce" },
+  { path: "recall", label: "Recall" },
+] as const;
+
 export default function AdminStoryNavigation({
   storyId,
 }: AdminStoryNavigationProps) {
   const location = useLocation();
   const basePath = `/admin/stories/${storyId}`;
 
-  const isActive = (path: string) => location.pathname === path;
-
   return (
-    <div className="flex gap-2 mb-4">
-      <Link to={`${basePath}/annotate`}>
-        <Button
-          variant={isActive(`${basePath}/annotate`) ? "primary" : "outline"}
-          size="sm"
-        >
-          Annotate
-        </Button>
-      </Link>
-      <Link to={`${basePath}/metadata`}>
-        <Button
-          variant={isActive(`${basePath}/metadata`) ? "primary" : "outline"}
-          size="sm"
-        >
-          Metadata
-        </Button>
-      </Link>
-      <Link to={`${basePath}/translate`}>
-        <Button
-          variant={isActive(`${basePath}/translate`) ? "primary" : "outline"}
-          size="sm"
-        >
-          Translate
-        </Button>
-      </Link>
+    <div className="flex flex-wrap gap-2 mb-4">
+      {EDITORS.map(({ path, label }) => {
+        const to = `${basePath}/${path}`;
+        return (
+          <Link key={path} to={to}>
+            <Button
+              variant={location.pathname === to ? "primary" : "outline"}
+              size="sm"
+            >
+              {label}
+            </Button>
+          </Link>
+        );
+      })}
     </div>
   );
 }

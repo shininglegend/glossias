@@ -159,6 +159,10 @@ type Querier interface {
 	GetStoryImage(ctx context.Context, imageID int32) (StoryImage, error)
 	GetStoryImagesByLabel(ctx context.Context, arg GetStoryImagesByLabelParams) ([]StoryImage, error)
 	GetStoryImagesByLabelGlobally(ctx context.Context, label string) ([]StoryImage, error)
+	// GetStoryLexicalFormCounts lists every annotated lexical form in a story with
+	// how many times it appears. The target-vocabulary editor uses it to show which
+	// candidates meet the two-occurrence minimum before a word is chosen.
+	GetStoryLexicalFormCounts(ctx context.Context, storyID pgtype.Int4) ([]GetStoryLexicalFormCountsRow, error)
 	GetStoryLine(ctx context.Context, arg GetStoryLineParams) (StoryLine, error)
 	// Story lines
 	GetStoryLines(ctx context.Context, storyID int32) ([]StoryLine, error)

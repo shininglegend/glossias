@@ -105,6 +105,49 @@ export interface IdentifyData {
   completed: boolean;
 }
 
+export interface ProduceSlot {
+  /** 0-based story line holding the reference sentence. */
+  line_index: number;
+  /** Rune (code point) range of the reference within that line. */
+  start: number;
+  end: number;
+}
+
+export interface ProduceSegmentView {
+  id: number;
+  segment_order: number;
+  english_text: string;
+  grammar_point_name?: string;
+  /** Where the reference sits in the story text; absent if not found verbatim. */
+  slot?: ProduceSlot;
+}
+
+export interface ProduceSubmissionView {
+  segment_id: number;
+  student_text: string;
+  reference_hebrew: string;
+}
+
+export interface ProduceData {
+  story_id: string;
+  story_title: string;
+  language: string;
+  lines: { text: string }[];
+  segments: ProduceSegmentView[];
+  /** Authored contrastive grammar explanation; empty if none yet. */
+  explanation: string;
+  /** Attempts already stored on earlier visits, in segment order. */
+  submissions: ProduceSubmissionView[];
+  /** Every segment has a submission. */
+  completed: boolean;
+  time_limit_seconds: number;
+}
+
+export interface SubmitProduceResponse {
+  submission: ProduceSubmissionView;
+  completed: boolean;
+}
+
 export interface GrammarData extends GrammarPageData {
   grammar_point_id: number;
   grammar_point: string;
@@ -254,6 +297,24 @@ export function useApiService() {
             line_index: lineIndex,
             target_vocab_id: targetVocabId,
             selected_target_vocab_id: selectedTargetVocabId,
+          }),
+        });
+      },
+
+      getStoryProduce: (id: string): Promise<APIResponse<ProduceData>> => {
+        return fetchAPI<ProduceData>(`/stories/${id}/produce`);
+      },
+
+      submitProduce: (
+        id: string,
+        segmentId: number,
+        studentText: string,
+      ): Promise<APIResponse<SubmitProduceResponse>> => {
+        return fetchAPI<SubmitProduceResponse>(`/stories/${id}/produce`, {
+          method: "POST",
+          body: JSON.stringify({
+            segment_id: segmentId,
+            student_text: studentText,
           }),
         });
       },

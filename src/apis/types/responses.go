@@ -158,6 +158,68 @@ type TranslationPageData struct {
 	Completed bool `json:"completed"`
 }
 
+// ProduceSegmentView is one Produce segment as shown to the student. The
+// reference Hebrew is deliberately absent: it is returned by the submit
+// endpoint (or in Submissions for segments already answered) so it cannot be
+// read before the attempt is made.
+type ProduceSegmentView struct {
+	ID               int    `json:"id"`
+	SegmentOrder     int    `json:"segment_order"`
+	EnglishText      string `json:"english_text"`
+	GrammarPointName string `json:"grammar_point_name,omitempty"`
+	// Slot locates the reference sentence inside the story text so the page
+	// can show the surrounding Hebrew with a blank where the segment goes.
+	// Nil when the reference does not appear verbatim in any line.
+	Slot *ProduceSlot `json:"slot,omitempty"`
+}
+
+// ProduceSlot is a rune range within a 0-based story line.
+type ProduceSlot struct {
+	LineIndex int `json:"line_index"`
+	Start     int `json:"start"`
+	End       int `json:"end"`
+}
+
+// ProduceSubmissionView is the student's stored attempt at a segment, with the
+// reference revealed since the attempt is over.
+type ProduceSubmissionView struct {
+	SegmentID       int    `json:"segment_id"`
+	StudentText     string `json:"student_text"`
+	ReferenceHebrew string `json:"reference_hebrew"`
+}
+
+// ProducePageData is the payload for the Produce phase.
+type ProducePageData struct {
+	PageData
+	// Lines is the story text, for context around each segment's slot.
+	Lines    []LineText           `json:"lines"`
+	Segments []ProduceSegmentView `json:"segments"`
+	// Explanation is the authored contrastive grammar explanation shown after
+	// both segments; empty when none has been authored.
+	Explanation string `json:"explanation"`
+	// Submissions are the student's latest attempts so far, so a reload
+	// resumes at the first unanswered segment.
+	Submissions []ProduceSubmissionView `json:"submissions"`
+	// Completed is true once every segment has a submission.
+	Completed bool `json:"completed"`
+	// TimeLimitSeconds is the per-segment writing limit.
+	TimeLimitSeconds int `json:"time_limit_seconds"`
+}
+
+// SubmitProduceRequest is a student's attempt at one Produce segment. An
+// empty StudentText is valid — the timer may have run out first.
+type SubmitProduceRequest struct {
+	SegmentID   int    `json:"segment_id"`
+	StudentText string `json:"student_text"`
+}
+
+// SubmitProduceResponse returns the stored attempt with the reference
+// revealed, and whether the phase is now complete.
+type SubmitProduceResponse struct {
+	Submission ProduceSubmissionView `json:"submission"`
+	Completed  bool                  `json:"completed"`
+}
+
 // SaveTranslationRequest saves the translation to the database
 type SaveTranslationRequest struct {
 	LineIndexes []int `json:"line_numbers"`

@@ -93,8 +93,8 @@ export function useCoursesApi() {
 
     // POST /courses - Create course
     createCourse: useCallback(
-      async (courseData: CreateCourseRequest): Json<{ course: Course }> => {
-        return request<{ course: Course }>("", {
+      async (courseData: CreateCourseRequest): Json<Course> => {
+        return request<Course>("", {
           method: "POST",
           body: JSON.stringify(courseData),
         });
@@ -104,19 +104,16 @@ export function useCoursesApi() {
 
     // GET /courses/{id} - Get specific course
     getCourse: useCallback(
-      async (id: number): Json<{ course: Course }> => {
-        return request<{ course: Course }>(`/${id}`);
+      async (id: number): Json<Course> => {
+        return request<Course>(`/${id}`);
       },
       [request],
     ),
 
     // PUT /courses/{id} - Update course
     updateCourse: useCallback(
-      async (
-        id: number,
-        courseData: UpdateCourseRequest,
-      ): Json<{ course: Course }> => {
-        return request<{ course: Course }>(`/${id}`, {
+      async (id: number, courseData: UpdateCourseRequest): Json<Course> => {
+        return request<Course>(`/${id}`, {
           method: "PUT",
           body: JSON.stringify(courseData),
         });

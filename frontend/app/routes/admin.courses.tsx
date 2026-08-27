@@ -72,18 +72,18 @@ export default function AdminCourses() {
     setProcessing(true);
     try {
       if (editingCourse) {
-        const response = await coursesApi.updateCourse(
+        const updated = await coursesApi.updateCourse(
           editingCourse.course_id,
           formData,
         );
         setCourses((prev) =>
           prev.map((c) =>
-            c.course_id === editingCourse.course_id ? response.course : c,
+            c.course_id === editingCourse.course_id ? updated : c,
           ),
         );
       } else {
-        const response = await coursesApi.createCourse(formData);
-        setCourses((prev) => [...prev, response.course]);
+        const created = await coursesApi.createCourse(formData);
+        setCourses((prev) => [...prev, created]);
       }
       resetForm();
     } catch (err) {

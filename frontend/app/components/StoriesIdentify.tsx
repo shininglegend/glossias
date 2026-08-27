@@ -18,7 +18,12 @@ import { useAudioPlayer } from "./story-components/AudioPlayer";
 import { StoryLine } from "./story-components/StoryLine";
 import { CompletionMessage } from "./story-components/CompletionMessage";
 import { IdentifyQuizModal } from "./story-components/IdentifyQuizModal";
-import { identifyReducer, createIdentifyState } from "../lib/identifyMachine";
+import {
+  identifyReducer,
+  createIdentifyState,
+  identifiedWords,
+  linesWithUnansweredTargets,
+} from "../lib/identifyMachine";
 import "./StoriesVocab.css";
 
 const RTL_LANGUAGES = ["he", "ar", "fa", "ur"];
@@ -168,15 +173,6 @@ export function IdentifySession({
     () => ({ ...pageData.audio_urls }),
     [pageData.audio_urls],
   );
-  const targetLines = useMemo(
-    () =>
-      new Set(
-        pageData.lines
-          .map((line, i) => (line.target_vocab_ids.length > 0 ? i : -1))
-          .filter((i) => i >= 0),
-      ),
-    [pageData.lines],
-  );
   const wordsById = useMemo(() => {
     const map = new Map<number, IdentifyTargetWord>();
     for (const w of pageData.target_words) map.set(w.id, w);
@@ -188,12 +184,27 @@ export function IdentifySession({
   const [isPlaying, setIsPlaying] = useState(false);
   const [playedLines, setPlayedLines] = useState<Set<number>>(new Set());
 
-  const [state, dispatch] = useReducer(
-    identifyReducer,
-    { lineCount: pageData.lines.length, done: pageData.completed_target_ids },
-    ({ lineCount, done }) => createIdentifyState(lineCount, done),
+  const [state, dispatch] = useReducer(identifyReducer, pageData, (data) =>
+    createIdentifyState(data.lines.length, {
+      picks: (data.correct_picks ?? []).map((p) => ({
+        line: p.line_index,
+        targetId: p.target_vocab_id,
+      })),
+      completed: data.completed,
+    }),
   );
-  const { phase, command, commandSeq } = state;
+  const { phase, command, commandSeq, picks } = state;
+
+  // Pause only after lines that still hold an unanswered target word, so a
+  // resumed visit plays straight through the quizzes already answered.
+  const pauseOnLines = useMemo(
+    () =>
+      linesWithUnansweredTargets(
+        picks,
+        pageData.lines.map((l) => l.target_vocab_ids),
+      ),
+    [picks, pageData.lines],
+  );
 
   const onStoryEnded = useCallback(() => dispatch({ type: "STORY_ENDED" }), []);
   const linesRef = useRef(pageData.lines);
@@ -219,7 +230,7 @@ export function IdentifySession({
     onCurrentLineChange: setAudioLineIndex,
     onPlayingStateChange: setIsPlaying,
     completedLines: EMPTY_SET,
-    pauseOnLines: targetLines,
+    pauseOnLines,
     onPlaybackEnd: onStoryEnded,
     onPauseAfterLine,
   });
@@ -293,9 +304,12 @@ export function IdentifySession({
         ? audioLineIndex
         : null;
   const hasTargets = pageData.target_words.length > 0;
+  const identified = identifiedWords(picks);
   const identifiedCount = pageData.target_words.filter((w) =>
-    state.identified.includes(w.id),
+    identified.includes(w.id),
   ).length;
+  const resumedMidway =
+    phase.kind === "idle" && picks.length > 0 && state.currentLine > 0;
 
   const playButtonLabel =
     phase.kind === "idle"
@@ -320,6 +334,32 @@ export function IdentifySession({
             nextStepName={nextStepName}
             onContinue={onContinue}
           />
+        )}
+
+        {isComplete && hasTargets && (
+          <div
+            className="bg-green-50 border-l-4 border-green-400 p-3 mb-4 rounded-r-lg text-left"
+            data-testid="identify-finished"
+          >
+            <p className="text-gray-800">
+              You identified all {pageData.target_words.length} target words in
+              this story. This phase is finished and can't be repeated — the
+              story text is shown below for reference.
+            </p>
+          </div>
+        )}
+
+        {resumedMidway && (
+          <div
+            className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4 rounded-r-lg text-left"
+            data-testid="identify-resumed"
+          >
+            <p className="text-gray-800">
+              Welcome back — you'll pick up from line {state.currentLine + 1},
+              the last line where you identified a word. Words you already
+              identified won't be asked again.
+            </p>
+          </div>
         )}
 
         <div className="bg-gray-50 border border-gray-300 p-4 mb-4 rounded-lg text-center">

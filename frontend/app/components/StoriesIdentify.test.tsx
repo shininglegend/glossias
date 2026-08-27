@@ -62,7 +62,7 @@ const WORDS = [
 ];
 
 /** Three lines; line index 1 holds target 10, the others hold none. */
-const makePageData = (): IdentifyData => ({
+const makePageData = (overrides: Partial<IdentifyData> = {}): IdentifyData => ({
   story_id: "1",
   story_title: "Test",
   language: "he",
@@ -80,19 +80,25 @@ const makePageData = (): IdentifyData => ({
   ],
   target_words: WORDS,
   audio_urls: { "1": "url-1", "2": "url-2", "3": "url-3" },
-  completed_target_ids: [],
+  correct_picks: [],
+  completed: false,
+  ...overrides,
 });
 
-const setup = async (
-  onCheckPick = vi.fn(
+const gradeLocally = () =>
+  vi.fn(
     async (_line: number, target: number, selected: number) =>
       target === selected,
-  ),
+  );
+
+const setup = async (
+  onCheckPick = gradeLocally(),
+  pageOverrides: Partial<IdentifyData> = {},
 ) => {
   const onContinue = vi.fn();
   const utils = render(
     <IdentifySession
-      pageData={makePageData()}
+      pageData={makePageData(pageOverrides)}
       nextStepName="Translate"
       onCheckPick={onCheckPick}
       onContinue={onContinue}
@@ -210,6 +216,44 @@ describe("IdentifySession", () => {
     expect(screen.getByText(/couldn't save/i)).toBeInTheDocument();
     // Nothing was disabled: the pick was never graded.
     expect(screen.getByTestId("identify-option-10")).not.toBeDisabled();
+  });
+
+  it("opens finished and cannot be replayed once the server says complete", async () => {
+    await setup(gradeLocally(), {
+      correct_picks: [{ line_index: 1, target_vocab_id: 10 }],
+      completed: true,
+    });
+    expect(screen.getByText(/great job/i)).toBeInTheDocument();
+    expect(screen.getByTestId("identify-finished")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /start/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("identify-counter")).not.toBeInTheDocument();
+    // No narration was started.
+    expect(FakeAudio.instances.every((a) => a.playCalls === 0)).toBe(true);
+  });
+
+  it("resumes at the last identified line and skips answered quizzes", async () => {
+    const { onCheckPick } = await setup(gradeLocally(), {
+      correct_picks: [{ line_index: 1, target_vocab_id: 10 }],
+      completed: false,
+    });
+    expect(screen.getByTestId("identify-resumed")).toHaveTextContent("line 2");
+    expect(screen.getByTestId("identify-counter")).toHaveTextContent("1 / 5");
+
+    clickStart();
+    // Starts at line 2, not line 1.
+    expect(FakeAudio.byLine(1).playCalls).toBe(0);
+    expect(FakeAudio.byLine(2).playCalls).toBe(1);
+
+    // Line 2's quiz was already answered: no dialog, straight on to line 3.
+    await endLine(2);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(onCheckPick).not.toHaveBeenCalled();
+    expect(FakeAudio.byLine(3).playCalls).toBe(1);
+
+    await endLine(3);
+    expect(screen.getByText(/great job/i)).toBeInTheDocument();
   });
 
   it("pause and resume restart the current line without opening a quiz", async () => {

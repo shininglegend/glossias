@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"glossias/src/apis/types"
 	"glossias/src/auth"
@@ -72,19 +73,13 @@ func (h *Handler) GetIdentifyPage(w http.ResponseWriter, r *http.Request) {
 		audioURLs = map[int]string{}
 	}
 
-	completed, err := models.GetUserIdentifyCorrectAnswers(ctx, userID, id)
+	answers, err := models.GetUserIdentifyCorrectAnswers(ctx, userID, id)
 	if err != nil {
 		h.log.Error("Failed to fetch identify answers", "error", err, "storyID", id, "userID", userID)
 		h.sendError(w, "Failed to fetch identify progress", http.StatusInternalServerError)
 		return
 	}
-	completedIDs := make([]int, 0, len(completed))
-	for _, a := range completed {
-		if !slices.Contains(completedIDs, a.TargetVocabID) {
-			completedIDs = append(completedIDs, a.TargetVocabID)
-		}
-	}
-	slices.Sort(completedIDs)
+	picks, completed := identifyProgress(occurrences, answers)
 
 	targetWords := make([]types.IdentifyTargetWord, 0, len(words))
 	for _, w := range words {
@@ -102,13 +97,68 @@ func (h *Handler) GetIdentifyPage(w http.ResponseWriter, r *http.Request) {
 			StoryTitle: story.Metadata.Title["en"],
 			Language:   story.Metadata.Language,
 		},
-		Lines:              buildIdentifyLines(story.Content.Lines, occurrences),
-		TargetWords:        targetWords,
-		AudioURLs:          audioURLs,
-		CompletedTargetIDs: completedIDs,
+		Lines:        buildIdentifyLines(story.Content.Lines, occurrences),
+		TargetWords:  targetWords,
+		AudioURLs:    audioURLs,
+		CorrectPicks: picks,
+		Completed:    completed,
 	}
 
 	json.NewEncoder(w).Encode(types.APIResponse{Success: true, Data: data})
+}
+
+// identifyProgress reduces the user's correct answers to the distinct
+// (line, word) quizzes answered, 0-based and ordered by line, and reports
+// whether the phase is complete: every target-word occurrence in the story has
+// a correct pick. A story with no occurrences is never complete this way — it
+// has no quizzes, so the student just listens through.
+//
+// Completion is derived rather than stored so the phase cannot be redone once
+// finished and so mixed-generation data (extra answers, retries, words added
+// later by an author) resolves the same way every time.
+func identifyProgress(occurrences []models.TargetVocabularyOccurrence, answers []models.IdentifyAnswer) ([]types.IdentifyPick, bool) {
+	type key struct{ line, word int }
+	answered := make(map[key]bool, len(answers))
+	picks := make([]types.IdentifyPick, 0, len(answers))
+	for _, a := range answers {
+		k := key{a.LineNumber, a.TargetVocabID}
+		if answered[k] {
+			continue
+		}
+		answered[k] = true
+		picks = append(picks, types.IdentifyPick{LineIndex: a.LineNumber - 1, TargetVocabID: a.TargetVocabID})
+	}
+	slices.SortFunc(picks, func(a, b types.IdentifyPick) int {
+		if a.LineIndex != b.LineIndex {
+			return a.LineIndex - b.LineIndex
+		}
+		return a.TargetVocabID - b.TargetVocabID
+	})
+
+	if len(occurrences) == 0 {
+		return picks, false
+	}
+	for _, occ := range occurrences {
+		if !answered[key{occ.LineNumber, occ.TargetVocabID}] {
+			return picks, false
+		}
+	}
+	return picks, true
+}
+
+// isIdentifyCompleted reports whether the user has answered every Identify
+// quiz for the story, for navigation's completion map.
+func (h *Handler) isIdentifyCompleted(ctx context.Context, userID string, storyID int) (bool, error) {
+	occurrences, err := models.GetTargetVocabularyOccurrences(ctx, storyID)
+	if err != nil {
+		return false, err
+	}
+	answers, err := models.GetUserIdentifyCorrectAnswers(ctx, userID, storyID)
+	if err != nil {
+		return false, err
+	}
+	_, completed := identifyProgress(occurrences, answers)
+	return completed, nil
 }
 
 // buildIdentifyLines segments each line's text, marking target-word

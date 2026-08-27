@@ -127,6 +127,13 @@ func (h *Handler) getPageCompletionStatus(ctx context.Context, userID string, st
 	}
 	status[PageTypeVocab] = vocabComplete
 
+	// Identify is complete once every target-word quiz has a correct pick
+	identifyComplete, err := h.isIdentifyCompleted(ctx, userID, int(storyID))
+	if err != nil {
+		return nil, err
+	}
+	status[PageTypeIdentify] = identifyComplete
+
 	// Get grammar completion status
 	grammarComplete, err := h.isGrammarCompleted(ctx, userID, storyID)
 	if err != nil {

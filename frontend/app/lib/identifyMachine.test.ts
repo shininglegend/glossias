@@ -2,16 +2,125 @@ import { describe, it, expect } from "vitest";
 import {
   identifyReducer,
   createIdentifyState,
+  identifiedWords,
+  linesWithUnansweredTargets,
   shuffle,
   type IdentifyState,
   type IdentifyEvent,
+  type IdentifyResume,
 } from "./identifyMachine";
 
 const run = (state: IdentifyState, ...events: IdentifyEvent[]) =>
   events.reduce(identifyReducer, state);
 
-const started = (lineCount = 5, identified: number[] = []) =>
-  run(createIdentifyState(lineCount, identified), { type: "START" });
+const started = (lineCount = 5, resume?: IdentifyResume) =>
+  run(createIdentifyState(lineCount, resume), { type: "START" });
+
+describe("identifyReducer — resuming an earlier visit", () => {
+  it("opens finished and inert when the server says complete", () => {
+    const s = createIdentifyState(5, {
+      picks: [{ line: 1, targetId: 10 }],
+      completed: true,
+    });
+    expect(s.phase.kind).toBe("complete");
+    expect(run(s, { type: "START" })).toBe(s);
+    expect(run(s, { type: "LINE_ENDED", line: 1, targets: [10] })).toBe(s);
+    expect(s.commandSeq).toBe(0);
+  });
+
+  it("starts from the last line with a correct pick", () => {
+    const s = started(5, {
+      picks: [
+        { line: 3, targetId: 11 },
+        { line: 1, targetId: 10 },
+      ],
+      completed: false,
+    });
+    expect(s.currentLine).toBe(3);
+    expect(s.command).toEqual({ type: "playFrom", index: 3 });
+  });
+
+  it("ignores the audio player's line while idle, so a resume point survives mount", () => {
+    const idle = createIdentifyState(5, {
+      picks: [{ line: 3, targetId: 11 }],
+      completed: false,
+    });
+    const afterMount = run(idle, { type: "LINE_CHANGED", index: 0 });
+    expect(afterMount).toBe(idle);
+    expect(run(afterMount, { type: "START" }).command).toEqual({
+      type: "playFrom",
+      index: 3,
+    });
+  });
+
+  it("drops out-of-range picks and starts from 0 when none remain", () => {
+    const s = started(5, {
+      picks: [{ line: 9, targetId: 10 }],
+      completed: false,
+    });
+    expect(s.picks).toEqual([]);
+    expect(s.command).toEqual({ type: "playFrom", index: 0 });
+  });
+
+  it("does not re-ask quizzes already answered, but asks the rest", () => {
+    const resumed = started(5, {
+      picks: [{ line: 1, targetId: 10 }],
+      completed: false,
+    });
+    // Fully answered line: playback continues straight on.
+    const skipped = run(resumed, {
+      type: "LINE_ENDED",
+      line: 1,
+      targets: [10],
+    });
+    expect(skipped.phase.kind).toBe("playing");
+    expect(skipped.command).toEqual({ type: "playFrom", index: 2 });
+
+    // Partly answered line: only the unanswered word is quizzed.
+    const partial = run(resumed, {
+      type: "LINE_ENDED",
+      line: 1,
+      targets: [10, 11],
+    });
+    expect(partial.phase).toEqual({
+      kind: "quiz",
+      line: 1,
+      targetId: 11,
+      remaining: [],
+      wrongPicks: [],
+    });
+  });
+
+  it("keeps the same word on another line as a separate quiz", () => {
+    const s = run(
+      started(5, { picks: [{ line: 1, targetId: 10 }], completed: false }),
+      { type: "LINE_ENDED", line: 3, targets: [10] },
+    );
+    expect(s.phase.kind).toBe("quiz");
+  });
+});
+
+describe("identify helpers", () => {
+  it("identifiedWords lists distinct words across lines", () => {
+    expect(
+      identifiedWords([
+        { line: 1, targetId: 10 },
+        { line: 3, targetId: 10 },
+        { line: 2, targetId: 11 },
+      ]),
+    ).toEqual([10, 11]);
+  });
+
+  it("linesWithUnansweredTargets excludes fully answered lines", () => {
+    const lineTargets = [[], [10], [10, 11], [], [12]];
+    const picks = [
+      { line: 1, targetId: 10 },
+      { line: 2, targetId: 10 },
+    ];
+    expect([...linesWithUnansweredTargets(picks, lineTargets)]).toEqual([2, 4]);
+    expect([...linesWithUnansweredTargets([], lineTargets)]).toEqual([1, 2, 4]);
+  });
+});
 
 describe("identifyReducer — start / pause / resume", () => {
   it("starts playback from line 0", () => {
@@ -109,7 +218,7 @@ describe("identifyReducer — quiz flow", () => {
     if (s.phase.kind === "quiz") {
       expect(s.phase.wrongPicks).toEqual([12, 13]);
     }
-    expect(s.identified).toEqual([]);
+    expect(s.picks).toEqual([]);
   });
 
   it("moves to the next target on the same line after a correct pick", () => {
@@ -128,7 +237,7 @@ describe("identifyReducer — quiz flow", () => {
     });
     expect(s.correct).toBe(1);
     expect(s.incorrect).toBe(1);
-    expect(s.identified).toEqual([10]);
+    expect(s.picks).toEqual([{ line: 1, targetId: 10 }]);
     expect(s.commandSeq).toBe(1);
   });
 
@@ -142,17 +251,10 @@ describe("identifyReducer — quiz flow", () => {
     expect(s.phase).toEqual({ kind: "replaying", line: 1 });
     expect(s.command).toEqual({ type: "replay", line: 1 });
     expect(s.commandSeq).toBe(2);
-    expect(s.identified).toEqual([10, 11]);
-  });
-
-  it("does not double-count a word already identified", () => {
-    const s = run(
-      started(5, [10]),
-      { type: "LINE_ENDED", line: 1, targets: [10] },
-      { type: "PICK_RESULT", selected: 10, correct: true },
-    );
-    expect(s.identified).toEqual([10]);
-    expect(s.correct).toBe(1);
+    expect(s.picks).toEqual([
+      { line: 1, targetId: 10 },
+      { line: 1, targetId: 11 },
+    ]);
   });
 
   it("ignores PICK_RESULT outside a quiz", () => {

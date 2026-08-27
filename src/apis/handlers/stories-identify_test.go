@@ -1,10 +1,62 @@
 package handlers
 
 import (
+	"glossias/src/apis/types"
 	"glossias/src/pkg/models"
 	"reflect"
 	"testing"
 )
+
+func TestIdentifyProgress(t *testing.T) {
+	occ := []models.TargetVocabularyOccurrence{
+		{TargetVocabID: 7, LineNumber: 2},
+		{TargetVocabID: 9, LineNumber: 2},
+		{TargetVocabID: 7, LineNumber: 5},
+	}
+
+	t.Run("no answers", func(t *testing.T) {
+		picks, done := identifyProgress(occ, nil)
+		if len(picks) != 0 || done {
+			t.Errorf("got picks=%v done=%v, want none/false", picks, done)
+		}
+	})
+
+	t.Run("partial answers are deduped, 0-based and ordered", func(t *testing.T) {
+		answers := []models.IdentifyAnswer{
+			{LineNumber: 5, TargetVocabID: 7},
+			{LineNumber: 2, TargetVocabID: 9},
+			{LineNumber: 5, TargetVocabID: 7}, // retry after a later visit
+		}
+		picks, done := identifyProgress(occ, answers)
+		want := []types.IdentifyPick{
+			{LineIndex: 1, TargetVocabID: 9},
+			{LineIndex: 4, TargetVocabID: 7},
+		}
+		if !reflect.DeepEqual(picks, want) {
+			t.Errorf("picks = %v, want %v", picks, want)
+		}
+		if done {
+			t.Error("phase should not be complete with line 2 / word 7 unanswered")
+		}
+	})
+
+	t.Run("complete once every occurrence is answered", func(t *testing.T) {
+		answers := []models.IdentifyAnswer{
+			{LineNumber: 2, TargetVocabID: 7},
+			{LineNumber: 2, TargetVocabID: 9},
+			{LineNumber: 5, TargetVocabID: 7},
+		}
+		if _, done := identifyProgress(occ, answers); !done {
+			t.Error("expected complete")
+		}
+	})
+
+	t.Run("a story with no target words is never complete", func(t *testing.T) {
+		if _, done := identifyProgress(nil, nil); done {
+			t.Error("expected not complete")
+		}
+	})
+}
 
 func TestBuildIdentifyLines(t *testing.T) {
 	// Hebrew text so rune offsets differ from byte offsets.

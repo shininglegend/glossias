@@ -99,7 +99,10 @@ export interface IdentifyData {
   target_words: IdentifyTargetWord[];
   /** Signed narration URLs keyed by 1-based line number. */
   audio_urls: { [key: string]: string };
-  completed_target_ids: number[];
+  /** Quizzes already answered correctly on earlier visits (0-based lines). */
+  correct_picks: { line_index: number; target_vocab_id: number }[];
+  /** The student finished this phase on an earlier visit. */
+  completed: boolean;
 }
 
 export interface GrammarData extends GrammarPageData {

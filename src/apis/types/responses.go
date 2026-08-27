@@ -67,8 +67,18 @@ type IdentifyPageData struct {
 	TargetWords []IdentifyTargetWord `json:"target_words"`
 	// Signed narration URLs keyed by 1-based line number, as useAudioPlayer expects.
 	AudioURLs map[int]string `json:"audio_urls"`
-	// Target words the user has already identified correctly at least once.
-	CompletedTargetIDs []int `json:"completed_target_ids"`
+	// CorrectPicks are the (line, word) quizzes the user has already answered
+	// correctly, so a reload resumes at the right line and skips them.
+	CorrectPicks []IdentifyPick `json:"correct_picks"`
+	// Completed is true once every target-word occurrence has a correct pick;
+	// the page then shows the finished state instead of replaying.
+	Completed bool `json:"completed"`
+}
+
+// IdentifyPick is one correctly answered Identify quiz.
+type IdentifyPick struct {
+	LineIndex     int `json:"line_index"` // 0-based, matching Lines
+	TargetVocabID int `json:"target_vocab_id"`
 }
 
 // CheckIdentifyRequest is a picture pick in the Identify phase.

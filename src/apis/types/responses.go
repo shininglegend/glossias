@@ -93,6 +93,44 @@ type CheckIdentifyResponse struct {
 	Correct bool `json:"correct"`
 }
 
+// RecallCard is one sentence card in the Recall sequencing exercise. It
+// deliberately carries no position: the server shuffles the cards and the
+// student's job is to recover the order.
+type RecallCard struct {
+	ID         int    `json:"id"`
+	HebrewText string `json:"hebrew_text"`
+	ImageURL   string `json:"image_url,omitempty"`
+}
+
+// RecallPageData is the payload for the Recall phase.
+type RecallPageData struct {
+	PageData
+	// LineCount is how many narration lines the story has; the phase plays
+	// them audio-only, so the text itself is not sent.
+	LineCount int `json:"line_count"`
+	// Signed narration URLs keyed by 1-based line number, as useAudioPlayer expects.
+	AudioURLs map[int]string `json:"audio_urls"`
+	// Sentences are the story's recall cards in a random order.
+	Sentences []RecallCard `json:"sentences"`
+	// Attempts is how many orderings the student has already submitted.
+	Attempts int `json:"attempts"`
+	// Completed is true once the student has placed every sentence correctly;
+	// the page then shows the finished state instead of asking again.
+	Completed bool `json:"completed"`
+}
+
+// CheckRecallRequest is one submitted ordering: OrderedSentenceIDs[i] is the
+// sentence the student placed at position i+1.
+type CheckRecallRequest struct {
+	OrderedSentenceIDs []int `json:"ordered_sentence_ids"`
+}
+
+// CheckRecallResponse reports per-position correctness in the submitted order.
+type CheckRecallResponse struct {
+	Results    []bool `json:"results"`
+	AllCorrect bool   `json:"all_correct"`
+}
+
 // Line represents a story line in API responses
 type Line struct {
 	Text            []string       `json:"text"`

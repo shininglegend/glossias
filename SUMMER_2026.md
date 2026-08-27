@@ -20,7 +20,7 @@ Complexity is 1–10 on the difficulty of getting it *right* (state, races, exte
 - [X] **T8 — Watch phase.** Pre-video plot-summary screen and `videoWatched` gating in `StoriesVideo.tsx`. *Depends on: T2.* *Complexity: 2/10 · ~3 files.*
 - [X] **T9 — Translate rework.** Rewrite `StoriesTranslate.tsx` as an explicit state machine (quota, consecutive cap, restart/fast-forward, auto-skip); backend unchanged. *Depends on: T2, T6.* *Complexity: 9/10 · ~5 files — single-file rewrite, but the hardest state machine in the app.*
 - [X] **T10 — Identify phase.** New `GET /identify` + `POST /check-identify` endpoints, target-word rendering, and the picture-quiz popup with line replay. *Depends on: T2, T3, T4, T5, T6.* *Complexity: 8/10 · ~14 files — spans schema, storage, audio, segment rendering, and a new popup.*
-- [ ] **T11 — Recall phase.** Audio-only playback, `@dnd-kit` sequencing UI, and `GET /recall` + `POST /check-recall` endpoints with answer logging. *Depends on: T2, T3, T6.* *Complexity: 7/10 · ~11 files — includes adding and wiring @dnd-kit.*
+- [X] **T11 — Recall phase.** Audio-only playback, `@dnd-kit` sequencing UI, and `GET /recall` + `POST /check-recall` endpoints with answer logging. *Depends on: T2, T3, T6.* *Complexity: 7/10 · ~11 files — includes adding and wiring @dnd-kit.*
 - [ ] **T12 — Produce phase (frontend + submit endpoint).** Timed two-segment translation UI, reference reveal, explanation popup, and `POST /produce` storing submissions (ungraded). *Depends on: T2, T3, T5.* *Complexity: 6/10 · ~10 files.*
 - [ ] **T13 — AI grading.** Anthropic SDK integration, grading prompt + iteration on sample answers, fail-open behavior, and rate limiting on the submit path. *Depends on: T12 (and developer_review.md #2 rate-limiter fix).* *Complexity: 7/10 · ~8 files — small diff, high risk: external API, cost, latency, prompt iteration.*
 - [ ] **T14 — Score page rework.** New accuracy categories, five-phase time breakdown, and incomplete-detection for the new phases in `stories-score.go` + `StoriesScore.tsx`. *Depends on: T10, T11, T12 (T13 for graded produce scores).* *Complexity: 6/10 · ~9 files — must tolerate mixed-generation data.*
@@ -210,6 +210,14 @@ Behavior:
 2. After playback: `GET /api/stories/:id/recall` returns the 5 sentences from `recall_sentences` (Hebrew text + signed image URL each), **shuffled server-side** with `sequence_order` withheld.
 3. Drag-and-drop ordering UI (`@dnd-kit/sortable`, F4): student arranges the 5 cards into story order and submits.
 4. `POST /api/stories/:id/check-recall` with the ordered sentence IDs; backend compares to `sequence_order` and returns per-position correctness. Record attempts in `recall_correct_answers` / `recall_incorrect_answers` (append-only pattern) for scoring. Decide: single-attempt scored, or retry-until-correct with attempts counted (recommend the latter — it matches the vocab/grammar retry model that `CalculateScoreWithRetriesAllowed` already handles).
+
+**As built (T11).** `src/apis/handlers/stories-recall.go` + `frontend/app/components/StoriesRecall.tsx` (`RecallSession` is the testable inner component, as with Identify). Decisions downstream tasks depend on:
+
+- **Retry-until-correct.** `POST /check-recall` takes `{ordered_sentence_ids}` and returns `{results: bool[], all_correct}`; every submission logs one row per sentence via `models.SaveRecallAttempt`, so T14 can score it with `CalculateScoreWithRetriesAllowed` from `GetUserStoryRecallSummary`. A non-permutation is a 400; a story with no sentences is a 404.
+- **Completion is derived, not stored**: the phase (and navigation's `PageTypeRecall` entry) counts as complete once every one of the story's *current* sentences has a `recall_correct_answers` row (`recallCompleted`, mirroring `isVocabCompleted`). A story with no recall sentences is never complete — the page plays the narration, shows a notice, and offers Continue. T14's "a recall attempt present" check is `CorrectCount + IncorrectCount > 0`; the attempt count is `(CorrectCount + IncorrectCount) / len(sentences)`.
+- `GET /recall` sends `line_count` + signed `audio_urls` (no line text — the phase is audio-only), the cards shuffled with `sequence_order` withheld, `attempts`, and `completed`. A completed phase opens in the finished state and cannot be redone.
+- Playback uses `useAudioPlayer` with `pauseOnLines` set to an empty set so it never pauses between lines; pause/resume is allowed, seeking and skipping are not. No narration → straight to arranging.
+- Drag-and-drop is `@dnd-kit/core` + `@dnd-kit/sortable` (pointer + keyboard sensors); each card also has explicit move up/down buttons, which are what the vitest suite drives since happy-dom has no pointer geometry.
 
 ## Score page changes
 

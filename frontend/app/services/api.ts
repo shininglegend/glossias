@@ -105,6 +105,34 @@ export interface IdentifyData {
   completed: boolean;
 }
 
+export interface RecallCard {
+  id: number;
+  hebrew_text: string;
+  image_url?: string;
+}
+
+export interface RecallData {
+  story_id: string;
+  story_title: string;
+  language: string;
+  /** Number of narration lines; the phase is audio-only so no text is sent. */
+  line_count: number;
+  /** Signed narration URLs keyed by 1-based line number. */
+  audio_urls: { [key: string]: string };
+  /** The story's sentences, shuffled server-side with the order withheld. */
+  sentences: RecallCard[];
+  /** Orderings already submitted on earlier visits. */
+  attempts: number;
+  /** The student finished this phase on an earlier visit. */
+  completed: boolean;
+}
+
+export interface CheckRecallResult {
+  /** Correctness per submitted position. */
+  results: boolean[];
+  all_correct: boolean;
+}
+
 export interface GrammarData extends GrammarPageData {
   grammar_point_id: number;
   grammar_point: string;
@@ -255,6 +283,20 @@ export function useApiService() {
             target_vocab_id: targetVocabId,
             selected_target_vocab_id: selectedTargetVocabId,
           }),
+        });
+      },
+
+      getStoryRecall: (id: string): Promise<APIResponse<RecallData>> => {
+        return fetchAPI<RecallData>(`/stories/${id}/recall`);
+      },
+
+      checkRecall: (
+        id: string,
+        orderedSentenceIds: number[],
+      ): Promise<APIResponse<CheckRecallResult>> => {
+        return fetchAPI(`/stories/${id}/check-recall`, {
+          method: "POST",
+          body: JSON.stringify({ ordered_sentence_ids: orderedSentenceIds }),
         });
       },
 

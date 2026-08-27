@@ -242,6 +242,30 @@ func SaveRecallAttempt(ctx context.Context, userID string, storyID int, orderedS
 	return results, nil
 }
 
+// GetUserRecallCorrectSentenceIDs returns the ID of every sentence the user
+// has placed correctly, one entry per correct answer row (so a sentence placed
+// correctly on two attempts appears twice). Callers judging completion should
+// treat it as a set.
+func GetUserRecallCorrectSentenceIDs(ctx context.Context, userID string, storyID int) ([]int, error) {
+	if queries == nil {
+		return nil, errors.New("database not initialized")
+	}
+
+	rows, err := queries.GetUserRecallCorrectAnswers(ctx, db.GetUserRecallCorrectAnswersParams{
+		UserID:  userID,
+		StoryID: int32(storyID),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make([]int, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, int(row.RecallSentenceID))
+	}
+	return ids, nil
+}
+
 // GetUserStoryRecallSummary returns the user's correct/incorrect counts, in the
 // shape CalculateScoreWithRetriesAllowed expects.
 func GetUserStoryRecallSummary(ctx context.Context, userID string, storyID int) (AnswerSummary, error) {

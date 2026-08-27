@@ -42,13 +42,13 @@ supabase status
 
 The local ports are set in `supabase/config.toml`, which is committed:
 
-| Service | URL |
-| --- | --- |
-| Postgres | `postgresql://postgres:postgres@localhost:54322/postgres` |
-| API / storage gateway | `http://127.0.0.1:54321` |
-| Studio (web UI) | `http://127.0.0.1:54323` |
+| Service               | URL                                                       |
+| --------------------- | --------------------------------------------------------- |
+| Postgres              | `postgresql://postgres:postgres@localhost:54322/postgres` |
+| API / storage gateway | `http://127.0.0.1:54321`                                  |
+| Studio (web UI)       | `http://127.0.0.1:54323`                                  |
 
-**Option B — hosted project.** Create a project at [supabase.com](https://supabase.com), then take the connection string from *Project Settings → Database* and the storage URL and service-role key from *Project Settings → API*.
+**Option B — hosted project.** Create a project at [supabase.com](https://supabase.com), then take the connection string from _Project Settings → Database_ and the storage URL and service-role key from _Project Settings → API_.
 
 > If `DATABASE_URL` is unset the backend silently falls back to an in-memory mock store. The server will start and the UI will load, but nothing persists — so if data keeps vanishing, check this variable first.
 
@@ -112,27 +112,30 @@ Ctrl-C in the backend and frontend terminals. If you are running the local Supab
 supabase stop
 ```
 
-Add `--no-backup` if you want to discard the local database contents rather than restore them on the next `supabase start`.
-
+Add `--no-backup` if you want to discard the local database contents rather than restore them on the next `supabase start`. (You likely never want to do this. But, you can!)
 
 ## Adding Content
 
 ### Stories
+
 Add stories via the admin interface at `/admin`.
 
 ## Credits
 
 ### Content
+
 - Most story text and audio files are by Dr. Jesse Scheumann, all rights reserved, used with permission
 - All other story text and audio files were created by Titus Murphy, all rights reserved.
 
 ### Development
+
 - Code written by Titus unless otherwise noted.
 - AI assistance provided by claude.ai, GitHub Copilot, and Ollama using multiple models. Some documentation is in AiUsage.md. Developed with the Zed IDE.
 
 ## Architecture
 
 ### Frontend versus backend
+
 This project is modular and split up into at least two main parts. The frontend is in `/frontend/*`, and is a react vite SPA. See `./frontend/routes.ts` for the available routes. The backend most of the rest of the code, but runs `./main.go` to provide the APIs for the frontend.
 This uses the supabase APIs.
 
@@ -185,6 +188,7 @@ The application uses a layered architecture for database access:
 ```
 
 **Key Points:**
+
 - HTTP handlers call model functions, never database directly
 - Models package uses generated SQLC queries for type-safe database operations
 - SQLC generates Go code from SQL queries, providing compile-time safety
@@ -192,4 +196,5 @@ The application uses a layered architecture for database access:
 - Authentication middleware calls model functions for user operations
 
 ### Academic Context
+
 This project was, in its first part, developed under the oversight of Dr. Derrick Tate for academic credit at Sattler College.

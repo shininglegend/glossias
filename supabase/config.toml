@@ -118,6 +118,11 @@ file_size_limit = "50MiB"
 allowed_mime_types = ["image/png", "image/jpeg"]
 objects_path = "./images"
 
+[storage.buckets.audio-files]
+public = false
+file_size_limit = "50MiB"
+allowed_mime_types = ["audio/mpeg", "audio/mp4", "audio/wav", "audio/webm"]
+
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]
 enabled = true

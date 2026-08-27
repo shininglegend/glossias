@@ -72,6 +72,7 @@ Backend (`.env`):
 - `DATABASE_URL`
 - `STORAGE_URL`, `STORAGE_API_KEY`
 - `DEV_USER` — when set, bypasses Clerk auth (dev only)
+- `ANTHROPIC_API_KEY` — enables AI grading of Produce submissions (`claude-haiku-4-5`, background, fail-open). Unset → submissions are stored ungraded and a warning is logged at startup.
 
 Frontend:
 

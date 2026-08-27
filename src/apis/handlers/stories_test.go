@@ -18,7 +18,7 @@ import (
 func TestGetCourseStories(t *testing.T) {
 	// Initialize Handler with a discard logger
 	logger := slog.New(slog.DiscardHandler)
-	h := NewHandler(logger)
+	h := NewHandler(logger, nil)
 
 	tests := []struct {
 		name           string

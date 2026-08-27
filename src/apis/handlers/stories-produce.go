@@ -210,6 +210,9 @@ func (h *Handler) SubmitProduce(w http.ResponseWriter, r *http.Request) {
 		}
 		studentText = saved.StudentText
 		existing = append(existing, *saved)
+		// Grade in the background; the student gets the reference right away
+		// and a grading failure only leaves ai_score NULL.
+		h.produceGrading.Enqueue(userID, *saved, segment)
 	}
 
 	json.NewEncoder(w).Encode(types.APIResponse{

@@ -309,7 +309,7 @@ function TranslateSession({
   const handlePlayPause = () => {
     if (phase.kind === "idle") {
       dispatch({ type: "START" });
-    } else if (phase.kind === "playing") {
+    } else if (phase.kind === "playing" || phase.kind === "awaitingLineEnd") {
       audioPlayer.pauseAudio();
       dispatch({ type: "PAUSE" });
     } else if (phase.kind === "paused") {
@@ -330,10 +330,11 @@ function TranslateSession({
   const isRTL = RTL_LANGUAGES.includes(pageData.language);
   const minRequests = effectiveMinRequests(lineCount);
   const isComplete = phase.kind === "complete";
-  const isPending =
-    phase.kind === "awaitingLineEnd" ||
-    phase.kind === "predicting" ||
-    phase.kind === "revealing";
+  // Audio can be paused while playing or while a request waits for its line
+  // to finish; the timed beats cannot be interrupted.
+  const isTimed = phase.kind === "predicting" || phase.kind === "revealing";
+  const isAudible =
+    phase.kind === "playing" || phase.kind === "awaitingLineEnd";
   const activeLine =
     phase.kind === "predicting" || phase.kind === "revealing"
       ? phase.requestedLine
@@ -359,7 +360,7 @@ function TranslateSession({
   const playButtonLabel =
     phase.kind === "idle"
       ? "Start"
-      : phase.kind === "playing"
+      : isAudible
         ? "Pause Audio"
         : phase.kind === "paused"
           ? "Resume Audio"
@@ -399,18 +400,18 @@ function TranslateSession({
           <div className="flex flex-wrap items-center justify-center gap-4 my-5">
             <button
               onClick={handlePlayPause}
-              disabled={isPending}
+              disabled={isTimed}
               className={`inline-flex items-center gap-2 px-5 py-3 text-white border-none rounded-lg text-base transition-colors duration-200 ${
-                isPending
+                isTimed
                   ? "bg-gray-400 cursor-not-allowed"
-                  : phase.kind === "playing"
+                  : isAudible
                     ? "bg-red-500 hover:bg-red-600 cursor-pointer"
                     : "bg-green-500 hover:bg-green-600 cursor-pointer"
               }`}
               type="button"
             >
               <span className="material-icons">
-                {phase.kind === "playing" || isPending ? "pause" : "play_arrow"}
+                {isAudible || isTimed ? "pause" : "play_arrow"}
               </span>
               {playButtonLabel}
             </button>

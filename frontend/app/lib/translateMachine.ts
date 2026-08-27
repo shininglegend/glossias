@@ -11,7 +11,7 @@
  * Phases:
  *   idle            – before the student presses Start
  *   playing         – continuous playback, requests accepted
- *   paused          – student paused; nothing pending
+ *   paused          – student paused (may be holding a pending request)
  *   awaitingLineEnd – a request was made; audio finishes the current line
  *   predicting      – 2s silent "prediction beat" before the reveal
  *   revealing       – translation shown, 5s hold, then resume
@@ -21,13 +21,14 @@
 export const MIN_REQUESTS = 4;
 export const MAX_REQUESTS = 7;
 export const MAX_CONSECUTIVE = 3;
-export const PREDICT_MS = 2000;
-export const REVEAL_MS = 5000;
+export const PREDICT_MS = 4000;
+export const REVEAL_MS = 3000;
 
 export type TranslatePhase =
   | { kind: "idle" }
   | { kind: "playing" }
-  | { kind: "paused" }
+  /** `pendingRequest` is set when paused while a request awaited its line end. */
+  | { kind: "paused"; pendingRequest?: number }
   | { kind: "awaitingLineEnd"; requestedLine: number }
   | { kind: "predicting"; requestedLine: number; resumeFrom: number }
   | { kind: "revealing"; requestedLine: number; resumeFrom: number }
@@ -174,15 +175,30 @@ export function translateReducer(
       );
 
     case "PAUSE":
-      if (phase.kind !== "playing") return state;
-      return { ...state, phase: { kind: "paused" } };
+      if (phase.kind === "playing") {
+        return { ...state, phase: { kind: "paused" } };
+      }
+      // Pausing while a request waits for its line to finish keeps the
+      // request; RESUME goes back to waiting for that line end.
+      if (phase.kind === "awaitingLineEnd") {
+        return {
+          ...state,
+          phase: { kind: "paused", pendingRequest: phase.requestedLine },
+        };
+      }
+      return state;
 
-    case "RESUME":
+    case "RESUME": {
       if (phase.kind !== "paused") return state;
+      const resumedPhase: TranslatePhase =
+        phase.pendingRequest !== undefined
+          ? { kind: "awaitingLineEnd", requestedLine: phase.pendingRequest }
+          : { kind: "playing" };
       return withCommand(
-        { ...state, phase: { kind: "playing" } },
+        { ...state, phase: resumedPhase },
         { type: "playFrom", index: state.currentLine },
       );
+    }
 
     case "LINE_CHANGED":
       if (event.index === state.currentLine) return state;

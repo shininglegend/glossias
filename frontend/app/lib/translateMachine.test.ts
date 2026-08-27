@@ -50,16 +50,50 @@ describe("translateReducer — start / pause", () => {
     expect(translateReducer(s, { type: "START" })).toBe(s);
   });
 
-  it("pauses only while playing and resumes at the current line", () => {
+  it("pauses while playing and resumes at the current line", () => {
     const s = at(started(), 3);
     const paused = translateReducer(s, { type: "PAUSE" });
-    expect(paused.phase.kind).toBe("paused");
+    expect(paused.phase).toEqual({ kind: "paused" });
     const resumed = translateReducer(paused, { type: "RESUME" });
     expect(resumed.phase.kind).toBe("playing");
     expect(resumed.command).toEqual({ type: "playFrom", index: 3 });
+  });
 
-    const pending = translateReducer(s, { type: "REQUEST", line: 3 });
-    expect(translateReducer(pending, { type: "PAUSE" })).toBe(pending);
+  it("pausing while a request awaits its line end keeps the request", () => {
+    const pending = translateReducer(at(started(), 3), {
+      type: "REQUEST",
+      line: 2,
+    });
+    const paused = translateReducer(pending, { type: "PAUSE" });
+    expect(paused.phase).toEqual({ kind: "paused", pendingRequest: 2 });
+    expect(paused.requested).toEqual([2]);
+    // Line-end and timer events are ignored while paused.
+    expect(translateReducer(paused, { type: "LINE_ENDED" })).toBe(paused);
+    expect(requestBlockReason(paused, 3)).toBe("not-playing");
+
+    const resumed = translateReducer(paused, { type: "RESUME" });
+    expect(resumed.phase).toEqual({
+      kind: "awaitingLineEnd",
+      requestedLine: 2,
+    });
+    expect(resumed.command).toEqual({ type: "playFrom", index: 3 });
+    const predicting = translateReducer(resumed, { type: "LINE_ENDED" });
+    expect(predicting.phase).toEqual({
+      kind: "predicting",
+      requestedLine: 2,
+      resumeFrom: 4,
+    });
+  });
+
+  it("cannot pause during the prediction beat or the reveal", () => {
+    const pending = translateReducer(at(started(), 3), {
+      type: "REQUEST",
+      line: 3,
+    });
+    const predicting = translateReducer(pending, { type: "LINE_ENDED" });
+    expect(translateReducer(predicting, { type: "PAUSE" })).toBe(predicting);
+    const revealing = translateReducer(predicting, { type: "PREDICT_DONE" });
+    expect(translateReducer(revealing, { type: "PAUSE" })).toBe(revealing);
   });
 
   it("tracks the current line", () => {

@@ -8,21 +8,23 @@ This spec is grounded in the current codebase. Each section states what exists t
 
 Tasks with no unmet dependencies can run in parallel as independent agent tasks. "Depends on" means the listed task must be merged first.
 
-- [ ] **T1 — Migration system.** Adopt `golang-migrate` or `goose`, un-gitignore `migrations/*.sql`, and convert `schema.sql` startup application into a baseline migration. *Depends on: nothing (hard prerequisite for T3).*
-- [ ] **T2 — Navigation + placeholder phases (F1).** Extend `PageType` and `defaultPageOrder` to the new five-phase flow, add the three thin routes/components as placeholders, and add time-tracking route matching for the new phase names. *Depends on: nothing.*
-- [ ] **T3 — Schema + SQLC for new content (F2/F3).** Add `target_vocabulary`, `produce_segments`, `produce_submissions`, `recall_sentences`, and the identify/recall answer-log tables, with queries, `sqlc generate`, and model functions. *Depends on: T1.*
-- [ ] **T4 — Image storage.** Create the images bucket and mirror the audio signed-upload/signed-read flow in models and admin handlers. *Depends on: nothing.*
-- [ ] **T5 — Modal accessibility fix.** Fix `ConfirmDialog` (role/aria, focus trap, Escape) before it gets cloned into the Identify and Produce popups (developer_review.md #6). *Depends on: nothing.*
-- [ ] **T6 — `useAudioPlayer` extensions (F4).** Add pause-on-specific-lines, replay-single-line, skip-lines set, and timed resume behind new options with unchanged defaults, plus isolated hook tests. *Depends on: nothing.*
-- [ ] **T7 — Admin authoring editors.** Admin CRUD UI + endpoints for target vocab (with audio/image upload), produce segments/explanation, and recall sentences, including validation (5 words, ≥2 occurrences, 5 ordered sentences). *Depends on: T3, T4.*
-- [ ] **T8 — Watch phase.** Pre-video plot-summary screen and `videoWatched` gating in `StoriesVideo.tsx`. *Depends on: T2.*
-- [ ] **T9 — Translate rework.** Rewrite `StoriesTranslate.tsx` as an explicit state machine (quota, consecutive cap, restart/fast-forward, auto-skip); backend unchanged. *Depends on: T2, T6.*
-- [ ] **T10 — Identify phase.** New `GET /identify` + `POST /check-identify` endpoints, target-word rendering, and the picture-quiz popup with line replay. *Depends on: T2, T3, T4, T5, T6.*
-- [ ] **T11 — Recall phase.** Audio-only playback, `@dnd-kit` sequencing UI, and `GET /recall` + `POST /check-recall` endpoints with answer logging. *Depends on: T2, T3, T6.*
-- [ ] **T12 — Produce phase (frontend + submit endpoint).** Timed two-segment translation UI, reference reveal, explanation popup, and `POST /produce` storing submissions (ungraded). *Depends on: T2, T3, T5.*
-- [ ] **T13 — AI grading.** Anthropic SDK integration, grading prompt + iteration on sample answers, fail-open behavior, and rate limiting on the submit path. *Depends on: T12 (and developer_review.md #2 rate-limiter fix).*
-- [ ] **T14 — Score page rework.** New accuracy categories, five-phase time breakdown, and incomplete-detection for the new phases in `stories-score.go` + `StoriesScore.tsx`. *Depends on: T10, T11, T12 (T13 for graded produce scores).*
-- [ ] **T15 — Content authoring (non-code).** Produce videos, images, word audio, segments, and recall sentences per story via the T7 editors. *Depends on: T7.*
+Complexity is 1–10 on the difficulty of getting it *right* (state, races, external systems), not on volume of typing — a small diff can rate high. File counts are new + modified files, excluding `sqlc`-generated output and lockfiles.
+
+- [X] **T1 — Migration system.** Adopt `golang-migrate` or `goose`, un-gitignore `migrations/*.sql`, and convert `schema.sql` startup application into a baseline migration. *Depends on: nothing (hard prerequisite for T3).* *Complexity: 5/10 · ~8 files.*
+- [X] **T2 — Navigation + placeholder phases (F1).** Extend `PageType` and `defaultPageOrder` to the new five-phase flow, add the three thin routes/components as placeholders, and add time-tracking route matching for the new phase names. *Depends on: nothing.* *Complexity: 3/10 · ~12 files.*
+- [ ] **T3 — Schema + SQLC for new content (F2/F3).** Add `target_vocabulary`, `produce_segments`, `produce_submissions`, `recall_sentences`, and the identify/recall answer-log tables, with queries, `sqlc generate`, and model functions. *Depends on: T1.* *Complexity: 6/10 · ~18 files — 5 new tables, ~5 query files, sqlc regen, model funcs.*
+- [ ] **T4 — Image storage.** Create the images bucket and mirror the audio signed-upload/signed-read flow in models and admin handlers. *Depends on: nothing.* *Complexity: 4/10 · ~6 files — mirrors an existing pattern end to end.*
+- [ ] **T5 — Modal accessibility fix.** Fix `ConfirmDialog` (role/aria, focus trap, Escape) before it gets cloned into the Identify and Produce popups (developer_review.md #6). *Depends on: nothing.* *Complexity: 3/10 · ~3 files.*
+- [ ] **T6 — `useAudioPlayer` extensions (F4).** Add pause-on-specific-lines, replay-single-line, skip-lines set, and timed resume behind new options with unchanged defaults, plus isolated hook tests. *Depends on: nothing.* *Complexity: 6/10 · ~3 files — few files, but dense concurrent-audio logic + tests.*
+- [ ] **T7 — Admin authoring editors.** Admin CRUD UI + endpoints for target vocab (with audio/image upload), produce segments/explanation, and recall sentences, including validation (5 words, ≥2 occurrences, 5 ordered sentences). *Depends on: T3, T4.* *Complexity: 8/10 · ~18 files — largest surface area: 3 editors x (admin handler + model + UI).*
+- [ ] **T8 — Watch phase.** Pre-video plot-summary screen and `videoWatched` gating in `StoriesVideo.tsx`. *Depends on: T2.* *Complexity: 2/10 · ~3 files.*
+- [ ] **T9 — Translate rework.** Rewrite `StoriesTranslate.tsx` as an explicit state machine (quota, consecutive cap, restart/fast-forward, auto-skip); backend unchanged. *Depends on: T2, T6.* *Complexity: 9/10 · ~5 files — single-file rewrite, but the hardest state machine in the app.*
+- [ ] **T10 — Identify phase.** New `GET /identify` + `POST /check-identify` endpoints, target-word rendering, and the picture-quiz popup with line replay. *Depends on: T2, T3, T4, T5, T6.* *Complexity: 8/10 · ~14 files — spans schema, storage, audio, segment rendering, and a new popup.*
+- [ ] **T11 — Recall phase.** Audio-only playback, `@dnd-kit` sequencing UI, and `GET /recall` + `POST /check-recall` endpoints with answer logging. *Depends on: T2, T3, T6.* *Complexity: 7/10 · ~11 files — includes adding and wiring @dnd-kit.*
+- [ ] **T12 — Produce phase (frontend + submit endpoint).** Timed two-segment translation UI, reference reveal, explanation popup, and `POST /produce` storing submissions (ungraded). *Depends on: T2, T3, T5.* *Complexity: 6/10 · ~10 files.*
+- [ ] **T13 — AI grading.** Anthropic SDK integration, grading prompt + iteration on sample answers, fail-open behavior, and rate limiting on the submit path. *Depends on: T12 (and developer_review.md #2 rate-limiter fix).* *Complexity: 7/10 · ~8 files — small diff, high risk: external API, cost, latency, prompt iteration.*
+- [ ] **T14 — Score page rework.** New accuracy categories, five-phase time breakdown, and incomplete-detection for the new phases in `stories-score.go` + `StoriesScore.tsx`. *Depends on: T10, T11, T12 (T13 for graded produce scores).* *Complexity: 6/10 · ~9 files — must tolerate mixed-generation data.*
+- [ ] **T15 — Content authoring (non-code).** Produce videos, images, word audio, segments, and recall sentences per story via the T7 editors. *Depends on: T7.* *Complexity: n/a (non-code) · 0 code files — content work, not code; effort scales with story count.*
 
 Parallel-start set: **T1, T2, T4, T5, T6** can all begin immediately.
 

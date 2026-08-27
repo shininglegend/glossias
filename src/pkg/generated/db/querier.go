@@ -46,6 +46,8 @@ type Querier interface {
 	// Grammar points management queries
 	CreateGrammarPoint(ctx context.Context, arg CreateGrammarPointParams) (GrammarPoint, error)
 	CreateStory(ctx context.Context, arg CreateStoryParams) (CreateStoryRow, error)
+	// Story images management queries
+	CreateStoryImage(ctx context.Context, arg CreateStoryImageParams) (StoryImage, error)
 	// Time tracking queries
 	CreateTimeEntry(ctx context.Context, arg CreateTimeEntryParams) (UserTimeTracking, error)
 	// Translation requests management queries
@@ -79,6 +81,9 @@ type Querier interface {
 	DeleteStoryAudioFiles(ctx context.Context, storyID pgtype.Int4) error
 	DeleteStoryAudioFilesByLabel(ctx context.Context, arg DeleteStoryAudioFilesByLabelParams) error
 	DeleteStoryDescriptions(ctx context.Context, storyID int32) error
+	DeleteStoryImage(ctx context.Context, imageID int32) error
+	DeleteStoryImages(ctx context.Context, storyID pgtype.Int4) error
+	DeleteStoryImagesByLabel(ctx context.Context, arg DeleteStoryImagesByLabelParams) error
 	DeleteStoryLine(ctx context.Context, arg DeleteStoryLineParams) error
 	DeleteStoryTitles(ctx context.Context, storyID int32) error
 	DeleteTranslationRequest(ctx context.Context, arg DeleteTranslationRequestParams) error
@@ -97,6 +102,7 @@ type Querier interface {
 	GetAllStoriesForUser(ctx context.Context, arg GetAllStoriesForUserParams) ([]GetAllStoriesForUserRow, error)
 	GetAllStoriesWithTitles(ctx context.Context) ([]GetAllStoriesWithTitlesRow, error)
 	GetAllStoryAudioFiles(ctx context.Context, storyID pgtype.Int4) ([]LineAudioFile, error)
+	GetAllStoryImages(ctx context.Context, storyID pgtype.Int4) ([]StoryImage, error)
 	GetAllTranslationsForStory(ctx context.Context, storyID int32) ([]LineTranslation, error)
 	GetAllUsersStoryGrammarSummary(ctx context.Context, storyID int32) ([]GetAllUsersStoryGrammarSummaryRow, error)
 	GetAllUsersStoryVocabSummary(ctx context.Context, storyID int32) ([]GetAllUsersStoryVocabSummaryRow, error)
@@ -134,6 +140,9 @@ type Querier interface {
 	GetStoryFootnotesWithReferences(ctx context.Context, storyID pgtype.Int4) ([]GetStoryFootnotesWithReferencesRow, error)
 	GetStoryGrammarPoints(ctx context.Context, storyID int32) ([]GetStoryGrammarPointsRow, error)
 	GetStoryGrammarScores(ctx context.Context, storyID int32) ([]GetStoryGrammarScoresRow, error)
+	GetStoryImage(ctx context.Context, imageID int32) (StoryImage, error)
+	GetStoryImagesByLabel(ctx context.Context, arg GetStoryImagesByLabelParams) ([]StoryImage, error)
+	GetStoryImagesByLabelGlobally(ctx context.Context, label string) ([]StoryImage, error)
 	GetStoryLine(ctx context.Context, arg GetStoryLineParams) (StoryLine, error)
 	// Story lines
 	GetStoryLines(ctx context.Context, storyID int32) ([]StoryLine, error)
@@ -191,6 +200,7 @@ type Querier interface {
 	UpdateGrammarByPosition(ctx context.Context, arg UpdateGrammarByPositionParams) error
 	UpdateGrammarPoint(ctx context.Context, arg UpdateGrammarPointParams) (GrammarPoint, error)
 	UpdateStory(ctx context.Context, arg UpdateStoryParams) error
+	UpdateStoryImage(ctx context.Context, arg UpdateStoryImageParams) (StoryImage, error)
 	UpdateStoryRevision(ctx context.Context, storyID int32) error
 	UpdateTimeEntry(ctx context.Context, arg UpdateTimeEntryParams) (UserTimeTracking, error)
 	UpdateTimeEntryIfBigger(ctx context.Context, arg UpdateTimeEntryIfBiggerParams) error

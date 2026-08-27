@@ -80,4 +80,9 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	stories.HandleFunc("/audio/upload", h.audioUploadHandler).Methods("POST", "OPTIONS")
 	stories.HandleFunc("/audio/confirm", h.confirmAudioUploadHandler).Methods("POST", "OPTIONS")
 	stories.HandleFunc("/audio/delete", h.audioDeleteHandler).Methods("DELETE", "OPTIONS")
+
+	// Image upload endpoints
+	stories.HandleFunc("/image/upload", h.imageUploadHandler).Methods("POST", "OPTIONS")
+	stories.HandleFunc("/image/confirm", h.confirmImageUploadHandler).Methods("POST", "OPTIONS")
+	stories.HandleFunc("/image/delete", h.imageDeleteHandler).Methods("DELETE", "OPTIONS")
 }

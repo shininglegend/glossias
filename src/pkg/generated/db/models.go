@@ -125,6 +125,15 @@ type StoryDescription struct {
 	DescriptionText string `json:"description_text"`
 }
 
+type StoryImage struct {
+	ImageID    int32            `json:"image_id"`
+	StoryID    pgtype.Int4      `json:"story_id"`
+	FilePath   string           `json:"file_path"`
+	FileBucket string           `json:"file_bucket"`
+	Label      string           `json:"label"`
+	CreatedAt  pgtype.Timestamp `json:"created_at"`
+}
+
 type StoryLine struct {
 	StoryID    int32  `json:"story_id"`
 	LineNumber int32  `json:"line_number"`

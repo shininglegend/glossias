@@ -105,6 +105,19 @@ CREATE TABLE IF NOT EXISTS line_audio_files (
 -- Index for efficient querying by label
 CREATE INDEX IF NOT EXISTS idx_audio_files_label ON line_audio_files (story_id, label);
 
+-- Story images table for image assets
+CREATE TABLE IF NOT EXISTS story_images (
+    image_id SERIAL PRIMARY KEY,
+    story_id INTEGER REFERENCES stories (story_id) ON DELETE CASCADE,
+    file_path TEXT NOT NULL, -- Supabase storage path
+    file_bucket TEXT NOT NULL, -- Supabase bucket name
+    label TEXT NOT NULL, -- e.g., "target_vocab", "recall"
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for efficient querying of images by label
+CREATE INDEX IF NOT EXISTS idx_story_images_label ON story_images (story_id, label);
+
 CREATE TABLE IF NOT EXISTS vocabulary_items (
     id SERIAL PRIMARY KEY,
     story_id INTEGER,

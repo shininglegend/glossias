@@ -35,6 +35,9 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	// Audio endpoints
 	router.HandleFunc("/{id}/audio/signed", h.GetSignedAudioURLs).Methods("GET", "OPTIONS")
 
+	// Image endpoints
+	router.HandleFunc("/{id}/images/signed", h.GetSignedImageURLs).Methods("GET", "OPTIONS")
+
 	// Vocabulary checking endpoint
 	router.HandleFunc("/{id}/check-vocab", h.CheckVocab).Methods("POST", "OPTIONS")
 	// Grammar checking endpoint

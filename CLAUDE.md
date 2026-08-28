@@ -55,6 +55,8 @@ go build ./...
 
 Optionally, run `go test -v ./src/pkg/models/...` for verbose package tests
 
+**Go style:** use modern Go 1.22+ idioms — `for i := range n` instead of `for i := 0; i < n; i++`, `min`/`max` builtins, `slices`/`maps` packages over hand-rolled loops.
+
 ### Frontend
 
 ```bash

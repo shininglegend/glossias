@@ -135,15 +135,15 @@ type ProduceAttemptStart struct {
 }
 
 type ProduceSegment struct {
-	ID              int32            `json:"id"`
-	StoryID         int32            `json:"story_id"`
-	SegmentOrder    int32            `json:"segment_order"`
-	EnglishText     string           `json:"english_text"`
-	ReferenceHebrew string           `json:"reference_hebrew"`
-	GrammarPointID  pgtype.Int4      `json:"grammar_point_id"`
-	CreatedAt       pgtype.Timestamp `json:"created_at"`
-	LineStart       pgtype.Int4      `json:"line_start"`
-	LineEnd         pgtype.Int4      `json:"line_end"`
+	ID               int32            `json:"id"`
+	StoryID          int32            `json:"story_id"`
+	SegmentOrder     int32            `json:"segment_order"`
+	ReferenceEnglish string           `json:"reference_english"`
+	HebrewText       string           `json:"hebrew_text"`
+	GrammarPointID   pgtype.Int4      `json:"grammar_point_id"`
+	CreatedAt        pgtype.Timestamp `json:"created_at"`
+	LineStart        pgtype.Int4      `json:"line_start"`
+	LineEnd          pgtype.Int4      `json:"line_end"`
 }
 
 type ProduceSubmission struct {

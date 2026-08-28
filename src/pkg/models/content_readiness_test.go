@@ -142,12 +142,12 @@ func twoProduceSegments() []ProduceSegment {
 	segments := make([]ProduceSegment, 0, ProduceSegmentsPerStory)
 	for order := 1; order <= ProduceSegmentsPerStory; order++ {
 		segments = append(segments, ProduceSegment{
-			ID:              order,
-			StoryID:         1,
-			SegmentOrder:    order,
-			EnglishText:     "the dog ran home",
-			ReferenceHebrew: "הכלב רץ הביתה",
-			GrammarPointID:  &grammarPointID,
+			ID:               order,
+			StoryID:          1,
+			SegmentOrder:     order,
+			ReferenceEnglish: "the dog ran home",
+			HebrewText:       "הכלב רץ הביתה",
+			GrammarPointID:   &grammarPointID,
 		})
 	}
 	return segments
@@ -192,24 +192,24 @@ func TestValidateProduceContent(t *testing.T) {
 			wantIssue:   "more than one segment at position 1",
 		},
 		{
-			name: "an empty reference translation is rejected",
+			name: "an empty reference English is rejected",
 			segments: func() []ProduceSegment {
 				segments := twoProduceSegments()
-				segments[0].ReferenceHebrew = ""
+				segments[0].ReferenceEnglish = ""
 				return segments
 			},
 			explanation: "explained",
-			wantIssue:   "reference translation is empty",
+			wantIssue:   "reference English is empty",
 		},
 		{
-			name: "an empty English prompt is rejected",
+			name: "an empty Hebrew segment is rejected",
 			segments: func() []ProduceSegment {
 				segments := twoProduceSegments()
-				segments[1].EnglishText = "\t"
+				segments[1].HebrewText = "\t"
 				return segments
 			},
 			explanation: "explained",
-			wantIssue:   "English prompt is empty",
+			wantIssue:   "Hebrew segment is empty",
 		},
 		{
 			name: "a segment without a grammar point is rejected",

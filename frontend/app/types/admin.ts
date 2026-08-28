@@ -118,8 +118,8 @@ export interface ProduceSegment {
   id: number;
   storyId: number;
   segmentOrder: number;
-  englishText: string;
-  referenceHebrew: string;
+  referenceEnglish: string;
+  hebrewText: string;
   grammarPointId?: number;
   grammarPointName?: string;
   /**

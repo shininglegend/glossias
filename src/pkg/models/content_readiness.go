@@ -147,11 +147,11 @@ func ValidateProduceContent(segments []ProduceSegment, explanation string) Phase
 		}
 		seenOrder[segment.SegmentOrder] = true
 
-		if strings.TrimSpace(segment.EnglishText) == "" {
-			issues = append(issues, ContentIssue{Field: field, Message: "English prompt is empty"})
+		if strings.TrimSpace(segment.ReferenceEnglish) == "" {
+			issues = append(issues, ContentIssue{Field: field, Message: "reference English is empty"})
 		}
-		if strings.TrimSpace(segment.ReferenceHebrew) == "" {
-			issues = append(issues, ContentIssue{Field: field, Message: "reference translation is empty"})
+		if strings.TrimSpace(segment.HebrewText) == "" {
+			issues = append(issues, ContentIssue{Field: field, Message: "Hebrew segment is empty"})
 		}
 		if segment.GrammarPointID == nil {
 			issues = append(issues, ContentIssue{

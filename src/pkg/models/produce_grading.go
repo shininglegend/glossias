@@ -62,7 +62,7 @@ func NewProduceGradingService(grader ProduceGrader, logger *slog.Logger) *Produc
 // Enqueue schedules grading of a freshly stored submission. It returns
 // immediately; the caller has already answered the student.
 //
-// Segment supplies the English, reference and grammar point. A nil service
+// Segment supplies the Hebrew, the reference English and the grammar point. A nil service
 // (grading disabled) is safe to call.
 func (s *ProduceGradingService) Enqueue(userID string, submission ProduceSubmission, segment ProduceSegment) {
 	if s == nil {
@@ -117,8 +117,8 @@ func (s *ProduceGradingService) gradeAttempt(ctx context.Context, submission Pro
 	}
 
 	req := ProduceGradeRequest{
-		EnglishText:      segment.EnglishText,
-		ReferenceHebrew:  segment.ReferenceHebrew,
+		ReferenceEnglish: segment.ReferenceEnglish,
+		HebrewText:       segment.HebrewText,
 		StudentText:      submission.StudentText,
 		GrammarPointName: segment.GrammarPointName,
 	}

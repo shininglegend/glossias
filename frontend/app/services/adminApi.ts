@@ -405,8 +405,8 @@ export function useAdminApi() {
         id: number,
         order: number,
         segment: {
-          englishText: string;
-          referenceHebrew: string;
+          referenceEnglish: string;
+          hebrewText: string;
           grammarPointId?: number;
           lineStart?: number;
           lineEnd?: number;

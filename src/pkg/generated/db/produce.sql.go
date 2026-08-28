@@ -90,7 +90,7 @@ func (q *Queries) DeleteStoryProduceSegments(ctx context.Context, storyID int32)
 }
 
 const getProduceSegment = `-- name: GetProduceSegment :one
-SELECT ps.id, ps.story_id, ps.segment_order, ps.english_text, ps.reference_hebrew,
+SELECT ps.id, ps.story_id, ps.segment_order, ps.hebrew_text, ps.reference_english,
        ps.grammar_point_id, ps.line_start, ps.line_end, gp.name AS grammar_point_name
 FROM produce_segments ps
 LEFT JOIN grammar_points gp ON gp.grammar_point_id = ps.grammar_point_id
@@ -101,8 +101,8 @@ type GetProduceSegmentRow struct {
 	ID               int32       `json:"id"`
 	StoryID          int32       `json:"story_id"`
 	SegmentOrder     int32       `json:"segment_order"`
-	EnglishText      string      `json:"english_text"`
-	ReferenceHebrew  string      `json:"reference_hebrew"`
+	HebrewText       string      `json:"hebrew_text"`
+	ReferenceEnglish string      `json:"reference_english"`
 	GrammarPointID   pgtype.Int4 `json:"grammar_point_id"`
 	LineStart        pgtype.Int4 `json:"line_start"`
 	LineEnd          pgtype.Int4 `json:"line_end"`
@@ -116,8 +116,8 @@ func (q *Queries) GetProduceSegment(ctx context.Context, id int32) (GetProduceSe
 		&i.ID,
 		&i.StoryID,
 		&i.SegmentOrder,
-		&i.EnglishText,
-		&i.ReferenceHebrew,
+		&i.HebrewText,
+		&i.ReferenceEnglish,
 		&i.GrammarPointID,
 		&i.LineStart,
 		&i.LineEnd,
@@ -146,7 +146,7 @@ func (q *Queries) GetStoryProduceExplanation(ctx context.Context, storyID int32)
 
 const getStoryProduceSegments = `-- name: GetStoryProduceSegments :many
 
-SELECT ps.id, ps.story_id, ps.segment_order, ps.english_text, ps.reference_hebrew,
+SELECT ps.id, ps.story_id, ps.segment_order, ps.hebrew_text, ps.reference_english,
        ps.grammar_point_id, ps.line_start, ps.line_end, gp.name AS grammar_point_name
 FROM produce_segments ps
 LEFT JOIN grammar_points gp ON gp.grammar_point_id = ps.grammar_point_id
@@ -158,8 +158,8 @@ type GetStoryProduceSegmentsRow struct {
 	ID               int32       `json:"id"`
 	StoryID          int32       `json:"story_id"`
 	SegmentOrder     int32       `json:"segment_order"`
-	EnglishText      string      `json:"english_text"`
-	ReferenceHebrew  string      `json:"reference_hebrew"`
+	HebrewText       string      `json:"hebrew_text"`
+	ReferenceEnglish string      `json:"reference_english"`
 	GrammarPointID   pgtype.Int4 `json:"grammar_point_id"`
 	LineStart        pgtype.Int4 `json:"line_start"`
 	LineEnd          pgtype.Int4 `json:"line_end"`
@@ -180,8 +180,8 @@ func (q *Queries) GetStoryProduceSegments(ctx context.Context, storyID int32) ([
 			&i.ID,
 			&i.StoryID,
 			&i.SegmentOrder,
-			&i.EnglishText,
-			&i.ReferenceHebrew,
+			&i.HebrewText,
+			&i.ReferenceEnglish,
 			&i.GrammarPointID,
 			&i.LineStart,
 			&i.LineEnd,
@@ -380,44 +380,44 @@ func (q *Queries) StartProduceAttempt(ctx context.Context, arg StartProduceAttem
 }
 
 const upsertProduceSegment = `-- name: UpsertProduceSegment :one
-INSERT INTO produce_segments (story_id, segment_order, english_text, reference_hebrew, grammar_point_id, line_start, line_end)
+INSERT INTO produce_segments (story_id, segment_order, hebrew_text, reference_english, grammar_point_id, line_start, line_end)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (story_id, segment_order) DO UPDATE
-SET english_text = EXCLUDED.english_text,
-    reference_hebrew = EXCLUDED.reference_hebrew,
+SET hebrew_text = EXCLUDED.hebrew_text,
+    reference_english = EXCLUDED.reference_english,
     grammar_point_id = EXCLUDED.grammar_point_id,
     line_start = EXCLUDED.line_start,
     line_end = EXCLUDED.line_end
-RETURNING id, story_id, segment_order, english_text, reference_hebrew, grammar_point_id, line_start, line_end
+RETURNING id, story_id, segment_order, hebrew_text, reference_english, grammar_point_id, line_start, line_end
 `
 
 type UpsertProduceSegmentParams struct {
-	StoryID         int32       `json:"story_id"`
-	SegmentOrder    int32       `json:"segment_order"`
-	EnglishText     string      `json:"english_text"`
-	ReferenceHebrew string      `json:"reference_hebrew"`
-	GrammarPointID  pgtype.Int4 `json:"grammar_point_id"`
-	LineStart       pgtype.Int4 `json:"line_start"`
-	LineEnd         pgtype.Int4 `json:"line_end"`
+	StoryID          int32       `json:"story_id"`
+	SegmentOrder     int32       `json:"segment_order"`
+	HebrewText       string      `json:"hebrew_text"`
+	ReferenceEnglish string      `json:"reference_english"`
+	GrammarPointID   pgtype.Int4 `json:"grammar_point_id"`
+	LineStart        pgtype.Int4 `json:"line_start"`
+	LineEnd          pgtype.Int4 `json:"line_end"`
 }
 
 type UpsertProduceSegmentRow struct {
-	ID              int32       `json:"id"`
-	StoryID         int32       `json:"story_id"`
-	SegmentOrder    int32       `json:"segment_order"`
-	EnglishText     string      `json:"english_text"`
-	ReferenceHebrew string      `json:"reference_hebrew"`
-	GrammarPointID  pgtype.Int4 `json:"grammar_point_id"`
-	LineStart       pgtype.Int4 `json:"line_start"`
-	LineEnd         pgtype.Int4 `json:"line_end"`
+	ID               int32       `json:"id"`
+	StoryID          int32       `json:"story_id"`
+	SegmentOrder     int32       `json:"segment_order"`
+	HebrewText       string      `json:"hebrew_text"`
+	ReferenceEnglish string      `json:"reference_english"`
+	GrammarPointID   pgtype.Int4 `json:"grammar_point_id"`
+	LineStart        pgtype.Int4 `json:"line_start"`
+	LineEnd          pgtype.Int4 `json:"line_end"`
 }
 
 func (q *Queries) UpsertProduceSegment(ctx context.Context, arg UpsertProduceSegmentParams) (UpsertProduceSegmentRow, error) {
 	row := q.db.QueryRow(ctx, upsertProduceSegment,
 		arg.StoryID,
 		arg.SegmentOrder,
-		arg.EnglishText,
-		arg.ReferenceHebrew,
+		arg.HebrewText,
+		arg.ReferenceEnglish,
 		arg.GrammarPointID,
 		arg.LineStart,
 		arg.LineEnd,
@@ -427,8 +427,8 @@ func (q *Queries) UpsertProduceSegment(ctx context.Context, arg UpsertProduceSeg
 		&i.ID,
 		&i.StoryID,
 		&i.SegmentOrder,
-		&i.EnglishText,
-		&i.ReferenceHebrew,
+		&i.HebrewText,
+		&i.ReferenceEnglish,
 		&i.GrammarPointID,
 		&i.LineStart,
 		&i.LineEnd,

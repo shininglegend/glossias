@@ -15,7 +15,7 @@ import (
 
 // AI grading of Produce submissions (SUMMER_2026.md T13).
 //
-// A ProduceGrader compares a student's Hebrew rendering of an English segment
+// A ProduceGrader compares a student's English rendering of a Hebrew segment
 // against the authored reference and returns a 0–100 accuracy score with one
 // sentence of feedback for the student. The Anthropic implementation is behind
 // an interface so the grading pipeline can be tested with a fake, and so a
@@ -24,8 +24,8 @@ import (
 
 // ProduceGradeRequest is everything the grader needs about one attempt.
 type ProduceGradeRequest struct {
-	EnglishText             string
-	ReferenceHebrew         string
+	ReferenceEnglish        string
+	HebrewText              string
 	StudentText             string
 	GrammarPointName        string
 	GrammarPointDescription string
@@ -33,8 +33,9 @@ type ProduceGradeRequest struct {
 
 // ProduceGrade is the grader's verdict.
 type ProduceGrade struct {
-	// Score is 0–100: how accurately the attempt conveys the English while
-	// using the target grammar. Spelling and nikkud variation are tolerated.
+	// Score is 0–100: how accurately the attempt conveys the Hebrew and
+	// shows the target grammar point was understood. Spelling and phrasing
+	// variation are tolerated.
 	Score int `json:"score"`
 	// Feedback is one encouraging sentence addressed to the student.
 	Feedback string `json:"feedback"`
@@ -84,19 +85,18 @@ func NewAnthropicGraderFromEnv() (*AnthropicGrader, bool) {
 
 // gradingSystemPrompt is stable across requests so it can be prompt-cached;
 // everything that varies per attempt goes in the user message.
-const gradingSystemPrompt = `You grade short Hebrew sentences written by introductory (first-year) Hebrew students in a language-learning app. Each student was shown an English sentence from a story and asked to write it in Hebrew from memory, focusing on one grammar point. You are given the English, the authored reference Hebrew, the grammar point, and the student's attempt.
+const gradingSystemPrompt = `You grade short English translations written by introductory (first-year) Hebrew students in a language-learning app. Each student was shown a Hebrew sentence from a story and asked to write what it means in English, with one grammar point in focus. You are given the Hebrew, an authored reference English translation, the grammar point, and the student's attempt.
 
-Score the attempt from 0 to 100 for how well it conveys the English sentence's meaning in acceptable Hebrew, with extra weight on whether the target grammar point is used correctly.
+Score the attempt from 0 to 100 for how accurately it conveys the Hebrew sentence's meaning in understandable English, with extra weight on whether the student has understood the target grammar point — for example rendering the right tense, person, number, gender, or definiteness that the grammar point carries.
 
 Grading principles:
-- The reference is one good answer, not the only one. Different word order, synonyms, or a different but correct construction that still conveys the meaning should score highly.
-- Ignore nikkud (vowel points) entirely: their presence, absence, or errors never affect the score.
-- Be tolerant of minor spelling slips, final-letter mistakes (ם/מ, ן/נ, ץ/צ, ף/פ, ך/כ), and missing or extra prefixes like ו or ה when the meaning is still clear. Deduct a little, not a lot.
-- Gender/number agreement and verb conjugation errors that relate to the grammar point matter more than unrelated ones.
-- A partial sentence that gets the main idea and the grammar point right belongs in the 50–75 range; a sentence that is fluent Hebrew but says something different belongs below 40; an unrelated, garbled, or non-Hebrew answer scores 0–10.
+- The reference is one good answer, not the only one. Different word order, synonyms, a looser or more literal rendering, or a different but correct sentence structure that still conveys the meaning should score highly.
+- Grade comprehension of the Hebrew, not English style. Ignore capitalisation and punctuation, and be tolerant of English spelling slips, article slips (a/the), and awkward but clear phrasing. Deduct a little, not a lot.
+- Errors that show the grammar point was misread — the wrong tense, the wrong subject (I/we/he/they), a plural read as singular, an indefinite object read as definite — matter more than unrelated ones.
+- A partial translation that gets the main idea and the grammar point right belongs in the 50–75 range; fluent English that says something different belongs below 40; an unrelated, garbled, or non-English answer (including copying the Hebrew back) scores 0–10.
 - These are beginners. Do not crush them: when in doubt between two scores, choose the higher one.
 
-Feedback: write exactly one sentence, in English, addressed to the student, in a warm and encouraging tone. Name the single most useful thing to fix (or, if the answer is strong, what they did well). Mention Hebrew words in Hebrew letters. Never mention scores, nikkud, or the words "reference" or "rubric".
+Feedback: write exactly one sentence, in English, addressed to the student, in a warm and encouraging tone. Name the single most useful thing to fix (or, if the answer is strong, what they did well). When you point at a word from the sentence, quote it in Hebrew letters. Never mention scores or the words "reference" or "rubric".
 
 Respond only with JSON matching the schema.`
 
@@ -122,8 +122,8 @@ var gradingOutputSchema = map[string]any{
 // as data, not as directions.
 func buildGradingPrompt(req ProduceGradeRequest) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "English sentence:\n%s\n\n", strings.TrimSpace(req.EnglishText))
-	fmt.Fprintf(&b, "Reference Hebrew:\n%s\n\n", strings.TrimSpace(req.ReferenceHebrew))
+	fmt.Fprintf(&b, "Hebrew sentence:\n%s\n\n", strings.TrimSpace(req.HebrewText))
+	fmt.Fprintf(&b, "Reference English:\n%s\n\n", strings.TrimSpace(req.ReferenceEnglish))
 	if name := strings.TrimSpace(req.GrammarPointName); name != "" {
 		fmt.Fprintf(&b, "Target grammar point: %s\n", name)
 		if desc := strings.TrimSpace(req.GrammarPointDescription); desc != "" {

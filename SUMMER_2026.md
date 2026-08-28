@@ -190,15 +190,17 @@ Entirely net-new. New component `StoriesProduce.tsx`, route `stories/:id/produce
 
 Behavior:
 
-1. `GET /api/stories/:id/produce` returns the two segments (English text, position in story for context display, grammar point) — from the new `produce_segments` table (F3). Show the surrounding Hebrew story text with the segment's slot indicated.
-2. For each segment: show the English, a `Textarea` (`frontend/app/components/ui/Textarea.tsx`) for the Hebrew attempt, and a 90-second countdown. On submit **or timeout**, reveal the reference Hebrew below the student's attempt for self-comparison, then a button to advance to segment 2.
+**Direction: Hebrew → English.** The student is shown a Hebrew segment *in the story* and writes what it means in English; the authored English is the reference revealed afterwards. (Built the other way round at first — English prompt, Hebrew answer — and flipped; migration `00008` renamed the columns to `hebrew_text` / `reference_english` to match.)
+
+1. `GET /api/stories/:id/produce` returns the two segments (Hebrew text, position in story, grammar point) — from the `produce_segments` table (F3). The whole Hebrew story is shown with the current segment highlighted where it sits.
+2. For each segment the answer area sits **inline in the story, directly under the highlighted Hebrew line(s)** — not in a card beneath the story: a Start button, then a `Textarea` (`frontend/app/components/ui/Textarea.tsx`) for the English attempt with a 90-second countdown. On submit **or timeout**, the reference English is revealed next to the student's attempt in that same spot for self-comparison, then a button to advance to segment 2. A segment the author hasn't placed in the text (no line range and no verbatim match) falls back to an answer block after the story with the Hebrew shown in it.
 3. After both segments: popup (ConfirmDialog pattern) showing the authored `produce_explanation` — how the grammar point works in each segment, what it contributes, and how the two compare.
 4. `POST /api/stories/:id/produce` submits `{ segment_id, student_text }`. Backend stores it (new table `produce_submissions(id, user_id, story_id, segment_id, student_text, ai_score, ai_feedback, graded_at, created_at)`) and grades it.
 
 **AI grading (net-new integration):**
 
 - Add the Anthropic Go SDK (`github.com/anthropics/anthropic-sdk-go`) to `go.mod`; new env var `ANTHROPIC_API_KEY` (document in CLAUDE.md's env list). New model file `src/pkg/models/ai_grading.go`.
-- Grade synchronously in the submit handler (segments are 5–10 words; a single small-model call is fast — use `claude-haiku-4-5`). Prompt: reference Hebrew + student Hebrew + grammar point name/description → return a 0–100 accuracy score and one-sentence feedback as JSON. Store both on `produce_submissions`.
+- Grade synchronously in the submit handler (segments are 5–10 words; a single small-model call is fast — use `claude-haiku-4-5`). Prompt: Hebrew segment + reference English + student English + grammar point name/description → return a 0–100 accuracy score and one-sentence feedback as JSON, weighting whether the grammar point was understood (tense, person, number, definiteness rendered correctly). Store both on `produce_submissions`.
 - **Failure mode matters:** if the AI call fails, store the submission with `ai_score NULL` and return success to the student (do not block progression on a grading outage); the Score page treats ungraded as pending.
 - Scoring integration: `GetScoresData` (`src/apis/handlers/stories-score.go`) gains `produce_accuracy` (mean of the two `ai_score`s) folded into `overall_accuracy`.
 

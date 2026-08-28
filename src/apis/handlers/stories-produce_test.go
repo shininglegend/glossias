@@ -17,7 +17,7 @@ func TestProduceSlot(t *testing.T) {
 	}
 
 	t.Run("authored line, reference found: exact range on that line", func(t *testing.T) {
-		got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: "רץ אל", LineStart: intPtr(2), LineEnd: intPtr(2)})
+		got := produceSlot(lines, models.ProduceSegment{HebrewText: "רץ אל", LineStart: intPtr(2), LineEnd: intPtr(2)})
 		want := &types.ProduceSlot{LineIndex: 1, LineEnd: 1, Exact: true, Start: 5, End: 10}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("slot = %+v, want %+v", got, want)
@@ -26,7 +26,7 @@ func TestProduceSlot(t *testing.T) {
 
 	t.Run("authored line beats a match elsewhere", func(t *testing.T) {
 		// "הכלב" appears in both lines; the authored line is 1.
-		got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: "הכלב", LineStart: intPtr(1), LineEnd: intPtr(1)})
+		got := produceSlot(lines, models.ProduceSegment{HebrewText: "הכלב", LineStart: intPtr(1), LineEnd: intPtr(1)})
 		want := &types.ProduceSlot{LineIndex: 0, LineEnd: 0, Exact: true, Start: 13, End: 17}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("slot = %+v, want %+v", got, want)
@@ -34,7 +34,7 @@ func TestProduceSlot(t *testing.T) {
 	})
 
 	t.Run("authored line, paraphrased reference: whole line marked", func(t *testing.T) {
-		got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: "הכלב רץ לילד", LineStart: intPtr(2), LineEnd: intPtr(2)})
+		got := produceSlot(lines, models.ProduceSegment{HebrewText: "הכלב רץ לילד", LineStart: intPtr(2), LineEnd: intPtr(2)})
 		want := &types.ProduceSlot{LineIndex: 1, LineEnd: 1, Exact: false}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("slot = %+v, want %+v", got, want)
@@ -42,7 +42,7 @@ func TestProduceSlot(t *testing.T) {
 	})
 
 	t.Run("authored range spanning two lines, reference found on the second: exact range on that line", func(t *testing.T) {
-		got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: "רץ אל", LineStart: intPtr(1), LineEnd: intPtr(2)})
+		got := produceSlot(lines, models.ProduceSegment{HebrewText: "רץ אל", LineStart: intPtr(1), LineEnd: intPtr(2)})
 		want := &types.ProduceSlot{LineIndex: 1, LineEnd: 1, Exact: true, Start: 5, End: 10}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("slot = %+v, want %+v", got, want)
@@ -50,7 +50,7 @@ func TestProduceSlot(t *testing.T) {
 	})
 
 	t.Run("authored range, reference not found on any single line: whole range marked", func(t *testing.T) {
-		got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: "הכלב רואה את הכלב רץ", LineStart: intPtr(1), LineEnd: intPtr(2)})
+		got := produceSlot(lines, models.ProduceSegment{HebrewText: "הכלב רואה את הכלב רץ", LineStart: intPtr(1), LineEnd: intPtr(2)})
 		want := &types.ProduceSlot{LineIndex: 0, LineEnd: 1, Exact: false}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("slot = %+v, want %+v", got, want)
@@ -58,19 +58,19 @@ func TestProduceSlot(t *testing.T) {
 	})
 
 	t.Run("authored range out of bounds or inverted: nil", func(t *testing.T) {
-		if got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: "הכלב", LineStart: intPtr(2), LineEnd: intPtr(3)}); got != nil {
+		if got := produceSlot(lines, models.ProduceSegment{HebrewText: "הכלב", LineStart: intPtr(2), LineEnd: intPtr(3)}); got != nil {
 			t.Errorf("expected nil, got %+v", got)
 		}
-		if got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: "הכלב", LineStart: intPtr(0), LineEnd: intPtr(1)}); got != nil {
+		if got := produceSlot(lines, models.ProduceSegment{HebrewText: "הכלב", LineStart: intPtr(0), LineEnd: intPtr(1)}); got != nil {
 			t.Errorf("expected nil, got %+v", got)
 		}
-		if got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: "הכלב", LineStart: intPtr(2), LineEnd: intPtr(1)}); got != nil {
+		if got := produceSlot(lines, models.ProduceSegment{HebrewText: "הכלב", LineStart: intPtr(2), LineEnd: intPtr(1)}); got != nil {
 			t.Errorf("expected nil, got %+v", got)
 		}
 	})
 
 	t.Run("no authored line: first verbatim match, surrounding whitespace ignored", func(t *testing.T) {
-		got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: " הכלב רץ אל הילד "})
+		got := produceSlot(lines, models.ProduceSegment{HebrewText: " הכלב רץ אל הילד "})
 		want := &types.ProduceSlot{LineIndex: 1, LineEnd: 1, Exact: true, Start: 0, End: 15}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("slot = %+v, want %+v", got, want)
@@ -78,10 +78,10 @@ func TestProduceSlot(t *testing.T) {
 	})
 
 	t.Run("no authored line, absent or empty reference: nil", func(t *testing.T) {
-		if got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: "שלום"}); got != nil {
+		if got := produceSlot(lines, models.ProduceSegment{HebrewText: "שלום"}); got != nil {
 			t.Errorf("expected nil, got %+v", got)
 		}
-		if got := produceSlot(lines, models.ProduceSegment{ReferenceHebrew: "  "}); got != nil {
+		if got := produceSlot(lines, models.ProduceSegment{HebrewText: "  "}); got != nil {
 			t.Errorf("expected nil for blank reference, got %+v", got)
 		}
 	})
@@ -130,8 +130,8 @@ func TestProduceStartViews(t *testing.T) {
 
 func TestProduceCompleted(t *testing.T) {
 	segments := []models.ProduceSegment{
-		{ID: 1, SegmentOrder: 1, ReferenceHebrew: "א"},
-		{ID: 2, SegmentOrder: 2, ReferenceHebrew: "ב"},
+		{ID: 1, SegmentOrder: 1, HebrewText: "א"},
+		{ID: 2, SegmentOrder: 2, HebrewText: "ב"},
 	}
 
 	if !produceCompleted(nil, nil) {
@@ -156,8 +156,8 @@ func TestProduceCompleted(t *testing.T) {
 
 func TestProduceSubmissionViews(t *testing.T) {
 	segments := []models.ProduceSegment{
-		{ID: 1, SegmentOrder: 1, ReferenceHebrew: "א"},
-		{ID: 2, SegmentOrder: 2, ReferenceHebrew: "ב"},
+		{ID: 1, SegmentOrder: 1, HebrewText: "א"},
+		{ID: 2, SegmentOrder: 2, HebrewText: "ב"},
 	}
 	subs := []models.ProduceSubmission{
 		{SegmentID: 2, StudentText: "two"},
@@ -166,8 +166,8 @@ func TestProduceSubmissionViews(t *testing.T) {
 	}
 	got := produceSubmissionViews(segments, subs)
 	want := []types.ProduceSubmissionView{
-		{SegmentID: 1, StudentText: "one", ReferenceHebrew: "א"},
-		{SegmentID: 2, StudentText: "two", ReferenceHebrew: "ב"},
+		{SegmentID: 1, StudentText: "one", HebrewText: "א"},
+		{SegmentID: 2, StudentText: "two", HebrewText: "ב"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("views = %+v, want %+v", got, want)

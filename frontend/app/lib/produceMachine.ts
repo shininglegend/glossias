@@ -1,8 +1,8 @@
 /**
  * State machine for the Produce phase (SUMMER_2026.md, Phase 4).
  *
- * The student renders two English segments into Hebrew, one at a time, each
- * under a countdown. Submitting — or the timer running out — reveals the
+ * The student renders two Hebrew segments from the story into English, one at
+ * a time, each under a countdown. Submitting — or the timer running out — reveals the
  * reference for self-comparison; a button then advances to the next segment.
  * After the last segment the authored grammar explanation pops up, and the
  * phase is complete.
@@ -32,7 +32,7 @@
 export interface ProduceAttempt {
   segmentId: number;
   studentText: string;
-  referenceHebrew: string;
+  referenceEnglish: string;
 }
 
 /** A segment already started on the server, with the countdown remaining. */

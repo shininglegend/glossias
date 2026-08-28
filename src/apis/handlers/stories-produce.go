@@ -23,7 +23,7 @@ const produceTimeLimitSeconds = 90
 const maxProduceStudentTextLen = 1000
 
 // GetProducePage returns the Produce phase payload: the story text, the two
-// segments (without their references), the authored explanation, and the
+// segments (without their reference English), the authored explanation, and the
 // student's progress — submissions so far and any countdown already running.
 //
 // A story with no segments authored yet returns an empty list rather than an
@@ -94,7 +94,7 @@ func (h *Handler) GetProducePage(w http.ResponseWriter, r *http.Request) {
 		views = append(views, types.ProduceSegmentView{
 			ID:               s.ID,
 			SegmentOrder:     s.SegmentOrder,
-			EnglishText:      s.EnglishText,
+			ReferenceEnglish: s.ReferenceEnglish,
 			GrammarPointName: s.GrammarPointName,
 			Slot:             produceSlot(lineTexts, s),
 		})
@@ -218,9 +218,9 @@ func (h *Handler) SubmitProduce(w http.ResponseWriter, r *http.Request) {
 		Success: true,
 		Data: types.SubmitProduceResponse{
 			Submission: types.ProduceSubmissionView{
-				SegmentID:       segment.ID,
-				StudentText:     studentText,
-				ReferenceHebrew: segment.ReferenceHebrew,
+				SegmentID:   segment.ID,
+				StudentText: studentText,
+				HebrewText:  segment.HebrewText,
 			},
 			Completed: produceCompleted(segments, existing),
 		},
@@ -300,9 +300,9 @@ func produceSubmissionViews(segments []models.ProduceSegment, submissions []mode
 		for _, sub := range submissions {
 			if sub.SegmentID == seg.ID {
 				views = append(views, types.ProduceSubmissionView{
-					SegmentID:       seg.ID,
-					StudentText:     sub.StudentText,
-					ReferenceHebrew: seg.ReferenceHebrew,
+					SegmentID:   seg.ID,
+					StudentText: sub.StudentText,
+					HebrewText:  seg.HebrewText,
 				})
 				break
 			}
@@ -324,13 +324,13 @@ func produceCompleted(segments []models.ProduceSegment, submissions []models.Pro
 }
 
 // produceSlot locates a segment in the story text. The authored line range
-// wins: the reference is looked for on each line within it so the page can
-// blank exactly it, and if it isn't found verbatim on any single line the
+// wins: the Hebrew text is looked for on each line within it so the page can
+// highlight exactly it, and if it isn't found verbatim on any single line the
 // whole range is marked. With no authored range (content from before the
-// columns existed) the reference is searched for across every line, and nil
+// columns existed) the Hebrew is searched for across every line, and nil
 // means it was not found.
 func produceSlot(lines []string, segment models.ProduceSegment) *types.ProduceSlot {
-	ref := strings.TrimSpace(segment.ReferenceHebrew)
+	ref := strings.TrimSpace(segment.HebrewText)
 
 	if segment.LineStart != nil && segment.LineEnd != nil {
 		startIdx := *segment.LineStart - 1

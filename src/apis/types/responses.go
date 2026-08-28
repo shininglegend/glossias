@@ -196,27 +196,28 @@ type TranslationPageData struct {
 	Completed bool `json:"completed"`
 }
 
-// ProduceSegmentView is one Produce segment as shown to the student. The
-// reference Hebrew is deliberately absent: it is returned by the submit
-// endpoint (or in Submissions for segments already answered) so it cannot be
-// read before the attempt is made.
+// ProduceSegmentView is one Produce segment as shown to the student: the
+// Hebrew to translate, located in the story. The reference English is
+// deliberately absent: it is returned by the submit endpoint (or in
+// Submissions for segments already answered) so it cannot be read before the
+// attempt is made.
 type ProduceSegmentView struct {
 	ID               int    `json:"id"`
 	SegmentOrder     int    `json:"segment_order"`
-	EnglishText      string `json:"english_text"`
+	ReferenceEnglish string `json:"reference_english"`
 	GrammarPointName string `json:"grammar_point_name,omitempty"`
 	// Slot locates the segment inside the story text so the page can show the
 	// surrounding Hebrew with the segment's place marked. Nil when the author
-	// has not placed it and the reference does not appear verbatim anywhere.
+	// has not placed it and the Hebrew does not appear verbatim anywhere.
 	Slot *ProduceSlot `json:"slot,omitempty"`
 }
 
 // ProduceSlot is where a segment sits in the story: a 0-based line range
 // (LineIndex to LineEnd, inclusive; equal for a single line) and, when Exact,
-// the rune range of the reference within the one line of that range it was
-// found on (blanked out on the page). When not Exact the reference was not
+// the rune range of the Hebrew within the one line of that range it was
+// found on (highlighted on the page). When not Exact the Hebrew was not
 // found verbatim on any single line in the range, so every line in the range
-// is marked instead of a gap.
+// is marked instead.
 type ProduceSlot struct {
 	LineIndex int  `json:"line_index"`
 	LineEnd   int  `json:"line_end"`
@@ -240,9 +241,9 @@ type StartProduceRequest struct {
 // ProduceSubmissionView is the student's stored attempt at a segment, with the
 // reference revealed since the attempt is over.
 type ProduceSubmissionView struct {
-	SegmentID       int    `json:"segment_id"`
-	StudentText     string `json:"student_text"`
-	ReferenceHebrew string `json:"reference_hebrew"`
+	SegmentID   int    `json:"segment_id"`
+	StudentText string `json:"student_text"`
+	HebrewText  string `json:"hebrew_text"`
 }
 
 // ProducePageData is the payload for the Produce phase.

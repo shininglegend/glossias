@@ -12,8 +12,10 @@ interface ProduceEditorProps {
 }
 
 /**
- * Authors the Produce phase: two English prompts with their reference Hebrew and
- * grammar point, plus the contrastive explanation shown after both attempts.
+ * Authors the Produce phase: two Hebrew passages drawn from the story, each
+ * with its reference English and grammar point, plus the contrastive
+ * explanation shown after both attempts. Students see the Hebrew highlighted
+ * in the story and write the English.
  *
  * The two segments are addressed by position rather than by row ID, so the slots
  * stay put across saves and either can be filled in first.
@@ -31,9 +33,9 @@ export default function ProduceEditor({ storyId }: ProduceEditorProps) {
     string
   > | null>(null);
 
-  // Story text feeds the line picker and English translations seed the
-  // English prompt; a failure in either shouldn't block editing, so both are
-  // loaded separately and the picker/seeding falls back gracefully.
+  // Story text feeds the line picker and the Hebrew passage; the English
+  // translations seed the reference English. A failure in either shouldn't
+  // block editing, so both are loaded separately and the picker/seeding falls back gracefully.
   React.useEffect(() => {
     let cancelled = false;
     adminApi
@@ -118,7 +120,7 @@ export default function ProduceEditor({ storyId }: ProduceEditorProps) {
     <div>
       <ReadinessPanel
         readiness={page.readiness}
-        requirement={`Both segments need an English prompt, a reference translation, and a grammar point, and the story needs one contrastive explanation.`}
+        requirement={`Both segments need a Hebrew passage, a reference English translation, and a grammar point, and the story needs one contrastive explanation.`}
       />
 
       {error && (
@@ -239,12 +241,10 @@ function SegmentCard({
   onChanged,
 }: SegmentCardProps) {
   const adminApi = useAdminApi();
-  const [englishText, setEnglishText] = React.useState(
-    segment?.englishText ?? "",
+  const [referenceEnglish, setReferenceEnglish] = React.useState(
+    segment?.referenceEnglish ?? "",
   );
-  const [referenceHebrew, setReferenceHebrew] = React.useState(
-    segment?.referenceHebrew ?? "",
-  );
+  const [hebrewText, setHebrewText] = React.useState(segment?.hebrewText ?? "");
   const [grammarPointId, setGrammarPointId] = React.useState<number | "">(
     segment?.grammarPointId ?? "",
   );
@@ -261,48 +261,48 @@ function SegmentCard({
 
   // Re-sync when a reload brings different content for this slot.
   React.useEffect(() => {
-    setEnglishText(segment?.englishText ?? "");
-    setReferenceHebrew(segment?.referenceHebrew ?? "");
+    setReferenceEnglish(segment?.referenceEnglish ?? "");
+    setHebrewText(segment?.hebrewText ?? "");
     setGrammarPointId(segment?.grammarPointId ?? "");
     setLineStart(segment?.lineStart ?? "");
     setLineEnd(segment?.lineEnd ?? "");
   }, [
-    segment?.englishText,
-    segment?.referenceHebrew,
+    segment?.referenceEnglish,
+    segment?.hebrewText,
     segment?.grammarPointId,
     segment?.lineStart,
     segment?.lineEnd,
   ]);
 
   const changed =
-    englishText !== (segment?.englishText ?? "") ||
-    referenceHebrew !== (segment?.referenceHebrew ?? "") ||
+    referenceEnglish !== (segment?.referenceEnglish ?? "") ||
+    hebrewText !== (segment?.hebrewText ?? "") ||
     grammarPointId !== (segment?.grammarPointId ?? "") ||
     lineStart !== (segment?.lineStart ?? "") ||
     lineEnd !== (segment?.lineEnd ?? "");
 
   const rangeValid = lineStart !== "" && lineEnd !== "" && lineStart <= lineEnd;
 
-  // Warn when a single-line reference isn't in that line verbatim: the
-  // student page then marks the whole line instead of blanking the sentence.
-  // A multi-line reference is expected not to match any one line, so the
-  // whole range is marked by design and no warning applies.
+  // Warn when a single-line passage isn't in that line verbatim: the student
+  // page then highlights the whole line instead of just the passage. A
+  // multi-line passage is expected not to match any one line, so the whole
+  // range is highlighted by design and no warning applies.
   const chosenLine =
     rangeValid && lineStart === lineEnd
       ? storyLines?.find((l) => l.lineNumber === lineStart)
       : undefined;
   const referenceNotInLine =
     chosenLine !== undefined &&
-    referenceHebrew.trim() !== "" &&
-    !chosenLine.text.includes(referenceHebrew.trim());
+    hebrewText.trim() !== "" &&
+    !chosenLine.text.includes(hebrewText.trim());
 
-  // Replace: (re)derive the reference Hebrew and English prompt from the
+  // Replace: (re)derive the Hebrew passage and reference English from the
   // range currently picked above, discarding whatever was there before.
   const replace = () => {
     if (!storyLines || !rangeValid) return;
-    setReferenceHebrew(hebrewForRange(storyLines, lineStart, lineEnd));
+    setHebrewText(hebrewForRange(storyLines, lineStart, lineEnd));
     if (translations) {
-      setEnglishText(englishForRange(translations, lineStart, lineEnd));
+      setReferenceEnglish(englishForRange(translations, lineStart, lineEnd));
     }
   };
 
@@ -314,11 +314,11 @@ function SegmentCard({
       return;
     setLineStart(segment.lineStart);
     setLineEnd(segment.lineEnd);
-    setReferenceHebrew(
+    setHebrewText(
       hebrewForRange(storyLines, segment.lineStart, segment.lineEnd),
     );
     if (translations) {
-      setEnglishText(
+      setReferenceEnglish(
         englishForRange(translations, segment.lineStart, segment.lineEnd),
       );
     }
@@ -329,8 +329,8 @@ function SegmentCard({
     setError(null);
     try {
       await adminApi.saveProduceSegment(storyId, order, {
-        englishText,
-        referenceHebrew,
+        referenceEnglish,
+        hebrewText,
         grammarPointId: grammarPointId === "" ? undefined : grammarPointId,
         lineStart: lineStart === "" ? undefined : lineStart,
         lineEnd: lineEnd === "" ? undefined : lineEnd,
@@ -386,10 +386,11 @@ function SegmentCard({
         <div className="mt-4">
           <Label className="mb-1">Story lines</Label>
           <p className="text-xs text-slate-500 mb-1">
-            Where this sentence sits in the story. Pick the line range it spans,
-            then Replace to fill in the reference Hebrew and English prompt
-            below from it; students see the range blanked out (or marked, if
-            it's more than a single line) while they write.
+            Where this passage sits in the story. Pick the line range it spans,
+            then Replace to fill in the Hebrew passage and reference English
+            below from it; students see the passage highlighted (or the whole
+            range, if it's more than a single line) and write the English right
+            under it.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <select
@@ -466,38 +467,42 @@ function SegmentCard({
         </div>
 
         <div className="mt-4">
-          <Label className="mb-1">English prompt</Label>
-          <Textarea
-            value={englishText}
-            onChange={(event) => setEnglishText(event.target.value)}
-            rows={3}
-            placeholder="The English the student renders into Hebrew..."
-          />
-        </div>
-
-        <div className="mt-4">
-          <Label className="mb-1">Reference Hebrew</Label>
+          <Label className="mb-1">Hebrew passage</Label>
           <p className="text-xs text-slate-500 mb-1">
-            Trim to the sentence the student produces if the lines hold more
-            than that.
+            What the student translates. Trim to the passage itself if the lines
+            hold more than that.
           </p>
           <Textarea
-            value={referenceHebrew}
-            onChange={(event) => setReferenceHebrew(event.target.value)}
+            value={hebrewText}
+            onChange={(event) => setHebrewText(event.target.value)}
             rows={3}
             dir="rtl"
             className="text-right"
             placeholder={
-              storyLines ? "Pick story lines above..." : "התרגום לדוגמה..."
+              storyLines ? "Pick story lines above..." : "הקטע מהסיפור..."
             }
           />
           {referenceNotInLine && (
             <p className="text-xs text-amber-700 mt-1">
-              The reference Hebrew doesn't appear word-for-word in line{" "}
-              {lineStart}, so students will see the whole line marked rather
-              than a blank for the sentence.
+              This passage doesn't appear word-for-word in line {lineStart}, so
+              students will see the whole line highlighted rather than just the
+              passage.
             </p>
           )}
+        </div>
+
+        <div className="mt-4">
+          <Label className="mb-1">Reference English</Label>
+          <p className="text-xs text-slate-500 mb-1">
+            Revealed beside the student's answer after they submit, and used by
+            the AI grader as one good translation.
+          </p>
+          <Textarea
+            value={referenceEnglish}
+            onChange={(event) => setReferenceEnglish(event.target.value)}
+            rows={3}
+            placeholder="The English the passage means..."
+          />
         </div>
 
         <div className="mt-4 flex flex-col md:flex-row md:items-end gap-3">

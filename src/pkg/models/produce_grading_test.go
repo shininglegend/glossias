@@ -42,11 +42,11 @@ func newTestGradingService(t *testing.T, grader ProduceGrader) (*ProduceGradingS
 var (
 	testSegment = ProduceSegment{
 		ID:               7,
-		EnglishText:      "The boy sees the dog.",
-		ReferenceHebrew:  "הילד רואה את הכלב",
+		ReferenceEnglish: "The boy sees the dog.",
+		HebrewText:       "הילד רואה את הכלב",
 		GrammarPointName: "Definite object marker",
 	}
-	testSubmission = ProduceSubmission{ID: 42, SegmentID: 7, StudentText: "הילד רואה את הכלב"}
+	testSubmission = ProduceSubmission{ID: 42, SegmentID: 7, StudentText: "The boy sees the dog."}
 )
 
 func TestProduceGradingService_GradesAndStores(t *testing.T) {
@@ -60,8 +60,8 @@ func TestProduceGradingService_GradesAndStores(t *testing.T) {
 		t.Fatalf("grader called %d times, want 1", grader.callCount())
 	}
 	got := grader.calls[0]
-	if got.StudentText != testSubmission.StudentText || got.ReferenceHebrew != testSegment.ReferenceHebrew ||
-		got.EnglishText != testSegment.EnglishText || got.GrammarPointName != testSegment.GrammarPointName {
+	if got.StudentText != testSubmission.StudentText || got.HebrewText != testSegment.HebrewText ||
+		got.ReferenceEnglish != testSegment.ReferenceEnglish || got.GrammarPointName != testSegment.GrammarPointName {
 		t.Errorf("unexpected grade request: %+v", got)
 	}
 }

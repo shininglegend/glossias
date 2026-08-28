@@ -36,8 +36,8 @@ func TestGradeProduceLive(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			grade, err := grader.GradeProduce(ctx, ProduceGradeRequest{
-				EnglishText:             seg.English,
-				ReferenceHebrew:         seg.Reference,
+				ReferenceEnglish:        seg.Reference,
+				HebrewText:              seg.Hebrew,
 				StudentText:             c.Attempt,
 				GrammarPointName:        seg.GrammarPoint,
 				GrammarPointDescription: seg.Description,
@@ -62,7 +62,7 @@ func TestGradeProduceLive(t *testing.T) {
 
 type gradingSamples struct {
 	Segments map[string]struct {
-		English      string `json:"english"`
+		Hebrew       string `json:"hebrew"`
 		Reference    string `json:"reference"`
 		GrammarPoint string `json:"grammarPoint"`
 		Description  string `json:"description"`

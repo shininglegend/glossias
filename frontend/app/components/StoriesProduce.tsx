@@ -1,4 +1,11 @@
-import { useState, useEffect, useRef, useReducer, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useReducer,
+  useCallback,
+  type ReactNode,
+} from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import { useApiService } from "../services/api";
 import type {
@@ -16,6 +23,8 @@ import {
   createProduceState,
   formatCountdown,
   type ProduceAttempt,
+  type ProduceEvent,
+  type ProducePhase,
 } from "../lib/produceMachine";
 import {
   loadProduceDraft,
@@ -102,7 +111,7 @@ export function StoriesProduce() {
       return {
         segmentId: submission.segment_id,
         studentText: submission.student_text,
-        referenceHebrew: submission.reference_hebrew,
+        referenceEnglish: submission.reference_english,
       };
     },
     [id, api],
@@ -164,6 +173,13 @@ interface ProduceSessionProps {
   onContinue: () => void;
 }
 
+/**
+ * The Produce phase runs Hebrew → English. The whole Hebrew story is shown
+ * with the current segment highlighted where it sits, and the answer area —
+ * Start button, then the English textarea under a countdown, then the
+ * side-by-side reveal — is rendered inline in the story directly beneath that
+ * highlighted line, not in a separate card under the text.
+ */
 export function ProduceSession({
   pageData,
   nextStepName,
@@ -179,7 +195,7 @@ export function ProduceSession({
         attempts: data.submissions.map((s) => ({
           segmentId: s.segment_id,
           studentText: s.student_text,
-          referenceHebrew: s.reference_hebrew,
+          referenceEnglish: s.reference_english,
         })),
         starts: (data.starts ?? []).map((s) => ({
           segmentId: s.segment_id,
@@ -301,6 +317,42 @@ export function ProduceSession({
     .map((s) => s.grammar_point_name ?? "")
     .filter(Boolean);
 
+  // What goes into the story: while working, only the current segment is
+  // highlighted and carries the answer area; once finished, every segment is
+  // highlighted with its comparison in place so the review reads in context.
+  const entries: StoryEntry[] = isComplete
+    ? pageData.segments.map((s) => ({
+        key: s.id,
+        slot: s.slot,
+        revealed: true,
+        block: (
+          <ReviewCard segment={s} attempt={attempts[s.id]} isRTL={isRTL} />
+        ),
+      }))
+    : segment
+      ? [
+          {
+            key: segment.id,
+            slot: segment.slot,
+            revealed: phase.kind === "revealed",
+            block: (
+              <SegmentAnswer
+                segment={segment}
+                phase={phase}
+                attempt={currentAttempt}
+                draft={draft}
+                onDraftChange={setDraft}
+                dispatch={dispatch}
+                startError={startError}
+                submitError={submitError}
+                isLastSegment={answered >= totalSegments}
+                isRTL={isRTL}
+              />
+            ),
+          },
+        ]
+      : [];
+
   return (
     <>
       <header className="max-w-4xl mx-auto px-5 pt-6 text-center">
@@ -323,9 +375,9 @@ export function ProduceSession({
             data-testid="produce-finished"
           >
             <p className="text-gray-800">
-              You wrote both segments. This phase is finished and can't be
-              repeated — your attempts and the reference sentences are shown
-              below.
+              You translated both passages. This phase is finished and can't be
+              repeated — your answers and the story's English are shown in the
+              text below.
             </p>
           </div>
         )}
@@ -336,8 +388,8 @@ export function ProduceSession({
             data-testid="produce-resumed"
           >
             <p className="text-gray-800">
-              Welcome back — you already wrote segment {phase.segment} of{" "}
-              {totalSegments}. Pick up with segment {phase.segment + 1}.
+              Welcome back — you already translated passage {phase.segment} of{" "}
+              {totalSegments}. Pick up with passage {phase.segment + 1}.
             </p>
           </div>
         )}
@@ -348,7 +400,7 @@ export function ProduceSession({
             data-testid="produce-resumed-countdown"
           >
             <p className="text-gray-800">
-              Welcome back — the timer for this segment kept running while you
+              Welcome back — the timer for this passage kept running while you
               were away, so you're picking up with the time that's left. What
               you'd typed in this browser has been restored.
             </p>
@@ -360,13 +412,13 @@ export function ProduceSession({
             <span className="material-icons text-gray-600 mr-2 mt-1">info</span>
             <div>
               <p className="text-gray-700 mb-2">
-                Write each English sentence in Hebrew, in your own words. You
-                have {formatCountdown(pageData.time_limit_seconds)} per
-                sentence.
+                A passage of the story is highlighted below. Write what it means
+                in English, right where it sits in the text. You have{" "}
+                {formatCountdown(pageData.time_limit_seconds)} per passage.
               </p>
               <p className="text-gray-700">
-                When you submit — or time runs out — the story's version appears
-                under yours so you can compare. After both sentences you'll see
+                When you submit — or time runs out — the story's English appears
+                beside yours so you can compare. After both passages you'll see
                 an explanation of the grammar.
               </p>
             </div>
@@ -376,8 +428,8 @@ export function ProduceSession({
         {!hasSegments && (
           <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4 rounded-r-lg text-left">
             <p className="text-gray-800">
-              This story has no writing segments yet, so there is nothing to do
-              here. Continue to the next phase.
+              This story has no passages to translate yet, so there is nothing
+              to do here. Continue to the next phase.
             </p>
           </div>
         )}
@@ -388,181 +440,30 @@ export function ProduceSession({
             aria-live="polite"
             data-testid="produce-counter"
           >
-            Segment <strong>{(segmentIndex ?? 0) + 1}</strong> of{" "}
+            Passage <strong>{(segmentIndex ?? 0) + 1}</strong> of{" "}
             {totalSegments}
           </div>
         )}
       </header>
 
       <div className="max-w-4xl mx-auto px-5 pb-24">
-        {segment && (
-          <StoryContext
-            lines={pageData.lines}
-            slot={segment.slot}
-            reveal={
-              phase.kind === "revealed" ? currentAttempt?.referenceHebrew : null
-            }
-            isRTL={isRTL}
-          />
-        )}
-
-        {segment && (
-          <section
-            className="bg-white shadow-xl rounded-2xl border border-gray-100 p-6 mt-6"
-            data-testid={`produce-segment-${segment.segment_order}`}
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-primary-700 mb-1">
-                  Write this in Hebrew
-                </p>
-                <p className="text-xl text-gray-900 whitespace-pre-line">
-                  {segment.english_text}
-                </p>
-                {segment.grammar_point_name && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Grammar focus: {segment.grammar_point_name}
-                  </p>
-                )}
-              </div>
-              {phase.kind === "writing" && (
-                <Countdown seconds={phase.secondsLeft} />
-              )}
-              {phase.kind === "submitting" && (
-                <span className="text-sm text-gray-500">Saving…</span>
-              )}
-            </div>
-
-            {(phase.kind === "idle" || phase.kind === "starting") && (
-              <div className="text-center py-4">
-                <p className="text-gray-600 mb-4">
-                  The timer starts when you press Start — and keeps running even
-                  if you leave the page.
-                </p>
-                {startError && (
-                  <p className="mb-3 text-sm text-red-600" role="alert">
-                    {startError}
-                  </p>
-                )}
-                <button
-                  type="button"
-                  onClick={() => dispatch({ type: "START" })}
-                  disabled={phase.kind === "starting"}
-                  className={`inline-flex items-center gap-2 px-5 py-3 text-white rounded-lg text-base transition-colors duration-200 ${
-                    phase.kind === "starting"
-                      ? "bg-gray-400 cursor-wait"
-                      : "bg-green-500 hover:bg-green-600 cursor-pointer"
-                  }`}
-                  data-testid="produce-start"
-                >
-                  <span className="material-icons">edit</span>
-                  {phase.kind === "starting"
-                    ? "Starting…"
-                    : phase.segment === 0
-                      ? "Start"
-                      : "Start next segment"}
-                </button>
-              </div>
-            )}
-
-            {(phase.kind === "writing" || phase.kind === "submitting") && (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  dispatch({ type: "SUBMIT" });
-                }}
-              >
-                <Textarea
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  disabled={phase.kind === "submitting"}
-                  dir={isRTL ? "rtl" : "ltr"}
-                  lang={isRTL ? "he" : undefined}
-                  rows={3}
-                  autoFocus
-                  className="text-2xl leading-relaxed py-3"
-                  placeholder={isRTL ? "כתבו כאן…" : "Write here…"}
-                  aria-label="Your Hebrew translation"
-                  data-testid="produce-textarea"
-                />
-                {submitError && (
-                  <p className="mt-2 text-sm text-red-600" role="alert">
-                    {submitError}
-                  </p>
-                )}
-                <div className="mt-4 flex justify-end">
-                  <Button
-                    type="submit"
-                    size="lg"
-                    disabled={phase.kind === "submitting"}
-                    data-testid="produce-submit"
-                  >
-                    {phase.kind === "submitting" ? "Saving…" : "Submit"}
-                  </Button>
-                </div>
-              </form>
-            )}
-
-            {phase.kind === "revealed" && currentAttempt && (
-              <>
-                {phase.timedOut && (
-                  <p
-                    className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-4"
-                    role="status"
-                  >
-                    Time's up — here's what you had so far.
-                  </p>
-                )}
-                <AttemptComparison attempt={currentAttempt} isRTL={isRTL} />
-                <div className="mt-6 flex justify-end">
-                  <Button
-                    size="lg"
-                    onClick={() => dispatch({ type: "NEXT" })}
-                    data-testid="produce-next"
-                  >
-                    {answered < totalSegments
-                      ? "Next segment"
-                      : "See the grammar explanation"}
-                    <span className="material-icons text-base">
-                      arrow_forward
-                    </span>
-                  </Button>
-                </div>
-              </>
-            )}
-          </section>
-        )}
+        <StoryWithAnswers
+          lines={pageData.lines}
+          entries={entries}
+          isRTL={isRTL}
+        />
 
         {isComplete && hasSegments && (
-          <section className="mt-6 space-y-4" data-testid="produce-review">
-            {pageData.segments.map((s) => {
-              const a = attempts[s.id];
-              return (
-                <div
-                  key={s.id}
-                  className="bg-white shadow rounded-2xl border border-gray-100 p-6"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-wider text-primary-700 mb-1">
-                    Segment {s.segment_order}
-                  </p>
-                  <p className="text-lg text-gray-900 mb-3 whitespace-pre-line">
-                    {s.english_text}
-                  </p>
-                  {a && <AttemptComparison attempt={a} isRTL={isRTL} />}
-                </div>
-              );
-            })}
-            <div className="text-center">
-              <Button
-                variant="outline"
-                onClick={() => dispatch({ type: "SHOW_EXPLANATION" })}
-                data-testid="produce-show-explanation"
-              >
-                <span className="material-icons text-base">school</span>
-                Show the grammar explanation
-              </Button>
-            </div>
-          </section>
+          <div className="text-center mt-8" data-testid="produce-review">
+            <Button
+              variant="outline"
+              onClick={() => dispatch({ type: "SHOW_EXPLANATION" })}
+              data-testid="produce-show-explanation"
+            >
+              <span className="material-icons text-base">school</span>
+              Show the grammar explanation
+            </Button>
+          </div>
         )}
       </div>
 
@@ -573,6 +474,207 @@ export function ProduceSession({
         onClose={() => dispatch({ type: "CLOSE_EXPLANATION" })}
       />
     </>
+  );
+}
+
+interface SegmentAnswerProps {
+  segment: ProduceSegmentView;
+  phase: ProducePhase;
+  attempt: ProduceAttempt | undefined;
+  draft: string;
+  onDraftChange: (text: string) => void;
+  dispatch: (event: ProduceEvent) => void;
+  startError: string | null;
+  submitError: string | null;
+  /** After this reveal there is nothing left but the explanation. */
+  isLastSegment: boolean;
+  isRTL: boolean;
+}
+
+/**
+ * The answer area for the current segment, rendered inline in the story under
+ * the highlighted Hebrew: Start → English textarea with countdown → reveal.
+ */
+function SegmentAnswer({
+  segment,
+  phase,
+  attempt,
+  draft,
+  onDraftChange,
+  dispatch,
+  startError,
+  submitError,
+  isLastSegment,
+  isRTL,
+}: SegmentAnswerProps) {
+  // When the Hebrew is highlighted verbatim in the line above there is no
+  // need to repeat it; when the author placed it on a line range without a
+  // verbatim match (or didn't place it at all) the passage is shown here.
+  const showHebrew = !segment.slot?.exact;
+
+  return (
+    <section
+      className="bg-white shadow-xl rounded-2xl border border-primary-100 p-5"
+      data-testid={`produce-segment-${segment.segment_order}`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary-700">
+            {showHebrew
+              ? "Write this passage in English"
+              : "Write the highlighted passage in English"}
+          </p>
+          {segment.grammar_point_name && (
+            <p className="text-sm text-gray-500 mt-1">
+              Grammar focus: {segment.grammar_point_name}
+            </p>
+          )}
+        </div>
+        {phase.kind === "writing" && <Countdown seconds={phase.secondsLeft} />}
+        {phase.kind === "submitting" && (
+          <span className="text-sm text-gray-500">Saving…</span>
+        )}
+      </div>
+
+      {showHebrew && (
+        <p
+          className="text-2xl leading-relaxed text-gray-900 whitespace-pre-line mb-3"
+          dir={isRTL ? "rtl" : "ltr"}
+          lang={isRTL ? "he" : undefined}
+          data-testid="produce-hebrew"
+        >
+          {segment.hebrew_text}
+        </p>
+      )}
+
+      {(phase.kind === "idle" || phase.kind === "starting") && (
+        <div className="text-center py-3">
+          <p className="text-gray-600 mb-4">
+            The timer starts when you press Start — and keeps running even if
+            you leave the page.
+          </p>
+          {startError && (
+            <p className="mb-3 text-sm text-red-600" role="alert">
+              {startError}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => dispatch({ type: "START" })}
+            disabled={phase.kind === "starting"}
+            className={`inline-flex items-center gap-2 px-5 py-3 text-white rounded-lg text-base transition-colors duration-200 ${
+              phase.kind === "starting"
+                ? "bg-gray-400 cursor-wait"
+                : "bg-green-500 hover:bg-green-600 cursor-pointer"
+            }`}
+            data-testid="produce-start"
+          >
+            <span className="material-icons">edit</span>
+            {phase.kind === "starting"
+              ? "Starting…"
+              : phase.segment === 0
+                ? "Start"
+                : "Start next passage"}
+          </button>
+        </div>
+      )}
+
+      {(phase.kind === "writing" || phase.kind === "submitting") && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            dispatch({ type: "SUBMIT" });
+          }}
+        >
+          <Textarea
+            value={draft}
+            onChange={(e) => onDraftChange(e.target.value)}
+            disabled={phase.kind === "submitting"}
+            dir="ltr"
+            lang="en"
+            rows={2}
+            autoFocus
+            className="text-xl leading-relaxed py-3"
+            placeholder="Write the English here…"
+            aria-label="Your English translation"
+            data-testid="produce-textarea"
+          />
+          {submitError && (
+            <p className="mt-2 text-sm text-red-600" role="alert">
+              {submitError}
+            </p>
+          )}
+          <div className="mt-3 flex justify-end">
+            <Button
+              type="submit"
+              size="lg"
+              disabled={phase.kind === "submitting"}
+              data-testid="produce-submit"
+            >
+              {phase.kind === "submitting" ? "Saving…" : "Submit"}
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {phase.kind === "revealed" && attempt && (
+        <>
+          {phase.timedOut && (
+            <p
+              className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-3"
+              role="status"
+            >
+              Time's up — here's what you had so far.
+            </p>
+          )}
+          <AttemptComparison attempt={attempt} />
+          <div className="mt-4 flex justify-end">
+            <Button
+              size="lg"
+              onClick={() => dispatch({ type: "NEXT" })}
+              data-testid="produce-next"
+            >
+              {isLastSegment ? "See the grammar explanation" : "Next passage"}
+              <span className="material-icons text-base">arrow_forward</span>
+            </Button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+/** A finished segment's answer and reference, shown in place in the story. */
+function ReviewCard({
+  segment,
+  attempt,
+  isRTL,
+}: {
+  segment: ProduceSegmentView;
+  attempt: ProduceAttempt | undefined;
+  isRTL: boolean;
+}) {
+  return (
+    <section
+      className="bg-white shadow rounded-2xl border border-gray-100 p-5"
+      data-testid={`produce-segment-${segment.segment_order}`}
+    >
+      <p className="text-xs font-semibold uppercase tracking-wider text-primary-700 mb-1">
+        Passage {segment.segment_order}
+        {segment.grammar_point_name && ` · ${segment.grammar_point_name}`}
+      </p>
+      {!segment.slot?.exact && (
+        <p
+          className="text-2xl leading-relaxed text-gray-900 whitespace-pre-line mb-3"
+          dir={isRTL ? "rtl" : "ltr"}
+          lang={isRTL ? "he" : undefined}
+          data-testid="produce-hebrew"
+        >
+          {segment.hebrew_text}
+        </p>
+      )}
+      {attempt && <AttemptComparison attempt={attempt} />}
+    </section>
   );
 }
 
@@ -598,29 +700,20 @@ function Countdown({ seconds }: { seconds: number }) {
   );
 }
 
-function AttemptComparison({
-  attempt,
-  isRTL,
-}: {
-  attempt: ProduceAttempt;
-  isRTL: boolean;
-}) {
-  const dir = isRTL ? "rtl" : "ltr";
-  const lang = isRTL ? "he" : undefined;
+/** The student's English beside the story's English. */
+function AttemptComparison({ attempt }: { attempt: ProduceAttempt }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-3 sm:grid-cols-2" dir="ltr" lang="en">
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
-          Your version
+          Your English
         </p>
         <p
-          className="text-2xl leading-relaxed text-gray-900 whitespace-pre-wrap"
-          dir={dir}
-          lang={lang}
+          className="text-xl leading-relaxed text-gray-900 whitespace-pre-wrap"
           data-testid="produce-student-text"
         >
           {attempt.studentText || (
-            <span className="text-base italic text-gray-400" dir="ltr">
+            <span className="text-base italic text-gray-400">
               (nothing written)
             </span>
           )}
@@ -628,98 +721,150 @@ function AttemptComparison({
       </div>
       <div className="rounded-xl border border-green-200 bg-green-50 p-4">
         <p className="text-xs font-semibold uppercase tracking-wider text-green-700 mb-2">
-          The story's version
+          The story's English
         </p>
         <p
-          className="text-2xl leading-relaxed text-gray-900 whitespace-pre-line"
-          dir={dir}
-          lang={lang}
+          className="text-xl leading-relaxed text-gray-900 whitespace-pre-line"
           data-testid="produce-reference"
         >
-          {attempt.referenceHebrew}
+          {attempt.referenceEnglish}
         </p>
       </div>
     </div>
   );
 }
 
-interface StoryContextProps {
-  lines: { text: string }[];
+/** One segment to show in the story: where it is, and what to render there. */
+interface StoryEntry {
+  key: number;
   slot: ProduceSlot | undefined;
-  /** Once revealed, the reference is shown in the slot instead of a blank. */
-  reveal: string | null | undefined;
+  /** Highlight turns green once the answer has been revealed. */
+  revealed: boolean;
+  /** The answer area, rendered directly under the segment's last line. */
+  block: ReactNode;
+}
+
+interface StoryWithAnswersProps {
+  lines: { text: string }[];
+  entries: StoryEntry[];
   isRTL: boolean;
 }
 
 /**
- * The surrounding Hebrew story text with the current segment's place marked.
- * An exact slot is a rune range on one line of the segment's range, so that
- * line's text is split by code point to match the backend, and the reference
- * is blanked out (then shown on reveal). A non-exact slot (the author placed
- * the segment on a line range but paraphrased the reference, or the reference
- * spans more than one line) highlights every line in the range instead. With
- * no slot at all the story is shown without a marker.
+ * The Hebrew story with each entry's passage highlighted and its answer block
+ * inserted right after the line the passage ends on. An exact slot highlights
+ * the passage's rune range within its line (split by code point to match the
+ * backend); a non-exact slot highlights every line in its range. Entries with
+ * no slot at all — the author hasn't placed the passage and it isn't in the
+ * text verbatim — get their blocks after the story instead.
  */
-function StoryContext({ lines, slot, reveal, isRTL }: StoryContextProps) {
+function StoryWithAnswers({ lines, entries, isRTL }: StoryWithAnswersProps) {
+  const unplaced = entries.filter((e) => !e.slot);
+
   return (
-    <div
-      className="story-lines text-2xl max-w-3xl mx-auto leading-loose text-gray-800 space-y-1"
-      dir={isRTL ? "rtl" : "ltr"}
-      lang={isRTL ? "he" : undefined}
-      data-testid="produce-context"
-    >
-      {lines.map((line, i) => {
-        if (!slot || i < slot.line_index || i > slot.line_end) {
-          return <div key={i}>{line.text}</div>;
-        }
-        if (!slot.exact || i !== slot.line_index) {
+    <div data-testid="produce-context">
+      <div
+        className="story-lines text-2xl max-w-3xl mx-auto leading-loose text-gray-800 space-y-1"
+        dir={isRTL ? "rtl" : "ltr"}
+        lang={isRTL ? "he" : undefined}
+      >
+        {lines.map((line, i) => {
+          const covering = entries.filter(
+            (e) => e.slot && i >= e.slot.line_index && i <= e.slot.line_end,
+          );
+          const ending = entries.filter((e) => e.slot?.line_end === i);
           return (
             <div key={i}>
-              <mark
-                className={`rounded px-1 ${
-                  reveal
-                    ? "bg-green-100 text-green-900"
-                    : "bg-primary-50 text-gray-900 border-b-2 border-dashed border-primary-500"
-                }`}
-                aria-label={
-                  reveal ? undefined : "your sentence belongs in this line"
-                }
-                data-testid={
-                  reveal ? "produce-slot-revealed" : "produce-slot-line"
-                }
-              >
-                {line.text}
-              </mark>
+              <StoryLine text={line.text} lineIndex={i} covering={covering} />
+              {ending.map((e) => (
+                <AnswerSlot key={e.key}>{e.block}</AnswerSlot>
+              ))}
             </div>
           );
-        }
-        const runes = Array.from(line.text);
-        const before = runes.slice(0, slot.start).join("");
-        const after = runes.slice(slot.end).join("");
-        return (
-          <div key={i}>
-            {before}
-            {reveal ? (
-              <mark
-                className="bg-green-100 text-green-900 rounded px-1"
-                data-testid="produce-slot-revealed"
-              >
-                {reveal}
-              </mark>
-            ) : (
-              <span
-                className="inline-block min-w-[8rem] border-b-2 border-dashed border-primary-500 align-baseline mx-1"
-                aria-label="your sentence goes here"
-                data-testid="produce-slot"
-              >
-                &nbsp;
-              </span>
-            )}
-            {after}
-          </div>
-        );
-      })}
+        })}
+      </div>
+      {unplaced.map((e) => (
+        <AnswerSlot key={e.key}>{e.block}</AnswerSlot>
+      ))}
     </div>
+  );
+}
+
+/**
+ * Resets direction and type scale for an answer block sitting inside the
+ * RTL, large-type story flow.
+ */
+function AnswerSlot({ children }: { children: ReactNode }) {
+  return (
+    <div
+      className="my-4 text-base leading-normal text-left"
+      dir="ltr"
+      data-testid="produce-answer-slot"
+    >
+      {children}
+    </div>
+  );
+}
+
+function highlightClass(revealed: boolean): string {
+  return revealed
+    ? "bg-green-100 text-green-900 rounded px-1"
+    : "bg-primary-100 text-gray-900 rounded px-1 border-b-2 border-primary-500";
+}
+
+/** One story line with any covering passages highlighted. */
+function StoryLine({
+  text,
+  lineIndex,
+  covering,
+}: {
+  text: string;
+  lineIndex: number;
+  covering: StoryEntry[];
+}) {
+  if (covering.length === 0) return <>{text}</>;
+
+  // An exact slot pins the passage to a rune range on this very line; a
+  // non-exact one (or an exact one whose range is on another line of the
+  // segment's span) marks the whole line.
+  const exact = covering.find(
+    (e) => e.slot?.exact && e.slot.line_index === lineIndex,
+  );
+  if (!exact?.slot) {
+    const revealed = covering.every((e) => e.revealed);
+    return (
+      <mark
+        className={highlightClass(revealed)}
+        aria-label={
+          revealed ? undefined : "translate this line into English below"
+        }
+        data-testid={revealed ? "produce-slot-revealed" : "produce-slot-line"}
+      >
+        {text}
+      </mark>
+    );
+  }
+
+  const runes = Array.from(text);
+  const before = runes.slice(0, exact.slot.start).join("");
+  const passage = runes.slice(exact.slot.start, exact.slot.end).join("");
+  const after = runes.slice(exact.slot.end).join("");
+  return (
+    <>
+      {before}
+      <mark
+        className={highlightClass(exact.revealed)}
+        aria-label={
+          exact.revealed
+            ? undefined
+            : "translate this passage into English below"
+        }
+        data-testid={exact.revealed ? "produce-slot-revealed" : "produce-slot"}
+      >
+        {passage}
+      </mark>
+      {after}
+    </>
   );
 }
 

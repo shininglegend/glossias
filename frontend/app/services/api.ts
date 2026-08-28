@@ -140,8 +140,8 @@ export interface ProduceSlot {
   line_index: number;
   line_end: number;
   /**
-   * True when the reference was found verbatim on one line of the range, so
-   * `start`/`end` (code-point offsets, within that line) can be blanked out.
+   * True when the Hebrew was found verbatim on one line of the range, so
+   * `start`/`end` (code-point offsets, within that line) can be highlighted.
    * False marks every line in the range.
    */
   exact: boolean;
@@ -158,16 +158,16 @@ export interface ProduceAttemptStartView {
 export interface ProduceSegmentView {
   id: number;
   segment_order: number;
-  english_text: string;
+  hebrew_text: string;
   grammar_point_name?: string;
-  /** Where the reference sits in the story text; absent if not found verbatim. */
+  /** Where the Hebrew sits in the story text; absent if not placed and not found verbatim. */
   slot?: ProduceSlot;
 }
 
 export interface ProduceSubmissionView {
   segment_id: number;
   student_text: string;
-  reference_hebrew: string;
+  reference_english: string;
 }
 
 export interface ProduceData {

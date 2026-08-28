@@ -14,7 +14,7 @@ const run = (state: ProduceState, ...events: ProduceEvent[]) =>
 const attempt = (segmentId: number, studentText = "x") => ({
   segmentId,
   studentText,
-  referenceHebrew: `ref-${segmentId}`,
+  referenceEnglish: `ref-${segmentId}`,
 });
 
 /** idle → starting → writing with the full limit. */

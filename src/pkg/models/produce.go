@@ -16,17 +16,18 @@ import (
 // have.
 const ProduceSegmentsPerStory = 2
 
-// ProduceSegment is one English prompt the student renders into Hebrew during
-// the Produce phase, together with the reference translation.
+// ProduceSegment is one Hebrew passage, drawn from the story, that the student
+// renders into English during the Produce phase, together with the reference
+// English translation revealed afterwards.
 type ProduceSegment struct {
 	ID               int    `json:"id"`
 	StoryID          int    `json:"storyId"`
 	SegmentOrder     int    `json:"segmentOrder"`
-	EnglishText      string `json:"englishText"`
-	ReferenceHebrew  string `json:"referenceHebrew"`
+	ReferenceEnglish string `json:"referenceEnglish"`
+	HebrewText       string `json:"hebrewText"`
 	GrammarPointID   *int   `json:"grammarPointId,omitempty"`
 	GrammarPointName string `json:"grammarPointName,omitempty"`
-	// LineStart and LineEnd are the 1-based story lines the reference was
+	// LineStart and LineEnd are the 1-based story lines the Hebrew was
 	// drawn from (inclusive; equal for a single line), so the student page
 	// can mark the segment's slot in the text and the editor can re-seed the
 	// segment from the same lines later. Nil when the author has not placed
@@ -100,8 +101,8 @@ func GetStoryProduceSegments(ctx context.Context, storyID int) ([]ProduceSegment
 			ID:               int(row.ID),
 			StoryID:          int(row.StoryID),
 			SegmentOrder:     int(row.SegmentOrder),
-			EnglishText:      row.EnglishText,
-			ReferenceHebrew:  row.ReferenceHebrew,
+			ReferenceEnglish: row.ReferenceEnglish,
+			HebrewText:       row.HebrewText,
 			GrammarPointName: row.GrammarPointName.String,
 			GrammarPointID:   optionalInt(row.GrammarPointID),
 			LineStart:        optionalInt(row.LineStart),
@@ -131,8 +132,8 @@ func GetProduceSegment(ctx context.Context, id int) (*ProduceSegment, error) {
 		ID:               int(row.ID),
 		StoryID:          int(row.StoryID),
 		SegmentOrder:     int(row.SegmentOrder),
-		EnglishText:      row.EnglishText,
-		ReferenceHebrew:  row.ReferenceHebrew,
+		ReferenceEnglish: row.ReferenceEnglish,
+		HebrewText:       row.HebrewText,
 		GrammarPointName: row.GrammarPointName.String,
 		GrammarPointID:   optionalInt(row.GrammarPointID),
 		LineStart:        optionalInt(row.LineStart),
@@ -150,27 +151,27 @@ func UpsertProduceSegment(ctx context.Context, segment ProduceSegment) (*Produce
 	}
 
 	row, err := queries.UpsertProduceSegment(ctx, db.UpsertProduceSegmentParams{
-		StoryID:         int32(segment.StoryID),
-		SegmentOrder:    int32(segment.SegmentOrder),
-		EnglishText:     segment.EnglishText,
-		ReferenceHebrew: segment.ReferenceHebrew,
-		GrammarPointID:  toPgInt4(segment.GrammarPointID),
-		LineStart:       toPgInt4(segment.LineStart),
-		LineEnd:         toPgInt4(segment.LineEnd),
+		StoryID:          int32(segment.StoryID),
+		SegmentOrder:     int32(segment.SegmentOrder),
+		ReferenceEnglish: segment.ReferenceEnglish,
+		HebrewText:       segment.HebrewText,
+		GrammarPointID:   toPgInt4(segment.GrammarPointID),
+		LineStart:        toPgInt4(segment.LineStart),
+		LineEnd:          toPgInt4(segment.LineEnd),
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	saved := &ProduceSegment{
-		ID:              int(row.ID),
-		StoryID:         int(row.StoryID),
-		SegmentOrder:    int(row.SegmentOrder),
-		EnglishText:     row.EnglishText,
-		ReferenceHebrew: row.ReferenceHebrew,
-		GrammarPointID:  optionalInt(row.GrammarPointID),
-		LineStart:       optionalInt(row.LineStart),
-		LineEnd:         optionalInt(row.LineEnd),
+		ID:               int(row.ID),
+		StoryID:          int(row.StoryID),
+		SegmentOrder:     int(row.SegmentOrder),
+		ReferenceEnglish: row.ReferenceEnglish,
+		HebrewText:       row.HebrewText,
+		GrammarPointID:   optionalInt(row.GrammarPointID),
+		LineStart:        optionalInt(row.LineStart),
+		LineEnd:          optionalInt(row.LineEnd),
 	}
 
 	InvalidateStoryContentReadiness(saved.StoryID)

@@ -24,9 +24,9 @@ type produceResponse struct {
 }
 
 type produceSegmentRequest struct {
-	EnglishText     string `json:"englishText"`
-	ReferenceHebrew string `json:"referenceHebrew"`
-	GrammarPointID  *int   `json:"grammarPointId,omitempty"`
+	ReferenceEnglish string `json:"referenceEnglish"`
+	HebrewText       string `json:"hebrewText"`
+	GrammarPointID   *int   `json:"grammarPointId,omitempty"`
 	// LineStart and LineEnd place the segment in the story text (1-based,
 	// inclusive). Both optional, but must be given together.
 	LineStart *int `json:"lineStart,omitempty"`
@@ -116,14 +116,14 @@ func (h *Handler) saveProduceSegment(w http.ResponseWriter, r *http.Request, sto
 		return
 	}
 
-	englishText := strings.TrimSpace(req.EnglishText)
-	referenceHebrew := strings.TrimSpace(req.ReferenceHebrew)
-	if englishText == "" {
-		writeJSONError(w, "englishText is required", http.StatusBadRequest)
+	referenceEnglish := strings.TrimSpace(req.ReferenceEnglish)
+	hebrewText := strings.TrimSpace(req.HebrewText)
+	if referenceEnglish == "" {
+		writeJSONError(w, "referenceEnglish is required", http.StatusBadRequest)
 		return
 	}
-	if referenceHebrew == "" {
-		writeJSONError(w, "referenceHebrew is required", http.StatusBadRequest)
+	if hebrewText == "" {
+		writeJSONError(w, "hebrewText is required", http.StatusBadRequest)
 		return
 	}
 
@@ -166,13 +166,13 @@ func (h *Handler) saveProduceSegment(w http.ResponseWriter, r *http.Request, sto
 	}
 
 	segment, err := models.UpsertProduceSegment(ctx, models.ProduceSegment{
-		StoryID:         storyID,
-		SegmentOrder:    order,
-		EnglishText:     englishText,
-		ReferenceHebrew: referenceHebrew,
-		GrammarPointID:  req.GrammarPointID,
-		LineStart:       req.LineStart,
-		LineEnd:         req.LineEnd,
+		StoryID:          storyID,
+		SegmentOrder:     order,
+		ReferenceEnglish: referenceEnglish,
+		HebrewText:       hebrewText,
+		GrammarPointID:   req.GrammarPointID,
+		LineStart:        req.LineStart,
+		LineEnd:          req.LineEnd,
 	})
 	if err != nil {
 		h.log.Error("Failed to save produce segment", "error", err, "storyID", storyID, "order", order)

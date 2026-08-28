@@ -1,7 +1,7 @@
 -- Produce phase queries: segments, explanation, and student submissions
 
 -- name: GetStoryProduceSegments :many
-SELECT ps.id, ps.story_id, ps.segment_order, ps.english_text, ps.reference_hebrew,
+SELECT ps.id, ps.story_id, ps.segment_order, ps.hebrew_text, ps.reference_english,
        ps.grammar_point_id, ps.line_start, ps.line_end, gp.name AS grammar_point_name
 FROM produce_segments ps
 LEFT JOIN grammar_points gp ON gp.grammar_point_id = ps.grammar_point_id
@@ -9,22 +9,22 @@ WHERE ps.story_id = $1
 ORDER BY ps.segment_order;
 
 -- name: GetProduceSegment :one
-SELECT ps.id, ps.story_id, ps.segment_order, ps.english_text, ps.reference_hebrew,
+SELECT ps.id, ps.story_id, ps.segment_order, ps.hebrew_text, ps.reference_english,
        ps.grammar_point_id, ps.line_start, ps.line_end, gp.name AS grammar_point_name
 FROM produce_segments ps
 LEFT JOIN grammar_points gp ON gp.grammar_point_id = ps.grammar_point_id
 WHERE ps.id = $1;
 
 -- name: UpsertProduceSegment :one
-INSERT INTO produce_segments (story_id, segment_order, english_text, reference_hebrew, grammar_point_id, line_start, line_end)
+INSERT INTO produce_segments (story_id, segment_order, hebrew_text, reference_english, grammar_point_id, line_start, line_end)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (story_id, segment_order) DO UPDATE
-SET english_text = EXCLUDED.english_text,
-    reference_hebrew = EXCLUDED.reference_hebrew,
+SET hebrew_text = EXCLUDED.hebrew_text,
+    reference_english = EXCLUDED.reference_english,
     grammar_point_id = EXCLUDED.grammar_point_id,
     line_start = EXCLUDED.line_start,
     line_end = EXCLUDED.line_end
-RETURNING id, story_id, segment_order, english_text, reference_hebrew, grammar_point_id, line_start, line_end;
+RETURNING id, story_id, segment_order, hebrew_text, reference_english, grammar_point_id, line_start, line_end;
 
 -- name: DeleteProduceSegment :exec
 DELETE FROM produce_segments

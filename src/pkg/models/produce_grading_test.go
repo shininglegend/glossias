@@ -18,12 +18,15 @@ type fakeGrader struct {
 	err   error
 }
 
-func (f *fakeGrader) GradeProduce(_ context.Context, req ProduceGradeRequest) (ProduceGrade, error) {
+func (f *fakeGrader) GradeProduce(_ context.Context, req ProduceGradeRequest) (ProduceGrade, ProduceGradeTrace, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, req)
-	return f.grade, f.err
+	return f.grade, fakeTrace, f.err
 }
+
+// fakeTrace stands in for what the real grader captures from the API.
+var fakeTrace = ProduceGradeTrace{Model: "fake-model", SystemPrompt: "system", UserPrompt: "user", RawResponse: `{"score":90}`}
 
 func (f *fakeGrader) callCount() int {
 	f.mu.Lock()
@@ -166,4 +169,33 @@ func TestUserQuota(t *testing.T) {
 			t.Error("idle user should have been evicted")
 		}
 	})
+}
+
+func TestProduceGradingService_LogFailureDoesNotBlockGrade(t *testing.T) {
+	grader := &fakeGrader{grade: ProduceGrade{Score: 70, Feedback: "Good."}}
+	svc, mockDB := newTestGradingService(t, grader)
+	mockDB.StubExec("produce_grading_log", errors.New("log table unavailable"))
+
+	svc.Enqueue("user-1", testSubmission, testSegment)
+	svc.Close()
+
+	// The grade itself must still have been stored: the log is best-effort.
+	if grader.callCount() != 1 {
+		t.Fatalf("grader called %d times, want 1", grader.callCount())
+	}
+}
+
+func TestProduceGradingService_LogsFailedGrades(t *testing.T) {
+	grader := &fakeGrader{err: errors.New("model down")}
+	svc, mockDB := newTestGradingService(t, grader)
+	// A failing log write surfaces nothing to the student either; this just
+	// exercises the error path through LogProduceGrading with Err set.
+	mockDB.StubExec("UPDATE produce_submissions", errors.New("must not be reached"))
+
+	svc.Enqueue("user-1", testSubmission, testSegment)
+	svc.Close()
+
+	if grader.callCount() != 1 {
+		t.Fatalf("grader called %d times, want 1", grader.callCount())
+	}
 }

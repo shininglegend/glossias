@@ -134,6 +134,31 @@ type ProduceAttemptStart struct {
 	StartedAt pgtype.Timestamp `json:"started_at"`
 }
 
+type ProduceGradingLog struct {
+	ID                   int32            `json:"id"`
+	SubmissionID         int32            `json:"submission_id"`
+	UserID               string           `json:"user_id"`
+	StoryID              int32            `json:"story_id"`
+	SegmentID            int32            `json:"segment_id"`
+	HebrewText           string           `json:"hebrew_text"`
+	ReferenceEnglish     string           `json:"reference_english"`
+	StudentText          string           `json:"student_text"`
+	GrammarPointName     pgtype.Text      `json:"grammar_point_name"`
+	Model                pgtype.Text      `json:"model"`
+	SystemPrompt         pgtype.Text      `json:"system_prompt"`
+	UserPrompt           pgtype.Text      `json:"user_prompt"`
+	RawResponse          pgtype.Text      `json:"raw_response"`
+	StopReason           pgtype.Text      `json:"stop_reason"`
+	InputTokens          pgtype.Int4      `json:"input_tokens"`
+	OutputTokens         pgtype.Int4      `json:"output_tokens"`
+	CacheReadInputTokens pgtype.Int4      `json:"cache_read_input_tokens"`
+	LatencyMs            pgtype.Int4      `json:"latency_ms"`
+	Score                pgtype.Int4      `json:"score"`
+	Feedback             pgtype.Text      `json:"feedback"`
+	Error                pgtype.Text      `json:"error"`
+	CreatedAt            pgtype.Timestamp `json:"created_at"`
+}
+
 type ProduceSegment struct {
 	ID               int32            `json:"id"`
 	StoryID          int32            `json:"story_id"`

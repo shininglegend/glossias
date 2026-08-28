@@ -249,6 +249,9 @@ type Querier interface {
 	GetUsersForCourse(ctx context.Context, courseID int32) ([]GetUsersForCourseRow, error)
 	GetVocabularyItems(ctx context.Context, arg GetVocabularyItemsParams) ([]VocabularyItem, error)
 	GradeProduceSubmission(ctx context.Context, arg GradeProduceSubmissionParams) error
+	// InsertProduceGradingLog records one grading run — prompts, raw model
+	// output, parsed verdict or error — so grading can be inspected after the fact.
+	InsertProduceGradingLog(ctx context.Context, arg InsertProduceGradingLogParams) error
 	IsUserAdminOfAnyCourse(ctx context.Context, userID string) (bool, error)
 	IsUserCourseAdmin(ctx context.Context, arg IsUserCourseAdminParams) (bool, error)
 	LineExists(ctx context.Context, arg LineExistsParams) (bool, error)

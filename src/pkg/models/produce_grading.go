@@ -96,9 +96,22 @@ func (s *ProduceGradingService) Close() {
 	s.wg.Wait()
 }
 
-// grade produces and stores the verdict for one submission.
+// grade produces and stores the verdict for one submission, and records the
+// whole exchange in produce_grading_log whatever the outcome. Logging is
+// best-effort: a failure to log never fails the grade.
 func (s *ProduceGradingService) grade(ctx context.Context, submission ProduceSubmission, segment ProduceSegment) error {
-	grade, err := s.gradeAttempt(ctx, submission, segment)
+	grade, trace, err := s.gradeAttempt(ctx, submission, segment)
+
+	if logErr := LogProduceGrading(ctx, ProduceGradingLogEntry{
+		Submission: submission,
+		Segment:    segment,
+		Grade:      grade,
+		Trace:      trace,
+		Err:        err,
+	}); logErr != nil {
+		s.log.Error("Failed to write produce grading log", "error", logErr, "submissionID", submission.ID)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -110,10 +123,10 @@ func (s *ProduceGradingService) grade(ctx context.Context, submission ProduceSub
 
 // gradeAttempt decides the grade. A blank attempt (the timer ran out before
 // the student wrote anything) is graded locally — there is nothing for the
-// model to assess and no reason to pay for the call.
-func (s *ProduceGradingService) gradeAttempt(ctx context.Context, submission ProduceSubmission, segment ProduceSegment) (ProduceGrade, error) {
+// model to assess and no reason to pay for the call — and has an empty trace.
+func (s *ProduceGradingService) gradeAttempt(ctx context.Context, submission ProduceSubmission, segment ProduceSegment) (ProduceGrade, ProduceGradeTrace, error) {
 	if strings.TrimSpace(submission.StudentText) == "" {
-		return emptyAttemptGrade, nil
+		return emptyAttemptGrade, ProduceGradeTrace{}, nil
 	}
 
 	req := ProduceGradeRequest{

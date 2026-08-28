@@ -443,3 +443,56 @@ func GetUserStoryProduceSummary(ctx context.Context, userID string, storyID int)
 		AverageScore:      row.AverageScore,
 	}, nil
 }
+
+// ProduceGradingLogEntry is one grading run to record: the submission and
+// segment it was for, and either the verdict or the error, with the trace of
+// what went to the model.
+type ProduceGradingLogEntry struct {
+	Submission ProduceSubmission
+	Segment    ProduceSegment
+	Grade      ProduceGrade
+	Trace      ProduceGradeTrace
+	Err        error
+}
+
+// LogProduceGrading appends a row to produce_grading_log. On error Score is
+// left NULL and the message stored; a blank-attempt grade (no model call)
+// has no model, prompts or response.
+func LogProduceGrading(ctx context.Context, e ProduceGradingLogEntry) error {
+	if queries == nil {
+		return errors.New("database not initialized")
+	}
+
+	params := db.InsertProduceGradingLogParams{
+		SubmissionID:         int32(e.Submission.ID),
+		UserID:               e.Submission.UserID,
+		StoryID:              int32(e.Submission.StoryID),
+		SegmentID:            int32(e.Segment.ID),
+		HebrewText:           e.Segment.HebrewText,
+		ReferenceEnglish:     e.Segment.ReferenceEnglish,
+		StudentText:          e.Submission.StudentText,
+		GrammarPointName:     optionalText(e.Segment.GrammarPointName),
+		Model:                optionalText(e.Trace.Model),
+		SystemPrompt:         optionalText(e.Trace.SystemPrompt),
+		UserPrompt:           optionalText(e.Trace.UserPrompt),
+		RawResponse:          optionalText(e.Trace.RawResponse),
+		StopReason:           optionalText(e.Trace.StopReason),
+		InputTokens:          optionalInt4(e.Trace.InputTokens),
+		OutputTokens:         optionalInt4(e.Trace.OutputTokens),
+		CacheReadInputTokens: optionalInt4(e.Trace.CacheReadInputTokens),
+		LatencyMs:            optionalInt4(int(e.Trace.Latency.Milliseconds())),
+	}
+	if e.Err != nil {
+		params.Error = optionalText(e.Err.Error())
+	} else {
+		params.Score = pgtype.Int4{Int32: int32(e.Grade.Score), Valid: true}
+		params.Feedback = optionalText(e.Grade.Feedback)
+	}
+	return queries.InsertProduceGradingLog(ctx, params)
+}
+
+// optionalInt4 stores zero as NULL — the trace leaves counts at zero when the
+// call never completed.
+func optionalInt4(n int) pgtype.Int4 {
+	return pgtype.Int4{Int32: int32(n), Valid: n != 0}
+}

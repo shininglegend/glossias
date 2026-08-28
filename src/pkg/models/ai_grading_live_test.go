@@ -35,7 +35,7 @@ func TestGradeProduceLive(t *testing.T) {
 		t.Run(c.Note, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			grade, err := grader.GradeProduce(ctx, ProduceGradeRequest{
+			grade, _, err := grader.GradeProduce(ctx, ProduceGradeRequest{
 				ReferenceEnglish:        seg.Reference,
 				HebrewText:              seg.Hebrew,
 				StudentText:             c.Attempt,

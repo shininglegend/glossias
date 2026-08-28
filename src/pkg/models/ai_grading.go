@@ -41,10 +41,28 @@ type ProduceGrade struct {
 	Feedback string `json:"feedback"`
 }
 
+// ProduceGradeTrace is what actually went to and came back from the model for
+// one grading call, kept so grading can be audited after the fact
+// (produce_grading_log). It is filled in as far as the call got, including on
+// error, so a failed call still records its prompts.
+type ProduceGradeTrace struct {
+	Model        string
+	SystemPrompt string
+	UserPrompt   string
+	RawResponse  string
+	StopReason   string
+	// Token usage as reported by the API; zero when the call did not complete.
+	InputTokens          int
+	OutputTokens         int
+	CacheReadInputTokens int
+	Latency              time.Duration
+}
+
 // ProduceGrader grades one attempt. Implementations must be safe for
-// concurrent use.
+// concurrent use. The trace is returned alongside the verdict — and on error,
+// with whatever was captured — so the caller can log the exchange.
 type ProduceGrader interface {
-	GradeProduce(ctx context.Context, req ProduceGradeRequest) (ProduceGrade, error)
+	GradeProduce(ctx context.Context, req ProduceGradeRequest) (ProduceGrade, ProduceGradeTrace, error)
 }
 
 // GradingModel is the model used for grading. Segments are 5–10 words, so a
@@ -136,35 +154,49 @@ func buildGradingPrompt(req ProduceGradeRequest) string {
 }
 
 // GradeProduce calls the model and parses its structured verdict.
-func (g *AnthropicGrader) GradeProduce(ctx context.Context, req ProduceGradeRequest) (ProduceGrade, error) {
+func (g *AnthropicGrader) GradeProduce(ctx context.Context, req ProduceGradeRequest) (ProduceGrade, ProduceGradeTrace, error) {
+	trace := ProduceGradeTrace{
+		Model:        string(g.model),
+		SystemPrompt: gradingSystemPrompt,
+		UserPrompt:   buildGradingPrompt(req),
+	}
+	started := time.Now()
 	resp, err := g.client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     g.model,
 		MaxTokens: 256,
 		System: []anthropic.TextBlockParam{{
-			Text:         gradingSystemPrompt,
+			Text:         trace.SystemPrompt,
 			CacheControl: anthropic.NewCacheControlEphemeralParam(),
 		}},
 		Messages: []anthropic.MessageParam{
-			anthropic.NewUserMessage(anthropic.NewTextBlock(buildGradingPrompt(req))),
+			anthropic.NewUserMessage(anthropic.NewTextBlock(trace.UserPrompt)),
 		},
 		OutputConfig: anthropic.OutputConfigParam{
 			Format: anthropic.JSONOutputFormatParam{Schema: gradingOutputSchema},
 		},
 	})
+	trace.Latency = time.Since(started)
 	if err != nil {
-		return ProduceGrade{}, fmt.Errorf("grading request: %w", err)
-	}
-	if resp.StopReason == anthropic.StopReasonRefusal {
-		return ProduceGrade{}, errors.New("grading request refused by the model")
+		return ProduceGrade{}, trace, fmt.Errorf("grading request: %w", err)
 	}
 
+	trace.StopReason = string(resp.StopReason)
+	trace.InputTokens = int(resp.Usage.InputTokens)
+	trace.OutputTokens = int(resp.Usage.OutputTokens)
+	trace.CacheReadInputTokens = int(resp.Usage.CacheReadInputTokens)
 	var text strings.Builder
 	for _, block := range resp.Content {
 		if tb, ok := block.AsAny().(anthropic.TextBlock); ok {
 			text.WriteString(tb.Text)
 		}
 	}
-	return parseProduceGrade(text.String())
+	trace.RawResponse = text.String()
+
+	if resp.StopReason == anthropic.StopReasonRefusal {
+		return ProduceGrade{}, trace, errors.New("grading request refused by the model")
+	}
+	grade, err := parseProduceGrade(trace.RawResponse)
+	return grade, trace, err
 }
 
 // parseProduceGrade decodes the model's JSON and clamps the score into range.

@@ -109,3 +109,20 @@ SELECT segment_id, started_at,
        EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at))::INT AS elapsed_seconds
 FROM produce_attempt_starts
 WHERE user_id = $1 AND story_id = $2;
+
+-- InsertProduceGradingLog records one grading run — prompts, raw model
+-- output, parsed verdict or error — so grading can be inspected after the fact.
+-- name: InsertProduceGradingLog :exec
+INSERT INTO produce_grading_log (
+    submission_id, user_id, story_id, segment_id,
+    hebrew_text, reference_english, student_text, grammar_point_name,
+    model, system_prompt, user_prompt, raw_response, stop_reason,
+    input_tokens, output_tokens, cache_read_input_tokens, latency_ms,
+    score, feedback, error
+) VALUES (
+    $1, $2, $3, $4,
+    $5, $6, $7, $8,
+    $9, $10, $11, $12, $13,
+    $14, $15, $16, $17,
+    $18, $19, $20
+);

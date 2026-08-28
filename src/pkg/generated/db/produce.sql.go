@@ -348,6 +348,73 @@ func (q *Queries) GradeProduceSubmission(ctx context.Context, arg GradeProduceSu
 	return err
 }
 
+const insertProduceGradingLog = `-- name: InsertProduceGradingLog :exec
+INSERT INTO produce_grading_log (
+    submission_id, user_id, story_id, segment_id,
+    hebrew_text, reference_english, student_text, grammar_point_name,
+    model, system_prompt, user_prompt, raw_response, stop_reason,
+    input_tokens, output_tokens, cache_read_input_tokens, latency_ms,
+    score, feedback, error
+) VALUES (
+    $1, $2, $3, $4,
+    $5, $6, $7, $8,
+    $9, $10, $11, $12, $13,
+    $14, $15, $16, $17,
+    $18, $19, $20
+)
+`
+
+type InsertProduceGradingLogParams struct {
+	SubmissionID         int32       `json:"submission_id"`
+	UserID               string      `json:"user_id"`
+	StoryID              int32       `json:"story_id"`
+	SegmentID            int32       `json:"segment_id"`
+	HebrewText           string      `json:"hebrew_text"`
+	ReferenceEnglish     string      `json:"reference_english"`
+	StudentText          string      `json:"student_text"`
+	GrammarPointName     pgtype.Text `json:"grammar_point_name"`
+	Model                pgtype.Text `json:"model"`
+	SystemPrompt         pgtype.Text `json:"system_prompt"`
+	UserPrompt           pgtype.Text `json:"user_prompt"`
+	RawResponse          pgtype.Text `json:"raw_response"`
+	StopReason           pgtype.Text `json:"stop_reason"`
+	InputTokens          pgtype.Int4 `json:"input_tokens"`
+	OutputTokens         pgtype.Int4 `json:"output_tokens"`
+	CacheReadInputTokens pgtype.Int4 `json:"cache_read_input_tokens"`
+	LatencyMs            pgtype.Int4 `json:"latency_ms"`
+	Score                pgtype.Int4 `json:"score"`
+	Feedback             pgtype.Text `json:"feedback"`
+	Error                pgtype.Text `json:"error"`
+}
+
+// InsertProduceGradingLog records one grading run — prompts, raw model
+// output, parsed verdict or error — so grading can be inspected after the fact.
+func (q *Queries) InsertProduceGradingLog(ctx context.Context, arg InsertProduceGradingLogParams) error {
+	_, err := q.db.Exec(ctx, insertProduceGradingLog,
+		arg.SubmissionID,
+		arg.UserID,
+		arg.StoryID,
+		arg.SegmentID,
+		arg.HebrewText,
+		arg.ReferenceEnglish,
+		arg.StudentText,
+		arg.GrammarPointName,
+		arg.Model,
+		arg.SystemPrompt,
+		arg.UserPrompt,
+		arg.RawResponse,
+		arg.StopReason,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.CacheReadInputTokens,
+		arg.LatencyMs,
+		arg.Score,
+		arg.Feedback,
+		arg.Error,
+	)
+	return err
+}
+
 const startProduceAttempt = `-- name: StartProduceAttempt :one
 INSERT INTO produce_attempt_starts (user_id, story_id, segment_id)
 VALUES ($1, $2, $3)

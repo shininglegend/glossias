@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"glossias/src/apis/types"
@@ -314,7 +313,7 @@ func produceSubmissionViews(segments []models.ProduceSegment, submissions []mode
 
 // produceCompleted reports whether every authored segment has a submission.
 // A story with no segments has nothing to do, so it counts as complete and
-// navigation skips the phase (like isVocabCompleted).
+// navigation skips the phase (like vocab with no items).
 func produceCompleted(segments []models.ProduceSegment, submissions []models.ProduceSubmission) bool {
 	for _, seg := range segments {
 		if !slices.ContainsFunc(submissions, func(s models.ProduceSubmission) bool { return s.SegmentID == seg.ID }) {
@@ -322,20 +321,6 @@ func produceCompleted(segments []models.ProduceSegment, submissions []models.Pro
 		}
 	}
 	return true
-}
-
-// isProduceCompleted reports whether the user has submitted every Produce
-// segment for the story, for navigation's completion map.
-func (h *Handler) isProduceCompleted(ctx context.Context, userID string, storyID int) (bool, error) {
-	segments, err := models.GetStoryProduceSegments(ctx, storyID)
-	if err != nil {
-		return false, err
-	}
-	submissions, err := models.GetUserStoryProduceSubmissions(ctx, userID, storyID)
-	if err != nil {
-		return false, err
-	}
-	return produceCompleted(segments, submissions), nil
 }
 
 // produceSlot locates a segment in the story text. The authored line range

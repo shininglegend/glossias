@@ -207,6 +207,12 @@ type Querier interface {
 	GetUserRecallCorrectAnswers(ctx context.Context, arg GetUserRecallCorrectAnswersParams) ([]GetUserRecallCorrectAnswersRow, error)
 	GetUserStoryGrammarSummary(ctx context.Context, arg GetUserStoryGrammarSummaryParams) (GetUserStoryGrammarSummaryRow, error)
 	GetUserStoryIdentifySummary(ctx context.Context, arg GetUserStoryIdentifySummaryParams) (GetUserStoryIdentifySummaryRow, error)
+	// Navigation queries: everything the "next page" decision needs in one round trip.
+	// GetUserStoryPageCompletion returns, for one user and story, the authored total
+	// and the user's progress for every skippable phase of the Summer 2026 flow:
+	// Identify, Translate, Produce, Recall. Completion rules (e.g. "no segments
+	// means produce is done") live in models.PageCompletion.
+	GetUserStoryPageCompletion(ctx context.Context, arg GetUserStoryPageCompletionParams) (GetUserStoryPageCompletionRow, error)
 	// Elapsed time is computed in the database so it never depends on the app
 	// server and database clocks agreeing.
 	GetUserStoryProduceAttemptStarts(ctx context.Context, arg GetUserStoryProduceAttemptStartsParams) ([]GetUserStoryProduceAttemptStartsRow, error)

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"glossias/src/apis/types"
@@ -140,20 +139,6 @@ func recallCompleted(sentences []models.RecallSentence, correctIDs []int) bool {
 		}
 	}
 	return true
-}
-
-// isRecallCompleted reports whether the user has finished the Recall phase,
-// for navigation's completion map.
-func (h *Handler) isRecallCompleted(ctx context.Context, userID string, storyID int) (bool, error) {
-	sentences, err := models.GetStoryRecallSentences(ctx, storyID)
-	if err != nil {
-		return false, err
-	}
-	correctIDs, err := models.GetUserRecallCorrectSentenceIDs(ctx, userID, storyID)
-	if err != nil {
-		return false, err
-	}
-	return recallCompleted(sentences, correctIDs), nil
 }
 
 // CheckRecall grades one submitted ordering of the story's recall sentences,

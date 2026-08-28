@@ -29,7 +29,8 @@ var (
 	PageTypeScore     = PageType{Path: "score", DisplayName: "Score"}
 )
 
-// Default page order for MVP
+// Summer 2026 flow (SUMMER_2026.md). Vocab and Grammar pages remain reachable
+// by URL but are not part of the flow: Identify and Produce replaced them.
 var defaultPageOrder = []PageType{
 	PageTypeVideo,
 	PageTypeIdentify,
@@ -38,8 +39,6 @@ var defaultPageOrder = []PageType{
 	PageTypeRecall,
 	PageTypeScore,
 }
-
-const minTimeSeconds = 0 // Minimum time in seconds to consider a page "completed" (unused)
 
 // NavigationGuidanceRequest represents the request structure
 type NavigationGuidanceRequest struct {
@@ -89,7 +88,7 @@ func (h *Handler) Navigate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get completion status for all pages
-	completionStatus, err := h.getPageCompletionStatus(r.Context(), userID, int32(storyID))
+	completionStatus, err := h.getPageCompletionStatus(r.Context(), userID, storyID)
 	if err != nil {
 		h.log.Error("Failed to get completion status", "error", err, "storyID", storyID, "userID", userID)
 		h.sendError(w, "Internal server error", http.StatusInternalServerError)
@@ -113,133 +112,24 @@ func (h *Handler) Navigate(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// getPageCompletionStatus returns completion status for all page types
-func (h *Handler) getPageCompletionStatus(ctx context.Context, userID string, storyID int32) (map[PageType]bool, error) {
-	status := make(map[PageType]bool)
-
-	// Video is never considered "complete" for skipping purposes
-	status[PageTypeVideo] = false
-
-	// Get vocab completion status
-	vocabComplete, err := h.isVocabCompleted(ctx, userID, storyID)
+// getPageCompletionStatus returns completion status for every page type,
+// from a single query. Video and Score are never "complete": video is always
+// visited and score is the terminal page.
+func (h *Handler) getPageCompletionStatus(ctx context.Context, userID string, storyID int) (map[PageType]bool, error) {
+	c, err := models.GetUserStoryPageCompletion(ctx, userID, storyID)
 	if err != nil {
 		return nil, err
 	}
-	status[PageTypeVocab] = vocabComplete
-
-	// Identify is complete once every target-word quiz has a correct pick
-	identifyComplete, err := h.isIdentifyCompleted(ctx, userID, int(storyID))
-	if err != nil {
-		return nil, err
-	}
-	status[PageTypeIdentify] = identifyComplete
-
-	// Get grammar completion status
-	grammarComplete, err := h.isGrammarCompleted(ctx, userID, storyID)
-	if err != nil {
-		return nil, err
-	}
-	status[PageTypeGrammar] = grammarComplete
-
-	// Get translate completion status
-	translateComplete, err := h.isTranslateCompleted(ctx, userID, storyID)
-	if err != nil {
-		return nil, err
-	}
-	status[PageTypeTranslate] = translateComplete
-
-	// Recall is complete once every sentence has been placed correctly
-	recallComplete, err := h.isRecallCompleted(ctx, userID, int(storyID))
-	if err != nil {
-		return nil, err
-	}
-	status[PageTypeRecall] = recallComplete
-
-	// Produce is complete once every segment has a submission
-	produceComplete, err := h.isProduceCompleted(ctx, userID, int(storyID))
-	if err != nil {
-		return nil, err
-	}
-	status[PageTypeProduce] = produceComplete
-
-	// Score is never considered "complete" for skipping
-	status[PageTypeScore] = false
-
-	return status, nil
-}
-
-// isVocabCompleted checks if user has completed vocab (correct answers = total vocab items)
-func (h *Handler) isVocabCompleted(ctx context.Context, userID string, storyID int32) (bool, error) {
-	// Get total vocabulary items in story
-	totalVocabItems, err := models.CountStoryVocabItems(ctx, storyID)
-	if err != nil {
-		return false, err
-	}
-
-	if totalVocabItems == 0 {
-		return true, nil // No vocab items means complete
-	}
-
-	// Check user's correct answers
-	vocabSummary, err := models.GetUserStoryVocabSummary(ctx, userID, storyID)
-	if err != nil {
-		return false, err
-	}
-
-	return vocabSummary.CorrectCount == totalVocabItems, nil
-}
-
-// isGrammarCompleted checks if user has completed grammar (correct answers == total instances AND sufficient time)
-func (h *Handler) isGrammarCompleted(ctx context.Context, userID string, storyID int32) (bool, error) {
-	// Get total grammar instances in story
-	story, err := models.GetStoryData(ctx, int(storyID), userID)
-	if err != nil {
-		return false, err
-	}
-
-	// Count total grammar instances across all grammar points
-	totalInstances := 0
-	for _, line := range story.Content.Lines {
-		totalInstances += len(line.Grammar)
-	}
-
-	if totalInstances == 0 {
-		return true, nil // No grammar instances to find
-	}
-
-	// Check if user has found all instances
-	grammarSummary, err := models.GetUserStoryGrammarSummary(ctx, userID, storyID)
-	if err != nil {
-		return false, err
-	}
-
-	if int(grammarSummary.CorrectCount) < totalInstances {
-		return false, nil // Haven't found all instances yet
-	}
-
-	// Check time spent
-	timeData, err := models.GetUserStoryTimeTracking(ctx, userID, storyID)
-	if err != nil {
-		return false, err
-	}
-
-	return timeData.GrammarTimeSeconds >= minTimeSeconds, nil
-}
-
-// isTranslateCompleted checks if user has spent sufficient time on translation
-func (h *Handler) isTranslateCompleted(ctx context.Context, userID string, storyID int32) (bool, error) {
-	timeData, err := models.GetUserStoryTimeTracking(ctx, userID, storyID)
-	if err != nil {
-		return false, err
-	}
-
-	// Check if the user finished the translate phase for this story
-	completed, err := models.TranslationRequestCompleted(ctx, userID, int(storyID))
-	if err != nil {
-		return false, err
-	}
-
-	return timeData.TranslationTimeSeconds >= minTimeSeconds && completed, nil
+	return map[PageType]bool{
+		PageTypeVideo:     false,
+		PageTypeVocab:     false, // not in the S26 flow; never skipped-to
+		PageTypeIdentify:  c.IdentifyComplete(),
+		PageTypeGrammar:   false, // not in the S26 flow; never skipped-to
+		PageTypeTranslate: c.TranslateComplete(),
+		PageTypeProduce:   c.ProduceComplete(),
+		PageTypeRecall:    c.RecallComplete(),
+		PageTypeScore:     false,
+	}, nil
 }
 
 // determineNextPage finds the next page to visit based on current page and completion status

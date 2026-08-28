@@ -42,7 +42,7 @@ Parallel-start set: **T1, T2, T4, T5, T6** can all begin immediately.
 
 ### F1. New page types and navigation order
 
-- Backend: update `defaultPageOrder` in `src/apis/handlers/stories-navigation.go` to `video → identify → translate → produce → recall → score`. Decide whether old pages (`vocab`, `grammar`) stay reachable for old stories or are removed; recommend keeping handlers but removing them from the default order.
+- Backend: `defaultPageOrder` in `src/apis/handlers/stories-navigation.go` is `video → identify → translate → produce → recall → score`. The old `vocab` and `grammar` pages keep their handlers and stay reachable by URL but are not in the order. Per-phase completion for the next-page decision comes from one query, `GetUserStoryPageCompletion` (`models.PageCompletion`), rather than per-phase model calls.
 - Frontend: extend `PageType` in `frontend/app/types/api.ts`; add route entries in `frontend/app/routes.ts`; new thin route files `stories-identify.tsx`, `stories-produce.tsx`, `stories-recall.tsx` mirroring `frontend/app/routes/stories-vocab.tsx` (start tracking, render component).
 - Time tracking route matching: `scores.sql` derives per-phase time via `route LIKE '%vocab%'` etc. — add matching clauses for `identify`, `produce`, `recall` in `src/pkg/database/queries/time_tracking.sql` / `scores.sql` and `GetUserStoryTimeTracking` in `src/pkg/models/get-scores.go`.
 

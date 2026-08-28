@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"glossias/src/apis/types"
 	"glossias/src/auth"
@@ -144,21 +143,6 @@ func identifyProgress(occurrences []models.TargetVocabularyOccurrence, answers [
 		}
 	}
 	return picks, true
-}
-
-// isIdentifyCompleted reports whether the user has answered every Identify
-// quiz for the story, for navigation's completion map.
-func (h *Handler) isIdentifyCompleted(ctx context.Context, userID string, storyID int) (bool, error) {
-	occurrences, err := models.GetTargetVocabularyOccurrences(ctx, storyID)
-	if err != nil {
-		return false, err
-	}
-	answers, err := models.GetUserIdentifyCorrectAnswers(ctx, userID, storyID)
-	if err != nil {
-		return false, err
-	}
-	_, completed := identifyProgress(occurrences, answers)
-	return completed, nil
 }
 
 // buildIdentifyLines segments each line's text, marking target-word

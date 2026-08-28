@@ -77,7 +77,7 @@ export const IdentifyQuizModal: React.FC<IdentifyQuizModalProps> = ({
       title={
         <span className="flex items-center justify-center gap-3">
           <span
-            className="text-4xl font-bold text-amber-700"
+            className="text-[5.5rem] font-bold text-amber-700"
             dir={isRTL ? "rtl" : "ltr"}
             lang={isRTL ? "he" : undefined}
           >

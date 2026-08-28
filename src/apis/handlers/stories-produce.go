@@ -335,23 +335,27 @@ func (h *Handler) isProduceCompleted(ctx context.Context, userID string, storyID
 	return produceCompleted(segments, submissions), nil
 }
 
-// produceSlot locates a segment in the story text. The authored line number
-// wins: the reference is looked for within that line so the page can blank
-// exactly it, and if it isn't there verbatim the whole line is marked. With
-// no authored line (content from before the column existed) the reference is
-// searched for across every line, and nil means it was not found.
+// produceSlot locates a segment in the story text. The authored line range
+// wins: the reference is looked for on each line within it so the page can
+// blank exactly it, and if it isn't found verbatim on any single line the
+// whole range is marked. With no authored range (content from before the
+// columns existed) the reference is searched for across every line, and nil
+// means it was not found.
 func produceSlot(lines []string, segment models.ProduceSegment) *types.ProduceSlot {
 	ref := strings.TrimSpace(segment.ReferenceHebrew)
 
-	if segment.LineNumber != nil {
-		lineIndex := *segment.LineNumber - 1
-		if lineIndex < 0 || lineIndex >= len(lines) {
+	if segment.LineStart != nil && segment.LineEnd != nil {
+		startIdx := *segment.LineStart - 1
+		endIdx := *segment.LineEnd - 1
+		if startIdx < 0 || endIdx >= len(lines) || startIdx > endIdx {
 			return nil
 		}
-		if start, end, found := runeRange(lines[lineIndex], ref); found {
-			return &types.ProduceSlot{LineIndex: lineIndex, Exact: true, Start: start, End: end}
+		for i := startIdx; i <= endIdx; i++ {
+			if start, end, found := runeRange(lines[i], ref); found {
+				return &types.ProduceSlot{LineIndex: i, LineEnd: i, Exact: true, Start: start, End: end}
+			}
 		}
-		return &types.ProduceSlot{LineIndex: lineIndex}
+		return &types.ProduceSlot{LineIndex: startIdx, LineEnd: endIdx}
 	}
 
 	if ref == "" {
@@ -359,7 +363,7 @@ func produceSlot(lines []string, segment models.ProduceSegment) *types.ProduceSl
 	}
 	for i, line := range lines {
 		if start, end, found := runeRange(line, ref); found {
-			return &types.ProduceSlot{LineIndex: i, Exact: true, Start: start, End: end}
+			return &types.ProduceSlot{LineIndex: i, LineEnd: i, Exact: true, Start: start, End: end}
 		}
 	}
 	return nil

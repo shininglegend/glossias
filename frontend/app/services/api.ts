@@ -134,11 +134,13 @@ export interface CheckRecallResult {
 }
 
 export interface ProduceSlot {
-  /** 0-based story line the segment belongs to. */
+  /** 0-based story line range the segment belongs to (inclusive). */
   line_index: number;
+  line_end: number;
   /**
-   * True when the reference was found verbatim in the line, so `start`/`end`
-   * (code-point offsets) can be blanked out. False marks the whole line.
+   * True when the reference was found verbatim on one line of the range, so
+   * `start`/`end` (code-point offsets, within that line) can be blanked out.
+   * False marks every line in the range.
    */
   exact: boolean;
   start: number;

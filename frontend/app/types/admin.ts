@@ -122,8 +122,13 @@ export interface ProduceSegment {
   referenceHebrew: string;
   grammarPointId?: number;
   grammarPointName?: string;
-  /** 1-based story line the reference belongs to; marks the slot for students. */
-  lineNumber?: number;
+  /**
+   * 1-based, inclusive story line range the reference was drawn from (equal
+   * for a single line); marks the slot for students and lets the editor
+   * re-seed the segment from the same lines later.
+   */
+  lineStart?: number;
+  lineEnd?: number;
 }
 
 export interface ProducePage {

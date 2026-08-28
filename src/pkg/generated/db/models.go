@@ -142,7 +142,8 @@ type ProduceSegment struct {
 	ReferenceHebrew string           `json:"reference_hebrew"`
 	GrammarPointID  pgtype.Int4      `json:"grammar_point_id"`
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
-	LineNumber      pgtype.Int4      `json:"line_number"`
+	LineStart       pgtype.Int4      `json:"line_start"`
+	LineEnd         pgtype.Int4      `json:"line_end"`
 }
 
 type ProduceSubmission struct {

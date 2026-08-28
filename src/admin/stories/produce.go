@@ -27,8 +27,10 @@ type produceSegmentRequest struct {
 	EnglishText     string `json:"englishText"`
 	ReferenceHebrew string `json:"referenceHebrew"`
 	GrammarPointID  *int   `json:"grammarPointId,omitempty"`
-	// LineNumber places the segment in the story text (1-based). Optional.
-	LineNumber *int `json:"lineNumber,omitempty"`
+	// LineStart and LineEnd place the segment in the story text (1-based,
+	// inclusive). Both optional, but must be given together.
+	LineStart *int `json:"lineStart,omitempty"`
+	LineEnd   *int `json:"lineEnd,omitempty"`
 }
 
 type produceExplanationRequest struct {
@@ -144,17 +146,21 @@ func (h *Handler) saveProduceSegment(w http.ResponseWriter, r *http.Request, sto
 		}
 	}
 
-	// The line number drives where the student page marks the segment's slot;
+	// The line range drives where the student page marks the segment's slot;
 	// a line that doesn't exist would leave the marker nowhere.
-	if req.LineNumber != nil {
+	if (req.LineStart == nil) != (req.LineEnd == nil) {
+		writeJSONError(w, "lineStart and lineEnd must be provided together", http.StatusBadRequest)
+		return
+	}
+	if req.LineStart != nil {
 		lineCount, err := models.CountStoryLines(ctx, storyID)
 		if err != nil {
 			h.log.Error("Failed to count story lines", "error", err, "storyID", storyID)
 			writeJSONError(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
-		if *req.LineNumber < 1 || *req.LineNumber > lineCount {
-			writeJSONError(w, "lineNumber must be between 1 and "+strconv.Itoa(lineCount), http.StatusBadRequest)
+		if *req.LineStart < 1 || *req.LineEnd > lineCount || *req.LineStart > *req.LineEnd {
+			writeJSONError(w, "lineStart/lineEnd must be a valid range between 1 and "+strconv.Itoa(lineCount), http.StatusBadRequest)
 			return
 		}
 	}
@@ -165,7 +171,8 @@ func (h *Handler) saveProduceSegment(w http.ResponseWriter, r *http.Request, sto
 		EnglishText:     englishText,
 		ReferenceHebrew: referenceHebrew,
 		GrammarPointID:  req.GrammarPointID,
-		LineNumber:      req.LineNumber,
+		LineStart:       req.LineStart,
+		LineEnd:         req.LineEnd,
 	})
 	if err != nil {
 		h.log.Error("Failed to save produce segment", "error", err, "storyID", storyID, "order", order)

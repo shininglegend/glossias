@@ -416,7 +416,9 @@ export function ProduceSession({
                 <p className="text-xs font-semibold uppercase tracking-wider text-primary-700 mb-1">
                   Write this in Hebrew
                 </p>
-                <p className="text-xl text-gray-900">{segment.english_text}</p>
+                <p className="text-xl text-gray-900 whitespace-pre-line">
+                  {segment.english_text}
+                </p>
                 {segment.grammar_point_name && (
                   <p className="text-sm text-gray-500 mt-1">
                     Grammar focus: {segment.grammar_point_name}
@@ -543,7 +545,9 @@ export function ProduceSession({
                   <p className="text-xs font-semibold uppercase tracking-wider text-primary-700 mb-1">
                     Segment {s.segment_order}
                   </p>
-                  <p className="text-lg text-gray-900 mb-3">{s.english_text}</p>
+                  <p className="text-lg text-gray-900 mb-3 whitespace-pre-line">
+                    {s.english_text}
+                  </p>
                   {a && <AttemptComparison attempt={a} isRTL={isRTL} />}
                 </div>
               );
@@ -627,7 +631,7 @@ function AttemptComparison({
           The story's version
         </p>
         <p
-          className="text-2xl leading-relaxed text-gray-900"
+          className="text-2xl leading-relaxed text-gray-900 whitespace-pre-line"
           dir={dir}
           lang={lang}
           data-testid="produce-reference"
@@ -649,31 +653,28 @@ interface StoryContextProps {
 
 /**
  * The surrounding Hebrew story text with the current segment's place marked.
- * An exact slot is a rune range, so the text is split by code point to match
- * the backend, and the reference is blanked out (then shown on reveal). A
- * non-exact slot (the author placed the segment on a line but paraphrased the
- * reference) highlights the whole line instead. With no slot at all the story
- * is shown without a marker.
+ * An exact slot is a rune range on one line of the segment's range, so that
+ * line's text is split by code point to match the backend, and the reference
+ * is blanked out (then shown on reveal). A non-exact slot (the author placed
+ * the segment on a line range but paraphrased the reference, or the reference
+ * spans more than one line) highlights every line in the range instead. With
+ * no slot at all the story is shown without a marker.
  */
 function StoryContext({ lines, slot, reveal, isRTL }: StoryContextProps) {
   return (
     <div
-      className="story-lines text-2xl max-w-3xl mx-auto leading-loose text-gray-800"
+      className="story-lines text-2xl max-w-3xl mx-auto leading-loose text-gray-800 space-y-1"
       dir={isRTL ? "rtl" : "ltr"}
       lang={isRTL ? "he" : undefined}
       data-testid="produce-context"
     >
       {lines.map((line, i) => {
-        if (!slot || slot.line_index !== i) {
-          return (
-            <span key={i} className="inline">
-              {line.text}{" "}
-            </span>
-          );
+        if (!slot || i < slot.line_index || i > slot.line_end) {
+          return <div key={i}>{line.text}</div>;
         }
-        if (!slot.exact) {
+        if (!slot.exact || i !== slot.line_index) {
           return (
-            <span key={i} className="inline">
+            <div key={i}>
               <mark
                 className={`rounded px-1 ${
                   reveal
@@ -688,15 +689,15 @@ function StoryContext({ lines, slot, reveal, isRTL }: StoryContextProps) {
                 }
               >
                 {line.text}
-              </mark>{" "}
-            </span>
+              </mark>
+            </div>
           );
         }
         const runes = Array.from(line.text);
         const before = runes.slice(0, slot.start).join("");
         const after = runes.slice(slot.end).join("");
         return (
-          <span key={i} className="inline">
+          <div key={i}>
             {before}
             {reveal ? (
               <mark
@@ -714,8 +715,8 @@ function StoryContext({ lines, slot, reveal, isRTL }: StoryContextProps) {
                 &nbsp;
               </span>
             )}
-            {after}{" "}
-          </span>
+            {after}
+          </div>
         );
       })}
     </div>

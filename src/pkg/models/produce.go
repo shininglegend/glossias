@@ -26,10 +26,13 @@ type ProduceSegment struct {
 	ReferenceHebrew  string `json:"referenceHebrew"`
 	GrammarPointID   *int   `json:"grammarPointId,omitempty"`
 	GrammarPointName string `json:"grammarPointName,omitempty"`
-	// LineNumber is the 1-based story line the reference belongs to, so the
-	// student page can mark the segment's slot in the text. Nil when the
-	// author has not placed it.
-	LineNumber *int `json:"lineNumber,omitempty"`
+	// LineStart and LineEnd are the 1-based story lines the reference was
+	// drawn from (inclusive; equal for a single line), so the student page
+	// can mark the segment's slot in the text and the editor can re-seed the
+	// segment from the same lines later. Nil when the author has not placed
+	// it.
+	LineStart *int `json:"lineStart,omitempty"`
+	LineEnd   *int `json:"lineEnd,omitempty"`
 }
 
 // ProduceAttemptStart is when a student began writing a segment, with the
@@ -101,7 +104,8 @@ func GetStoryProduceSegments(ctx context.Context, storyID int) ([]ProduceSegment
 			ReferenceHebrew:  row.ReferenceHebrew,
 			GrammarPointName: row.GrammarPointName.String,
 			GrammarPointID:   optionalInt(row.GrammarPointID),
-			LineNumber:       optionalInt(row.LineNumber),
+			LineStart:        optionalInt(row.LineStart),
+			LineEnd:          optionalInt(row.LineEnd),
 		}
 		segments = append(segments, segment)
 	}
@@ -131,7 +135,8 @@ func GetProduceSegment(ctx context.Context, id int) (*ProduceSegment, error) {
 		ReferenceHebrew:  row.ReferenceHebrew,
 		GrammarPointName: row.GrammarPointName.String,
 		GrammarPointID:   optionalInt(row.GrammarPointID),
-		LineNumber:       optionalInt(row.LineNumber),
+		LineStart:        optionalInt(row.LineStart),
+		LineEnd:          optionalInt(row.LineEnd),
 	}
 
 	return segment, nil
@@ -150,7 +155,8 @@ func UpsertProduceSegment(ctx context.Context, segment ProduceSegment) (*Produce
 		EnglishText:     segment.EnglishText,
 		ReferenceHebrew: segment.ReferenceHebrew,
 		GrammarPointID:  toPgInt4(segment.GrammarPointID),
-		LineNumber:      toPgInt4(segment.LineNumber),
+		LineStart:       toPgInt4(segment.LineStart),
+		LineEnd:         toPgInt4(segment.LineEnd),
 	})
 	if err != nil {
 		return nil, err
@@ -163,7 +169,8 @@ func UpsertProduceSegment(ctx context.Context, segment ProduceSegment) (*Produce
 		EnglishText:     row.EnglishText,
 		ReferenceHebrew: row.ReferenceHebrew,
 		GrammarPointID:  optionalInt(row.GrammarPointID),
-		LineNumber:      optionalInt(row.LineNumber),
+		LineStart:       optionalInt(row.LineStart),
+		LineEnd:         optionalInt(row.LineEnd),
 	}
 
 	InvalidateStoryContentReadiness(saved.StoryID)

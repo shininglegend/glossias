@@ -26,9 +26,14 @@ export default function ProduceEditor({ storyId }: ProduceEditorProps) {
   const [explanation, setExplanation] = React.useState("");
   const [savingExplanation, setSavingExplanation] = React.useState(false);
   const [storyLines, setStoryLines] = React.useState<StoryLine[] | null>(null);
+  const [translations, setTranslations] = React.useState<Map<
+    number,
+    string
+  > | null>(null);
 
-  // Story text only feeds the line picker; a failure here shouldn't block
-  // editing, so it's loaded separately and the picker falls back to numbers.
+  // Story text feeds the line picker and English translations seed the
+  // English prompt; a failure in either shouldn't block editing, so both are
+  // loaded separately and the picker/seeding falls back gracefully.
   React.useEffect(() => {
     let cancelled = false;
     adminApi
@@ -38,6 +43,18 @@ export default function ProduceEditor({ storyId }: ProduceEditorProps) {
       })
       .catch(() => {
         if (!cancelled) setStoryLines(null);
+      });
+    adminApi
+      .getTranslations(storyId, "en")
+      .then((rows) => {
+        if (!cancelled) {
+          setTranslations(
+            new Map(rows.map((r) => [r.lineNumber, r.translationText])),
+          );
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setTranslations(null);
       });
     return () => {
       cancelled = true;
@@ -127,6 +144,7 @@ export default function ProduceEditor({ storyId }: ProduceEditorProps) {
             segment={page.segments.find((s) => s.segmentOrder === order)}
             grammarPoints={page.grammarPoints}
             storyLines={storyLines}
+            translations={translations}
             onChanged={load}
           />
         ))}
@@ -171,6 +189,8 @@ interface SegmentCardProps {
   grammarPoints: GrammarPoint[];
   /** Story text for the line picker; null while loading or if it failed. */
   storyLines: StoryLine[] | null;
+  /** English line translations for seeding the prompt; null if unavailable. */
+  translations: Map<number, string> | null;
   onChanged: () => Promise<void>;
 }
 
@@ -180,12 +200,42 @@ function lineLabel(line: StoryLine): string {
   return `${line.lineNumber}. ${text}`;
 }
 
+/** Joins a story's Hebrew text for lines start..end (inclusive). */
+function hebrewForRange(
+  storyLines: StoryLine[],
+  start: number,
+  end: number,
+): string {
+  return storyLines
+    .filter((l) => l.lineNumber >= start && l.lineNumber <= end)
+    .map((l) => l.text)
+    .join("\n");
+}
+
+/**
+ * Joins the English translations for lines start..end. Lines with no stored
+ * translation are skipped rather than left as gaps.
+ */
+function englishForRange(
+  translations: Map<number, string>,
+  start: number,
+  end: number,
+): string {
+  const parts: string[] = [];
+  for (let n = start; n <= end; n++) {
+    const t = translations.get(n);
+    if (t) parts.push(t);
+  }
+  return parts.join("\n");
+}
+
 function SegmentCard({
   storyId,
   order,
   segment,
   grammarPoints,
   storyLines,
+  translations,
   onChanged,
 }: SegmentCardProps) {
   const adminApi = useAdminApi();
@@ -198,8 +248,13 @@ function SegmentCard({
   const [grammarPointId, setGrammarPointId] = React.useState<number | "">(
     segment?.grammarPointId ?? "",
   );
-  const [lineNumber, setLineNumber] = React.useState<number | "">(
-    segment?.lineNumber ?? "",
+  // The line range picker: what the author is currently choosing, which may
+  // differ from the segment's saved range until "Replace" is clicked.
+  const [lineStart, setLineStart] = React.useState<number | "">(
+    segment?.lineStart ?? "",
+  );
+  const [lineEnd, setLineEnd] = React.useState<number | "">(
+    segment?.lineEnd ?? "",
   );
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -209,30 +264,65 @@ function SegmentCard({
     setEnglishText(segment?.englishText ?? "");
     setReferenceHebrew(segment?.referenceHebrew ?? "");
     setGrammarPointId(segment?.grammarPointId ?? "");
-    setLineNumber(segment?.lineNumber ?? "");
+    setLineStart(segment?.lineStart ?? "");
+    setLineEnd(segment?.lineEnd ?? "");
   }, [
     segment?.englishText,
     segment?.referenceHebrew,
     segment?.grammarPointId,
-    segment?.lineNumber,
+    segment?.lineStart,
+    segment?.lineEnd,
   ]);
 
   const changed =
     englishText !== (segment?.englishText ?? "") ||
     referenceHebrew !== (segment?.referenceHebrew ?? "") ||
     grammarPointId !== (segment?.grammarPointId ?? "") ||
-    lineNumber !== (segment?.lineNumber ?? "");
+    lineStart !== (segment?.lineStart ?? "") ||
+    lineEnd !== (segment?.lineEnd ?? "");
 
-  // Warn when the reference isn't in the chosen line verbatim: the student
-  // page then marks the whole line instead of blanking the sentence.
+  const rangeValid = lineStart !== "" && lineEnd !== "" && lineStart <= lineEnd;
+
+  // Warn when a single-line reference isn't in that line verbatim: the
+  // student page then marks the whole line instead of blanking the sentence.
+  // A multi-line reference is expected not to match any one line, so the
+  // whole range is marked by design and no warning applies.
   const chosenLine =
-    lineNumber === ""
-      ? undefined
-      : storyLines?.find((l) => l.lineNumber === lineNumber);
+    rangeValid && lineStart === lineEnd
+      ? storyLines?.find((l) => l.lineNumber === lineStart)
+      : undefined;
   const referenceNotInLine =
     chosenLine !== undefined &&
     referenceHebrew.trim() !== "" &&
     !chosenLine.text.includes(referenceHebrew.trim());
+
+  // Replace: (re)derive the reference Hebrew and English prompt from the
+  // range currently picked above, discarding whatever was there before.
+  const replace = () => {
+    if (!storyLines || !rangeValid) return;
+    setReferenceHebrew(hebrewForRange(storyLines, lineStart, lineEnd));
+    if (translations) {
+      setEnglishText(englishForRange(translations, lineStart, lineEnd));
+    }
+  };
+
+  // Sync: re-derive from the segment's already-saved line range, refreshing
+  // stale text (e.g. the story or its translation changed since) without
+  // requiring the author to re-pick lines.
+  const sync = () => {
+    if (!storyLines || segment?.lineStart == null || segment?.lineEnd == null)
+      return;
+    setLineStart(segment.lineStart);
+    setLineEnd(segment.lineEnd);
+    setReferenceHebrew(
+      hebrewForRange(storyLines, segment.lineStart, segment.lineEnd),
+    );
+    if (translations) {
+      setEnglishText(
+        englishForRange(translations, segment.lineStart, segment.lineEnd),
+      );
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -242,7 +332,8 @@ function SegmentCard({
         englishText,
         referenceHebrew,
         grammarPointId: grammarPointId === "" ? undefined : grammarPointId,
-        lineNumber: lineNumber === "" ? undefined : lineNumber,
+        lineStart: lineStart === "" ? undefined : lineStart,
+        lineEnd: lineEnd === "" ? undefined : lineEnd,
       });
       await onChanged();
     } catch (err) {
@@ -292,63 +383,118 @@ function SegmentCard({
 
         {error && <p className="text-sm text-rose-700 mb-2">{error}</p>}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label className="mb-1">English prompt</Label>
-            <Textarea
-              value={englishText}
-              onChange={(event) => setEnglishText(event.target.value)}
-              rows={3}
-              placeholder="The English the student renders into Hebrew..."
-            />
+        <div className="mt-4">
+          <Label className="mb-1">Story lines</Label>
+          <p className="text-xs text-slate-500 mb-1">
+            Where this sentence sits in the story. Pick the line range it spans,
+            then Replace to fill in the reference Hebrew and English prompt
+            below from it; students see the range blanked out (or marked, if
+            it's more than a single line) while they write.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={lineStart}
+              onChange={(event) =>
+                setLineStart(
+                  event.target.value === "" ? "" : Number(event.target.value),
+                )
+              }
+              dir="auto"
+              className="flex-1 min-w-[10rem] rounded-md border border-slate-300 bg-white py-2 px-3 text-sm shadow-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
+            >
+              <option value="">From line…</option>
+              {storyLines
+                ? storyLines.map((line) => (
+                    <option key={line.lineNumber} value={line.lineNumber}>
+                      {lineLabel(line)}
+                    </option>
+                  ))
+                : lineStart !== "" && (
+                    <option value={lineStart}>Line {lineStart}</option>
+                  )}
+            </select>
+            <span className="text-sm text-slate-500">to</span>
+            <select
+              value={lineEnd}
+              onChange={(event) =>
+                setLineEnd(
+                  event.target.value === "" ? "" : Number(event.target.value),
+                )
+              }
+              dir="auto"
+              className="flex-1 min-w-[10rem] rounded-md border border-slate-300 bg-white py-2 px-3 text-sm shadow-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
+            >
+              <option value="">To line…</option>
+              {storyLines
+                ? storyLines.map((line) => (
+                    <option key={line.lineNumber} value={line.lineNumber}>
+                      {lineLabel(line)}
+                    </option>
+                  ))
+                : lineEnd !== "" && (
+                    <option value={lineEnd}>Line {lineEnd}</option>
+                  )}
+            </select>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!storyLines || !rangeValid}
+              onClick={replace}
+            >
+              Replace
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={
+                !storyLines ||
+                segment?.lineStart == null ||
+                segment?.lineEnd == null
+              }
+              onClick={sync}
+            >
+              Sync
+            </Button>
           </div>
-
-          <div>
-            <Label className="mb-1">Reference Hebrew</Label>
-            <Textarea
-              value={referenceHebrew}
-              onChange={(event) => setReferenceHebrew(event.target.value)}
-              rows={3}
-              dir="rtl"
-              className="text-right"
-              placeholder="התרגום לדוגמה..."
-            />
-          </div>
+          {lineStart !== "" && lineEnd !== "" && !rangeValid && (
+            <p className="text-xs text-rose-700 mt-1">
+              "To line" must be the same as or after "From line".
+            </p>
+          )}
         </div>
 
         <div className="mt-4">
-          <Label className="mb-1">Story line</Label>
+          <Label className="mb-1">English prompt</Label>
+          <Textarea
+            value={englishText}
+            onChange={(event) => setEnglishText(event.target.value)}
+            rows={3}
+            placeholder="The English the student renders into Hebrew..."
+          />
+        </div>
+
+        <div className="mt-4">
+          <Label className="mb-1">Reference Hebrew</Label>
           <p className="text-xs text-slate-500 mb-1">
-            Where this sentence sits in the story. Students see the text with
-            this spot blanked out while they write.
+            Trim to the sentence the student produces if the lines hold more
+            than that.
           </p>
-          <select
-            value={lineNumber}
-            onChange={(event) =>
-              setLineNumber(
-                event.target.value === "" ? "" : Number(event.target.value),
-              )
+          <Textarea
+            value={referenceHebrew}
+            onChange={(event) => setReferenceHebrew(event.target.value)}
+            rows={3}
+            dir="rtl"
+            className="text-right"
+            placeholder={
+              storyLines ? "Pick story lines above..." : "התרגום לדוגמה..."
             }
-            dir="auto"
-            className="w-full rounded-md border border-slate-300 bg-white py-2 px-3 text-sm shadow-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
-          >
-            <option value="">
-              Not placed (search the text for the reference)
-            </option>
-            {storyLines
-              ? storyLines.map((line) => (
-                  <option key={line.lineNumber} value={line.lineNumber}>
-                    {lineLabel(line)}
-                  </option>
-                ))
-              : lineNumber !== "" && (
-                  <option value={lineNumber}>Line {lineNumber}</option>
-                )}
-          </select>
+          />
           {referenceNotInLine && (
             <p className="text-xs text-amber-700 mt-1">
               The reference Hebrew doesn't appear word-for-word in line{" "}
-              {lineNumber}, so students will see the whole line marked rather
+              {lineStart}, so students will see the whole line marked rather
               than a blank for the sentence.
             </p>
           )}

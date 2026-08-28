@@ -211,12 +211,15 @@ type ProduceSegmentView struct {
 	Slot *ProduceSlot `json:"slot,omitempty"`
 }
 
-// ProduceSlot is where a segment sits in the story: a 0-based line and, when
-// Exact, the rune range of the reference within it (blanked out on the page).
-// When not Exact the reference was not found verbatim in the line, so the
-// whole line is marked instead of a gap.
+// ProduceSlot is where a segment sits in the story: a 0-based line range
+// (LineIndex to LineEnd, inclusive; equal for a single line) and, when Exact,
+// the rune range of the reference within the one line of that range it was
+// found on (blanked out on the page). When not Exact the reference was not
+// found verbatim on any single line in the range, so every line in the range
+// is marked instead of a gap.
 type ProduceSlot struct {
 	LineIndex int  `json:"line_index"`
+	LineEnd   int  `json:"line_end"`
 	Exact     bool `json:"exact"`
 	Start     int  `json:"start"`
 	End       int  `json:"end"`

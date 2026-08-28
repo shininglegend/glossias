@@ -408,7 +408,8 @@ export function useAdminApi() {
           englishText: string;
           referenceHebrew: string;
           grammarPointId?: number;
-          lineNumber?: number;
+          lineStart?: number;
+          lineEnd?: number;
         },
         baseUrl?: string,
       ): Json<ProduceSegment> => {

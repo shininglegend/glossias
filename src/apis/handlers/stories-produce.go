@@ -378,10 +378,10 @@ func runeRange(line, needle string) (start, end int, found bool) {
 	if needle == "" {
 		return 0, 0, false
 	}
-	byteStart := strings.Index(line, needle)
-	if byteStart < 0 {
+	before, _, ok := strings.Cut(line, needle)
+	if !ok {
 		return 0, 0, false
 	}
-	start = utf8.RuneCountInString(line[:byteStart])
+	start = utf8.RuneCountInString(before)
 	return start, start + utf8.RuneCountInString(needle), true
 }

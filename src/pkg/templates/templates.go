@@ -26,14 +26,14 @@ func New(rootDir string) *TemplateEngine {
 }
 
 // AddFunc adds a custom template function
-func (te *TemplateEngine) AddFunc(name string, fn interface{}) {
+func (te *TemplateEngine) AddFunc(name string, fn any) {
 	te.mutex.Lock()
 	defer te.mutex.Unlock()
 	te.funcs[name] = fn
 }
 
 // Render executes a template with the given data
-func (te *TemplateEngine) Render(w io.Writer, name string, data interface{}) error {
+func (te *TemplateEngine) Render(w io.Writer, name string, data any) error {
 	tmpl, err := te.getTemplate(name)
 	if err != nil {
 		return err

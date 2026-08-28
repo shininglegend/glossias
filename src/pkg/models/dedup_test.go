@@ -10,7 +10,7 @@ import (
 func TestDedupVocabularyInsert_Exists(t *testing.T) {
 	mockDB := database.NewMockDBTX()
 	// CheckVocabularyExists returns bool
-	mockDB.StubQuery("CheckVocabularyExists", [][]interface{}{{true}}, nil)
+	mockDB.StubQuery("CheckVocabularyExists", [][]any{{true}}, nil)
 
 	SetDB(mockDB)
 	defer func() {
@@ -32,9 +32,9 @@ func TestDedupVocabularyInsert_Exists(t *testing.T) {
 func TestDedupVocabularyInsert_New(t *testing.T) {
 	mockDB := database.NewMockDBTX()
 	// CheckVocabularyExists returns false
-	mockDB.StubQuery("CheckVocabularyExists", [][]interface{}{{false}}, nil)
+	mockDB.StubQuery("CheckVocabularyExists", [][]any{{false}}, nil)
 	// CreateVocabularyItem returns id (int32)
-	mockDB.StubQuery("CreateVocabularyItem", [][]interface{}{{int32(1)}}, nil)
+	mockDB.StubQuery("CreateVocabularyItem", [][]any{{int32(1)}}, nil)
 
 	SetDB(mockDB)
 	defer func() {
@@ -56,7 +56,7 @@ func TestDedupVocabularyInsert_New(t *testing.T) {
 func TestDedupGrammarInsert_Exists(t *testing.T) {
 	mockDB := database.NewMockDBTX()
 	// CheckGrammarExists returns bool
-	mockDB.StubQuery("CheckGrammarExists", [][]interface{}{{true}}, nil)
+	mockDB.StubQuery("CheckGrammarExists", [][]any{{true}}, nil)
 
 	SetDB(mockDB)
 	defer func() {
@@ -77,9 +77,9 @@ func TestDedupGrammarInsert_Exists(t *testing.T) {
 func TestDedupGrammarInsert_New(t *testing.T) {
 	mockDB := database.NewMockDBTX()
 	// CheckGrammarExists returns false
-	mockDB.StubQuery("CheckGrammarExists", [][]interface{}{{false}}, nil)
+	mockDB.StubQuery("CheckGrammarExists", [][]any{{false}}, nil)
 	// CreateGrammarItem returns id (int32)
-	mockDB.StubQuery("CreateGrammarItem", [][]interface{}{{int32(1)}}, nil)
+	mockDB.StubQuery("CreateGrammarItem", [][]any{{int32(1)}}, nil)
 
 	SetDB(mockDB)
 	defer func() {
@@ -100,7 +100,7 @@ func TestDedupGrammarInsert_New(t *testing.T) {
 func TestDedupFootnoteInsert_Exists(t *testing.T) {
 	mockDB := database.NewMockDBTX()
 	// CheckFootnoteExists returns existing id (int32 > 0)
-	mockDB.StubQuery("CheckFootnoteExists", [][]interface{}{{int32(42)}}, nil)
+	mockDB.StubQuery("CheckFootnoteExists", [][]any{{int32(42)}}, nil)
 
 	SetDB(mockDB)
 	defer func() {
@@ -120,9 +120,9 @@ func TestDedupFootnoteInsert_Exists(t *testing.T) {
 func TestDedupFootnoteInsert_New(t *testing.T) {
 	mockDB := database.NewMockDBTX()
 	// CheckFootnoteExists returns 0 (not found)
-	mockDB.StubQuery("CheckFootnoteExists", [][]interface{}{{int32(0)}}, nil)
+	mockDB.StubQuery("CheckFootnoteExists", [][]any{{int32(0)}}, nil)
 	// CreateFootnote returns new id (int32)
-	mockDB.StubQuery("CreateFootnote", [][]interface{}{{int32(99)}}, nil)
+	mockDB.StubQuery("CreateFootnote", [][]any{{int32(99)}}, nil)
 	// CreateFootnoteReference returns empty (nil error)
 	mockDB.StubExec("CreateFootnoteReference", nil)
 

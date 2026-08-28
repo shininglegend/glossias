@@ -17,9 +17,9 @@ func stubRecallSentences(t *testing.T) {
 	t.Helper()
 
 	mockDB := database.NewMockDBTX()
-	rows := make([][]interface{}, 0, 3)
+	rows := make([][]any, 0, 3)
 	for i, id := range []int32{10, 11, 12} {
-		rows = append(rows, []interface{}{
+		rows = append(rows, []any{
 			id,                        // id
 			int32(1),                  // story_id
 			int32(i + 1),              // sequence_order

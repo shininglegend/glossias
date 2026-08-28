@@ -51,7 +51,7 @@ type ContextTxRouter struct {
 	Base db.DBTX
 }
 
-func (r *ContextTxRouter) Exec(ctx context.Context, sql string, arguments ...interface{}) (pgconn.CommandTag, error) {
+func (r *ContextTxRouter) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
 	database.CountQuery(ctx)
 	if tx, ok := ctx.Value(TxContextKey{}).(db.DBTX); ok {
 		return tx.Exec(ctx, sql, arguments...)
@@ -59,7 +59,7 @@ func (r *ContextTxRouter) Exec(ctx context.Context, sql string, arguments ...int
 	return r.Base.Exec(ctx, sql, arguments...)
 }
 
-func (r *ContextTxRouter) Query(ctx context.Context, sql string, arguments ...interface{}) (pgx.Rows, error) {
+func (r *ContextTxRouter) Query(ctx context.Context, sql string, arguments ...any) (pgx.Rows, error) {
 	database.CountQuery(ctx)
 	if tx, ok := ctx.Value(TxContextKey{}).(db.DBTX); ok {
 		return tx.Query(ctx, sql, arguments...)
@@ -67,7 +67,7 @@ func (r *ContextTxRouter) Query(ctx context.Context, sql string, arguments ...in
 	return r.Base.Query(ctx, sql, arguments...)
 }
 
-func (r *ContextTxRouter) QueryRow(ctx context.Context, sql string, arguments ...interface{}) pgx.Row {
+func (r *ContextTxRouter) QueryRow(ctx context.Context, sql string, arguments ...any) pgx.Row {
 	database.CountQuery(ctx)
 	if tx, ok := ctx.Value(TxContextKey{}).(db.DBTX); ok {
 		return tx.QueryRow(ctx, sql, arguments...)

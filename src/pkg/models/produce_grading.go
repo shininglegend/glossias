@@ -74,9 +74,7 @@ func (s *ProduceGradingService) Enqueue(userID string, submission ProduceSubmiss
 		return
 	}
 
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
+	s.wg.Go(func() {
 		s.sem <- struct{}{}
 		defer func() { <-s.sem }()
 
@@ -87,7 +85,7 @@ func (s *ProduceGradingService) Enqueue(userID string, submission ProduceSubmiss
 			s.log.Error("Produce grading failed; submission left ungraded",
 				"error", err, "userID", userID, "submissionID", submission.ID, "segmentID", segment.ID)
 		}
-	}()
+	})
 }
 
 // Close waits for in-flight grading to finish.

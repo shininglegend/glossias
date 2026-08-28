@@ -42,10 +42,8 @@ func TestRateLimitMiddleware(t *testing.T) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
-	for i := 0; i < 5; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 5 {
+		wg.Go(func() {
 			req := httptest.NewRequest("GET", "/api/stories", nil)
 			req.RemoteAddr = clientIP + ":1234"
 
@@ -61,7 +59,7 @@ func TestRateLimitMiddleware(t *testing.T) {
 				t.Errorf("unexpected status code: %d", rr.Code)
 			}
 			mu.Unlock()
-		}()
+		})
 	}
 
 	wg.Wait()

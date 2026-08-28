@@ -68,13 +68,13 @@ func TestGetCourseStories(t *testing.T) {
 			mockDB := database.NewMockDBTX()
 
 			// Stub permission query: CanUserAccessCourse
-			mockDB.StubQuery("CanUserAccessCourse", [][]interface{}{
+			mockDB.StubQuery("CanUserAccessCourse", [][]any{
 				{tt.stubAccess},
 			}, nil)
 
 			// Stub stories query: GetCourseStoriesWithTitles
 			if tt.stubAccess {
-				mockDB.StubQuery("GetCourseStoriesWithTitles", [][]interface{}{
+				mockDB.StubQuery("GetCourseStoriesWithTitles", [][]any{
 					{int32(1), int32(1), "A", "Story Title 1"},
 				}, nil)
 			}

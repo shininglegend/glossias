@@ -113,7 +113,7 @@ func (d *ReconnectableDBTX) executeWithRetry(fn func() error) error {
 }
 
 // Exec implements DBTX interface with retry logic
-func (d *ReconnectableDBTX) Exec(ctx context.Context, query string, args ...interface{}) (pgconn.CommandTag, error) {
+func (d *ReconnectableDBTX) Exec(ctx context.Context, query string, args ...any) (pgconn.CommandTag, error) {
 	var tag pgconn.CommandTag
 	err := d.executeWithRetry(func() error {
 		var execErr error
@@ -124,7 +124,7 @@ func (d *ReconnectableDBTX) Exec(ctx context.Context, query string, args ...inte
 }
 
 // Query implements DBTX interface with retry logic
-func (d *ReconnectableDBTX) Query(ctx context.Context, query string, args ...interface{}) (pgx.Rows, error) {
+func (d *ReconnectableDBTX) Query(ctx context.Context, query string, args ...any) (pgx.Rows, error) {
 	var rows pgx.Rows
 	err := d.executeWithRetry(func() error {
 		var queryErr error

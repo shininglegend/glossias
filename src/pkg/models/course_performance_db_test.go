@@ -17,7 +17,7 @@ func TestGetStoryCourseID_Success(t *testing.T) {
 	// 2. Set up expectations for the GetStory query
 	// GetStory scans: StoryID, WeekNumber, DayLetter, VideoUrl, LastRevision, AuthorID, AuthorName, CourseID
 	expectedCourseID := int32(101)
-	mockRow := []interface{}{
+	mockRow := []any{
 		int32(42),                             // StoryID
 		int32(1),                              // WeekNumber
 		"A",                                   // DayLetter
@@ -27,7 +27,7 @@ func TestGetStoryCourseID_Success(t *testing.T) {
 		"Jane Doe",                            // AuthorName
 		pgtype.Int4{Int32: expectedCourseID, Valid: true}, // CourseID
 	}
-	mockDBTX.StubQuery("SELECT s.story_id", [][]interface{}{mockRow}, nil)
+	mockDBTX.StubQuery("SELECT s.story_id", [][]any{mockRow}, nil)
 
 	// 3. Inject our mock connection
 	SetDB(mockDBTX)

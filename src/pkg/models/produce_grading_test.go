@@ -104,7 +104,7 @@ func TestProduceGradingService_QuotaLeavesUngraded(t *testing.T) {
 	svc, _ := newTestGradingService(t, grader)
 	svc.quota = newUserQuota(2, 100, time.Hour)
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		svc.Enqueue("user-1", ProduceSubmission{ID: i + 1, StudentText: "x"}, testSegment)
 	}
 	svc.Enqueue("user-2", ProduceSubmission{ID: 99, StudentText: "x"}, testSegment)
@@ -122,7 +122,7 @@ func TestUserQuota(t *testing.T) {
 
 	t.Run("per-minute bucket", func(t *testing.T) {
 		now := start
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			if !q.allow("a", now) {
 				t.Fatalf("call %d should be allowed", i+1)
 			}

@@ -72,6 +72,7 @@ npm run build
 Backend (`.env`):
 
 - `PORT` — defaults to 8080
+- `LOG_LEVEL` — `DEBUG` (default), `INFO`, `WARN`, or `ERROR`; read after `.env` loads
 - `CLERK_SECRET_KEY`, `AUTHORIZED_PARTY`
 - `DATABASE_URL`
 - `STORAGE_URL`, `STORAGE_API_KEY`

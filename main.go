@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"glossias/src/admin"
 	"glossias/src/apis"
 	"glossias/src/auth"
@@ -23,16 +22,25 @@ import (
 )
 
 func main() {
+	// The level is a LevelVar so it can be set after .env is loaded: the
+	// handler reads it on every record, so the logger can exist before we
+	// know the configured level.
+	var level slog.LevelVar
+	level.Set(slog.LevelDebug) // default until LOG_LEVEL is read
 	logger := slog.New(logging.New(os.Stdout, &logging.Options{
-		Level:     slog.LevelDebug,
+		Level:     &level,
 		UseColors: true,
 	}))
 
 	// Load environment variables from .env file if present
-	err := godotenv.Load()
-	if err != nil {
-		slog.WarnContext(context.Background(), "No .env file found, relying on environment variables")
-		err = nil
+	if err := godotenv.Load(); err != nil {
+		logger.Warn("No .env file found, relying on environment variables")
+	}
+	// LOG_LEVEL: DEBUG (default), INFO, WARN, ERROR.
+	if v := os.Getenv("LOG_LEVEL"); v != "" {
+		if err := level.UnmarshalText([]byte(v)); err != nil {
+			logger.Warn("invalid LOG_LEVEL, keeping DEBUG", "value", v)
+		}
 	}
 
 	// Initialize database with automatic reconnection support

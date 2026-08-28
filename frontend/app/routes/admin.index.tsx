@@ -31,6 +31,16 @@ const PHASE_EDITOR: Record<string, { label: string; path: string }> = {
   recall: { label: "Recall", path: "recall" },
 };
 
+// Editor buttons shown on each story card, mirroring AdminStoryNavigation.
+const EDITOR_BUTTONS = [
+  { path: "metadata", label: "Metadata", icon: "description" },
+  { path: "annotate", label: "Annotate", icon: "edit" },
+  { path: "translate", label: "Translate", icon: "translate" },
+  { path: "target-vocab", label: "Target Vocab", icon: "checklist" },
+  { path: "produce", label: "Produce", icon: "create" },
+  { path: "recall", label: "Recall", icon: "psychology" },
+] as const;
+
 function IncompleteWarning({ story }: { story: StoryListItem }) {
   const missing = story.missing_phases ?? [];
   if (missing.length === 0) return null;
@@ -185,43 +195,21 @@ export default function AdminHome() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    <Link to={`/admin/stories/${s.id}/metadata`}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        icon={
-                          <span className="material-icons text-sm">
-                            description
-                          </span>
-                        }
-                      >
-                        Metadata
-                      </Button>
-                    </Link>
-                    <Link to={`/admin/stories/${s.id}/annotate`}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        icon={
-                          <span className="material-icons text-sm">edit</span>
-                        }
-                      >
-                        Annotate
-                      </Button>
-                    </Link>
-                    <Link to={`/admin/stories/${s.id}/translate`}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        icon={
-                          <span className="material-icons text-sm">
-                            translate
-                          </span>
-                        }
-                      >
-                        Translate
-                      </Button>
-                    </Link>
+                    {EDITOR_BUTTONS.map(({ path, label, icon }) => (
+                      <Link key={path} to={`/admin/stories/${s.id}/${path}`}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          icon={
+                            <span className="material-icons text-sm">
+                              {icon}
+                            </span>
+                          }
+                        >
+                          {label}
+                        </Button>
+                      </Link>
+                    ))}
 
                     <Button
                       onClick={() => handleDeleteClick(s.id)}

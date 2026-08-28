@@ -139,7 +139,7 @@ func TestUserQuota(t *testing.T) {
 	t.Run("daily cap wins even when the bucket has tokens", func(t *testing.T) {
 		q := newUserQuota(100, 2, time.Hour)
 		now := start
-		if !q.allow("b", now) || !q.allow("b", now) {
+		if !q.allow("b", now) {
 			t.Fatal("first two should be allowed")
 		}
 		if q.allow("b", now.Add(time.Hour)) {

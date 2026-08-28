@@ -102,6 +102,23 @@ export interface NavigationGuidanceResponse {
   displayName: string;
 }
 
+/** Scope of an admin progress reset: the whole story or one phase. */
+export type ResetPhase =
+  | "all"
+  | "video"
+  | "identify"
+  | "translate"
+  | "produce"
+  | "recall"
+  | "vocab"
+  | "grammar";
+
+export interface ResetProgressResult {
+  phase: ResetPhase;
+  /** Rows removed, keyed by table name plus "time_tracking". */
+  deleted: Record<string, number>;
+}
+
 export type PageType =
   | "list"
   | "video"

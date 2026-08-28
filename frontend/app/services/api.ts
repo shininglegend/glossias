@@ -4,6 +4,8 @@ import { useCallback, useRef, useMemo } from "react";
 import { useAuthenticatedFetch } from "../lib/authFetch";
 import type {
   NavigationGuidanceResponse,
+  ResetPhase,
+  ResetProgressResult,
   Story as CourseStory,
   TextSegment,
 } from "../types/api";
@@ -484,8 +486,17 @@ export function useApiService() {
         const queryParams = status
           ? `?status=${encodeURIComponent(status)}`
           : "";
-        return fetchAPI(
-          `/admin/courses/${storyId}/student-performance${queryParams}`,
+        return fetchAPI(`/admin/stories/${storyId}/students${queryParams}`);
+      },
+
+      resetStudentProgress: (
+        storyId: string,
+        userId: string,
+        phase: ResetPhase,
+      ): Promise<APIResponse<ResetProgressResult>> => {
+        return fetchAPI<ResetProgressResult>(
+          `/admin/stories/${storyId}/students/${encodeURIComponent(userId)}/progress?phase=${phase}`,
+          { method: "DELETE" },
         );
       },
     }),

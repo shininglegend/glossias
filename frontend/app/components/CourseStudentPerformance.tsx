@@ -1,7 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router";
 import { useApiService } from "../services/api";
-import type { Story } from "../types/api";
+import type { ResetPhase, Story } from "../types/api";
+import Button from "./ui/Button";
+import Modal from "./ui/Modal";
+
+const RESET_PHASE_OPTIONS: { value: ResetPhase; label: string }[] = [
+  { value: "all", label: "Entire story (all phases + time)" },
+  { value: "video", label: "Watch (time only)" },
+  { value: "identify", label: "Identify" },
+  { value: "translate", label: "Translate" },
+  { value: "produce", label: "Produce" },
+  { value: "recall", label: "Recall" },
+  { value: "vocab", label: "Vocab (legacy)" },
+  { value: "grammar", label: "Grammar (legacy)" },
+];
 
 interface StudentPerformanceData {
   user_id: string;
@@ -101,6 +114,58 @@ export function CourseStudentPerformance() {
   const [loadingPerformance, setLoadingPerformance] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("active");
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Reset-progress dialog state
+  const [resetTarget, setResetTarget] = useState<{
+    userId: string;
+    name: string;
+  } | null>(null);
+  const [resetPhase, setResetPhase] = useState<ResetPhase>("all");
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
+
+  const closeResetDialog = useCallback(() => {
+    if (resetting) return;
+    setResetTarget(null);
+    setResetPhase("all");
+    setResetError(null);
+  }, [resetting]);
+
+  const handleResetConfirm = async () => {
+    if (!resetTarget || !selectedStoryId) return;
+    setResetting(true);
+    setResetError(null);
+    try {
+      const response = await api.resetStudentProgress(
+        selectedStoryId.toString(),
+        resetTarget.userId,
+        resetPhase,
+      );
+      if (!response.success || !response.data) {
+        setResetError(response.error || "Reset failed");
+        return;
+      }
+      const rows = Object.values(response.data.deleted).reduce(
+        (sum, n) => sum + n,
+        0,
+      );
+      const phaseLabel =
+        RESET_PHASE_OPTIONS.find((o) => o.value === resetPhase)?.label ??
+        resetPhase;
+      setResetNotice(
+        `Reset ${phaseLabel} for ${resetTarget.name} (${rows} rows removed).`,
+      );
+      setResetTarget(null);
+      setResetPhase("all");
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : "Reset failed");
+    } finally {
+      setResetting(false);
+    }
+  };
 
   useEffect(() => {
     const fetchStories = async () => {
@@ -191,7 +256,7 @@ export function CourseStudentPerformance() {
 
     fetchPerformance();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedStoryId, statusFilter]);
+  }, [selectedStoryId, statusFilter, refreshKey]);
 
   // Sort performance data by:
   // 1. Most combined correct (vocab + grammar)
@@ -310,6 +375,15 @@ export function CourseStudentPerformance() {
             )}
           </div>
 
+          {resetNotice && (
+            <p
+              role="status"
+              className="mb-4 rounded border border-green-300 bg-green-50 p-3 text-green-800"
+            >
+              {resetNotice}
+            </p>
+          )}
+
           {!selectedStoryId ? (
             <p>Please select a story to view performance data.</p>
           ) : loadingPerformance ? (
@@ -347,6 +421,9 @@ export function CourseStudentPerformance() {
                     </th>
                     <th className="border border-gray-300 p-3 text-center">
                       Translation Time
+                    </th>
+                    <th className="border border-gray-300 p-3 text-center">
+                      Actions
                     </th>
                   </tr>
                 </thead>
@@ -413,6 +490,21 @@ export function CourseStudentPerformance() {
                       <td className="border border-gray-300 p-3 text-center">
                         {formatTime(student.translation_time_seconds)}
                       </td>
+                      <td className="border border-gray-300 p-3 text-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setResetNotice(null);
+                            setResetTarget({
+                              userId: student.user_id,
+                              name: student.user_name || student.email,
+                            });
+                          }}
+                        >
+                          Reset…
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -421,6 +513,58 @@ export function CourseStudentPerformance() {
           )}
         </div>
       )}
+
+      <Modal
+        isOpen={resetTarget !== null}
+        onClose={closeResetDialog}
+        title="Reset student progress"
+        description={
+          resetTarget
+            ? `Delete ${resetTarget.name}'s answers, submissions and time for this story so they can redo it. This cannot be undone.`
+            : undefined
+        }
+        closeDisabled={resetting}
+      >
+        <div className="mt-4">
+          <label htmlFor="reset-phase" className="block font-semibold mb-2">
+            What to reset
+          </label>
+          <select
+            id="reset-phase"
+            value={resetPhase}
+            onChange={(e) => setResetPhase(e.target.value as ResetPhase)}
+            disabled={resetting}
+            className="border border-gray-300 rounded px-3 py-2 w-full"
+          >
+            {RESET_PHASE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          {resetError && (
+            <p role="alert" className="mt-3 text-red-600">
+              {resetError}
+            </p>
+          )}
+        </div>
+        <div className="mt-6 flex gap-3 justify-end">
+          <Button
+            variant="outline"
+            onClick={closeResetDialog}
+            disabled={resetting}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            onClick={handleResetConfirm}
+            disabled={resetting}
+          >
+            {resetting ? "Resetting..." : "Reset"}
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

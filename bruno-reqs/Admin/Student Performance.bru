@@ -5,9 +5,13 @@ meta {
 }
 
 get {
-  url: {{baseURL}}/api/admin/1/student-performance
+  url: {{baseURL}}/api/admin/stories/1/students?status=active
   body: none
   auth: inherit
+}
+
+params:query {
+  status: active
 }
 
 settings {

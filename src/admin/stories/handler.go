@@ -110,6 +110,12 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 		Methods("GET", "OPTIONS")
 	stories.HandleFunc("/{id:[0-9]+}/recall/sentences/{order:[0-9]+}", h.validateStoryID(h.recallSentenceHandler)).
 		Methods("PUT", "DELETE", "OPTIONS")
+
+	// Per-student performance on this story, and per-student progress reset.
+	stories.HandleFunc("/{id:[0-9]+}/students", h.validateStoryID(h.storyStudentsHandler)).
+		Methods("GET", "OPTIONS")
+	stories.HandleFunc("/{id:[0-9]+}/students/{userId}/progress", h.validateStoryID(h.resetStudentProgressHandler)).
+		Methods("DELETE", "OPTIONS")
 }
 
 // contentReadinessHandler reports which of the new phases are fully authored for

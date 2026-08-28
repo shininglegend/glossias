@@ -1,0 +1,24 @@
+meta {
+  name: Reset Student Progress
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseURL}}/api/admin/stories/1/students/USER_ID/progress?phase=all
+  body: none
+  auth: inherit
+}
+
+params:query {
+  phase: all
+}
+
+docs {
+  phase: all | video | identify | translate | produce | recall | vocab | grammar (default all).
+  Deletes the student's answer/submission rows and time-tracking rows for the story (or phase).
+}
+
+settings {
+  encodeUrl: true
+}

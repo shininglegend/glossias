@@ -100,6 +100,25 @@ type Querier interface {
 	DeleteTargetVocabulary(ctx context.Context, id int32) error
 	DeleteTranslationRequest(ctx context.Context, arg DeleteTranslationRequestParams) error
 	DeleteUser(ctx context.Context, userID string) error
+	DeleteUserStoryGrammarCorrect(ctx context.Context, arg DeleteUserStoryGrammarCorrectParams) (int64, error)
+	DeleteUserStoryGrammarIncorrect(ctx context.Context, arg DeleteUserStoryGrammarIncorrectParams) (int64, error)
+	DeleteUserStoryIdentifyCorrect(ctx context.Context, arg DeleteUserStoryIdentifyCorrectParams) (int64, error)
+	DeleteUserStoryIdentifyIncorrect(ctx context.Context, arg DeleteUserStoryIdentifyIncorrectParams) (int64, error)
+	DeleteUserStoryProduceAttemptStarts(ctx context.Context, arg DeleteUserStoryProduceAttemptStartsParams) (int64, error)
+	DeleteUserStoryProduceSubmissions(ctx context.Context, arg DeleteUserStoryProduceSubmissionsParams) (int64, error)
+	DeleteUserStoryRecallCorrect(ctx context.Context, arg DeleteUserStoryRecallCorrectParams) (int64, error)
+	DeleteUserStoryRecallIncorrect(ctx context.Context, arg DeleteUserStoryRecallIncorrectParams) (int64, error)
+	DeleteUserStoryTimeTracking(ctx context.Context, arg DeleteUserStoryTimeTrackingParams) (int64, error)
+	// Route patterns mirror the CASE WHEN buckets in GetStoryStudentPerformance
+	// (scores.sql) so what the admin sees zeroed matches what was deleted.
+	DeleteUserStoryTimeTrackingByRoute(ctx context.Context, arg DeleteUserStoryTimeTrackingByRouteParams) (int64, error)
+	DeleteUserStoryTranslationRequest(ctx context.Context, arg DeleteUserStoryTranslationRequestParams) (int64, error)
+	// Per-student per-story progress resets. Every table here carries user_id and
+	// story_id directly, so a reset is a plain two-column delete. Phase completion
+	// is derived from these rows (see SUMMER_2026.md), so deleting them reopens the
+	// phase for the student.
+	DeleteUserStoryVocabCorrect(ctx context.Context, arg DeleteUserStoryVocabCorrectParams) (int64, error)
+	DeleteUserStoryVocabIncorrect(ctx context.Context, arg DeleteUserStoryVocabIncorrectParams) (int64, error)
 	DeleteVocabularyItem(ctx context.Context, id int32) error
 	DeleteVocabularyItems(ctx context.Context, arg DeleteVocabularyItemsParams) error
 	FindRecentSimilarTimeEntry(ctx context.Context, arg FindRecentSimilarTimeEntryParams) (FindRecentSimilarTimeEntryRow, error)
@@ -240,6 +259,9 @@ type Querier interface {
 	MarkTranslationRequestComplete(ctx context.Context, arg MarkTranslationRequestCompleteParams) error
 	RemoveCourseAdmin(ctx context.Context, arg RemoveCourseAdminParams) error
 	RemoveUserFromCourse(ctx context.Context, arg RemoveUserFromCourseParams) error
+	// Whole-story reset in one round trip: clears every answer/submission table.
+	// Time rows are deleted separately by DeleteUserStoryTimeTracking.
+	ResetUserStoryAnswers(ctx context.Context, arg ResetUserStoryAnswersParams) (ResetUserStoryAnswersRow, error)
 	SaveGrammarIncorrectAnswer(ctx context.Context, arg SaveGrammarIncorrectAnswerParams) error
 	// Score management queries
 	SaveGrammarScore(ctx context.Context, arg SaveGrammarScoreParams) error

@@ -71,6 +71,7 @@ func main() {
 	// Setup middleware if needed
 	r.Use(auth.RateLimitMiddleware(logger))
 	r.Use(auth.Middleware(logger))
+	r.Use(queryCountMiddleware())
 	r.Use(loggingMiddleware(logger))
 
 	// Health check endpoint (no auth required)
@@ -147,6 +148,24 @@ func main() {
 	}
 }
 
+// dbQueryWarnThreshold is the per-request DB call count above which a request
+// is logged as suspicious. Legitimate pages need a handful of queries; well
+// above that almost always means a model function is being called in a loop
+// (N+1). Fix by adding a batch query (WHERE id = ANY($1)), not by raising this.
+const dbQueryWarnThreshold = 15
+
+// queryCountMiddleware attaches a DB query counter to every request so the
+// models layer can record each call (see database.CountQuery). Must run
+// before loggingMiddleware, which reads the total.
+func queryCountMiddleware() mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx, _ := database.WithQueryCounter(r.Context())
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
 func loggingMiddleware(logger *slog.Logger) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -154,11 +173,20 @@ func loggingMiddleware(logger *slog.Logger) mux.MiddlewareFunc {
 			ww := &responseWriter{ResponseWriter: w, status: 200}
 			next.ServeHTTP(ww, r)
 			if r.URL.Path != "/api/health" {
+				dbQueries := database.QueryCount(r.Context())
 				logger.Info("request completed",
 					"method", r.Method,
 					"path", r.URL.Path,
 					"status", ww.status,
+					"db_queries", dbQueries,
 					"requester", r.RemoteAddr)
+				if dbQueries > dbQueryWarnThreshold {
+					logger.Warn("high DB query count (possible N+1)",
+						"method", r.Method,
+						"path", r.URL.Path,
+						"db_queries", dbQueries,
+						"threshold", dbQueryWarnThreshold)
+				}
 			}
 		})
 	}

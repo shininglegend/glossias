@@ -42,6 +42,8 @@ cd frontend && npm run build   # output: frontend/build/
 
 Run the checks for whichever side was touched before considering a task done. Do not skip steps.
 
+**DB query budgets:** every request logs `db_queries=N` and warns above 15 (`dbQueryWarnThreshold` in `main.go`). Handler tests should wrap the success case in `assertQueryBudget(t, max, handler, req)` (`src/apis/handlers/querybudget_test.go`). If a budget has to rise, the fix is almost always a batch SQLC query (`WHERE id = ANY($1::int[])`) rather than a bigger number.
+
 ### Backend (Go)
 
 ```bash
@@ -135,4 +137,4 @@ If you want to cURL a request, include `'dev_auth: 12345678'` as a header to be 
 - Global `queries` variable shared across requests creates a race condition in transactions — should be scoped per-request.
 - Rate limiter uses an unbounded map (memory leak under load).
 - Several large "god components" in the frontend (~400–640 lines with 15+ state variables).
-- N+1 query pattern in story loading (no batching).
+- N+1 query pattern in story loading (no batching). The per-request `db_queries` log field / WARN exposes which endpoints are affected.

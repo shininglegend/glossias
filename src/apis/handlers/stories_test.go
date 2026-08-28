@@ -96,10 +96,8 @@ func TestGetCourseStories(t *testing.T) {
 				req = req.WithContext(ctx)
 			}
 
-			rr := httptest.NewRecorder()
-
-			// Execute handler
-			h.GetCourseStories(rr, req)
+			// Execute handler. Budget: access check + stories query.
+			rr := assertQueryBudget(t, 2, h.GetCourseStories, req)
 
 			// Assert status code
 			if rr.Code != tt.expectedStatus {

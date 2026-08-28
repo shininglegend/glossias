@@ -140,7 +140,7 @@ func (h *TimeTrackingHandler) recordTimeTracking(w http.ResponseWriter, r *http.
 		return
 	}
 
-	fmt.Println("Session: ", session)
+	h.logger.Debug("time tracking session loaded", "session", session)
 
 	err = models.RecordTimeTracking(r.Context(), session.UserID, session.Route, session.StoryID, req.ElapsedMs)
 	if err != nil {

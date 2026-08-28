@@ -24,6 +24,10 @@ import (
 
 // ProduceGradeRequest is everything the grader needs about one attempt.
 type ProduceGradeRequest struct {
+	// SystemPrompt is the grading instructions to run with (the active
+	// version from produce_grading_prompts); empty falls back to the
+	// built-in DefaultGradingSystemPrompt.
+	SystemPrompt            string
 	ReferenceEnglish        string
 	HebrewText              string
 	StudentText             string
@@ -46,11 +50,10 @@ type ProduceGrade struct {
 // (produce_grading_log). It is filled in as far as the call got, including on
 // error, so a failed call still records its prompts.
 type ProduceGradeTrace struct {
-	Model        string
-	SystemPrompt string
-	UserPrompt   string
-	RawResponse  string
-	StopReason   string
+	Model       string
+	UserPrompt  string
+	RawResponse string
+	StopReason  string
 	// Token usage as reported by the API; zero when the call did not complete.
 	InputTokens          int
 	OutputTokens         int
@@ -101,9 +104,12 @@ func NewAnthropicGraderFromEnv() (*AnthropicGrader, bool) {
 	return NewAnthropicGrader(key), true
 }
 
-// gradingSystemPrompt is stable across requests so it can be prompt-cached;
+// DefaultGradingSystemPrompt is the built-in system prompt: it seeds the
+// first row of produce_grading_prompts and is the fallback when no version
+// can be read. The live prompt is edited by super admins on the System page.
+// The system prompt is stable across requests so it can be prompt-cached;
 // everything that varies per attempt goes in the user message.
-const gradingSystemPrompt = `You grade short English translations written by introductory (first-year) Hebrew students in a language-learning app. Each student was shown a Hebrew sentence from a story and asked to write what it means in English, with one grammar point in focus. You are given the Hebrew, an authored reference English translation, the grammar point, and the student's attempt.
+const DefaultGradingSystemPrompt = `You grade short English translations written by introductory (first-year) Hebrew students in a language-learning app. Each student was shown a Hebrew sentence from a story and asked to write what it means in English, with one grammar point in focus. You are given the Hebrew, an authored reference English translation, the grammar point, and the student's attempt.
 
 Score the attempt from 0 to 100 for how accurately it conveys the Hebrew sentence's meaning in understandable English, with extra weight on whether the student has understood the target grammar point — for example rendering the right tense, person, number, gender, or definiteness that the grammar point carries.
 
@@ -155,17 +161,20 @@ func buildGradingPrompt(req ProduceGradeRequest) string {
 
 // GradeProduce calls the model and parses its structured verdict.
 func (g *AnthropicGrader) GradeProduce(ctx context.Context, req ProduceGradeRequest) (ProduceGrade, ProduceGradeTrace, error) {
+	systemPrompt := req.SystemPrompt
+	if strings.TrimSpace(systemPrompt) == "" {
+		systemPrompt = DefaultGradingSystemPrompt
+	}
 	trace := ProduceGradeTrace{
-		Model:        string(g.model),
-		SystemPrompt: gradingSystemPrompt,
-		UserPrompt:   buildGradingPrompt(req),
+		Model:      string(g.model),
+		UserPrompt: buildGradingPrompt(req),
 	}
 	started := time.Now()
 	resp, err := g.client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     g.model,
 		MaxTokens: 256,
 		System: []anthropic.TextBlockParam{{
-			Text:         trace.SystemPrompt,
+			Text:         systemPrompt,
 			CacheControl: anthropic.NewCacheControlEphemeralParam(),
 		}},
 		Messages: []anthropic.MessageParam{

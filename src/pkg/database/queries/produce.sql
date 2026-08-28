@@ -116,7 +116,7 @@ WHERE user_id = $1 AND story_id = $2;
 INSERT INTO produce_grading_log (
     submission_id, user_id, story_id, segment_id,
     hebrew_text, reference_english, student_text, grammar_point_name,
-    model, system_prompt, user_prompt, raw_response, stop_reason,
+    model, prompt_id, user_prompt, raw_response, stop_reason,
     input_tokens, output_tokens, cache_read_input_tokens, latency_ms,
     score, feedback, error
 ) VALUES (

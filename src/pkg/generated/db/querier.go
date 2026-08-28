@@ -31,6 +31,7 @@ type Querier interface {
 	ClearStoryGrammarPoints(ctx context.Context, storyID int32) error
 	CloseAnonymousTimeEntry(ctx context.Context, arg CloseAnonymousTimeEntryParams) error
 	CloseTimeEntry(ctx context.Context, arg CloseTimeEntryParams) error
+	CountProduceGradingPrompts(ctx context.Context) (int64, error)
 	CountStoryGrammarItems(ctx context.Context, storyID pgtype.Int4) (int64, error)
 	CountStoryProduceSegments(ctx context.Context, storyID int32) (int64, error)
 	CountStoryRecallSentences(ctx context.Context, storyID int32) (int64, error)
@@ -123,6 +124,9 @@ type Querier interface {
 	DeleteVocabularyItems(ctx context.Context, arg DeleteVocabularyItemsParams) error
 	FindRecentSimilarTimeEntry(ctx context.Context, arg FindRecentSimilarTimeEntryParams) (FindRecentSimilarTimeEntryRow, error)
 	GetActiveAnonymousTimeEntry(ctx context.Context, arg GetActiveAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
+	// Versioned system prompt for the Produce AI grader (append-only).
+	// The newest row is the active prompt.
+	GetActiveProduceGradingPrompt(ctx context.Context) (ProduceGradingPrompt, error)
 	GetActiveTimeEntry(ctx context.Context, arg GetActiveTimeEntryParams) (UserTimeTracking, error)
 	GetAdminCoursesForUser(ctx context.Context, userID string) ([]Course, error)
 	GetAllAnnotationsForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllAnnotationsForStoryRow, error)
@@ -252,11 +256,13 @@ type Querier interface {
 	// InsertProduceGradingLog records one grading run — prompts, raw model
 	// output, parsed verdict or error — so grading can be inspected after the fact.
 	InsertProduceGradingLog(ctx context.Context, arg InsertProduceGradingLogParams) error
+	InsertProduceGradingPrompt(ctx context.Context, arg InsertProduceGradingPromptParams) (ProduceGradingPrompt, error)
 	IsUserAdminOfAnyCourse(ctx context.Context, userID string) (bool, error)
 	IsUserCourseAdmin(ctx context.Context, arg IsUserCourseAdminParams) (bool, error)
 	LineExists(ctx context.Context, arg LineExistsParams) (bool, error)
 	ListCourses(ctx context.Context) ([]Course, error)
 	ListGrammarPoints(ctx context.Context) ([]GrammarPoint, error)
+	ListProduceGradingPrompts(ctx context.Context) ([]ProduceGradingPrompt, error)
 	ListSuperAdmins(ctx context.Context) ([]User, error)
 	ListUsers(ctx context.Context) ([]User, error)
 	MarkTranslationRequestComplete(ctx context.Context, arg MarkTranslationRequestCompleteParams) error

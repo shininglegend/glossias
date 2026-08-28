@@ -145,7 +145,6 @@ type ProduceGradingLog struct {
 	StudentText          string           `json:"student_text"`
 	GrammarPointName     pgtype.Text      `json:"grammar_point_name"`
 	Model                pgtype.Text      `json:"model"`
-	SystemPrompt         pgtype.Text      `json:"system_prompt"`
 	UserPrompt           pgtype.Text      `json:"user_prompt"`
 	RawResponse          pgtype.Text      `json:"raw_response"`
 	StopReason           pgtype.Text      `json:"stop_reason"`
@@ -157,6 +156,15 @@ type ProduceGradingLog struct {
 	Feedback             pgtype.Text      `json:"feedback"`
 	Error                pgtype.Text      `json:"error"`
 	CreatedAt            pgtype.Timestamp `json:"created_at"`
+	PromptID             pgtype.Int4      `json:"prompt_id"`
+}
+
+type ProduceGradingPrompt struct {
+	ID         int32            `json:"id"`
+	PromptText string           `json:"prompt_text"`
+	Note       pgtype.Text      `json:"note"`
+	CreatedBy  pgtype.Text      `json:"created_by"`
+	CreatedAt  pgtype.Timestamp `json:"created_at"`
 }
 
 type ProduceSegment struct {

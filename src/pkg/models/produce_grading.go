@@ -100,13 +100,14 @@ func (s *ProduceGradingService) Close() {
 // whole exchange in produce_grading_log whatever the outcome. Logging is
 // best-effort: a failure to log never fails the grade.
 func (s *ProduceGradingService) grade(ctx context.Context, submission ProduceSubmission, segment ProduceSegment) error {
-	grade, trace, err := s.gradeAttempt(ctx, submission, segment)
+	grade, trace, promptID, err := s.gradeAttempt(ctx, submission, segment)
 
 	if logErr := LogProduceGrading(ctx, ProduceGradingLogEntry{
 		Submission: submission,
 		Segment:    segment,
 		Grade:      grade,
 		Trace:      trace,
+		PromptID:   promptID,
 		Err:        err,
 	}); logErr != nil {
 		s.log.Error("Failed to write produce grading log", "error", logErr, "submissionID", submission.ID)
@@ -124,12 +125,27 @@ func (s *ProduceGradingService) grade(ctx context.Context, submission ProduceSub
 // gradeAttempt decides the grade. A blank attempt (the timer ran out before
 // the student wrote anything) is graded locally — there is nothing for the
 // model to assess and no reason to pay for the call — and has an empty trace.
-func (s *ProduceGradingService) gradeAttempt(ctx context.Context, submission ProduceSubmission, segment ProduceSegment) (ProduceGrade, ProduceGradeTrace, error) {
+//
+// The returned prompt ID is the produce_grading_prompts version the call ran
+// with, or 0 for the built-in default (no version readable, or no call made).
+func (s *ProduceGradingService) gradeAttempt(ctx context.Context, submission ProduceSubmission, segment ProduceSegment) (ProduceGrade, ProduceGradeTrace, int, error) {
 	if strings.TrimSpace(submission.StudentText) == "" {
-		return emptyAttemptGrade, ProduceGradeTrace{}, nil
+		return emptyAttemptGrade, ProduceGradeTrace{}, 0, nil
+	}
+
+	// The active prompt is read per run so an edit on the System page takes
+	// effect immediately. Falling back to the default keeps grading alive if
+	// the table is unreadable; the log then shows prompt_id NULL.
+	prompt, err := GetActiveProduceGradingPrompt(ctx)
+	if err != nil {
+		if !errors.Is(err, ErrNotFound) {
+			s.log.Warn("Could not read active grading prompt; using built-in default", "error", err)
+		}
+		prompt = defaultGradingPrompt()
 	}
 
 	req := ProduceGradeRequest{
+		SystemPrompt:     prompt.Text,
 		ReferenceEnglish: segment.ReferenceEnglish,
 		HebrewText:       segment.HebrewText,
 		StudentText:      submission.StudentText,
@@ -146,7 +162,8 @@ func (s *ProduceGradingService) gradeAttempt(ctx context.Context, submission Pro
 		}
 	}
 
-	return s.grader.GradeProduce(ctx, req)
+	grade, trace, err := s.grader.GradeProduce(ctx, req)
+	return grade, trace, prompt.ID, err
 }
 
 // emptyAttemptGrade is stored for blank submissions without an API call.

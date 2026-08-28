@@ -352,7 +352,7 @@ const insertProduceGradingLog = `-- name: InsertProduceGradingLog :exec
 INSERT INTO produce_grading_log (
     submission_id, user_id, story_id, segment_id,
     hebrew_text, reference_english, student_text, grammar_point_name,
-    model, system_prompt, user_prompt, raw_response, stop_reason,
+    model, prompt_id, user_prompt, raw_response, stop_reason,
     input_tokens, output_tokens, cache_read_input_tokens, latency_ms,
     score, feedback, error
 ) VALUES (
@@ -374,7 +374,7 @@ type InsertProduceGradingLogParams struct {
 	StudentText          string      `json:"student_text"`
 	GrammarPointName     pgtype.Text `json:"grammar_point_name"`
 	Model                pgtype.Text `json:"model"`
-	SystemPrompt         pgtype.Text `json:"system_prompt"`
+	PromptID             pgtype.Int4 `json:"prompt_id"`
 	UserPrompt           pgtype.Text `json:"user_prompt"`
 	RawResponse          pgtype.Text `json:"raw_response"`
 	StopReason           pgtype.Text `json:"stop_reason"`
@@ -400,7 +400,7 @@ func (q *Queries) InsertProduceGradingLog(ctx context.Context, arg InsertProduce
 		arg.StudentText,
 		arg.GrammarPointName,
 		arg.Model,
-		arg.SystemPrompt,
+		arg.PromptID,
 		arg.UserPrompt,
 		arg.RawResponse,
 		arg.StopReason,

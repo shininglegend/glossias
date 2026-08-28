@@ -26,7 +26,7 @@ func (f *fakeGrader) GradeProduce(_ context.Context, req ProduceGradeRequest) (P
 }
 
 // fakeTrace stands in for what the real grader captures from the API.
-var fakeTrace = ProduceGradeTrace{Model: "fake-model", SystemPrompt: "system", UserPrompt: "user", RawResponse: `{"score":90}`}
+var fakeTrace = ProduceGradeTrace{Model: "fake-model", UserPrompt: "user", RawResponse: `{"score":90}`}
 
 func (f *fakeGrader) callCount() int {
 	f.mu.Lock()
@@ -197,5 +197,21 @@ func TestProduceGradingService_LogsFailedGrades(t *testing.T) {
 
 	if grader.callCount() != 1 {
 		t.Fatalf("grader called %d times, want 1", grader.callCount())
+	}
+}
+
+func TestProduceGradingService_FallsBackToDefaultPrompt(t *testing.T) {
+	grader := &fakeGrader{grade: ProduceGrade{Score: 80}}
+	svc, _ := newTestGradingService(t, grader)
+	// No stub: the prompt query returns no rows.
+
+	svc.Enqueue("user-1", testSubmission, testSegment)
+	svc.Close()
+
+	if grader.callCount() != 1 {
+		t.Fatalf("grader called %d times, want 1", grader.callCount())
+	}
+	if got := grader.calls[0].SystemPrompt; got != DefaultGradingSystemPrompt {
+		t.Errorf("expected the built-in default prompt, got %q", got)
 	}
 }

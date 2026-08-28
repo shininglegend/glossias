@@ -5,6 +5,7 @@ import { Card } from "~/components/ui/Card";
 import { useUserContext } from "../contexts/UserContext";
 import { useAuthenticatedFetch } from "../lib/authFetch";
 import { pageMeta } from "~/lib/pageTitle";
+import GradingPromptEditor from "~/components/Admin/GradingPromptEditor";
 
 export function meta() {
   return pageMeta("System Management");
@@ -134,6 +135,9 @@ export default function AdminSystem() {
             </Button>
           </div>
         </Card>
+
+        {/* Produce AI grading prompt (versioned) */}
+        <GradingPromptEditor />
 
         {/* System Info Section */}
         <Card className="p-6">

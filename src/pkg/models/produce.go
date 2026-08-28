@@ -452,7 +452,10 @@ type ProduceGradingLogEntry struct {
 	Segment    ProduceSegment
 	Grade      ProduceGrade
 	Trace      ProduceGradeTrace
-	Err        error
+	// PromptID is the produce_grading_prompts version used; 0 (stored NULL)
+	// means the built-in default, or no model call.
+	PromptID int
+	Err      error
 }
 
 // LogProduceGrading appends a row to produce_grading_log. On error Score is
@@ -473,7 +476,7 @@ func LogProduceGrading(ctx context.Context, e ProduceGradingLogEntry) error {
 		StudentText:          e.Submission.StudentText,
 		GrammarPointName:     optionalText(e.Segment.GrammarPointName),
 		Model:                optionalText(e.Trace.Model),
-		SystemPrompt:         optionalText(e.Trace.SystemPrompt),
+		PromptID:             optionalInt4(e.PromptID),
 		UserPrompt:           optionalText(e.Trace.UserPrompt),
 		RawResponse:          optionalText(e.Trace.RawResponse),
 		StopReason:           optionalText(e.Trace.StopReason),

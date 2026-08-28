@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"glossias/src/admin"
 	"glossias/src/apis"
 	"glossias/src/auth"
@@ -101,6 +102,11 @@ func main() {
 	// API handlers
 	// AI grading of Produce submissions runs in the background and is optional:
 	// without an API key submissions are stored ungraded.
+	// The grader's system prompt is versioned in the database and edited on the
+	// admin System page; make sure the first version is on record.
+	if err := models.EnsureProduceGradingPrompt(context.Background()); err != nil {
+		logger.Warn("Could not seed the Produce grading prompt; grading will use the built-in default", "error", err)
+	}
 	var produceGrading *models.ProduceGradingService
 	if grader, ok := models.NewAnthropicGraderFromEnv(); ok {
 		produceGrading = models.NewProduceGradingService(grader, logger)

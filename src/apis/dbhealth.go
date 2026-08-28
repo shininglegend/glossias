@@ -23,12 +23,22 @@ func canMakeDBHealthRequest(ip string) bool {
 	dbHealthLimiterMutex.Lock()
 	defer dbHealthLimiterMutex.Unlock()
 
-	lastRequest, exists := dbHealthLimiters[ip]
-	if !exists || time.Since(lastRequest) >= dbHealthRateLimit {
-		dbHealthLimiters[ip] = time.Now()
-		return true
+	now := time.Now()
+	// Entries older than the limit window no longer constrain anything, so
+	// drop them; this keeps the map bounded by recent callers
+	// (developer_review.md #2). The endpoint is low-traffic, so scanning on
+	// every call is fine.
+	for key, last := range dbHealthLimiters {
+		if now.Sub(last) >= dbHealthRateLimit {
+			delete(dbHealthLimiters, key)
+		}
 	}
-	return false
+
+	if _, exists := dbHealthLimiters[ip]; exists {
+		return false
+	}
+	dbHealthLimiters[ip] = now
+	return true
 }
 
 // DBHealthHandler checks database connectivity

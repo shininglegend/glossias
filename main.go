@@ -90,7 +90,16 @@ func main() {
 	timeTrackingHandler.RegisterRoutes(timeTrackingRouter)
 
 	// API handlers
-	apiHandler := apis.NewHandler(logger)
+	// AI grading of Produce submissions runs in the background and is optional:
+	// without an API key submissions are stored ungraded.
+	var produceGrading *models.ProduceGradingService
+	if grader, ok := models.NewAnthropicGraderFromEnv(); ok {
+		produceGrading = models.NewProduceGradingService(grader, logger)
+		logger.Info("AI grading enabled", "model", models.GradingModel)
+	} else {
+		logger.Warn("ANTHROPIC_API_KEY not set; Produce submissions will not be AI-graded")
+	}
+	apiHandler := apis.NewHandler(logger, produceGrading)
 	apiRouter := r.PathPrefix("/api").Subrouter()
 
 	// Clerk: require Authorization: Bearer <token> on every request (unless dev auth bypass)

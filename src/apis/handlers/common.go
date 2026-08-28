@@ -16,12 +16,18 @@ const (
 // Handler contains shared dependencies for all API handlers
 type Handler struct {
 	log *slog.Logger
+	// produceGrading grades Produce submissions in the background. Nil when
+	// grading is disabled (no ANTHROPIC_API_KEY); submissions then stay
+	// ungraded, which the rest of the app tolerates.
+	produceGrading *models.ProduceGradingService
 }
 
-// NewHandler creates a new API handler with the given logger
-func NewHandler(logger *slog.Logger) *Handler {
+// NewHandler creates a new API handler with the given logger. produceGrading
+// may be nil to disable AI grading.
+func NewHandler(logger *slog.Logger, produceGrading *models.ProduceGradingService) *Handler {
 	return &Handler{
-		log: logger,
+		log:            logger,
+		produceGrading: produceGrading,
 	}
 }
 

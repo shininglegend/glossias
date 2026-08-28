@@ -3,6 +3,7 @@ package apis
 import (
 	"glossias/src/apis/handlers"
 	"glossias/src/apis/users"
+	"glossias/src/pkg/models"
 	"log/slog"
 
 	"github.com/gorilla/mux"
@@ -15,10 +16,11 @@ type Handler struct {
 	logger *slog.Logger
 }
 
-// NewHandler creates a new API handler
-func NewHandler(logger *slog.Logger) *Handler {
+// NewHandler creates a new API handler. produceGrading may be nil to run
+// without AI grading.
+func NewHandler(logger *slog.Logger, produceGrading *models.ProduceGradingService) *Handler {
 	return &Handler{
-		Handler: handlers.NewHandler(logger),
+		Handler: handlers.NewHandler(logger, produceGrading),
 		users:   users.NewHandler(logger),
 		logger:  logger,
 	}

@@ -63,6 +63,36 @@ export default function GradingPromptEditor() {
 
   const changed = page !== null && text.trim() !== page.active.text.trim();
 
+  const activate = async (id: number) => {
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response = await authenticatedFetch(
+        "/api/admin/system/grading-prompt/active",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        },
+      );
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(body || `HTTP ${response.status}`);
+      }
+      const data = (await response.json()) as GradingPromptPage;
+      setPage(data);
+      setText(data.active.text);
+      setSuccess(
+        `Version ${data.active.id} is now active for new grading runs.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to activate");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const save = async () => {
     if (!changed) return;
     setSaving(true);
@@ -85,9 +115,7 @@ export default function GradingPromptEditor() {
       setPage(data);
       setText(data.active.text);
       setNote("");
-      setSuccess(
-        `Saved as version ${data.active.id}. New grading runs use it.`,
-      );
+      setSuccess(`Version  is now active for new grading runs.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save prompt");
     } finally {
@@ -112,7 +140,8 @@ export default function GradingPromptEditor() {
             The system prompt sent to the AI grader with every Produce
             submission (Hebrew passage, reference English, grammar point and the
             student's English go in the user message). Saving creates a new
-            version; earlier versions are kept so each row in{" "}
+            version — or, if the text matches an earlier version, makes that one
+            active again. Every version is kept so each row in{" "}
             <code className="text-xs">produce_grading_log</code> can be traced
             to the exact prompt it ran with.
           </p>
@@ -183,7 +212,7 @@ export default function GradingPromptEditor() {
             </Button>
           )}
           <Button onClick={save} disabled={!changed || saving}>
-            {saving ? "Saving..." : "Save as new version"}
+            {saving ? "Saving..." : "Save and activate"}
           </Button>
         </div>
       </div>
@@ -214,15 +243,31 @@ export default function GradingPromptEditor() {
                         <span className="italic"> · {version.note}</span>
                       )}
                     </span>
-                    {version.text.trim() !== text.trim() && (
-                      <button
-                        type="button"
-                        className="text-primary-600 hover:underline"
-                        onClick={() => setText(version.text)}
-                      >
-                        Load into editor
-                      </button>
-                    )}
+                    <span className="flex gap-3">
+                      {version.id === page.active.id ? (
+                        <span className="font-semibold text-green-700">
+                          Active
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="text-primary-600 hover:underline"
+                          disabled={saving}
+                          onClick={() => activate(version.id)}
+                        >
+                          Make active
+                        </button>
+                      )}
+                      {version.text.trim() !== text.trim() && (
+                        <button
+                          type="button"
+                          className="text-primary-600 hover:underline"
+                          onClick={() => setText(version.text)}
+                        >
+                          Load into editor
+                        </button>
+                      )}
+                    </span>
                   </div>
                   <pre className="whitespace-pre-wrap font-mono text-xs text-slate-700 max-h-48 overflow-y-auto">
                     {version.text}

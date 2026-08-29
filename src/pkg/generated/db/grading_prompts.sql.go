@@ -24,16 +24,57 @@ func (q *Queries) CountProduceGradingPrompts(ctx context.Context) (int64, error)
 
 const getActiveProduceGradingPrompt = `-- name: GetActiveProduceGradingPrompt :one
 
+SELECT p.id, p.prompt_text, p.note, p.created_by, p.created_at
+FROM produce_grading_active_prompt a
+JOIN produce_grading_prompts p ON p.id = a.prompt_id
+`
+
+// Versioned system prompt for the Produce AI grader. Versions are append-only;
+// produce_grading_active_prompt points at the one in use.
+func (q *Queries) GetActiveProduceGradingPrompt(ctx context.Context) (ProduceGradingPrompt, error) {
+	row := q.db.QueryRow(ctx, getActiveProduceGradingPrompt)
+	var i ProduceGradingPrompt
+	err := row.Scan(
+		&i.ID,
+		&i.PromptText,
+		&i.Note,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getProduceGradingPrompt = `-- name: GetProduceGradingPrompt :one
 SELECT id, prompt_text, note, created_by, created_at
 FROM produce_grading_prompts
+WHERE id = $1
+`
+
+func (q *Queries) GetProduceGradingPrompt(ctx context.Context, id int32) (ProduceGradingPrompt, error) {
+	row := q.db.QueryRow(ctx, getProduceGradingPrompt, id)
+	var i ProduceGradingPrompt
+	err := row.Scan(
+		&i.ID,
+		&i.PromptText,
+		&i.Note,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getProduceGradingPromptByText = `-- name: GetProduceGradingPromptByText :one
+SELECT id, prompt_text, note, created_by, created_at
+FROM produce_grading_prompts
+WHERE prompt_text = $1
 ORDER BY id DESC
 LIMIT 1
 `
 
-// Versioned system prompt for the Produce AI grader (append-only).
-// The newest row is the active prompt.
-func (q *Queries) GetActiveProduceGradingPrompt(ctx context.Context) (ProduceGradingPrompt, error) {
-	row := q.db.QueryRow(ctx, getActiveProduceGradingPrompt)
+// Finds an existing version with exactly this text, so re-saving an earlier
+// version re-activates it instead of duplicating it.
+func (q *Queries) GetProduceGradingPromptByText(ctx context.Context, promptText string) (ProduceGradingPrompt, error) {
+	row := q.db.QueryRow(ctx, getProduceGradingPromptByText, promptText)
 	var i ProduceGradingPrompt
 	err := row.Scan(
 		&i.ID,
@@ -100,4 +141,23 @@ func (q *Queries) ListProduceGradingPrompts(ctx context.Context) ([]ProduceGradi
 		return nil, err
 	}
 	return items, nil
+}
+
+const setActiveProduceGradingPrompt = `-- name: SetActiveProduceGradingPrompt :exec
+INSERT INTO produce_grading_active_prompt (prompt_id, activated_by)
+VALUES ($1, $2)
+ON CONFLICT (singleton) DO UPDATE
+SET prompt_id = EXCLUDED.prompt_id,
+    activated_by = EXCLUDED.activated_by,
+    activated_at = CURRENT_TIMESTAMP
+`
+
+type SetActiveProduceGradingPromptParams struct {
+	PromptID    int32       `json:"prompt_id"`
+	ActivatedBy pgtype.Text `json:"activated_by"`
+}
+
+func (q *Queries) SetActiveProduceGradingPrompt(ctx context.Context, arg SetActiveProduceGradingPromptParams) error {
+	_, err := q.db.Exec(ctx, setActiveProduceGradingPrompt, arg.PromptID, arg.ActivatedBy)
+	return err
 }

@@ -2,12 +2,9 @@ package models
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"glossias/src/pkg/generated/db"
 	"slices"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"strings"
 )
 
 // GetStoryCourseID retrieves the course ID for a given story
@@ -19,47 +16,51 @@ func GetStoryCourseID(ctx context.Context, storyID int32) (int32, error) {
 	return story.CourseID.Int32, nil
 }
 
-// CourseStudentPerformance represents performance data for one student in one story
+// CourseStudentPerformance is one student's performance on one story: the
+// instructor-facing equivalent of the score page, on the same five-phase
+// categories. Legacy vocab/grammar counts stay for stories authored before the
+// five-phase flow.
 type CourseStudentPerformance struct {
-	UserID                 string  `json:"user_id"`
-	UserName               string  `json:"user_name"`
-	Email                  string  `json:"email"`
-	StoryID                int32   `json:"story_id"`
-	StoryTitle             string  `json:"story_title"`
-	VocabCorrect           int64   `json:"vocab_correct"`
-	VocabIncorrect         int64   `json:"vocab_incorrect"`
-	VocabAccuracy          float64 `json:"vocab_accuracy"`
-	GrammarCorrect         int64   `json:"grammar_correct"`
-	GrammarIncorrect       int64   `json:"grammar_incorrect"`
-	GrammarAccuracy        float64 `json:"grammar_accuracy"`
-	TranslationCompleted   bool    `json:"translation_completed"`
-	RequestedLines         []int32 `json:"requested_lines"`
-	VocabTimeSeconds       int32   `json:"vocab_time_seconds"`
-	GrammarTimeSeconds     int32   `json:"grammar_time_seconds"`
-	TranslationTimeSeconds int32   `json:"translation_time_seconds"`
-	VideoTimeSeconds       int32   `json:"video_time_seconds"`
-	IdentifyTimeSeconds    int32   `json:"identify_time_seconds"`
-	ProduceTimeSeconds     int32   `json:"produce_time_seconds"`
-	RecallTimeSeconds      int32   `json:"recall_time_seconds"`
-	TotalTimeSeconds       int32   `json:"total_time_seconds"`
-}
+	UserID     string `json:"user_id"`
+	UserName   string `json:"user_name"`
+	Email      string `json:"email"`
+	StoryID    int32  `json:"story_id"`
+	StoryTitle string `json:"story_title"`
 
-// convertToInt32 safely converts any to int32
-func convertToInt32(v any) int32 {
-	if v == nil {
-		return 0
-	}
-	switch val := v.(type) {
-	case int32:
-		return val
-	case int64:
-		return int32(val)
-	case int:
-		return int32(val)
-	default:
-		fmt.Println("ERROR: Unknown type in convertToInt32:", fmt.Sprintf("%T", v))
-		return 0
-	}
+	OverallAccuracy float64 `json:"overall_accuracy"`
+
+	IdentifyCorrect   int     `json:"identify_correct"`
+	IdentifyIncorrect int     `json:"identify_incorrect"`
+	IdentifyAccuracy  float64 `json:"identify_accuracy"`
+
+	TranslationCompleted bool    `json:"translation_completed"`
+	RequestedLines       []int32 `json:"requested_lines"`
+
+	ProduceSubmitted int     `json:"produce_submitted"`
+	ProduceTotal     int     `json:"produce_total"`
+	ProduceGraded    int     `json:"produce_graded"`
+	ProduceScore     float64 `json:"produce_score"`
+
+	RecallCorrect   int     `json:"recall_correct"`
+	RecallIncorrect int     `json:"recall_incorrect"`
+	RecallAttempts  int     `json:"recall_attempts"`
+	RecallAccuracy  float64 `json:"recall_accuracy"`
+
+	VocabCorrect     int     `json:"vocab_correct"`
+	VocabIncorrect   int     `json:"vocab_incorrect"`
+	VocabAccuracy    float64 `json:"vocab_accuracy"`
+	GrammarCorrect   int     `json:"grammar_correct"`
+	GrammarIncorrect int     `json:"grammar_incorrect"`
+	GrammarAccuracy  float64 `json:"grammar_accuracy"`
+
+	VideoTimeSeconds       int32 `json:"video_time_seconds"`
+	IdentifyTimeSeconds    int32 `json:"identify_time_seconds"`
+	TranslationTimeSeconds int32 `json:"translation_time_seconds"`
+	ProduceTimeSeconds     int32 `json:"produce_time_seconds"`
+	RecallTimeSeconds      int32 `json:"recall_time_seconds"`
+	VocabTimeSeconds       int32 `json:"vocab_time_seconds"`
+	GrammarTimeSeconds     int32 `json:"grammar_time_seconds"`
+	TotalTimeSeconds       int32 `json:"total_time_seconds"`
 }
 
 // CalculateScoreWithRetriesAllowed calculates a score for vocab/grammar exercises where students must retry until correct.
@@ -91,22 +92,19 @@ func CalculateScoreWithRetriesAllowed(correctCount, incorrectCount, totalPossibl
 	return accuracy
 }
 
-// GetStoryStudentPerformance retrieves performance data for all students in a specific story
-// status parameter filters by course status: "active", "future", "past", or "" for all
+// GetStoryStudentPerformance retrieves performance data for all students in a
+// specific story, best overall score first. Two round trips: the story's phase
+// totals, then one aggregated row per student.
+// status filters by course status: "active", "future", "past", or "" for all.
 func GetStoryStudentPerformance(ctx context.Context, storyID int32, status string) ([]CourseStudentPerformance, error) {
-	// Get total vocab and grammar items for this story
-	totalVocab, err := queries.CountStoryVocabItems(ctx, pgtype.Int4{Int32: storyID, Valid: true})
-	if err != nil {
-		return nil, err
-	}
-	totalGrammar, err := queries.CountStoryGrammarItems(ctx, pgtype.Int4{Int32: storyID, Valid: true})
+	totals, err := GetStoryPhaseTotals(ctx, int(storyID))
 	if err != nil {
 		return nil, err
 	}
 
 	rows, err := queries.GetStoryStudentPerformance(ctx, db.GetStoryStudentPerformanceParams{
 		StoryID: storyID,
-		Column2: status,
+		Status:  status,
 	})
 	if err != nil {
 		return nil, err
@@ -114,68 +112,82 @@ func GetStoryStudentPerformance(ctx context.Context, storyID int32, status strin
 
 	results := make([]CourseStudentPerformance, len(rows))
 	for i, row := range rows {
-		// Parse requested_lines from PostgreSQL array
-		var requestedLines []int32
-		if row.RequestedLines != nil {
-			switch v := row.RequestedLines.(type) {
-			case []int32:
-				requestedLines = v
-			case []int64:
-				requestedLines = make([]int32, len(v))
-				for j, val := range v {
-					requestedLines[j] = int32(val)
-				}
-			case []any:
-				requestedLines = make([]int32, 0, len(v))
-				for _, item := range v {
-					switch val := item.(type) {
-					case int32:
-						requestedLines = append(requestedLines, val)
-					case int64:
-						requestedLines = append(requestedLines, int32(val))
-					case int:
-						requestedLines = append(requestedLines, int32(val))
-					}
-				}
-			case []byte:
-				var lines []int32
-				if err := json.Unmarshal(v, &lines); err == nil {
-					requestedLines = lines
-				}
-			}
-			slices.Sort(requestedLines)
+		summary := UserStoryScoreSummary{
+			VocabCorrect:        int(row.VocabCorrect),
+			VocabIncorrect:      int(row.VocabIncorrect),
+			GrammarCorrect:      int(row.GrammarCorrect),
+			GrammarIncorrect:    int(row.GrammarIncorrect),
+			IdentifyCorrect:     int(row.IdentifyCorrect),
+			IdentifyIncorrect:   int(row.IdentifyIncorrect),
+			RecallCorrect:       int(row.RecallCorrect),
+			RecallIncorrect:     int(row.RecallIncorrect),
+			ProduceSubmitted:    int(row.ProduceSubmitted),
+			ProduceGraded:       int(row.ProduceGraded),
+			ProduceAverageScore: row.ProduceAverageScore,
 		}
+		scores := ComputePhaseScores(summary, *totals)
 
-		// Calculate vocab accuracy using the new formula
-		vocabAccuracy := CalculateScoreWithRetriesAllowed(row.VocabCorrect, row.VocabIncorrect, totalVocab)
-
-		// Calculate grammar accuracy using the new formula
-		grammarAccuracy := CalculateScoreWithRetriesAllowed(row.GrammarCorrect, row.GrammarIncorrect, totalGrammar)
+		requestedLines := slices.Clone(row.RequestedLines)
+		slices.Sort(requestedLines)
 
 		results[i] = CourseStudentPerformance{
-			UserID:                 row.UserID,
-			UserName:               row.UserName,
-			Email:                  row.Email,
-			StoryID:                storyID,
-			StoryTitle:             row.StoryTitle.String,
-			VocabCorrect:           row.VocabCorrect,
-			VocabIncorrect:         row.VocabIncorrect,
-			VocabAccuracy:          vocabAccuracy,
-			GrammarCorrect:         row.GrammarCorrect,
-			GrammarIncorrect:       row.GrammarIncorrect,
-			GrammarAccuracy:        grammarAccuracy,
-			TranslationCompleted:   row.TranslationCompleted,
-			RequestedLines:         requestedLines,
-			VocabTimeSeconds:       convertToInt32(row.VocabTimeSeconds),
-			GrammarTimeSeconds:     convertToInt32(row.GrammarTimeSeconds),
-			TranslationTimeSeconds: convertToInt32(row.TranslationTimeSeconds),
-			VideoTimeSeconds:       convertToInt32(row.VideoTimeSeconds),
-			IdentifyTimeSeconds:    convertToInt32(row.IdentifyTimeSeconds),
-			ProduceTimeSeconds:     convertToInt32(row.ProduceTimeSeconds),
-			RecallTimeSeconds:      convertToInt32(row.RecallTimeSeconds),
-			TotalTimeSeconds:       convertToInt32(row.TotalTimeSeconds),
+			UserID:     row.UserID,
+			UserName:   row.UserName,
+			Email:      row.Email,
+			StoryID:    storyID,
+			StoryTitle: row.StoryTitle.String,
+
+			OverallAccuracy: scores.Overall,
+
+			IdentifyCorrect:   summary.IdentifyCorrect,
+			IdentifyIncorrect: summary.IdentifyIncorrect,
+			IdentifyAccuracy:  scores.IdentifyAccuracy,
+
+			TranslationCompleted: row.TranslationCompleted,
+			RequestedLines:       requestedLines,
+
+			ProduceSubmitted: summary.ProduceSubmitted,
+			ProduceTotal:     totals.ProduceTotal,
+			ProduceGraded:    summary.ProduceGraded,
+			ProduceScore:     scores.ProduceScore,
+
+			RecallCorrect:   summary.RecallCorrect,
+			RecallIncorrect: summary.RecallIncorrect,
+			RecallAttempts:  scores.RecallAttempts,
+			RecallAccuracy:  scores.RecallAccuracy,
+
+			VocabCorrect:     summary.VocabCorrect,
+			VocabIncorrect:   summary.VocabIncorrect,
+			VocabAccuracy:    scores.VocabAccuracy,
+			GrammarCorrect:   summary.GrammarCorrect,
+			GrammarIncorrect: summary.GrammarIncorrect,
+			GrammarAccuracy:  scores.GrammarAccuracy,
+
+			VideoTimeSeconds:       row.VideoTimeSeconds,
+			IdentifyTimeSeconds:    row.IdentifyTimeSeconds,
+			TranslationTimeSeconds: row.TranslationTimeSeconds,
+			ProduceTimeSeconds:     row.ProduceTimeSeconds,
+			RecallTimeSeconds:      row.RecallTimeSeconds,
+			VocabTimeSeconds:       row.VocabTimeSeconds,
+			GrammarTimeSeconds:     row.GrammarTimeSeconds,
+			TotalTimeSeconds:       row.TotalTimeSeconds,
 		}
 	}
+
+	// Best overall first; ties broken by least time (faster is better when
+	// scores match), then email for a stable order.
+	slices.SortStableFunc(results, func(a, b CourseStudentPerformance) int {
+		if a.OverallAccuracy != b.OverallAccuracy {
+			if a.OverallAccuracy > b.OverallAccuracy {
+				return -1
+			}
+			return 1
+		}
+		if a.TotalTimeSeconds != b.TotalTimeSeconds {
+			return int(a.TotalTimeSeconds - b.TotalTimeSeconds)
+		}
+		return strings.Compare(a.Email, b.Email)
+	})
 
 	return results, nil
 }

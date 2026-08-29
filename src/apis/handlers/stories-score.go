@@ -11,29 +11,53 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// ScoreData represents the scoring data for a story
+// ScoreData is the student's result for a completed story: one accuracy per
+// five-phase activity (Identify, Produce, Recall), a per-phase time breakdown,
+// and the legacy Vocabulary/Grammar counts for stories authored before the
+// five-phase flow (the frontend shows those cards only when attempts exist).
 type ScoreData struct {
-	StoryTitle             string  `json:"story_title"`
-	TotalTimeSeconds       int     `json:"total_time_seconds"`
-	OverallAccuracy        float64 `json:"overall_accuracy"` // Percentage (0-100)
-	VocabAccuracy          float64 `json:"vocab_accuracy"`   // Percentage (0-100)
-	VocabCorrectCount      int32   `json:"vocab_correct_count"`
-	VocabIncorrectCount    int32   `json:"vocab_incorrect_count"`
-	VocabTimeSeconds       int     `json:"vocab_time_seconds"`
-	GrammarAccuracy        float64 `json:"grammar_accuracy"` // Percentage (0-100)
-	GrammarCorrectCount    int32   `json:"grammar_correct_count"`
-	GrammarIncorrectCount  int32   `json:"grammar_incorrect_count"`
-	GrammarTimeSeconds     int     `json:"grammar_time_seconds"`
-	TranslationTimeSeconds int     `json:"translation_time_seconds"`
-	VideoTimeSeconds       int     `json:"video_time_seconds"`
+	StoryTitle       string  `json:"story_title"`
+	TotalTimeSeconds int     `json:"total_time_seconds"`
+	OverallAccuracy  float64 `json:"overall_accuracy"` // Percentage (0-100)
+
+	IdentifyAccuracy       float64 `json:"identify_accuracy"` // Percentage (0-100)
+	IdentifyCorrectCount   int     `json:"identify_correct_count"`
+	IdentifyIncorrectCount int     `json:"identify_incorrect_count"`
+	IdentifyTotal          int     `json:"identify_total"`
+
+	ProduceScore             float64 `json:"produce_score"` // AI average over graded segments (0-100)
+	ProduceSegmentsSubmitted int     `json:"produce_segments_submitted"`
+	ProduceSegmentsGraded    int     `json:"produce_segments_graded"`
+	ProduceTotal             int     `json:"produce_total"`
+
+	RecallAccuracy       float64 `json:"recall_accuracy"` // Percentage (0-100)
+	RecallCorrectCount   int     `json:"recall_correct_count"`
+	RecallIncorrectCount int     `json:"recall_incorrect_count"`
+	RecallAttempts       int     `json:"recall_attempts"`
+	RecallTotal          int     `json:"recall_total"`
+
+	VocabAccuracy         float64 `json:"vocab_accuracy"` // Percentage (0-100)
+	VocabCorrectCount     int     `json:"vocab_correct_count"`
+	VocabIncorrectCount   int     `json:"vocab_incorrect_count"`
+	GrammarAccuracy       float64 `json:"grammar_accuracy"` // Percentage (0-100)
+	GrammarCorrectCount   int     `json:"grammar_correct_count"`
+	GrammarIncorrectCount int     `json:"grammar_incorrect_count"`
+
+	VideoTimeSeconds       int `json:"video_time_seconds"`
+	IdentifyTimeSeconds    int `json:"identify_time_seconds"`
+	TranslationTimeSeconds int `json:"translation_time_seconds"`
+	ProduceTimeSeconds     int `json:"produce_time_seconds"`
+	RecallTimeSeconds      int `json:"recall_time_seconds"`
+	VocabTimeSeconds       int `json:"vocab_time_seconds"`
+	GrammarTimeSeconds     int `json:"grammar_time_seconds"`
 }
 
 // MissingActivity represents an incomplete activity
 type MissingActivity struct {
-	Activity    string `json:"activity"`     // "vocab", "grammar", "translation"
-	DisplayName string `json:"display_name"` // "Vocabulary", "Grammar", "Translation"
-	Route       string `json:"route"`        // "vocab", "grammar", "translate"
-	Reason      string `json:"reason"`       // "no_data" or "insufficient_time"
+	Activity    string `json:"activity"`     // "identify", "translation", "produce", "recall"
+	DisplayName string `json:"display_name"` // "Identify", "Translation", "Produce", "Recall"
+	Route       string `json:"route"`        // "identify", "translate", "produce", "recall"
+	Reason      string `json:"reason"`       // "no_data" (never started) or "incomplete" (started, not finished)
 }
 
 // IncompleteDataResponse represents response when data is missing
@@ -44,6 +68,10 @@ type IncompleteDataResponse struct {
 	Message           string            `json:"message"`
 }
 
+// GetScoresData serves GET /api/stories/{id}/scores. A phase blocks the score
+// page only if the story has content for it (a story missing Identify words,
+// Produce segments or Recall sentences degrades to fewer cards, not a wall).
+// Legacy vocab/grammar pages are not in the flow and never block.
 func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 	storyID := mux.Vars(r)["id"]
 	id, err := strconv.Atoi(storyID)
@@ -54,7 +82,7 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 
 	userID := auth.GetUserID(r)
 
-	// Get story data for title
+	// Story data for the title and the access check.
 	story, err := models.GetStoryData(r.Context(), id, userID)
 	if err == models.ErrNotFound {
 		h.sendError(w, "Story not found", http.StatusNotFound)
@@ -65,38 +93,36 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 		h.sendError(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	// Get total vocab and grammar counts in story
-	totalCounts := getVocabAndGrammarCount(*story)
+	title := story.Metadata.Title["en"]
 
-	// Get vocab accuracy
-	vocabSummary, err := models.GetUserStoryVocabSummary(r.Context(), userID, int32(id))
+	completion, err := models.GetUserStoryPageCompletion(r.Context(), userID, id)
 	if err != nil {
-		h.log.Error("Failed to fetch vocab summary", "error", err, "storyID", id, "userID", userID)
+		h.log.Error("Failed to fetch page completion", "error", err, "storyID", id, "userID", userID)
 		h.sendError(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	var vocabAccuracy float64
-	vocabTotal := totalCounts.VocabCount
-	if vocabTotal > 0 {
-		vocabAccuracy = models.CalculateScoreWithRetriesAllowed(vocabSummary.CorrectCount, vocabSummary.IncorrectCount, vocabTotal)
-	}
-
-	// Get grammar accuracy
-	grammarSummary, err := models.GetUserStoryGrammarSummary(r.Context(), userID, int32(id))
+	summary, err := models.GetUserStoryScoreSummary(r.Context(), userID, id)
 	if err != nil {
-		h.log.Error("Failed to fetch grammar summary", "error", err, "storyID", id, "userID", userID)
+		h.log.Error("Failed to fetch score summary", "error", err, "storyID", id, "userID", userID)
 		h.sendError(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	var grammarAccuracy float64
-	grammarTotal := totalCounts.GrammarCount
-	if grammarTotal > 0 {
-		grammarAccuracy = models.CalculateScoreWithRetriesAllowed(grammarSummary.CorrectCount, grammarSummary.IncorrectCount, grammarTotal)
+	missing := missingActivities(completion, summary)
+	if len(missing) > 0 {
+		h.writeJSON(w, types.APIResponse{
+			Success: true,
+			Data: IncompleteDataResponse{
+				Complete:          false,
+				StoryTitle:        title,
+				MissingActivities: missing,
+				Message:           "Please complete the missing activities to view your scores",
+			},
+		})
+		return
 	}
 
-	// Get time tracking data
 	timeData, err := models.GetUserStoryTimeTracking(r.Context(), userID, int32(id))
 	if err != nil {
 		h.log.Error("Failed to fetch time tracking data", "error", err, "storyID", id, "userID", userID)
@@ -104,128 +130,93 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check for missing data
-	var missingActivities []MissingActivity
-
-	// Count total vocab items in story
-	totalVocabItems := 0
-	for _, line := range story.Content.Lines {
-		totalVocabItems += len(line.Vocabulary)
+	legacy := getVocabAndGrammarCount(*story)
+	totals := models.PhaseTotals{
+		VocabTotal:    int(legacy.VocabCount),
+		GrammarTotal:  int(legacy.GrammarCount),
+		IdentifyTotal: completion.IdentifyTotal,
+		ProduceTotal:  completion.ProduceTotal,
+		RecallTotal:   completion.RecallTotal,
 	}
+	scores := models.ComputePhaseScores(*summary, totals)
 
-	// Count total grammar instances in story
-	totalGrammarInstances := 0
-	for _, line := range story.Content.Lines {
-		totalGrammarInstances += len(line.Grammar)
-	}
+	totalTime := timeData.VideoTimeSeconds + timeData.IdentifyTimeSeconds +
+		timeData.TranslationTimeSeconds + timeData.ProduceTimeSeconds + timeData.RecallTimeSeconds +
+		timeData.VocabTimeSeconds + timeData.GrammarTimeSeconds
 
-	// Check vocab completion
-	if totalVocabItems == 0 {
-		// Story has no vocab items - automatically complete
-	} else if vocabTotal == 0 {
-		missingActivities = append(missingActivities, MissingActivity{
-			Activity:    "vocab",
-			DisplayName: "Vocabulary",
-			Route:       "vocab",
-			Reason:      "no_data",
-		})
-	} else if int(vocabSummary.CorrectCount) < totalVocabItems {
-		missingActivities = append(missingActivities, MissingActivity{
-			Activity:    "vocab",
-			DisplayName: "Vocabulary",
-			Route:       "vocab",
-			Reason:      "incomplete",
-		})
-	}
-
-	// Check grammar completion
-	if totalGrammarInstances == 0 {
-		// Story has no grammar instances - automatically complete
-	} else if grammarTotal == 0 {
-		missingActivities = append(missingActivities, MissingActivity{
-			Activity:    "grammar",
-			DisplayName: "Grammar",
-			Route:       "grammar",
-			Reason:      "no_data",
-		})
-	} else if int(grammarSummary.CorrectCount) < totalGrammarInstances {
-		missingActivities = append(missingActivities, MissingActivity{
-			Activity:    "grammar",
-			DisplayName: "Grammar",
-			Route:       "grammar",
-			Reason:      "incomplete",
-		})
-	}
-
-	// Check translation completion
-	translationCompleted, err := models.TranslationRequestCompleted(r.Context(), userID, id)
-	if err != nil {
-		h.log.Error("Failed to check translation completion", "error", err, "storyID", id, "userID", userID)
-		h.sendError(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-	if !translationCompleted {
-		missingActivities = append(missingActivities, MissingActivity{
-			Activity:    "translation",
-			DisplayName: "Translation",
-			Route:       "translate",
-			Reason:      "no_data",
-		})
-	}
-
-	// If data is incomplete, return missing activities response
-	if len(missingActivities) > 0 {
-		incompleteResponse := IncompleteDataResponse{
-			Complete:          false,
-			StoryTitle:        story.Metadata.Title["en"],
-			MissingActivities: missingActivities,
-			Message:           "Please complete the missing activities to view your scores",
-		}
-
-		response := types.APIResponse{
-			Success: true,
-			Data:    incompleteResponse,
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
-		return
-	}
-
-	// Calculate total time
-	totalTime := timeData.VocabTimeSeconds + timeData.GrammarTimeSeconds +
-		timeData.TranslationTimeSeconds + timeData.VideoTimeSeconds
-
-	// Calculate overall Accuracy:
-	overallAccuracy := models.CalculateScoreWithRetriesAllowed(
-		vocabSummary.CorrectCount+grammarSummary.CorrectCount,
-		vocabSummary.IncorrectCount+grammarSummary.IncorrectCount,
-		vocabTotal+grammarTotal,
-	)
-
-	scoreData := ScoreData{
-		StoryTitle:             story.Metadata.Title["en"],
-		TotalTimeSeconds:       totalTime,
-		OverallAccuracy:        overallAccuracy,
-		VocabAccuracy:          vocabAccuracy,
-		VocabCorrectCount:      int32(vocabSummary.CorrectCount),
-		VocabIncorrectCount:    int32(vocabSummary.IncorrectCount),
-		VocabTimeSeconds:       timeData.VocabTimeSeconds,
-		GrammarAccuracy:        grammarAccuracy,
-		GrammarCorrectCount:    int32(grammarSummary.CorrectCount),
-		GrammarIncorrectCount:  int32(grammarSummary.IncorrectCount),
-		GrammarTimeSeconds:     timeData.GrammarTimeSeconds,
-		TranslationTimeSeconds: timeData.TranslationTimeSeconds,
-		VideoTimeSeconds:       timeData.VideoTimeSeconds,
-	}
-
-	response := types.APIResponse{
+	h.writeJSON(w, types.APIResponse{
 		Success: true,
-		Data:    scoreData,
+		Data: ScoreData{
+			StoryTitle:       title,
+			TotalTimeSeconds: totalTime,
+			OverallAccuracy:  scores.Overall,
+
+			IdentifyAccuracy:       scores.IdentifyAccuracy,
+			IdentifyCorrectCount:   summary.IdentifyCorrect,
+			IdentifyIncorrectCount: summary.IdentifyIncorrect,
+			IdentifyTotal:          totals.IdentifyTotal,
+
+			ProduceScore:             scores.ProduceScore,
+			ProduceSegmentsSubmitted: summary.ProduceSubmitted,
+			ProduceSegmentsGraded:    summary.ProduceGraded,
+			ProduceTotal:             totals.ProduceTotal,
+
+			RecallAccuracy:       scores.RecallAccuracy,
+			RecallCorrectCount:   summary.RecallCorrect,
+			RecallIncorrectCount: summary.RecallIncorrect,
+			RecallAttempts:       scores.RecallAttempts,
+			RecallTotal:          totals.RecallTotal,
+
+			VocabAccuracy:         scores.VocabAccuracy,
+			VocabCorrectCount:     summary.VocabCorrect,
+			VocabIncorrectCount:   summary.VocabIncorrect,
+			GrammarAccuracy:       scores.GrammarAccuracy,
+			GrammarCorrectCount:   summary.GrammarCorrect,
+			GrammarIncorrectCount: summary.GrammarIncorrect,
+
+			VideoTimeSeconds:       timeData.VideoTimeSeconds,
+			IdentifyTimeSeconds:    timeData.IdentifyTimeSeconds,
+			TranslationTimeSeconds: timeData.TranslationTimeSeconds,
+			ProduceTimeSeconds:     timeData.ProduceTimeSeconds,
+			RecallTimeSeconds:      timeData.RecallTimeSeconds,
+			VocabTimeSeconds:       timeData.VocabTimeSeconds,
+			GrammarTimeSeconds:     timeData.GrammarTimeSeconds,
+		},
+	})
+}
+
+// missingActivities lists the five-phase activities that still block the score
+// page, in flow order. "no_data" means never started; "incomplete" means
+// started but not finished (the frontend labels the button accordingly).
+func missingActivities(c *models.PageCompletion, s *models.UserStoryScoreSummary) []MissingActivity {
+	var missing []MissingActivity
+	add := func(activity, display, route string, started, done bool) {
+		if done {
+			return
+		}
+		reason := "incomplete"
+		if !started {
+			reason = "no_data"
+		}
+		missing = append(missing, MissingActivity{Activity: activity, DisplayName: display, Route: route, Reason: reason})
 	}
 
+	if c.IdentifyTotal > 0 {
+		add("identify", "Identify", "identify", s.IdentifyCorrect+s.IdentifyIncorrect > 0, c.IdentifyComplete())
+	}
+	add("translation", "Translation", "translate", c.TranslationCompleted, c.TranslateComplete())
+	if c.ProduceTotal > 0 {
+		add("produce", "Produce", "produce", s.ProduceSubmitted > 0, c.ProduceComplete())
+	}
+	if c.RecallTotal > 0 {
+		add("recall", "Recall", "recall", s.RecallCorrect+s.RecallIncorrect > 0, c.RecallComplete())
+	}
+	return missing
+}
+
+func (h *Handler) writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(v)
 }
 
 func getVocabAndGrammarCount(story models.Story) struct{ VocabCount, GrammarCount int64 } {

@@ -189,11 +189,20 @@ type Querier interface {
 	GetStoryLine(ctx context.Context, arg GetStoryLineParams) (StoryLine, error)
 	// Story lines
 	GetStoryLines(ctx context.Context, storyID int32) ([]StoryLine, error)
+	// GetStoryPhaseTotals: how many scorable items each phase of a story has. The
+	// denominators for CalculateScoreWithRetriesAllowed on the score page and the
+	// admin report. identify_total counts target-word *occurrences* (one quiz
+	// popup each), matching GetUserStoryPageCompletion.
+	GetStoryPhaseTotals(ctx context.Context, storyID int32) (GetStoryPhaseTotalsRow, error)
 	GetStoryProduceExplanation(ctx context.Context, storyID int32) (GetStoryProduceExplanationRow, error)
 	// Produce phase queries: segments, explanation, and student submissions
 	GetStoryProduceSegments(ctx context.Context, storyID int32) ([]GetStoryProduceSegmentsRow, error)
 	// Recall phase queries: sentences and answer logs
 	GetStoryRecallSentences(ctx context.Context, storyID int32) ([]GetStoryRecallSentencesRow, error)
+	// GetStoryStudentPerformance: one row per enrolled student with their answer
+	// counts, Produce grading state, and per-phase time for a story. Each answer
+	// table is aggregated once with GROUP BY user_id and joined, instead of a
+	// correlated scalar subquery per student per table.
 	GetStoryStudentPerformance(ctx context.Context, arg GetStoryStudentPerformanceParams) ([]GetStoryStudentPerformanceRow, error)
 	// Target vocabulary queries (Identify / Recall phases)
 	GetStoryTargetVocabulary(ctx context.Context, storyID int32) ([]GetStoryTargetVocabularyRow, error)
@@ -244,6 +253,10 @@ type Querier interface {
 	GetUserStoryProduceSubmissions(ctx context.Context, arg GetUserStoryProduceSubmissionsParams) ([]GetUserStoryProduceSubmissionsRow, error)
 	GetUserStoryProduceSummary(ctx context.Context, arg GetUserStoryProduceSummaryParams) (GetUserStoryProduceSummaryRow, error)
 	GetUserStoryRecallSummary(ctx context.Context, arg GetUserStoryRecallSummaryParams) (GetUserStoryRecallSummaryRow, error)
+	// GetUserStoryScoreSummary: every per-user answer count the score page needs in
+	// one round trip. Produce aggregates the latest submission per segment, like
+	// GetUserStoryProduceSummary; ungraded segments are excluded from the average.
+	GetUserStoryScoreSummary(ctx context.Context, arg GetUserStoryScoreSummaryParams) (GetUserStoryScoreSummaryRow, error)
 	GetUserStoryTimeTracking(ctx context.Context, arg GetUserStoryTimeTrackingParams) (GetUserStoryTimeTrackingRow, error)
 	GetUserStoryVocabSummary(ctx context.Context, arg GetUserStoryVocabSummaryParams) (GetUserStoryVocabSummaryRow, error)
 	GetUserTranslationRequests(ctx context.Context, userID string) ([]GetUserTranslationRequestsRow, error)

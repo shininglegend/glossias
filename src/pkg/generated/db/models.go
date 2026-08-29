@@ -134,6 +134,13 @@ type ProduceAttemptStart struct {
 	StartedAt pgtype.Timestamp `json:"started_at"`
 }
 
+type ProduceGradingActivePrompt struct {
+	Singleton   bool             `json:"singleton"`
+	PromptID    int32            `json:"prompt_id"`
+	ActivatedBy pgtype.Text      `json:"activated_by"`
+	ActivatedAt pgtype.Timestamp `json:"activated_at"`
+}
+
 type ProduceGradingLog struct {
 	ID                   int32            `json:"id"`
 	SubmissionID         int32            `json:"submission_id"`

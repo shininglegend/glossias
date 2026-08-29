@@ -124,8 +124,8 @@ type Querier interface {
 	DeleteVocabularyItems(ctx context.Context, arg DeleteVocabularyItemsParams) error
 	FindRecentSimilarTimeEntry(ctx context.Context, arg FindRecentSimilarTimeEntryParams) (FindRecentSimilarTimeEntryRow, error)
 	GetActiveAnonymousTimeEntry(ctx context.Context, arg GetActiveAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
-	// Versioned system prompt for the Produce AI grader (append-only).
-	// The newest row is the active prompt.
+	// Versioned system prompt for the Produce AI grader. Versions are append-only;
+	// produce_grading_active_prompt points at the one in use.
 	GetActiveProduceGradingPrompt(ctx context.Context) (ProduceGradingPrompt, error)
 	GetActiveTimeEntry(ctx context.Context, arg GetActiveTimeEntryParams) (UserTimeTracking, error)
 	GetAdminCoursesForUser(ctx context.Context, userID string) ([]Course, error)
@@ -165,6 +165,10 @@ type Querier interface {
 	GetLineTranslation(ctx context.Context, arg GetLineTranslationParams) (string, error)
 	// Line translations management queries
 	GetLineTranslations(ctx context.Context, arg GetLineTranslationsParams) ([]LineTranslation, error)
+	GetProduceGradingPrompt(ctx context.Context, id int32) (ProduceGradingPrompt, error)
+	// Finds an existing version with exactly this text, so re-saving an earlier
+	// version re-activates it instead of duplicating it.
+	GetProduceGradingPromptByText(ctx context.Context, promptText string) (ProduceGradingPrompt, error)
 	GetProduceSegment(ctx context.Context, id int32) (GetProduceSegmentRow, error)
 	GetRecallSentence(ctx context.Context, id int32) (GetRecallSentenceRow, error)
 	GetRecentTimeEntriesForUser(ctx context.Context, arg GetRecentTimeEntriesForUserParams) ([]UserTimeTracking, error)
@@ -294,6 +298,7 @@ type Querier interface {
 	SaveRecallIncorrectAnswer(ctx context.Context, arg SaveRecallIncorrectAnswerParams) error
 	SaveVocabIncorrectAnswer(ctx context.Context, arg SaveVocabIncorrectAnswerParams) error
 	SaveVocabScore(ctx context.Context, arg SaveVocabScoreParams) error
+	SetActiveProduceGradingPrompt(ctx context.Context, arg SetActiveProduceGradingPromptParams) error
 	// StartProduceAttempt records when the student began a segment. A second call
 	// for the same segment is a no-op update so the original start is returned:
 	// the countdown cannot be reset by reloading.

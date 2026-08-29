@@ -3,8 +3,11 @@ package models
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"glossias/src/pkg/database"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -12,9 +15,12 @@ import (
 // TestGradeProduceLive runs the real grader over testdata/produce_grading_samples.json
 // and checks each score lands in the range a human grader would accept. It is
 // the prompt-iteration loop for T13: skipped unless GRADING_LIVE=1 and an API
-// key are set, because it costs money and needs the network.
+// key are set, because it costs money and needs the network. With DATABASE_URL
+// set it grades with the prompt version active in that database (the one
+// edited on the admin System page); without it, the built-in default.
 //
-//	ANTHROPIC_API_KEY=... GRADING_LIVE=1 go test ./src/pkg/models/ -run TestGradeProduceLive -v
+//	set -a; source .env; set +a
+//	GRADING_LIVE=1 go test ./src/pkg/models/ -run TestGradeProduceLive -v
 func TestGradeProduceLive(t *testing.T) {
 	if os.Getenv("GRADING_LIVE") != "1" {
 		t.Skip("set GRADING_LIVE=1 (and ANTHROPIC_API_KEY) to run live grading samples")
@@ -25,6 +31,7 @@ func TestGradeProduceLive(t *testing.T) {
 	}
 
 	samples := loadGradingSamples(t)
+	systemPrompt := liveGradingPrompt(t)
 
 	var failures int
 	for _, c := range samples.Cases {
@@ -36,6 +43,7 @@ func TestGradeProduceLive(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			grade, _, err := grader.GradeProduce(ctx, ProduceGradeRequest{
+				SystemPrompt:            systemPrompt,
 				ReferenceEnglish:        seg.Reference,
 				HebrewText:              seg.Hebrew,
 				StudentText:             c.Attempt,
@@ -58,6 +66,37 @@ func TestGradeProduceLive(t *testing.T) {
 		})
 	}
 	t.Logf("%d/%d cases in range", len(samples.Cases)-failures, len(samples.Cases))
+}
+
+// liveGradingPrompt returns the system prompt the live run should use: the
+// version currently active in the database when DATABASE_URL is set (so an
+// edit made on the System page can be checked against the samples before or
+// after activating it), otherwise the built-in default.
+func liveGradingPrompt(t *testing.T) string {
+	t.Helper()
+	dbURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
+	if dbURL == "" {
+		t.Log("DATABASE_URL not set; grading with the built-in default prompt")
+		return DefaultGradingSystemPrompt
+	}
+
+	store, err := database.InitDBWithReconnect(dbURL)
+	if err != nil {
+		t.Fatalf("connect to database for active prompt: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+	SetDB(store.RawConn())
+
+	prompt, err := GetActiveProduceGradingPrompt(context.Background())
+	if errors.Is(err, ErrNotFound) {
+		t.Log("no prompt stored in the database; grading with the built-in default prompt")
+		return DefaultGradingSystemPrompt
+	}
+	if err != nil {
+		t.Fatalf("read active grading prompt: %v", err)
+	}
+	t.Logf("grading with prompt version %d (%s)", prompt.ID, prompt.CreatedAt.Format(time.RFC3339))
+	return prompt.Text
 }
 
 type gradingSamples struct {

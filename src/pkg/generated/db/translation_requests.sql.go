@@ -7,6 +7,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createTranslationRequest = `-- name: CreateTranslationRequest :one
@@ -22,10 +24,18 @@ type CreateTranslationRequestParams struct {
 	RequestedLines []int32 `json:"requested_lines"`
 }
 
+type CreateTranslationRequestRow struct {
+	RequestID      int32            `json:"request_id"`
+	UserID         string           `json:"user_id"`
+	StoryID        int32            `json:"story_id"`
+	RequestedLines []int32          `json:"requested_lines"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+}
+
 // Translation requests management queries
-func (q *Queries) CreateTranslationRequest(ctx context.Context, arg CreateTranslationRequestParams) (TranslationRequest, error) {
+func (q *Queries) CreateTranslationRequest(ctx context.Context, arg CreateTranslationRequestParams) (CreateTranslationRequestRow, error) {
 	row := q.db.QueryRow(ctx, createTranslationRequest, arg.UserID, arg.StoryID, arg.RequestedLines)
-	var i TranslationRequest
+	var i CreateTranslationRequestRow
 	err := row.Scan(
 		&i.RequestID,
 		&i.UserID,
@@ -58,15 +68,23 @@ WHERE story_id = $1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetStoryTranslationRequests(ctx context.Context, storyID int32) ([]TranslationRequest, error) {
+type GetStoryTranslationRequestsRow struct {
+	RequestID      int32            `json:"request_id"`
+	UserID         string           `json:"user_id"`
+	StoryID        int32            `json:"story_id"`
+	RequestedLines []int32          `json:"requested_lines"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+}
+
+func (q *Queries) GetStoryTranslationRequests(ctx context.Context, storyID int32) ([]GetStoryTranslationRequestsRow, error) {
 	rows, err := q.db.Query(ctx, getStoryTranslationRequests, storyID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []TranslationRequest{}
+	items := []GetStoryTranslationRequestsRow{}
 	for rows.Next() {
-		var i TranslationRequest
+		var i GetStoryTranslationRequestsRow
 		if err := rows.Scan(
 			&i.RequestID,
 			&i.UserID,
@@ -85,7 +103,7 @@ func (q *Queries) GetStoryTranslationRequests(ctx context.Context, storyID int32
 }
 
 const getTranslationRequest = `-- name: GetTranslationRequest :one
-SELECT request_id, user_id, story_id, requested_lines, created_at
+SELECT request_id, user_id, story_id, requested_lines, created_at, completed_at
 FROM translation_requests
 WHERE user_id = $1 AND story_id = $2
 `
@@ -104,6 +122,7 @@ func (q *Queries) GetTranslationRequest(ctx context.Context, arg GetTranslationR
 		&i.StoryID,
 		&i.RequestedLines,
 		&i.CreatedAt,
+		&i.CompletedAt,
 	)
 	return i, err
 }
@@ -114,9 +133,17 @@ FROM translation_requests
 WHERE request_id = $1
 `
 
-func (q *Queries) GetTranslationRequestByID(ctx context.Context, requestID int32) (TranslationRequest, error) {
+type GetTranslationRequestByIDRow struct {
+	RequestID      int32            `json:"request_id"`
+	UserID         string           `json:"user_id"`
+	StoryID        int32            `json:"story_id"`
+	RequestedLines []int32          `json:"requested_lines"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+}
+
+func (q *Queries) GetTranslationRequestByID(ctx context.Context, requestID int32) (GetTranslationRequestByIDRow, error) {
 	row := q.db.QueryRow(ctx, getTranslationRequestByID, requestID)
-	var i TranslationRequest
+	var i GetTranslationRequestByIDRow
 	err := row.Scan(
 		&i.RequestID,
 		&i.UserID,
@@ -134,15 +161,23 @@ WHERE user_id = $1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetUserTranslationRequests(ctx context.Context, userID string) ([]TranslationRequest, error) {
+type GetUserTranslationRequestsRow struct {
+	RequestID      int32            `json:"request_id"`
+	UserID         string           `json:"user_id"`
+	StoryID        int32            `json:"story_id"`
+	RequestedLines []int32          `json:"requested_lines"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+}
+
+func (q *Queries) GetUserTranslationRequests(ctx context.Context, userID string) ([]GetUserTranslationRequestsRow, error) {
 	rows, err := q.db.Query(ctx, getUserTranslationRequests, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []TranslationRequest{}
+	items := []GetUserTranslationRequestsRow{}
 	for rows.Next() {
-		var i TranslationRequest
+		var i GetUserTranslationRequestsRow
 		if err := rows.Scan(
 			&i.RequestID,
 			&i.UserID,
@@ -162,7 +197,7 @@ func (q *Queries) GetUserTranslationRequests(ctx context.Context, userID string)
 
 const getUserTranslationStatusForStory = `-- name: GetUserTranslationStatusForStory :one
 SELECT
-    EXISTS(SELECT 1 FROM translation_requests tr WHERE tr.user_id = $1 AND tr.story_id = $2) as completed,
+    EXISTS(SELECT 1 FROM translation_requests tr WHERE tr.user_id = $1 AND tr.story_id = $2 AND tr.completed_at IS NOT NULL) as completed,
     COALESCE((SELECT tr2.requested_lines FROM translation_requests tr2 WHERE tr2.user_id = $1 AND tr2.story_id = $2), ARRAY[]::INTEGER[]) as requested_lines
 `
 
@@ -183,23 +218,39 @@ func (q *Queries) GetUserTranslationStatusForStory(ctx context.Context, arg GetU
 	return i, err
 }
 
-const translationRequestExists = `-- name: TranslationRequestExists :one
-SELECT EXISTS(
-    SELECT 1 FROM translation_requests
-    WHERE user_id = $1 AND story_id = $2
-) as exists
+const markTranslationRequestComplete = `-- name: MarkTranslationRequestComplete :exec
+UPDATE translation_requests
+SET completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP)
+WHERE user_id = $1 AND story_id = $2
 `
 
-type TranslationRequestExistsParams struct {
+type MarkTranslationRequestCompleteParams struct {
 	UserID  string `json:"user_id"`
 	StoryID int32  `json:"story_id"`
 }
 
-func (q *Queries) TranslationRequestExists(ctx context.Context, arg TranslationRequestExistsParams) (bool, error) {
-	row := q.db.QueryRow(ctx, translationRequestExists, arg.UserID, arg.StoryID)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
+func (q *Queries) MarkTranslationRequestComplete(ctx context.Context, arg MarkTranslationRequestCompleteParams) error {
+	_, err := q.db.Exec(ctx, markTranslationRequestComplete, arg.UserID, arg.StoryID)
+	return err
+}
+
+const translationRequestCompleted = `-- name: TranslationRequestCompleted :one
+SELECT EXISTS(
+    SELECT 1 FROM translation_requests
+    WHERE user_id = $1 AND story_id = $2 AND completed_at IS NOT NULL
+) as completed
+`
+
+type TranslationRequestCompletedParams struct {
+	UserID  string `json:"user_id"`
+	StoryID int32  `json:"story_id"`
+}
+
+func (q *Queries) TranslationRequestCompleted(ctx context.Context, arg TranslationRequestCompletedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, translationRequestCompleted, arg.UserID, arg.StoryID)
+	var completed bool
+	err := row.Scan(&completed)
+	return completed, err
 }
 
 const updateTranslationRequest = `-- name: UpdateTranslationRequest :exec

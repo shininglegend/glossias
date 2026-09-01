@@ -13,7 +13,7 @@ WHERE user_id = $1;
 -- name: GetUserByEmail :one
 SELECT user_id, email, name, is_super_admin, created_at, updated_at
 FROM users
-WHERE email = $1;
+WHERE LOWER(email) = LOWER($1);
 
 -- name: GetUsersByEmails :many
 SELECT user_id, email, name, is_super_admin, created_at, updated_at

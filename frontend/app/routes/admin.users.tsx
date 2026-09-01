@@ -1,12 +1,18 @@
 import React from "react";
 import Button from "~/components/ui/Button";
 import { Card } from "~/components/ui/Card";
+import Modal from "~/components/ui/Modal";
 import Badge from "~/components/ui/Badge";
 import { useAuthenticatedFetch } from "../lib/authFetch";
 import {
   useCoursesApi,
   type Course as CourseType,
 } from "../services/coursesApi";
+import { pageMeta } from "~/lib/pageTitle";
+
+export function meta() {
+  return pageMeta("User Management");
+}
 
 type User = {
   id: string;
@@ -519,138 +525,137 @@ export default function AdminUsers() {
         </div>
       </div>
 
-      {showAddForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4">
-          <Card className="w-full max-w-md p-6">
-            <h2 className="text-lg font-semibold mb-4">Add Users to Course</h2>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.currentTarget);
-                const emailsText = formData.get("emails") as string;
-                const courseId = Number(formData.get("courseId"));
+      <Modal
+        isOpen={showAddForm}
+        onClose={() => setShowAddForm(false)}
+        title="Add Users to Course"
+        closeDisabled={adding}
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            const emailsText = formData.get("emails") as string;
+            const courseId = Number(formData.get("courseId"));
 
-                // Split by newlines, commas, or spaces and filter out empty strings
-                const emails = emailsText
-                  .split(/[\n,\s]+/)
-                  .map((email) => email.trim())
-                  .filter((email) => email.length > 0);
+            // Split by newlines, commas, or spaces and filter out empty strings
+            const emails = emailsText
+              .split(/[\n,\s]+/)
+              .map((email) => email.trim())
+              .filter((email) => email.length > 0);
 
-                // Basic email format validation before submitting to backend
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                const invalidEmails = emails.filter(
-                  (email) => !emailRegex.test(email),
-                );
-                if (invalidEmails.length > 0) {
-                  alert(
-                    `The following email address(es) are invalid:\n\n${invalidEmails.join(
-                      "\n",
-                    )}\n\nPlease correct them and try again.`,
-                  );
-                  return;
-                }
+            // Basic email format validation before submitting to backend
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            const invalidEmails = emails.filter(
+              (email) => !emailRegex.test(email),
+            );
+            if (invalidEmails.length > 0) {
+              alert(
+                `The following email address(es) are invalid:\n\n${invalidEmails.join(
+                  "\n",
+                )}\n\nPlease correct them and try again.`,
+              );
+              return;
+            }
 
-                if (emails.length > 0 && courseId) {
-                  handleAddUser(emails, courseId);
-                }
-              }}
-              className="space-y-4"
+            if (emails.length > 0 && courseId) {
+              handleAddUser(emails, courseId);
+            }
+          }}
+          className="space-y-4"
+        >
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Email Addresses (one per line)
+            </label>
+            <textarea
+              name="emails"
+              required
+              rows={4}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              placeholder="user1@example.com&#10;user2@example.com&#10;user3@example.com"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Course
+            </label>
+            <select
+              name="courseId"
+              required
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
             >
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Email Addresses (one per line)
-                </label>
-                <textarea
-                  name="emails"
-                  required
-                  rows={4}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                  placeholder="user1@example.com&#10;user2@example.com&#10;user3@example.com"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Course
-                </label>
-                <select
-                  name="courseId"
-                  required
-                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
-                >
-                  <option value="">Select a course</option>
-                  {courses.map((course) => (
-                    <option key={course.course_id} value={course.course_id}>
-                      {course.name} ({course.course_number})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex gap-2 pt-2">
-                <Button type="submit" className="flex-1" disabled={adding}>
-                  {adding ? "Adding..." : "Add Users"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowAddForm(false)}
-                  className="flex-1"
-                  disabled={adding}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </Card>
-        </div>
-      )}
+              <option value="">Select a course</option>
+              {courses.map((course) => (
+                <option key={course.course_id} value={course.course_id}>
+                  {course.name} ({course.course_number})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button type="submit" className="flex-1" disabled={adding}>
+              {adding ? "Adding..." : "Add Users"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowAddForm(false)}
+              className="flex-1"
+              disabled={adding}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
-      {showBulkStatusModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4">
-          <Card className="w-full max-w-md p-6">
-            <h2 className="text-lg font-semibold mb-4">
-              Change Status for {selectedUsers.size} User
-              {selectedUsers.size !== 1 ? "s" : ""}
-            </h2>
-            <div className="space-y-4">
-              <p className="text-sm text-slate-600">
-                Select the new status for all selected users:
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => handleBulkStatusChange("active")}
-                  className="flex-1"
-                  disabled={updatingStatus !== null}
-                >
-                  Active
-                </Button>
-                <Button
-                  onClick={() => handleBulkStatusChange("future")}
-                  className="flex-1"
-                  disabled={updatingStatus !== null}
-                >
-                  Future
-                </Button>
-                <Button
-                  onClick={() => handleBulkStatusChange("past")}
-                  className="flex-1"
-                  disabled={updatingStatus !== null}
-                >
-                  Past
-                </Button>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowBulkStatusModal(false)}
-                className="w-full"
-                disabled={updatingStatus !== null}
-              >
-                Cancel
-              </Button>
-            </div>
-          </Card>
+      <Modal
+        isOpen={showBulkStatusModal}
+        onClose={() => setShowBulkStatusModal(false)}
+        title={`Change Status for ${selectedUsers.size} User${
+          selectedUsers.size !== 1 ? "s" : ""
+        }`}
+        closeDisabled={updatingStatus !== null}
+      >
+        <div className="mt-4 space-y-4">
+          <p className="text-sm text-slate-600">
+            Select the new status for all selected users:
+          </p>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => handleBulkStatusChange("active")}
+              className="flex-1"
+              disabled={updatingStatus !== null}
+            >
+              Active
+            </Button>
+            <Button
+              onClick={() => handleBulkStatusChange("future")}
+              className="flex-1"
+              disabled={updatingStatus !== null}
+            >
+              Future
+            </Button>
+            <Button
+              onClick={() => handleBulkStatusChange("past")}
+              className="flex-1"
+              disabled={updatingStatus !== null}
+            >
+              Past
+            </Button>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setShowBulkStatusModal(false)}
+            className="w-full"
+            disabled={updatingStatus !== null}
+          >
+            Cancel
+          </Button>
         </div>
-      )}
+      </Modal>
     </main>
   );
 }

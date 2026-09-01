@@ -42,25 +42,33 @@ var keyBuilder *cache.KeyBuilder
 
 type TxContextKey struct{}
 
+// ContextTxRouter is the DBTX every SQLC query runs through. It sends the
+// query to the transaction stored on ctx (see WithTransaction) if there is
+// one, otherwise to the base connection, and records each call on the
+// request's query counter (database.CountQuery) so N+1 patterns are visible
+// in logs and enforceable in handler tests.
 type ContextTxRouter struct {
 	Base db.DBTX
 }
 
-func (r *ContextTxRouter) Exec(ctx context.Context, sql string, arguments ...interface{}) (pgconn.CommandTag, error) {
+func (r *ContextTxRouter) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error) {
+	database.CountQuery(ctx)
 	if tx, ok := ctx.Value(TxContextKey{}).(db.DBTX); ok {
 		return tx.Exec(ctx, sql, arguments...)
 	}
 	return r.Base.Exec(ctx, sql, arguments...)
 }
 
-func (r *ContextTxRouter) Query(ctx context.Context, sql string, arguments ...interface{}) (pgx.Rows, error) {
+func (r *ContextTxRouter) Query(ctx context.Context, sql string, arguments ...any) (pgx.Rows, error) {
+	database.CountQuery(ctx)
 	if tx, ok := ctx.Value(TxContextKey{}).(db.DBTX); ok {
 		return tx.Query(ctx, sql, arguments...)
 	}
 	return r.Base.Query(ctx, sql, arguments...)
 }
 
-func (r *ContextTxRouter) QueryRow(ctx context.Context, sql string, arguments ...interface{}) pgx.Row {
+func (r *ContextTxRouter) QueryRow(ctx context.Context, sql string, arguments ...any) pgx.Row {
+	database.CountQuery(ctx)
 	if tx, ok := ctx.Value(TxContextKey{}).(db.DBTX); ok {
 		return tx.QueryRow(ctx, sql, arguments...)
 	}
@@ -68,6 +76,7 @@ func (r *ContextTxRouter) QueryRow(ctx context.Context, sql string, arguments ..
 }
 
 func (r *ContextTxRouter) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
+	database.CountQuery(ctx)
 	if tx, ok := ctx.Value(TxContextKey{}).(db.DBTX); ok {
 		return tx.CopyFrom(ctx, tableName, columnNames, rowSrc)
 	}

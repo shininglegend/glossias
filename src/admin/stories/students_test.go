@@ -1,0 +1,130 @@
+package stories
+
+import (
+	"context"
+	"encoding/json"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"glossias/src/apis/types"
+	"glossias/src/auth"
+	"glossias/src/pkg/database"
+	"glossias/src/pkg/models"
+
+	"github.com/gorilla/mux"
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+// assertQueryBudget mirrors src/apis/handlers/querybudget_test.go: serve req
+// and fail if the handler exceeded max DB calls.
+func assertQueryBudget(t *testing.T, max int, handler http.HandlerFunc, req *http.Request) *httptest.ResponseRecorder {
+	t.Helper()
+	ctx, _ := database.WithQueryCounter(req.Context())
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	handler(rr, req)
+	if got := database.QueryCount(ctx); got > max {
+		t.Errorf("%s %s made %d DB queries, budget %d", req.Method, req.URL.Path, got, max)
+	}
+	return rr
+}
+
+func TestResetStudentProgressHandler(t *testing.T) {
+	h := NewHandler(slog.New(slog.DiscardHandler))
+
+	tests := []struct {
+		name           string
+		phase          string
+		authUserID     string
+		hasAuth        bool
+		courseAdmin    bool
+		expectedStatus int
+		queryBudget    int
+	}{
+		{name: "reset all", phase: "", authUserID: "admin-1", hasAuth: true, courseAdmin: true, expectedStatus: http.StatusOK, queryBudget: 5},
+		{name: "reset single phase", phase: "identify", authUserID: "admin-1", hasAuth: true, courseAdmin: true, expectedStatus: http.StatusOK, queryBudget: 6},
+		{name: "reset video (time only)", phase: "video", authUserID: "admin-1", hasAuth: true, courseAdmin: true, expectedStatus: http.StatusOK, queryBudget: 5},
+		{name: "invalid phase", phase: "bogus", authUserID: "admin-1", hasAuth: true, courseAdmin: true, expectedStatus: http.StatusBadRequest, queryBudget: 3},
+		{name: "unauthorized without user", phase: "all", hasAuth: false, expectedStatus: http.StatusUnauthorized, queryBudget: 0},
+		{name: "unauthorized non-admin", phase: "all", authUserID: "student-1", hasAuth: true, courseAdmin: false, expectedStatus: http.StatusUnauthorized, queryBudget: 3},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDB := database.NewMockDBTX()
+			// GetUser is left unstubbed (ErrNoRows => not super admin) so the
+			// course-admin path is exercised: GetCourseIdForStory -> IsUserCourseAdmin.
+			mockDB.StubQuery("GetCourseIdForStory", [][]any{{pgtype.Int4{Int32: 3, Valid: true}}}, nil)
+			mockDB.StubQuery("IsUserCourseAdmin", [][]any{{tt.courseAdmin}}, nil)
+			mockDB.StubQuery("ResetUserStoryAnswers", [][]any{{
+				int64(1), int64(2), int64(0), int64(0), int64(1), int64(3), int64(1), int64(2), int64(2), int64(5), int64(0),
+			}}, nil)
+			models.SetDB(mockDB)
+			defer models.SetDB(struct{}{})
+
+			url := "/api/admin/stories/7/students/student-9/progress"
+			if tt.phase != "" {
+				url += "?phase=" + tt.phase
+			}
+			req := httptest.NewRequest(http.MethodDelete, url, nil)
+			req = mux.SetURLVars(req, map[string]string{"id": "7", "userId": "student-9"})
+			if tt.hasAuth {
+				req = req.WithContext(context.WithValue(req.Context(), auth.UserIDKey, tt.authUserID))
+			}
+
+			rr := assertQueryBudget(t, tt.queryBudget, h.resetStudentProgressHandler, req)
+
+			if rr.Code != tt.expectedStatus {
+				t.Fatalf("status = %d, want %d; body: %s", rr.Code, tt.expectedStatus, rr.Body.String())
+			}
+			if tt.expectedStatus != http.StatusOK {
+				return
+			}
+
+			var resp types.APIResponse
+			if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			if !resp.Success {
+				t.Errorf("expected success=true")
+			}
+			data, _ := resp.Data.(map[string]any)
+			wantPhase := tt.phase
+			if wantPhase == "" {
+				wantPhase = "all"
+			}
+			if data["phase"] != wantPhase {
+				t.Errorf("phase = %v, want %s", data["phase"], wantPhase)
+			}
+			if _, ok := data["deleted"].(map[string]any); !ok {
+				t.Errorf("expected deleted map in response, got %v", data["deleted"])
+			}
+		})
+	}
+}
+
+func TestStudentRoutesResolve(t *testing.T) {
+	h := NewHandler(slog.New(slog.DiscardHandler))
+	router := mux.NewRouter()
+	h.RegisterRoutes(router.PathPrefix("/api/admin").Subrouter())
+
+	cases := []struct {
+		method, path, wantTemplate string
+	}{
+		{http.MethodGet, "/api/admin/stories/7/students", "/api/admin/stories/{id:[0-9]+}/students"},
+		{http.MethodDelete, "/api/admin/stories/7/students/user_abc/progress", "/api/admin/stories/{id:[0-9]+}/students/{userId}/progress"},
+	}
+	for _, c := range cases {
+		req := httptest.NewRequest(c.method, c.path, nil)
+		var match mux.RouteMatch
+		if !router.Match(req, &match) || match.Route == nil {
+			t.Fatalf("%s %s did not match any route", c.method, c.path)
+		}
+		got, _ := match.Route.GetPathTemplate()
+		if got != c.wantTemplate {
+			t.Errorf("%s %s matched %q, want %q", c.method, c.path, got, c.wantTemplate)
+		}
+	}
+}

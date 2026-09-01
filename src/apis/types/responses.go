@@ -18,6 +18,10 @@ type Story struct {
 	WeekNumber int    `json:"week_number"`
 	DayLetter  string `json:"day_letter"`
 	CourseID   *int   `json:"course_id,omitempty"`
+	// MissingPhases lists the Summer 2026 phases ("identify", "produce",
+	// "recall") whose content is not fully authored. Populated only for admin
+	// callers; omitted when the story is complete.
+	MissingPhases []string `json:"missing_phases,omitempty"`
 }
 
 // StoriesResponse contains array of stories
@@ -35,9 +39,96 @@ type AudioFile struct {
 
 // TextSegment represents a segment of text in a line
 type TextSegment struct {
-	Text     string `json:"text"`
-	Type     string `json:"type"`                // "text", "blank", "completed"
-	VocabKey string `json:"vocab_key,omitempty"` // For blanks: "lineIndex-vocabIndex"
+	Text          string `json:"text"`
+	Type          string `json:"type"`                      // "text", "blank", "completed", "target"
+	VocabKey      string `json:"vocab_key,omitempty"`       // For blanks: "lineIndex-vocabIndex"
+	TargetVocabID int    `json:"target_vocab_id,omitempty"` // For targets: the target_vocabulary row
+}
+
+// IdentifyLine is a story line for the Identify phase: its text with target
+// words marked, and the target words whose picture quiz opens after it plays.
+type IdentifyLine struct {
+	Text           []TextSegment `json:"text"`
+	TargetVocabIDs []int         `json:"target_vocab_ids"`
+}
+
+// IdentifyTargetWord is one of the story's target words with signed asset URLs.
+type IdentifyTargetWord struct {
+	ID          int    `json:"id"`
+	LexicalForm string `json:"lexical_form"`
+	AudioURL    string `json:"audio_url,omitempty"`
+	ImageURL    string `json:"image_url,omitempty"`
+}
+
+// IdentifyPageData is the payload for the Identify phase.
+type IdentifyPageData struct {
+	PageData
+	Lines       []IdentifyLine       `json:"lines"`
+	TargetWords []IdentifyTargetWord `json:"target_words"`
+	// Signed narration URLs keyed by 1-based line number, as useAudioPlayer expects.
+	AudioURLs map[int]string `json:"audio_urls"`
+	// CorrectPicks are the (line, word) quizzes the user has already answered
+	// correctly, so a reload resumes at the right line and skips them.
+	CorrectPicks []IdentifyPick `json:"correct_picks"`
+	// Completed is true once every target-word occurrence has a correct pick;
+	// the page then shows the finished state instead of replaying.
+	Completed bool `json:"completed"`
+}
+
+// IdentifyPick is one correctly answered Identify quiz.
+type IdentifyPick struct {
+	LineIndex     int `json:"line_index"` // 0-based, matching Lines
+	TargetVocabID int `json:"target_vocab_id"`
+}
+
+// CheckIdentifyRequest is a picture pick in the Identify phase.
+type CheckIdentifyRequest struct {
+	LineIndex             int `json:"line_index"` // 0-based, matching Lines
+	TargetVocabID         int `json:"target_vocab_id"`
+	SelectedTargetVocabID int `json:"selected_target_vocab_id"`
+}
+
+// CheckIdentifyResponse reports whether the picked picture was the right one.
+type CheckIdentifyResponse struct {
+	Correct bool `json:"correct"`
+}
+
+// RecallCard is one sentence card in the Recall sequencing exercise. It
+// deliberately carries no position: the server shuffles the cards and the
+// student's job is to recover the order.
+type RecallCard struct {
+	ID         int    `json:"id"`
+	HebrewText string `json:"hebrew_text"`
+	ImageURL   string `json:"image_url,omitempty"`
+}
+
+// RecallPageData is the payload for the Recall phase.
+type RecallPageData struct {
+	PageData
+	// LineCount is how many narration lines the story has; the phase plays
+	// them audio-only, so the text itself is not sent.
+	LineCount int `json:"line_count"`
+	// Signed narration URLs keyed by 1-based line number, as useAudioPlayer expects.
+	AudioURLs map[int]string `json:"audio_urls"`
+	// Sentences are the story's recall cards in a random order.
+	Sentences []RecallCard `json:"sentences"`
+	// Attempts is how many orderings the student has already submitted.
+	Attempts int `json:"attempts"`
+	// Completed is true once the student has placed every sentence correctly;
+	// the page then shows the finished state instead of asking again.
+	Completed bool `json:"completed"`
+}
+
+// CheckRecallRequest is one submitted ordering: OrderedSentenceIDs[i] is the
+// sentence the student placed at position i+1.
+type CheckRecallRequest struct {
+	OrderedSentenceIDs []int `json:"ordered_sentence_ids"`
+}
+
+// CheckRecallResponse reports per-position correctness in the submitted order.
+type CheckRecallResponse struct {
+	Results    []bool `json:"results"`
+	AllCorrect bool   `json:"all_correct"`
 }
 
 // Line represents a story line in API responses
@@ -93,11 +184,101 @@ type GrammarPageData struct {
 	NextGrammarPoint   *int              `json:"next_grammar_point"`
 }
 
-// TranslationPageData extends PageData with translation field
+// TranslationPageData extends PageData with the user's translate-phase progress
 type TranslationPageData struct {
 	PageData
-	Lines         []LineTranslation `json:"lines"`
-	HasTranslated bool              `json:"has_translation"`
+	Lines []LineTranslation `json:"lines"`
+	// RequestedLines are the 0-based line indices already translated (saved
+	// after each reveal), so a reload can resume.
+	RequestedLines []int `json:"requested_lines"`
+	// Completed is true once the phase was finished; the page then shows the
+	// finished state instead of replaying.
+	Completed bool `json:"completed"`
+}
+
+// ProduceSegmentView is one Produce segment as shown to the student: the
+// Hebrew to translate, located in the story. The reference English is
+// deliberately absent: it is returned by the submit endpoint (or in
+// Submissions for segments already answered) so it cannot be read before the
+// attempt is made.
+type ProduceSegmentView struct {
+	ID               int    `json:"id"`
+	SegmentOrder     int    `json:"segment_order"`
+	ReferenceEnglish string `json:"reference_english"`
+	GrammarPointName string `json:"grammar_point_name,omitempty"`
+	// Slot locates the segment inside the story text so the page can show the
+	// surrounding Hebrew with the segment's place marked. Nil when the author
+	// has not placed it and the Hebrew does not appear verbatim anywhere.
+	Slot *ProduceSlot `json:"slot,omitempty"`
+}
+
+// ProduceSlot is where a segment sits in the story: a 0-based line range
+// (LineIndex to LineEnd, inclusive; equal for a single line) and, when Exact,
+// the rune range of the Hebrew within the one line of that range it was
+// found on (highlighted on the page). When not Exact the Hebrew was not
+// found verbatim on any single line in the range, so every line in the range
+// is marked instead.
+type ProduceSlot struct {
+	LineIndex int  `json:"line_index"`
+	LineEnd   int  `json:"line_end"`
+	Exact     bool `json:"exact"`
+	Start     int  `json:"start"`
+	End       int  `json:"end"`
+}
+
+// ProduceAttemptStartView is a segment the student has started writing, with
+// the countdown time remaining as of this response.
+type ProduceAttemptStartView struct {
+	SegmentID   int `json:"segment_id"`
+	SecondsLeft int `json:"seconds_left"`
+}
+
+// StartProduceRequest marks the start of the student's attempt at a segment.
+type StartProduceRequest struct {
+	SegmentID int `json:"segment_id"`
+}
+
+// ProduceSubmissionView is the student's stored attempt at a segment, with the
+// reference revealed since the attempt is over.
+type ProduceSubmissionView struct {
+	SegmentID   int    `json:"segment_id"`
+	StudentText string `json:"student_text"`
+	HebrewText  string `json:"hebrew_text"`
+}
+
+// ProducePageData is the payload for the Produce phase.
+type ProducePageData struct {
+	PageData
+	// Lines is the story text, for context around each segment's slot.
+	Lines    []LineText           `json:"lines"`
+	Segments []ProduceSegmentView `json:"segments"`
+	// Explanation is the authored contrastive grammar explanation shown after
+	// both segments; empty when none has been authored.
+	Explanation string `json:"explanation"`
+	// Submissions are the student's latest attempts so far, so a reload
+	// resumes at the first unanswered segment.
+	Submissions []ProduceSubmissionView `json:"submissions"`
+	// Starts are the segments the student has begun but not yet submitted,
+	// with their remaining time, so a reload resumes the same countdown.
+	Starts []ProduceAttemptStartView `json:"starts"`
+	// Completed is true once every segment has a submission.
+	Completed bool `json:"completed"`
+	// TimeLimitSeconds is the per-segment writing limit.
+	TimeLimitSeconds int `json:"time_limit_seconds"`
+}
+
+// SubmitProduceRequest is a student's attempt at one Produce segment. An
+// empty StudentText is valid — the timer may have run out first.
+type SubmitProduceRequest struct {
+	SegmentID   int    `json:"segment_id"`
+	StudentText string `json:"student_text"`
+}
+
+// SubmitProduceResponse returns the stored attempt with the reference
+// revealed, and whether the phase is now complete.
+type SubmitProduceResponse struct {
+	Submission ProduceSubmissionView `json:"submission"`
+	Completed  bool                  `json:"completed"`
 }
 
 // SaveTranslationRequest saves the translation to the database

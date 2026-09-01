@@ -12,6 +12,11 @@ import {
   type CourseAdmin,
 } from "../services/coursesApi";
 import { useUserContext } from "../contexts/UserContext";
+import { pageMeta } from "~/lib/pageTitle";
+
+export function meta() {
+  return pageMeta("Course Management");
+}
 
 export default function AdminCourses() {
   const coursesApi = useCoursesApi();
@@ -35,7 +40,7 @@ export default function AdminCourses() {
     name: "",
     description: "",
   });
-  const [adminUserId, setAdminUserId] = React.useState("");
+  const [adminEmail, setAdminEmail] = React.useState("");
 
   // Check if user is super admin
   const isSuperAdmin = userInfo?.is_super_admin || false;
@@ -72,18 +77,18 @@ export default function AdminCourses() {
     setProcessing(true);
     try {
       if (editingCourse) {
-        const response = await coursesApi.updateCourse(
+        const updated = await coursesApi.updateCourse(
           editingCourse.course_id,
           formData,
         );
         setCourses((prev) =>
           prev.map((c) =>
-            c.course_id === editingCourse.course_id ? response.course : c,
+            c.course_id === editingCourse.course_id ? updated : c,
           ),
         );
       } else {
-        const response = await coursesApi.createCourse(formData);
-        setCourses((prev) => [...prev, response.course]);
+        const created = await coursesApi.createCourse(formData);
+        setCourses((prev) => [...prev, created]);
       }
       resetForm();
     } catch (err) {
@@ -139,15 +144,15 @@ export default function AdminCourses() {
 
   const handleAddAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!managingAdmins || !adminUserId.trim()) return;
+    if (!managingAdmins || !adminEmail.trim()) return;
 
     setProcessing(true);
     try {
       await coursesApi.addCourseAdmin(managingAdmins.course_id, {
-        user_id: adminUserId.trim(),
+        email: adminEmail.trim(),
       });
       await fetchCourseAdmins(managingAdmins); // Refresh the list
-      setAdminUserId("");
+      setAdminEmail("");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to add course admin",
@@ -331,22 +336,23 @@ export default function AdminCourses() {
             <form onSubmit={handleAddAdmin} className="mb-6">
               <div className="flex gap-2">
                 <Input
-                  value={adminUserId}
-                  onChange={(e) => setAdminUserId(e.target.value)}
-                  placeholder="Enter Clerk User ID"
+                  type="email"
+                  value={adminEmail}
+                  onChange={(e) => setAdminEmail(e.target.value)}
+                  placeholder="user@example.com"
                   disabled={processing}
                   className="flex-1"
                 />
                 <Button
                   type="submit"
-                  disabled={processing || !adminUserId.trim()}
+                  disabled={processing || !adminEmail.trim()}
                 >
                   {processing ? "Adding..." : "Add Admin"}
                 </Button>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Enter the Clerk User ID of the user you want to make a course
-                admin
+                Enter the email address of the user you want to make a course
+                admin. They must have signed in at least once.
               </p>
             </form>
 

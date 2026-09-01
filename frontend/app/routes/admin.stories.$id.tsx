@@ -3,7 +3,12 @@ import React from "react";
 import type { Story } from "../types/admin";
 import { useAdminApi } from "../services/adminApi";
 import StoryJSONEditor from "../components/Admin/StoryJSONEditor";
-import AdminStoryNavigation from "../components/Admin/AdminStoryNavigation";
+import AdminStoryPage from "../components/Admin/AdminStoryPage";
+import { pageMeta } from "~/lib/pageTitle";
+
+export function meta() {
+  return pageMeta("Edit Story");
+}
 
 function Section({
   title,
@@ -42,40 +47,31 @@ export default function EditStory() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  if (loading) {
-    return (
-      <main className="container mx-auto p-6">
-        <div className="text-center py-8">Loading story...</div>
-      </main>
-    );
-  }
-
-  if (!story) {
-    return (
-      <main className="container mx-auto p-6">
-        <div className="text-center py-8">Failed to load story</div>
-      </main>
-    );
-  }
-
   return (
-    <main className="container mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">Edit Story #{id}</h1>
-      <AdminStoryNavigation storyId={id!} />
-
-      <Section title="Raw JSON">
-        <StoryJSONEditor
-          value={story}
-          onSubmit={async (s) => {
-            try {
-              await adminApi.updateStory(Number(id), s);
-              navigate("/admin");
-            } catch (error) {
-              console.error("Failed to update story:", error);
-            }
-          }}
-        />
-      </Section>
-    </main>
+    <AdminStoryPage
+      storyId={id!}
+      title="Raw JSON"
+      description="Raw JSON for the whole story. Prefer the editors above for routine changes."
+    >
+      {loading && <div className="text-center py-8">Loading story...</div>}
+      {!loading && !story && (
+        <div className="text-center py-8">Failed to load story</div>
+      )}
+      {story && (
+        <Section title="Raw JSON">
+          <StoryJSONEditor
+            value={story}
+            onSubmit={async (s) => {
+              try {
+                await adminApi.updateStory(Number(id), s);
+                navigate("/admin");
+              } catch (error) {
+                console.error("Failed to update story:", error);
+              }
+            }}
+          />
+        </Section>
+      )}
+    </AdminStoryPage>
   );
 }

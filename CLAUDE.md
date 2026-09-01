@@ -42,6 +42,8 @@ cd frontend && npm run build   # output: frontend/build/
 
 Run the checks for whichever side was touched before considering a task done. Do not skip steps.
 
+**DB query budgets:** every request logs `db_queries=N` and warns above 15 (`dbQueryWarnThreshold` in `main.go`). Handler tests should wrap the success case in `assertQueryBudget(t, max, handler, req)` (`src/apis/handlers/querybudget_test.go`). If a budget has to rise, the fix is almost always a batch SQLC query (`WHERE id = ANY($1::int[])`) rather than a bigger number.
+
 ### Backend (Go)
 
 ```bash
@@ -52,6 +54,8 @@ go build ./...
 ```
 
 Optionally, run `go test -v ./src/pkg/models/...` for verbose package tests
+
+**Go style:** use modern Go 1.22+ idioms — `for i := range n` instead of `for i := 0; i < n; i++`, `min`/`max` builtins, `slices`/`maps` packages over hand-rolled loops.
 
 ### Frontend
 
@@ -68,10 +72,12 @@ npm run build
 Backend (`.env`):
 
 - `PORT` — defaults to 8080
+- `LOG_LEVEL` — `DEBUG` (default), `INFO`, `WARN`, or `ERROR`; read after `.env` loads
 - `CLERK_SECRET_KEY`, `AUTHORIZED_PARTY`
 - `DATABASE_URL`
 - `STORAGE_URL`, `STORAGE_API_KEY`
 - `DEV_USER` — when set, bypasses Clerk auth (dev only)
+- `ANTHROPIC_API_KEY` — enables AI grading of Produce submissions (`claude-haiku-4-5`, background, fail-open). Unset → submissions are stored ungraded and a warning is logged at startup.
 
 Frontend:
 
@@ -88,10 +94,11 @@ src/
   logging/                  # Structured logger
   pkg/
     database/               # DB connection pool
+    database/migrations/    # goose SQL migrations (also the SQLC schema source)
+    database/queries/       # SQLC query definitions
     generated/db/           # SQLC-generated query code (do not edit manually)
     models/                 # Business logic layer
     cache/                  # BigCache wrapper
-migrations/                 # SQL migration files
 frontend/
   app/
     routes/                 # File-based page components (admin.*, stories-*)
@@ -107,7 +114,7 @@ scripts/                    # Python analytics scripts
 
 ## Database / SQLC
 
-SQL queries live in source files and are compiled by SQLC into `src/pkg/generated/db/`. To regenerate after changing SQL:
+Queries live in `src/pkg/database/queries/*.sql` and are compiled by SQLC into `src/pkg/generated/db/`. To regenerate after changing a query or the schema:
 
 ```bash
 sqlc generate
@@ -115,9 +122,12 @@ sqlc generate
 
 Never edit files under `src/pkg/generated/db/` by hand.
 
+**The goose migrations in `src/pkg/database/migrations/` are the single source of truth for the schema** — SQLC reads that directory directly (see `sqlc.yaml`), and the backend applies the migrations on startup. To change the schema, add a numbered migration with `-- +goose Up` / `-- +goose Down` sections and re-run `sqlc generate`. There is no separate `schema.sql` to keep in sync.
+
 ## Auth
 
 Clerk is used for both frontend (ClerkProvider in `root.tsx`) and backend (JWT middleware in `src/auth/`). Role-based access: `super_admin`, `course_admin`, `student`. The `DEV_USER` env var bypasses auth entirely — never set it in production.
+If you want to cURL a request, include `'dev_auth: 12345678'` as a header to be authenticated as admin.
 
 ## Routing Conventions
 
@@ -130,4 +140,4 @@ Clerk is used for both frontend (ClerkProvider in `root.tsx`) and backend (JWT m
 - Global `queries` variable shared across requests creates a race condition in transactions — should be scoped per-request.
 - Rate limiter uses an unbounded map (memory leak under load).
 - Several large "god components" in the frontend (~400–640 lines with 15+ state variables).
-- N+1 query pattern in story loading (no batching).
+- N+1 query pattern in story loading (no batching). The per-request `db_queries` log field / WARN exposes which endpoints are affected.

@@ -63,11 +63,19 @@ func (h *Handler) getTranslationRequest(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	hasTranslated, err := models.TranslationRequestExists(ctx, userID, storyID)
-	if err != nil {
-		// This could be logged and ignored
-		h.log.Error("Failed to check for translation request", "error", err)
-		err = nil
+	// Progress so far, if any. Failures here only lose resume state.
+	requestedLines := []int{}
+	completed := false
+	request, err := models.GetTranslationRequest(ctx, userID, storyID)
+	if err != nil && err != models.ErrNotFound {
+		h.log.Error("Failed to fetch translation request", "error", err)
+	}
+	if request != nil {
+		completed = request.Completed
+		// Line numbers are 1-indexed in the DB but 0-indexed on the wire
+		for _, line := range request.RequestedLines {
+			requestedLines = append(requestedLines, int(line)-1)
+		}
 	}
 
 	data := types.TranslationPageData{
@@ -76,8 +84,9 @@ func (h *Handler) getTranslationRequest(w http.ResponseWriter, r *http.Request, 
 			StoryTitle: story.Metadata.Title["en"],
 			Language:   story.Metadata.Language,
 		},
-		Lines:         lines,
-		HasTranslated: hasTranslated,
+		Lines:          lines,
+		RequestedLines: requestedLines,
+		Completed:      completed,
 	}
 
 	response := types.APIResponse{
@@ -88,7 +97,9 @@ func (h *Handler) getTranslationRequest(w http.ResponseWriter, r *http.Request, 
 	json.NewEncoder(w).Encode(response)
 }
 
-// saveTranslationRequest saves which lines the student translated
+// saveTranslationRequest merges the given lines into the student's saved
+// request. Called after every reveal; `?complete=true` on the final call
+// marks the phase finished.
 func (h *Handler) saveTranslationRequest(w http.ResponseWriter, r *http.Request, userID string, storyID int) {
 	ctx := r.Context()
 
@@ -147,6 +158,14 @@ func (h *Handler) saveTranslationRequest(w http.ResponseWriter, r *http.Request,
 		if err != nil {
 			h.log.Error("Failed to update translation request", "error", err)
 			h.sendError(w, "Failed to update translation request", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if r.URL.Query().Get("complete") == "true" {
+		if err := models.MarkTranslationRequestComplete(ctx, userID, storyID); err != nil {
+			h.log.Error("Failed to mark translation request complete", "error", err)
+			h.sendError(w, "Failed to mark translation request complete", http.StatusInternalServerError)
 			return
 		}
 	}

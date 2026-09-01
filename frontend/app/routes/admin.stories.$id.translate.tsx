@@ -2,8 +2,14 @@ import { useParams } from "react-router";
 import React, { useState, useEffect, useRef } from "react";
 import type { Story } from "../types/admin";
 import { useAdminApi } from "../services/adminApi";
-import AdminStoryNavigation from "../components/Admin/AdminStoryNavigation";
+import AdminStoryPage from "../components/Admin/AdminStoryPage";
 import Button from "~/components/ui/Button";
+import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
+import { pageMeta } from "~/lib/pageTitle";
+
+export function meta() {
+  return pageMeta("Translate Story");
+}
 
 interface TranslationLine {
   lineNumber: number;
@@ -18,6 +24,8 @@ export default function TranslateStory() {
   const [story, setStory] = useState<Story | null>(null);
   const [translations, setTranslations] = useState<TranslationLine[]>([]);
   const [loading, setLoading] = useState(true);
+  const hasAnyChanges = translations.some((t) => t.hasChanges);
+  useUnsavedChangesGuard(hasAnyChanges);
   const [saving, setSaving] = useState<Set<number>>(new Set());
   const [bulkSaving, setBulkSaving] = useState(false);
 
@@ -110,30 +118,12 @@ export default function TranslateStory() {
     }
   };
 
-  if (loading) {
-    return (
-      <main className="container mx-auto p-6">
-        <div className="text-center py-8">Loading story...</div>
-      </main>
-    );
-  }
-
-  if (!story) {
-    return (
-      <main className="container mx-auto p-6">
-        <div className="text-center py-8">Failed to load story</div>
-      </main>
-    );
-  }
-
-  const hasAnyChanges = translations.some((t) => t.hasChanges);
-
   return (
-    <main className="container mx-auto p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-        <h1 className="text-2xl font-bold">
-          Translate Story for "{story.metadata.title["en"]}"
-        </h1>
+    <AdminStoryPage
+      storyId={id!}
+      title="Translation"
+      description="English reference translation for each line of the story."
+      actions={
         <Button
           onClick={saveAllTranslations}
           disabled={!hasAnyChanges || bulkSaving}
@@ -141,10 +131,12 @@ export default function TranslateStory() {
         >
           {bulkSaving ? "Saving..." : "Save All Changes"}
         </Button>
-      </div>
-
-      <AdminStoryNavigation storyId={id!} />
-
+      }
+    >
+      {loading && <div className="text-center py-8">Loading story...</div>}
+      {!loading && !story && (
+        <div className="text-center py-8">Failed to load story</div>
+      )}
       <div className="space-y-6">
         {translations.map((translation) => (
           <TranslationLineEditor
@@ -156,7 +148,7 @@ export default function TranslateStory() {
           />
         ))}
       </div>
-    </main>
+    </AdminStoryPage>
   );
 }
 

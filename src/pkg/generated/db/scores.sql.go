@@ -186,71 +186,138 @@ func (q *Queries) GetStoryGrammarScores(ctx context.Context, storyID int32) ([]G
 	return items, nil
 }
 
+const getStoryPhaseTotals = `-- name: GetStoryPhaseTotals :one
+SELECT
+    (SELECT COUNT(*) FROM vocabulary_items vi WHERE vi.story_id = $1::INT)::INT AS vocab_total,
+    (SELECT COUNT(*) FROM grammar_items gi WHERE gi.story_id = $1)::INT AS grammar_total,
+    (SELECT COUNT(*) FROM target_vocabulary tv
+      JOIN vocabulary_items vi ON vi.story_id = tv.story_id AND vi.lexical_form = tv.lexical_form
+      WHERE tv.story_id = $1)::INT AS identify_total,
+    (SELECT COUNT(*) FROM produce_segments ps WHERE ps.story_id = $1)::INT AS produce_total,
+    (SELECT COUNT(*) FROM recall_sentences rs WHERE rs.story_id = $1)::INT AS recall_total
+`
+
+type GetStoryPhaseTotalsRow struct {
+	VocabTotal    int32 `json:"vocab_total"`
+	GrammarTotal  int32 `json:"grammar_total"`
+	IdentifyTotal int32 `json:"identify_total"`
+	ProduceTotal  int32 `json:"produce_total"`
+	RecallTotal   int32 `json:"recall_total"`
+}
+
+// GetStoryPhaseTotals: how many scorable items each phase of a story has. The
+// denominators for CalculateScoreWithRetriesAllowed on the score page and the
+// admin report. identify_total counts target-word *occurrences* (one quiz
+// popup each), matching GetUserStoryPageCompletion.
+func (q *Queries) GetStoryPhaseTotals(ctx context.Context, storyID int32) (GetStoryPhaseTotalsRow, error) {
+	row := q.db.QueryRow(ctx, getStoryPhaseTotals, storyID)
+	var i GetStoryPhaseTotalsRow
+	err := row.Scan(
+		&i.VocabTotal,
+		&i.GrammarTotal,
+		&i.IdentifyTotal,
+		&i.ProduceTotal,
+		&i.RecallTotal,
+	)
+	return i, err
+}
+
 const getStoryStudentPerformance = `-- name: GetStoryStudentPerformance :many
+WITH vocab_c AS (
+    SELECT user_id, COUNT(*) AS n FROM vocab_correct_answers WHERE story_id = $1::INT GROUP BY user_id
+), vocab_i AS (
+    SELECT user_id, COUNT(*) AS n FROM vocab_incorrect_answers WHERE story_id = $1 GROUP BY user_id
+), grammar_c AS (
+    SELECT user_id, COUNT(*) AS n FROM grammar_correct_answers WHERE story_id = $1 GROUP BY user_id
+), grammar_i AS (
+    SELECT user_id, COUNT(*) AS n FROM grammar_incorrect_answers WHERE story_id = $1 GROUP BY user_id
+), identify_c AS (
+    SELECT user_id, COUNT(*) AS n FROM identify_correct_answers WHERE story_id = $1 GROUP BY user_id
+), identify_i AS (
+    SELECT user_id, COUNT(*) AS n FROM identify_incorrect_answers WHERE story_id = $1 GROUP BY user_id
+), recall_c AS (
+    SELECT user_id, COUNT(*) AS n FROM recall_correct_answers WHERE story_id = $1 GROUP BY user_id
+), recall_i AS (
+    SELECT user_id, COUNT(*) AS n FROM recall_incorrect_answers WHERE story_id = $1 GROUP BY user_id
+), produce_latest AS (
+    SELECT DISTINCT ON (user_id, segment_id) user_id, segment_id, ai_score
+    FROM produce_submissions
+    WHERE story_id = $1
+    ORDER BY user_id, segment_id, created_at DESC
+), produce_stats AS (
+    SELECT user_id,
+           COUNT(*) AS submitted,
+           COUNT(ai_score) AS graded,
+           AVG(ai_score) AS average_score
+    FROM produce_latest
+    GROUP BY user_id
+), tr AS (
+    SELECT user_id, requested_lines, (completed_at IS NOT NULL) AS completed
+    FROM translation_requests
+    WHERE story_id = $1
+), time_stats AS (
+    SELECT user_id,
+        COALESCE(SUM(CASE WHEN route LIKE '%vocab%' THEN total_time_seconds END), 0)::INT AS vocab_time_seconds,
+        COALESCE(SUM(CASE WHEN route LIKE '%grammar%' THEN total_time_seconds END), 0)::INT AS grammar_time_seconds,
+        COALESCE(SUM(CASE WHEN route LIKE '%translate%' THEN total_time_seconds END), 0)::INT AS translation_time_seconds,
+        COALESCE(SUM(CASE WHEN route LIKE '%audio%' OR route LIKE '%video%' THEN total_time_seconds END), 0)::INT AS video_time_seconds,
+        COALESCE(SUM(CASE WHEN route LIKE '%identify%' THEN total_time_seconds END), 0)::INT AS identify_time_seconds,
+        COALESCE(SUM(CASE WHEN route LIKE '%produce%' THEN total_time_seconds END), 0)::INT AS produce_time_seconds,
+        COALESCE(SUM(CASE WHEN route LIKE '%recall%' THEN total_time_seconds END), 0)::INT AS recall_time_seconds,
+        COALESCE(SUM(total_time_seconds), 0)::INT AS total_time_seconds
+    FROM user_time_tracking
+    WHERE story_id = $1 AND ended_at IS NOT NULL
+    GROUP BY user_id
+)
 SELECT
     u.user_id,
-    u.name as user_name,
+    u.name AS user_name,
     u.email,
-    st.title as story_title,
-    COALESCE(vocab_stats.correct_count, 0) as vocab_correct,
-    COALESCE(vocab_stats.incorrect_count, 0) as vocab_incorrect,
-    COALESCE(grammar_stats.correct_count, 0) as grammar_correct,
-    COALESCE(grammar_stats.incorrect_count, 0) as grammar_incorrect,
-    COALESCE(tr.completed, false) as translation_completed,
-    COALESCE(tr.requested_lines, ARRAY[]::INTEGER[]) as requested_lines,
-    COALESCE(time_stats.vocab_time_seconds, 0) as vocab_time_seconds,
-    COALESCE(time_stats.grammar_time_seconds, 0) as grammar_time_seconds,
-    COALESCE(time_stats.translation_time_seconds, 0) as translation_time_seconds,
-    COALESCE(time_stats.video_time_seconds, 0) as video_time_seconds,
-    COALESCE(time_stats.identify_time_seconds, 0) as identify_time_seconds,
-    COALESCE(time_stats.produce_time_seconds, 0) as produce_time_seconds,
-    COALESCE(time_stats.recall_time_seconds, 0) as recall_time_seconds,
-    COALESCE(time_stats.vocab_time_seconds, 0) +
-    COALESCE(time_stats.grammar_time_seconds, 0) +
-    COALESCE(time_stats.translation_time_seconds, 0) +
-    COALESCE(time_stats.video_time_seconds, 0) +
-    COALESCE(time_stats.identify_time_seconds, 0) +
-    COALESCE(time_stats.produce_time_seconds, 0) +
-    COALESCE(time_stats.recall_time_seconds, 0) as total_time_seconds
+    st.title AS story_title,
+    COALESCE(vocab_c.n, 0)::INT AS vocab_correct,
+    COALESCE(vocab_i.n, 0)::INT AS vocab_incorrect,
+    COALESCE(grammar_c.n, 0)::INT AS grammar_correct,
+    COALESCE(grammar_i.n, 0)::INT AS grammar_incorrect,
+    COALESCE(identify_c.n, 0)::INT AS identify_correct,
+    COALESCE(identify_i.n, 0)::INT AS identify_incorrect,
+    COALESCE(recall_c.n, 0)::INT AS recall_correct,
+    COALESCE(recall_i.n, 0)::INT AS recall_incorrect,
+    COALESCE(produce_stats.submitted, 0)::INT AS produce_submitted,
+    COALESCE(produce_stats.graded, 0)::INT AS produce_graded,
+    COALESCE(produce_stats.average_score, 0)::FLOAT8 AS produce_average_score,
+    COALESCE(tr.completed, false)::BOOLEAN AS translation_completed,
+    COALESCE(tr.requested_lines, ARRAY[]::INTEGER[])::INTEGER[] AS requested_lines,
+    COALESCE(time_stats.vocab_time_seconds, 0)::INT AS vocab_time_seconds,
+    COALESCE(time_stats.grammar_time_seconds, 0)::INT AS grammar_time_seconds,
+    COALESCE(time_stats.translation_time_seconds, 0)::INT AS translation_time_seconds,
+    COALESCE(time_stats.video_time_seconds, 0)::INT AS video_time_seconds,
+    COALESCE(time_stats.identify_time_seconds, 0)::INT AS identify_time_seconds,
+    COALESCE(time_stats.produce_time_seconds, 0)::INT AS produce_time_seconds,
+    COALESCE(time_stats.recall_time_seconds, 0)::INT AS recall_time_seconds,
+    COALESCE(time_stats.total_time_seconds, 0)::INT AS total_time_seconds
 FROM users u
 JOIN course_users cu ON u.user_id = cu.user_id
 JOIN stories s ON cu.course_id = s.course_id
 LEFT JOIN story_titles st ON s.story_id = st.story_id AND st.language_code = 'en'
-LEFT JOIN LATERAL (
-    SELECT
-        (SELECT COUNT(*) FROM vocab_correct_answers vca WHERE vca.user_id = u.user_id AND vca.story_id = s.story_id) as correct_count,
-        (SELECT COUNT(*) FROM vocab_incorrect_answers via WHERE via.user_id = u.user_id AND via.story_id = s.story_id) as incorrect_count
-) vocab_stats ON true
-LEFT JOIN LATERAL (
-    SELECT
-        (SELECT COUNT(*) FROM grammar_correct_answers gca WHERE gca.user_id = u.user_id AND gca.story_id = s.story_id) as correct_count,
-        (SELECT COUNT(*) FROM grammar_incorrect_answers gia WHERE gia.user_id = u.user_id AND gia.story_id = s.story_id) as incorrect_count
-) grammar_stats ON true
-LEFT JOIN LATERAL (
-    SELECT
-        EXISTS(SELECT 1 FROM translation_requests WHERE user_id = u.user_id AND story_id = s.story_id) as completed,
-        COALESCE((SELECT requested_lines FROM translation_requests WHERE user_id = u.user_id AND story_id = s.story_id LIMIT 1), ARRAY[]::INTEGER[]) as requested_lines
-) tr ON true
-LEFT JOIN LATERAL (
-    SELECT
-        COALESCE(SUM(CASE WHEN route LIKE '%vocab%' THEN total_time_seconds END), 0) as vocab_time_seconds,
-        COALESCE(SUM(CASE WHEN route LIKE '%grammar%' THEN total_time_seconds END), 0) as grammar_time_seconds,
-        COALESCE(SUM(CASE WHEN route LIKE '%translate%' THEN total_time_seconds END), 0) as translation_time_seconds,
-        COALESCE(SUM(CASE WHEN route LIKE '%audio%' OR route LIKE '%video%' THEN total_time_seconds END), 0) as video_time_seconds,
-        COALESCE(SUM(CASE WHEN route LIKE '%identify%' THEN total_time_seconds END), 0) as identify_time_seconds,
-        COALESCE(SUM(CASE WHEN route LIKE '%produce%' THEN total_time_seconds END), 0) as produce_time_seconds,
-        COALESCE(SUM(CASE WHEN route LIKE '%recall%' THEN total_time_seconds END), 0) as recall_time_seconds
-    FROM user_time_tracking
-    WHERE user_id = u.user_id AND story_id = s.story_id AND ended_at IS NOT NULL
-) time_stats ON true
+LEFT JOIN vocab_c ON vocab_c.user_id = u.user_id
+LEFT JOIN vocab_i ON vocab_i.user_id = u.user_id
+LEFT JOIN grammar_c ON grammar_c.user_id = u.user_id
+LEFT JOIN grammar_i ON grammar_i.user_id = u.user_id
+LEFT JOIN identify_c ON identify_c.user_id = u.user_id
+LEFT JOIN identify_i ON identify_i.user_id = u.user_id
+LEFT JOIN recall_c ON recall_c.user_id = u.user_id
+LEFT JOIN recall_i ON recall_i.user_id = u.user_id
+LEFT JOIN produce_stats ON produce_stats.user_id = u.user_id
+LEFT JOIN tr ON tr.user_id = u.user_id
+LEFT JOIN time_stats ON time_stats.user_id = u.user_id
 WHERE s.story_id = $1
-  AND ($2 = '' OR cu.status = $2)
+  AND ($2::TEXT = '' OR cu.status = $2)
 ORDER BY u.name
 `
 
 type GetStoryStudentPerformanceParams struct {
-	StoryID int32       `json:"story_id"`
-	Column2 interface{} `json:"column_2"`
+	StoryID int32  `json:"story_id"`
+	Status  string `json:"status"`
 }
 
 type GetStoryStudentPerformanceRow struct {
@@ -258,24 +325,35 @@ type GetStoryStudentPerformanceRow struct {
 	UserName               string      `json:"user_name"`
 	Email                  string      `json:"email"`
 	StoryTitle             pgtype.Text `json:"story_title"`
-	VocabCorrect           int64       `json:"vocab_correct"`
-	VocabIncorrect         int64       `json:"vocab_incorrect"`
-	GrammarCorrect         int64       `json:"grammar_correct"`
-	GrammarIncorrect       int64       `json:"grammar_incorrect"`
+	VocabCorrect           int32       `json:"vocab_correct"`
+	VocabIncorrect         int32       `json:"vocab_incorrect"`
+	GrammarCorrect         int32       `json:"grammar_correct"`
+	GrammarIncorrect       int32       `json:"grammar_incorrect"`
+	IdentifyCorrect        int32       `json:"identify_correct"`
+	IdentifyIncorrect      int32       `json:"identify_incorrect"`
+	RecallCorrect          int32       `json:"recall_correct"`
+	RecallIncorrect        int32       `json:"recall_incorrect"`
+	ProduceSubmitted       int32       `json:"produce_submitted"`
+	ProduceGraded          int32       `json:"produce_graded"`
+	ProduceAverageScore    float64     `json:"produce_average_score"`
 	TranslationCompleted   bool        `json:"translation_completed"`
-	RequestedLines         interface{} `json:"requested_lines"`
-	VocabTimeSeconds       interface{} `json:"vocab_time_seconds"`
-	GrammarTimeSeconds     interface{} `json:"grammar_time_seconds"`
-	TranslationTimeSeconds interface{} `json:"translation_time_seconds"`
-	VideoTimeSeconds       interface{} `json:"video_time_seconds"`
-	IdentifyTimeSeconds    interface{} `json:"identify_time_seconds"`
-	ProduceTimeSeconds     interface{} `json:"produce_time_seconds"`
-	RecallTimeSeconds      interface{} `json:"recall_time_seconds"`
+	RequestedLines         []int32     `json:"requested_lines"`
+	VocabTimeSeconds       int32       `json:"vocab_time_seconds"`
+	GrammarTimeSeconds     int32       `json:"grammar_time_seconds"`
+	TranslationTimeSeconds int32       `json:"translation_time_seconds"`
+	VideoTimeSeconds       int32       `json:"video_time_seconds"`
+	IdentifyTimeSeconds    int32       `json:"identify_time_seconds"`
+	ProduceTimeSeconds     int32       `json:"produce_time_seconds"`
+	RecallTimeSeconds      int32       `json:"recall_time_seconds"`
 	TotalTimeSeconds       int32       `json:"total_time_seconds"`
 }
 
+// GetStoryStudentPerformance: one row per enrolled student with their answer
+// counts, Produce grading state, and per-phase time for a story. Each answer
+// table is aggregated once with GROUP BY user_id and joined, instead of a
+// correlated scalar subquery per student per table.
 func (q *Queries) GetStoryStudentPerformance(ctx context.Context, arg GetStoryStudentPerformanceParams) ([]GetStoryStudentPerformanceRow, error) {
-	rows, err := q.db.Query(ctx, getStoryStudentPerformance, arg.StoryID, arg.Column2)
+	rows, err := q.db.Query(ctx, getStoryStudentPerformance, arg.StoryID, arg.Status)
 	if err != nil {
 		return nil, err
 	}
@@ -292,6 +370,13 @@ func (q *Queries) GetStoryStudentPerformance(ctx context.Context, arg GetStorySt
 			&i.VocabIncorrect,
 			&i.GrammarCorrect,
 			&i.GrammarIncorrect,
+			&i.IdentifyCorrect,
+			&i.IdentifyIncorrect,
+			&i.RecallCorrect,
+			&i.RecallIncorrect,
+			&i.ProduceSubmitted,
+			&i.ProduceGraded,
+			&i.ProduceAverageScore,
 			&i.TranslationCompleted,
 			&i.RequestedLines,
 			&i.VocabTimeSeconds,
@@ -622,6 +707,72 @@ func (q *Queries) GetUserStoryGrammarSummary(ctx context.Context, arg GetUserSto
 	row := q.db.QueryRow(ctx, getUserStoryGrammarSummary, arg.UserID, arg.StoryID)
 	var i GetUserStoryGrammarSummaryRow
 	err := row.Scan(&i.CorrectCount, &i.IncorrectCount)
+	return i, err
+}
+
+const getUserStoryScoreSummary = `-- name: GetUserStoryScoreSummary :one
+SELECT
+    (SELECT COUNT(*) FROM vocab_correct_answers t WHERE t.user_id = $1 AND t.story_id = $2::INT)::INT AS vocab_correct,
+    (SELECT COUNT(*) FROM vocab_incorrect_answers t WHERE t.user_id = $1 AND t.story_id = $2)::INT AS vocab_incorrect,
+    (SELECT COUNT(*) FROM grammar_correct_answers t WHERE t.user_id = $1 AND t.story_id = $2)::INT AS grammar_correct,
+    (SELECT COUNT(*) FROM grammar_incorrect_answers t WHERE t.user_id = $1 AND t.story_id = $2)::INT AS grammar_incorrect,
+    (SELECT COUNT(*) FROM identify_correct_answers t WHERE t.user_id = $1 AND t.story_id = $2)::INT AS identify_correct,
+    (SELECT COUNT(*) FROM identify_incorrect_answers t WHERE t.user_id = $1 AND t.story_id = $2)::INT AS identify_incorrect,
+    (SELECT COUNT(*) FROM recall_correct_answers t WHERE t.user_id = $1 AND t.story_id = $2)::INT AS recall_correct,
+    (SELECT COUNT(*) FROM recall_incorrect_answers t WHERE t.user_id = $1 AND t.story_id = $2)::INT AS recall_incorrect,
+    COALESCE(latest.submitted, 0)::INT AS produce_submitted,
+    COALESCE(latest.graded, 0)::INT AS produce_graded,
+    COALESCE(latest.average_score, 0)::FLOAT8 AS produce_average_score
+FROM (SELECT 1) AS one
+LEFT JOIN (
+    SELECT COUNT(*) AS submitted, COUNT(ai_score) AS graded, AVG(ai_score) AS average_score
+    FROM (
+        SELECT DISTINCT ON (segment_id) segment_id, ai_score
+        FROM produce_submissions
+        WHERE user_id = $1 AND story_id = $2
+        ORDER BY segment_id, created_at DESC
+    ) l
+) latest ON true
+`
+
+type GetUserStoryScoreSummaryParams struct {
+	UserID  string `json:"user_id"`
+	StoryID int32  `json:"story_id"`
+}
+
+type GetUserStoryScoreSummaryRow struct {
+	VocabCorrect        int32   `json:"vocab_correct"`
+	VocabIncorrect      int32   `json:"vocab_incorrect"`
+	GrammarCorrect      int32   `json:"grammar_correct"`
+	GrammarIncorrect    int32   `json:"grammar_incorrect"`
+	IdentifyCorrect     int32   `json:"identify_correct"`
+	IdentifyIncorrect   int32   `json:"identify_incorrect"`
+	RecallCorrect       int32   `json:"recall_correct"`
+	RecallIncorrect     int32   `json:"recall_incorrect"`
+	ProduceSubmitted    int32   `json:"produce_submitted"`
+	ProduceGraded       int32   `json:"produce_graded"`
+	ProduceAverageScore float64 `json:"produce_average_score"`
+}
+
+// GetUserStoryScoreSummary: every per-user answer count the score page needs in
+// one round trip. Produce aggregates the latest submission per segment, like
+// GetUserStoryProduceSummary; ungraded segments are excluded from the average.
+func (q *Queries) GetUserStoryScoreSummary(ctx context.Context, arg GetUserStoryScoreSummaryParams) (GetUserStoryScoreSummaryRow, error) {
+	row := q.db.QueryRow(ctx, getUserStoryScoreSummary, arg.UserID, arg.StoryID)
+	var i GetUserStoryScoreSummaryRow
+	err := row.Scan(
+		&i.VocabCorrect,
+		&i.VocabIncorrect,
+		&i.GrammarCorrect,
+		&i.GrammarIncorrect,
+		&i.IdentifyCorrect,
+		&i.IdentifyIncorrect,
+		&i.RecallCorrect,
+		&i.RecallIncorrect,
+		&i.ProduceSubmitted,
+		&i.ProduceGraded,
+		&i.ProduceAverageScore,
+	)
 	return i, err
 }
 

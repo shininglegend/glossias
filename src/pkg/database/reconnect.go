@@ -113,7 +113,7 @@ func (d *ReconnectableDBTX) executeWithRetry(fn func() error) error {
 }
 
 // Exec implements DBTX interface with retry logic
-func (d *ReconnectableDBTX) Exec(ctx context.Context, query string, args ...interface{}) (pgconn.CommandTag, error) {
+func (d *ReconnectableDBTX) Exec(ctx context.Context, query string, args ...any) (pgconn.CommandTag, error) {
 	var tag pgconn.CommandTag
 	err := d.executeWithRetry(func() error {
 		var execErr error
@@ -124,7 +124,7 @@ func (d *ReconnectableDBTX) Exec(ctx context.Context, query string, args ...inte
 }
 
 // Query implements DBTX interface with retry logic
-func (d *ReconnectableDBTX) Query(ctx context.Context, query string, args ...interface{}) (pgx.Rows, error) {
+func (d *ReconnectableDBTX) Query(ctx context.Context, query string, args ...any) (pgx.Rows, error) {
 	var rows pgx.Rows
 	err := d.executeWithRetry(func() error {
 		var queryErr error
@@ -195,6 +195,12 @@ func InitDBWithReconnect(dbPath string) (Store, error) {
 	}
 
 	if usePool {
+		// Migrations must run before the pool opens; the non-pool path below
+		// delegates to InitDB, which runs them itself.
+		if err := RunMigrations(connStr); err != nil {
+			return nil, err
+		}
+
 		// Create reconnectable DBTX wrapper for SQLC compatibility
 		dbtx, err := NewReconnectableDBTX(connStr)
 		if err != nil {

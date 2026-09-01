@@ -180,14 +180,14 @@ func getStoryDataFromDB(ctx context.Context, id int, userID string) (*Story, err
 	return story, nil
 }
 
-func convertReferences(ref interface{}) []string {
+func convertReferences(ref any) []string {
 	if ref == nil {
 		return nil
 	}
 	switch v := ref.(type) {
 	case []string:
 		return v
-	case []interface{}:
+	case []any:
 		res := make([]string, len(v))
 		for i, x := range v {
 			if s, ok := x.(string); ok {

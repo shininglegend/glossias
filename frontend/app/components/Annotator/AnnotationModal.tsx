@@ -3,6 +3,7 @@ import { useState } from "react";
 import Button from "~/components/ui/Button";
 import Input from "~/components/ui/Input";
 import Label from "~/components/ui/Label";
+import Modal from "~/components/ui/Modal";
 import type { GrammarPoint } from "../../types/admin";
 
 interface Props {
@@ -29,7 +30,12 @@ export default function AnnotationModal({
     number | undefined
   >();
 
+  const canSave =
+    type !== "grammar" ||
+    (!!selectedGrammarPointId && storyGrammarPoints.length > 0);
+
   const handleSave = () => {
+    if (!canSave) return;
     if (type === "grammar") {
       onSave({ text: selectedText, grammarPointId: selectedGrammarPointId });
     } else if (type === "vocab") {
@@ -39,13 +45,25 @@ export default function AnnotationModal({
     }
   };
 
+  // Escape, focus trapping and initial focus (first control) are handled by
+  // Modal's native <dialog>.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-      <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-4 shadow-xl">
-        <h3 className="text-lg font-semibold">Add {type}</h3>
-        <p className="mt-1 text-sm text-slate-600">
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={`Add ${type}`}
+      description={
+        <>
           Selected: <span className="font-medium">{selectedText}</span>
-        </p>
+        </>
+      }
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleSave();
+        }}
+      >
         {type === "grammar" && (
           <div className="mt-3">
             <Label>Grammar Point</Label>
@@ -81,25 +99,18 @@ export default function AnnotationModal({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={type === "vocab" ? "e.g. lemma" : "Enter note"}
-              autoFocus={type === "vocab"}
             />
           </div>
         )}
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>
+          <Button type="button" variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={
-              type === "grammar" &&
-              (!selectedGrammarPointId || storyGrammarPoints.length === 0)
-            }
-          >
+          <Button type="submit" disabled={!canSave}>
             Save
           </Button>
         </div>
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 }

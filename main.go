@@ -23,16 +23,25 @@ import (
 )
 
 func main() {
+	// The level is a LevelVar so it can be set after .env is loaded: the
+	// handler reads it on every record, so the logger can exist before we
+	// know the configured level.
+	var level slog.LevelVar
+	level.Set(slog.LevelDebug) // default until LOG_LEVEL is read
 	logger := slog.New(logging.New(os.Stdout, &logging.Options{
-		Level:     slog.LevelDebug,
+		Level:     &level,
 		UseColors: true,
 	}))
 
 	// Load environment variables from .env file if present
-	err := godotenv.Load()
-	if err != nil {
-		slog.WarnContext(context.Background(), "No .env file found, relying on environment variables")
-		err = nil
+	if err := godotenv.Load(); err != nil {
+		logger.Warn("No .env file found, relying on environment variables")
+	}
+	// LOG_LEVEL: DEBUG (default), INFO, WARN, ERROR.
+	if v := os.Getenv("LOG_LEVEL"); v != "" {
+		if err := level.UnmarshalText([]byte(v)); err != nil {
+			logger.Warn("invalid LOG_LEVEL, keeping DEBUG", "value", v)
+		}
 	}
 
 	// Initialize database with automatic reconnection support
@@ -71,6 +80,7 @@ func main() {
 	// Setup middleware if needed
 	r.Use(auth.RateLimitMiddleware(logger))
 	r.Use(auth.Middleware(logger))
+	r.Use(queryCountMiddleware())
 	r.Use(loggingMiddleware(logger))
 
 	// Health check endpoint (no auth required)
@@ -90,7 +100,21 @@ func main() {
 	timeTrackingHandler.RegisterRoutes(timeTrackingRouter)
 
 	// API handlers
-	apiHandler := apis.NewHandler(logger)
+	// AI grading of Produce submissions runs in the background and is optional:
+	// without an API key submissions are stored ungraded.
+	// The grader's system prompt is versioned in the database and edited on the
+	// admin System page; make sure the first version is on record.
+	if err := models.EnsureProduceGradingPrompt(context.Background()); err != nil {
+		logger.Warn("Could not seed the Produce grading prompt; grading will use the built-in default", "error", err)
+	}
+	var produceGrading *models.ProduceGradingService
+	if grader, ok := models.NewAnthropicGraderFromEnv(); ok {
+		produceGrading = models.NewProduceGradingService(grader, logger)
+		logger.Info("AI grading enabled", "model", models.GradingModel)
+	} else {
+		logger.Warn("ANTHROPIC_API_KEY not set; Produce submissions will not be AI-graded")
+	}
+	apiHandler := apis.NewHandler(logger, produceGrading)
 	apiRouter := r.PathPrefix("/api").Subrouter()
 
 	// Clerk: require Authorization: Bearer <token> on every request (unless dev auth bypass)
@@ -138,6 +162,24 @@ func main() {
 	}
 }
 
+// dbQueryWarnThreshold is the per-request DB call count above which a request
+// is logged as suspicious. Legitimate pages need a handful of queries; well
+// above that almost always means a model function is being called in a loop
+// (N+1). Fix by adding a batch query (WHERE id = ANY($1)), not by raising this.
+const dbQueryWarnThreshold = 15
+
+// queryCountMiddleware attaches a DB query counter to every request so the
+// models layer can record each call (see database.CountQuery). Must run
+// before loggingMiddleware, which reads the total.
+func queryCountMiddleware() mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx, _ := database.WithQueryCounter(r.Context())
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
 func loggingMiddleware(logger *slog.Logger) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -145,11 +187,20 @@ func loggingMiddleware(logger *slog.Logger) mux.MiddlewareFunc {
 			ww := &responseWriter{ResponseWriter: w, status: 200}
 			next.ServeHTTP(ww, r)
 			if r.URL.Path != "/api/health" {
+				dbQueries := database.QueryCount(r.Context())
 				logger.Info("request completed",
 					"method", r.Method,
 					"path", r.URL.Path,
 					"status", ww.status,
+					"db_queries", dbQueries,
 					"requester", r.RemoteAddr)
+				if dbQueries > dbQueryWarnThreshold {
+					logger.Warn("high DB query count (possible N+1)",
+						"method", r.Method,
+						"path", r.URL.Path,
+						"db_queries", dbQueries,
+						"threshold", dbQueryWarnThreshold)
+				}
 			}
 		})
 	}

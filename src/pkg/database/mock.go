@@ -16,7 +16,7 @@ import (
 // MockDB implements the DB interface for testing
 type MockDB struct {
 	mu   sync.RWMutex
-	data map[string][]interface{} // Basic in-memory storage
+	data map[string][]any // Basic in-memory storage
 	tx   *MockTx
 }
 
@@ -31,12 +31,12 @@ type MockResult struct {
 
 type MockRows struct {
 	closed bool
-	rows   [][]interface{}
+	rows   [][]any
 	curr   int
 }
 
 type MockRow struct {
-	data []interface{}
+	data []any
 }
 
 func (r MockResult) LastInsertId() (int64, error) { return r.lastID, nil }
@@ -45,11 +45,11 @@ func (r MockResult) RowsAffected() (int64, error) { return r.rowsAff, nil }
 // NewMockDB creates a new mock database
 func NewMockDB() *MockDB {
 	return &MockDB{
-		data: make(map[string][]interface{}),
+		data: make(map[string][]any),
 	}
 }
 
-func (m *MockDB) Exec(query string, args ...interface{}) (sql.Result, error) {
+func (m *MockDB) Exec(query string, args ...any) (sql.Result, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -87,7 +87,7 @@ func (m *MockRows) Next() bool {
 	return true
 }
 
-func (m *MockRows) Scan(dest ...interface{}) error {
+func (m *MockRows) Scan(dest ...any) error {
 	return sql.ErrNoRows
 }
 
@@ -95,21 +95,21 @@ func (m *MockRows) Columns() ([]string, error) {
 	return []string{}, nil
 }
 
-func (m *MockRow) Scan(dest ...interface{}) error {
+func (m *MockRow) Scan(dest ...any) error {
 	return sql.ErrNoRows
 }
 
-func (m *MockDB) Query(query string, args ...interface{}) (Rows, error) {
+func (m *MockDB) Query(query string, args ...any) (Rows, error) {
 	return &MockRows{}, nil
 }
 
-func (m *MockDB) QueryRow(query string, args ...interface{}) Row {
+func (m *MockDB) QueryRow(query string, args ...any) Row {
 	return &MockRow{}
 }
 
 // MockQueryResult stores the expected return values for a query
 type MockQueryResult struct {
-	Rows [][]interface{}
+	Rows [][]any
 	Err  error
 }
 
@@ -128,7 +128,7 @@ func NewMockDBTX() *MockDBTX {
 }
 
 // StubQuery registers a mocked result for any query containing the given substring
-func (m *MockDBTX) StubQuery(querySubstr string, rows [][]interface{}, err error) {
+func (m *MockDBTX) StubQuery(querySubstr string, rows [][]any, err error) {
 	m.queries[querySubstr] = MockQueryResult{Rows: rows, Err: err}
 }
 
@@ -137,7 +137,7 @@ func (m *MockDBTX) StubExec(querySubstr string, err error) {
 	m.execs[querySubstr] = err
 }
 
-func (m *MockDBTX) Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) {
+func (m *MockDBTX) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
 	for k, err := range m.execs {
 		if strings.Contains(sql, k) {
 			return pgconn.CommandTag{}, err
@@ -146,7 +146,7 @@ func (m *MockDBTX) Exec(ctx context.Context, sql string, args ...interface{}) (p
 	return pgconn.CommandTag{}, nil
 }
 
-func (m *MockDBTX) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
+func (m *MockDBTX) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
 	for k, qr := range m.queries {
 		if strings.Contains(sql, k) {
 			if qr.Err != nil {
@@ -158,7 +158,7 @@ func (m *MockDBTX) Query(ctx context.Context, sql string, args ...interface{}) (
 	return &MockPgxRows{}, nil
 }
 
-func (m *MockDBTX) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
+func (m *MockDBTX) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
 	for k, qr := range m.queries {
 		if strings.Contains(sql, k) {
 			if qr.Err != nil {
@@ -179,7 +179,7 @@ func (m *MockDBTX) CopyFrom(ctx context.Context, tableName pgx.Identifier, colum
 
 // Mock implementations for pgx types
 type MockPgxRows struct {
-	rows [][]interface{}
+	rows [][]any
 	curr int
 	err  error
 }
@@ -191,7 +191,7 @@ func (m *MockPgxRows) Next() bool {
 	return true
 }
 
-func (m *MockPgxRows) Scan(dest ...interface{}) error {
+func (m *MockPgxRows) Scan(dest ...any) error {
 	if m.err != nil {
 		return m.err
 	}
@@ -206,7 +206,7 @@ func (m *MockPgxRows) Scan(dest ...interface{}) error {
 	return nil
 }
 
-func (m *MockPgxRows) Values() ([]interface{}, error)               { return nil, nil }
+func (m *MockPgxRows) Values() ([]any, error)                       { return nil, nil }
 func (m *MockPgxRows) Close()                                       {}
 func (m *MockPgxRows) Err() error                                   { return m.err }
 func (m *MockPgxRows) CommandTag() pgconn.CommandTag                { return pgconn.CommandTag{} }
@@ -215,11 +215,11 @@ func (m *MockPgxRows) RawValues() [][]byte                          { return nil
 func (m *MockPgxRows) Conn() *pgx.Conn                              { return nil }
 
 type MockPgxRow struct {
-	row []interface{}
+	row []any
 	err error
 }
 
-func (m *MockPgxRow) Scan(dest ...interface{}) error {
+func (m *MockPgxRow) Scan(dest ...any) error {
 	if m.err != nil {
 		return m.err
 	}
@@ -229,7 +229,7 @@ func (m *MockPgxRow) Scan(dest ...interface{}) error {
 	return scanValues(m.row, dest)
 }
 
-func scanValues(src []interface{}, dest []interface{}) error {
+func scanValues(src []any, dest []any) error {
 	if len(src) != len(dest) {
 		return fmt.Errorf("column count mismatch: src %d, dest %d", len(src), len(dest))
 	}

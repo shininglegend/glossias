@@ -73,7 +73,7 @@ func TestCacheGetOrSet(t *testing.T) {
 	expectedValue := []byte("computed-value")
 
 	// First call should compute and cache
-	value, err := cache.GetOrSet(key, func() (interface{}, error) {
+	value, err := cache.GetOrSet(key, func() (any, error) {
 		return expectedValue, nil
 	})
 	if err != nil {
@@ -85,7 +85,7 @@ func TestCacheGetOrSet(t *testing.T) {
 	}
 
 	// Second call should return cached value
-	value2, err := cache.GetOrSet(key, func() (interface{}, error) {
+	value2, err := cache.GetOrSet(key, func() (any, error) {
 		t.Error("Compute function should not be called on second access")
 		return []byte("should-not-be-returned"), nil
 	})
@@ -114,7 +114,7 @@ func TestCacheGetOrSetJSON(t *testing.T) {
 
 	// First call should compute and cache
 	var retrieved TestStruct
-	err = cache.GetOrSetJSON(key, &retrieved, func() (interface{}, error) {
+	err = cache.GetOrSetJSON(key, &retrieved, func() (any, error) {
 		return original, nil
 	})
 	if err != nil {
@@ -127,7 +127,7 @@ func TestCacheGetOrSetJSON(t *testing.T) {
 
 	// Second call should return cached value
 	var retrieved2 TestStruct
-	err = cache.GetOrSetJSON(key, &retrieved2, func() (interface{}, error) {
+	err = cache.GetOrSetJSON(key, &retrieved2, func() (any, error) {
 		t.Error("Compute function should not be called on second access")
 		return TestStruct{ID: 999, Name: "should-not-be-returned"}, nil
 	})
@@ -246,7 +246,7 @@ func TestCacheStats(t *testing.T) {
 	}
 
 	// Add some data
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		key := fmt.Sprintf("stats-test-%d", i)
 		value := []byte(fmt.Sprintf("value-%d", i))
 		err = cache.Set(key, value)
@@ -274,7 +274,7 @@ func TestCacheClear(t *testing.T) {
 	}
 
 	// Add some data
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		key := fmt.Sprintf("clear-test-%d", i)
 		value := []byte(fmt.Sprintf("value-%d", i))
 		err = cache.Set(key, value)

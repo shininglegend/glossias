@@ -46,6 +46,36 @@ export default function MetadataForm({
     onSubmit(meta);
   };
 
+  const addGrammarPoint = () => {
+    const name = nameInputRef.current?.value?.trim();
+    if (!name) {
+      alert("Grammar point name is required");
+      return;
+    }
+
+    const newGrammarPoint = {
+      id: Date.now(), // Temporary ID for frontend
+      name,
+      description: descInputRef.current?.value?.trim() || "",
+    };
+
+    update("grammarPoints", [...(meta.grammarPoints || []), newGrammarPoint]);
+
+    // Clear inputs and return focus for rapid entry
+    if (nameInputRef.current) nameInputRef.current.value = "";
+    if (descInputRef.current) descInputRef.current.value = "";
+    nameInputRef.current?.focus();
+  };
+
+  // Enter inside the grammar-point inputs adds the point rather than
+  // submitting the whole metadata form.
+  const onGrammarPointKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addGrammarPoint();
+    }
+  };
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -110,6 +140,7 @@ export default function MetadataForm({
                 type="text"
                 placeholder="e.g., Present Tense"
                 ref={nameInputRef}
+                onKeyDown={onGrammarPointKeyDown}
               />
             </div>
             <div>
@@ -118,33 +149,13 @@ export default function MetadataForm({
                 type="text"
                 placeholder="Brief description"
                 ref={descInputRef}
+                onKeyDown={onGrammarPointKeyDown}
               />
             </div>
             <div>
               <Button
                 type="button"
-                onClick={() => {
-                  const name = nameInputRef.current?.value?.trim();
-                  if (!name) {
-                    alert("Grammar point name is required");
-                    return;
-                  }
-
-                  const newGrammarPoint = {
-                    id: Date.now(), // Temporary ID for frontend
-                    name,
-                    description: descInputRef.current?.value?.trim() || "",
-                  };
-
-                  update("grammarPoints", [
-                    ...(meta.grammarPoints || []),
-                    newGrammarPoint,
-                  ]);
-
-                  // Clear inputs
-                  if (nameInputRef.current) nameInputRef.current.value = "";
-                  if (descInputRef.current) descInputRef.current.value = "";
-                }}
+                onClick={addGrammarPoint}
                 className="bg-green-600 hover:bg-green-700"
               >
                 Add Grammar Point
@@ -159,15 +170,8 @@ export default function MetadataForm({
           </div>
         )}
       </div>
-      <div>
-        <Label>Author ID</Label>
-        <Input
-          value={meta.author.id}
-          onChange={(e) =>
-            update("author", { ...meta.author, id: e.target.value })
-          }
-        />
-      </div>
+      {/* author.id is preserved in state and submitted unchanged; it is not
+          shown or editable here. */}
       <div>
         <Label>Author Name</Label>
         <Input

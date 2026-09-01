@@ -109,11 +109,11 @@ func TestRecordTimeTracking_Accumulate(t *testing.T) {
 
 	// Stub FindRecentSimilarTimeEntry to return a recent entry (ID = 456, time = 100s)
 	// FindRecentSimilarTimeEntry returns FindRecentSimilarTimeEntryRow: TrackingID, TotalTimeSeconds
-	mockRow := []interface{}{
+	mockRow := []any{
 		int32(456),                           // TrackingID
 		pgtype.Int4{Int32: 100, Valid: true}, // TotalTimeSeconds
 	}
-	mockDB.StubQuery("FindRecentSimilarTimeEntry", [][]interface{}{mockRow}, nil)
+	mockDB.StubQuery("FindRecentSimilarTimeEntry", [][]any{mockRow}, nil)
 	// Stub AccumulateTimeEntry
 	mockDB.StubExec("AccumulateTimeEntry", nil)
 
@@ -136,7 +136,7 @@ func TestRecordTimeTracking_Create(t *testing.T) {
 	mockDB.StubQuery("FindRecentSimilarTimeEntry", nil, pgx.ErrNoRows)
 	// Stub CreateCompleteTimeEntry to return a mocked UserTimeTracking record
 	// CreateCompleteTimeEntry scans returns UserTimeTracking: TrackingID, UserID, Route, StoryID, StartedAt, EndedAt, TotalTimeSeconds, CreatedAt
-	mockRow := []interface{}{
+	mockRow := []any{
 		int32(789),                         // TrackingID
 		"user-123",                         // UserID
 		"/stories/5",                       // Route
@@ -146,7 +146,7 @@ func TestRecordTimeTracking_Create(t *testing.T) {
 		pgtype.Int4{Int32: 3, Valid: true}, // TotalTimeSeconds
 		pgtype.Timestamp{Valid: false},     // CreatedAt
 	}
-	mockDB.StubQuery("CreateCompleteTimeEntry", [][]interface{}{mockRow}, nil)
+	mockDB.StubQuery("CreateCompleteTimeEntry", [][]any{mockRow}, nil)
 
 	SetDB(mockDB)
 	defer func() {

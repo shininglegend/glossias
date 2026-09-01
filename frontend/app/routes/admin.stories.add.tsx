@@ -8,6 +8,11 @@ import Button from "~/components/ui/Button";
 import CourseSelector from "~/components/ui/CourseSelector";
 import Asterisk from "~/components/ui/Asterisk";
 import React from "react";
+import { pageMeta } from "~/lib/pageTitle";
+
+export function meta() {
+  return pageMeta("Add Story");
+}
 
 export default function AddStory() {
   const navigate = useNavigate();

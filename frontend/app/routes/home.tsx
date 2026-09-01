@@ -5,7 +5,7 @@ import { Footer } from "~/components/Footer";
 
 export function meta() {
   return [
-    { title: "Glossias - Interactive Language Learning" },
+    { title: "Interactive Language Learning | Glossias" },
     {
       name: "description",
       content:

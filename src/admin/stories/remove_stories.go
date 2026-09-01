@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -88,9 +89,10 @@ func logDeletion(r *http.Request, story *models.Story) error {
 }
 
 func formatStoryContent(lines []models.StoryLine) string {
-	var content string
+	var content strings.Builder
 	for _, line := range lines {
-		content += line.Text + "\n"
+		content.WriteString(line.Text)
+		content.WriteByte('\n')
 	}
-	return content
+	return content.String()
 }

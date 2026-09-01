@@ -133,6 +133,9 @@ type TranslationRequest struct {
 	StoryID        int32   `json:"storyId"`
 	RequestedLines []int32 `json:"requestedLines"`
 	CreatedAt      string  `json:"createdAt"`
+	// Completed is true once the student finished the Translate phase; lines
+	// are saved incrementally before that.
+	Completed bool `json:"completed"`
 }
 
 // GetTranslationRequest retrieves a user's translation request for a story
@@ -159,6 +162,7 @@ func GetTranslationRequest(ctx context.Context, userID string, storyID int) (*Tr
 		StoryID:        row.StoryID,
 		RequestedLines: row.RequestedLines,
 		CreatedAt:      row.CreatedAt.Time.Format("2006-01-02T15:04:05Z"),
+		Completed:      row.CompletedAt.Valid,
 	}, nil
 }
 
@@ -201,16 +205,29 @@ func UpdateTranslationRequest(ctx context.Context, userID string, storyID int, c
 	})
 }
 
-// TranslationRequestExists checks if a translation request exists for a user and story
-func TranslationRequestExists(ctx context.Context, userID string, storyID int) (bool, error) {
+// TranslationRequestCompleted reports whether the user has finished the
+// Translate phase for a story (a row alone only means lines were saved so far).
+func TranslationRequestCompleted(ctx context.Context, userID string, storyID int) (bool, error) {
 	if queries == nil {
 		return false, errors.New("database not initialized")
 	}
 
-	exists, err := queries.TranslationRequestExists(ctx, db.TranslationRequestExistsParams{
+	completed, err := queries.TranslationRequestCompleted(ctx, db.TranslationRequestCompletedParams{
 		UserID:  userID,
 		StoryID: int32(storyID),
 	})
 
-	return exists, err
+	return completed, err
+}
+
+// MarkTranslationRequestComplete records that the user finished the Translate
+// phase. Idempotent: the first completion time is kept.
+func MarkTranslationRequestComplete(ctx context.Context, userID string, storyID int) error {
+	if queries == nil {
+		return errors.New("database not initialized")
+	}
+	return queries.MarkTranslationRequestComplete(ctx, db.MarkTranslationRequestCompleteParams{
+		UserID:  userID,
+		StoryID: int32(storyID),
+	})
 }

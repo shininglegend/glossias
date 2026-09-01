@@ -4,8 +4,13 @@ import React from "react";
 import Story from "../components/Annotator/Story";
 import { useAdminApi } from "../services/adminApi";
 import Button from "~/components/ui/Button";
-import AdminStoryNavigation from "../components/Admin/AdminStoryNavigation";
+import AdminStoryPage from "../components/Admin/AdminStoryPage";
 import ConfirmDialog from "~/components/ui/ConfirmDialog";
+import { pageMeta } from "~/lib/pageTitle";
+
+export function meta() {
+  return pageMeta("Annotate Story");
+}
 
 export default function AdminAnnotateRoute() {
   const params = useParams();
@@ -28,9 +33,11 @@ export default function AdminAnnotateRoute() {
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Edit Annotations</h1>
+    <AdminStoryPage
+      storyId={id}
+      title="Annotations"
+      description="Mark vocabulary and grammar in the story text; footnotes appear below."
+      actions={
         <Button
           variant="danger"
           onClick={() => setShowConfirmDialog(true)}
@@ -38,9 +45,8 @@ export default function AdminAnnotateRoute() {
         >
           {busy ? "Clearing…" : "Clear All Annotations"}
         </Button>
-      </div>
-      <AdminStoryNavigation storyId={id} />
-      <h3>Story</h3>
+      }
+    >
       <Story key={refreshKey} storyId={id} />
       <ConfirmDialog
         isOpen={showConfirmDialog}
@@ -50,6 +56,6 @@ export default function AdminAnnotateRoute() {
         message="This will permanently remove all annotations from this story. This action cannot be undone."
         loading={busy}
       />
-    </div>
+    </AdminStoryPage>
   );
 }

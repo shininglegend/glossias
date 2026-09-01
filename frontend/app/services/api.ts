@@ -4,6 +4,8 @@ import { useCallback, useRef, useMemo } from "react";
 import { useAuthenticatedFetch } from "../lib/authFetch";
 import type {
   NavigationGuidanceResponse,
+  ResetPhase,
+  ResetProgressResult,
   Story as CourseStory,
   TextSegment,
 } from "../types/api";
@@ -77,6 +79,117 @@ export interface VocabData {
   lines: VocabLine[];
   language: string;
   vocab_bank: string[];
+}
+
+export interface IdentifyLine {
+  text: TextSegment[];
+  target_vocab_ids: number[];
+}
+
+export interface IdentifyTargetWord {
+  id: number;
+  lexical_form: string;
+  audio_url?: string;
+  image_url?: string;
+}
+
+export interface IdentifyData {
+  story_id: string;
+  story_title: string;
+  language: string;
+  lines: IdentifyLine[];
+  target_words: IdentifyTargetWord[];
+  /** Signed narration URLs keyed by 1-based line number. */
+  audio_urls: { [key: string]: string };
+  /** Quizzes already answered correctly on earlier visits (0-based lines). */
+  correct_picks: { line_index: number; target_vocab_id: number }[];
+  /** The student finished this phase on an earlier visit. */
+  completed: boolean;
+}
+
+export interface RecallCard {
+  id: number;
+  hebrew_text: string;
+  image_url?: string;
+}
+
+export interface RecallData {
+  story_id: string;
+  story_title: string;
+  language: string;
+  /** Number of narration lines; the phase is audio-only so no text is sent. */
+  line_count: number;
+  /** Signed narration URLs keyed by 1-based line number. */
+  audio_urls: { [key: string]: string };
+  /** The story's sentences, shuffled server-side with the order withheld. */
+  sentences: RecallCard[];
+  /** Orderings already submitted on earlier visits. */
+  attempts: number;
+  /** The student finished this phase on an earlier visit. */
+  completed: boolean;
+}
+
+export interface CheckRecallResult {
+  /** Correctness per submitted position. */
+  results: boolean[];
+  all_correct: boolean;
+}
+
+export interface ProduceSlot {
+  /** 0-based story line range the segment belongs to (inclusive). */
+  line_index: number;
+  line_end: number;
+  /**
+   * True when the Hebrew was found verbatim on one line of the range, so
+   * `start`/`end` (code-point offsets, within that line) can be highlighted.
+   * False marks every line in the range.
+   */
+  exact: boolean;
+  start: number;
+  end: number;
+}
+
+export interface ProduceAttemptStartView {
+  segment_id: number;
+  /** Countdown remaining as of the response. */
+  seconds_left: number;
+}
+
+export interface ProduceSegmentView {
+  id: number;
+  segment_order: number;
+  hebrew_text: string;
+  grammar_point_name?: string;
+  /** Where the Hebrew sits in the story text; absent if not placed and not found verbatim. */
+  slot?: ProduceSlot;
+}
+
+export interface ProduceSubmissionView {
+  segment_id: number;
+  student_text: string;
+  reference_english: string;
+}
+
+export interface ProduceData {
+  story_id: string;
+  story_title: string;
+  language: string;
+  lines: { text: string }[];
+  segments: ProduceSegmentView[];
+  /** Authored contrastive grammar explanation; empty if none yet. */
+  explanation: string;
+  /** Attempts already stored on earlier visits, in segment order. */
+  submissions: ProduceSubmissionView[];
+  /** Segments started but not yet submitted, with time remaining. */
+  starts: ProduceAttemptStartView[];
+  /** Every segment has a submission. */
+  completed: boolean;
+  time_limit_seconds: number;
+}
+
+export interface SubmitProduceResponse {
+  submission: ProduceSubmissionView;
+  completed: boolean;
 }
 
 export interface GrammarData extends GrammarPageData {
@@ -212,6 +325,71 @@ export function useApiService() {
         return fetchAPI<StoryMetadata>(`/stories/${id}/metadata`);
       },
 
+      getStoryIdentify: (id: string): Promise<APIResponse<IdentifyData>> => {
+        return fetchAPI<IdentifyData>(`/stories/${id}/identify`);
+      },
+
+      checkIdentify: (
+        id: string,
+        lineIndex: number,
+        targetVocabId: number,
+        selectedTargetVocabId: number,
+      ): Promise<APIResponse<{ correct: boolean }>> => {
+        return fetchAPI(`/stories/${id}/check-identify`, {
+          method: "POST",
+          body: JSON.stringify({
+            line_index: lineIndex,
+            target_vocab_id: targetVocabId,
+            selected_target_vocab_id: selectedTargetVocabId,
+          }),
+        });
+      },
+
+      getStoryRecall: (id: string): Promise<APIResponse<RecallData>> => {
+        return fetchAPI<RecallData>(`/stories/${id}/recall`);
+      },
+
+      checkRecall: (
+        id: string,
+        orderedSentenceIds: number[],
+      ): Promise<APIResponse<CheckRecallResult>> => {
+        return fetchAPI(`/stories/${id}/check-recall`, {
+          method: "POST",
+          body: JSON.stringify({ ordered_sentence_ids: orderedSentenceIds }),
+        });
+      },
+
+      getStoryProduce: (id: string): Promise<APIResponse<ProduceData>> => {
+        return fetchAPI<ProduceData>(`/stories/${id}/produce`);
+      },
+
+      startProduce: (
+        id: string,
+        segmentId: number,
+      ): Promise<APIResponse<ProduceAttemptStartView>> => {
+        return fetchAPI<ProduceAttemptStartView>(
+          `/stories/${id}/produce/start`,
+          {
+            method: "POST",
+            body: JSON.stringify({ segment_id: segmentId }),
+          },
+        );
+      },
+
+      submitProduce: (
+        id: string,
+        segmentId: number,
+        studentText: string,
+      ): Promise<APIResponse<SubmitProduceResponse>> => {
+        return fetchAPI<SubmitProduceResponse>(`/stories/${id}/produce`, {
+          method: "POST",
+          body: JSON.stringify({
+            segment_id: segmentId,
+            student_text: studentText,
+          }),
+        });
+      },
+
       checkVocab: (
         id: string,
         answers: unknown[],
@@ -308,8 +486,17 @@ export function useApiService() {
         const queryParams = status
           ? `?status=${encodeURIComponent(status)}`
           : "";
-        return fetchAPI(
-          `/admin/courses/${storyId}/student-performance${queryParams}`,
+        return fetchAPI(`/admin/stories/${storyId}/students${queryParams}`);
+      },
+
+      resetStudentProgress: (
+        storyId: string,
+        userId: string,
+        phase: ResetPhase,
+      ): Promise<APIResponse<ResetProgressResult>> => {
+        return fetchAPI<ResetProgressResult>(
+          `/admin/stories/${storyId}/students/${encodeURIComponent(userId)}/progress?phase=${phase}`,
+          { method: "DELETE" },
         );
       },
     }),

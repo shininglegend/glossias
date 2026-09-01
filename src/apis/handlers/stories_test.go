@@ -18,7 +18,7 @@ import (
 func TestGetCourseStories(t *testing.T) {
 	// Initialize Handler with a discard logger
 	logger := slog.New(slog.DiscardHandler)
-	h := NewHandler(logger)
+	h := NewHandler(logger, nil)
 
 	tests := []struct {
 		name           string
@@ -68,13 +68,13 @@ func TestGetCourseStories(t *testing.T) {
 			mockDB := database.NewMockDBTX()
 
 			// Stub permission query: CanUserAccessCourse
-			mockDB.StubQuery("CanUserAccessCourse", [][]interface{}{
+			mockDB.StubQuery("CanUserAccessCourse", [][]any{
 				{tt.stubAccess},
 			}, nil)
 
 			// Stub stories query: GetCourseStoriesWithTitles
 			if tt.stubAccess {
-				mockDB.StubQuery("GetCourseStoriesWithTitles", [][]interface{}{
+				mockDB.StubQuery("GetCourseStoriesWithTitles", [][]any{
 					{int32(1), int32(1), "A", "Story Title 1"},
 				}, nil)
 			}
@@ -96,10 +96,8 @@ func TestGetCourseStories(t *testing.T) {
 				req = req.WithContext(ctx)
 			}
 
-			rr := httptest.NewRecorder()
-
-			// Execute handler
-			h.GetCourseStories(rr, req)
+			// Execute handler. Budget: access check + stories query.
+			rr := assertQueryBudget(t, 2, h.GetCourseStories, req)
 
 			// Assert status code
 			if rr.Code != tt.expectedStatus {

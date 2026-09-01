@@ -102,6 +102,23 @@ export interface NavigationGuidanceResponse {
   displayName: string;
 }
 
+/** Scope of an admin progress reset: the whole story or one phase. */
+export type ResetPhase =
+  | "all"
+  | "video"
+  | "identify"
+  | "translate"
+  | "produce"
+  | "recall"
+  | "vocab"
+  | "grammar";
+
+export interface ResetProgressResult {
+  phase: ResetPhase;
+  /** Rows removed, keyed by table name plus "time_tracking". */
+  deleted: Record<string, number>;
+}
+
 export type PageType =
   | "list"
   | "video"
@@ -116,8 +133,9 @@ export type PageType =
 // TextSegment represents a segment of text in a vocab line
 export interface TextSegment {
   text: string;
-  type: "text" | "blank" | "completed";
+  type: "text" | "blank" | "completed" | "target";
   vocab_key?: string; // For blanks: "lineIndex-vocabIndex"
+  target_vocab_id?: number; // For targets: the target_vocabulary row
 }
 
 // VocabLine represents a story line with vocabulary segments

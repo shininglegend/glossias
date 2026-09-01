@@ -4,10 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"glossias/src/pkg/database"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -19,8 +23,12 @@ import (
 // set it grades with the prompt version active in that database (the one
 // edited on the admin System page); without it, the built-in default.
 //
+// GRADING_LIVE_RUNS=N grades each case N times and checks the median score,
+// so a single sampling outlier near a band edge doesn't fail the suite.
+// Cases run in parallel, so N rounds still take about one round's wall time.
+//
 //	set -a; source .env; set +a
-//	GRADING_LIVE=1 go test ./src/pkg/models/ -run TestGradeProduceLive -v
+//	GRADING_LIVE=1 GRADING_LIVE_RUNS=3 go test ./src/pkg/models/ -run TestGradeProduceLive -v
 func TestGradeProduceLive(t *testing.T) {
 	if os.Getenv("GRADING_LIVE") != "1" {
 		t.Skip("set GRADING_LIVE=1 (and ANTHROPIC_API_KEY) to run live grading samples")
@@ -32,40 +40,74 @@ func TestGradeProduceLive(t *testing.T) {
 
 	samples := loadGradingSamples(t)
 	systemPrompt := liveGradingPrompt(t)
+	runs := liveGradingRuns(t)
 
-	var failures int
+	// Subtests run in parallel, so the summary must wait for them: Cleanup on
+	// the parent fires only after every parallel subtest has finished.
+	var failures atomic.Int32
+	t.Cleanup(func() {
+		t.Logf("%d/%d cases in range (median of %d run(s) each)", len(samples.Cases)-int(failures.Load()), len(samples.Cases), runs)
+	})
+
 	for _, c := range samples.Cases {
 		seg, ok := samples.Segments[c.Segment]
 		if !ok {
 			t.Fatalf("case references unknown segment %q", c.Segment)
 		}
 		t.Run(c.Note, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			grade, _, err := grader.GradeProduce(ctx, ProduceGradeRequest{
-				SystemPrompt:            systemPrompt,
-				ReferenceEnglish:        seg.Reference,
-				HebrewText:              seg.Hebrew,
-				StudentText:             c.Attempt,
-				GrammarPointName:        seg.GrammarPoint,
-				GrammarPointDescription: seg.Description,
-			})
-			if err != nil {
-				t.Fatalf("grade: %v", err)
+			t.Parallel()
+			scores := make([]int, 0, runs)
+			var feedback string
+			for range runs {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				grade, _, err := grader.GradeProduce(ctx, ProduceGradeRequest{
+					SystemPrompt:            systemPrompt,
+					ReferenceEnglish:        seg.Reference,
+					HebrewText:              seg.Hebrew,
+					StudentText:             c.Attempt,
+					GrammarPointName:        seg.GrammarPoint,
+					GrammarPointDescription: seg.Description,
+				})
+				cancel()
+				if err != nil {
+					t.Fatalf("grade: %v", err)
+				}
+				scores = append(scores, grade.Score)
+				feedback = grade.Feedback
 			}
-			inRange := grade.Score >= c.Min && grade.Score <= c.Max
+			slices.Sort(scores)
+			score := scores[len(scores)/2]
+			inRange := score >= c.Min && score <= c.Max
 			mark := "ok  "
 			if !inRange {
 				mark = "MISS"
-				failures++
+				failures.Add(1)
 			}
-			t.Logf("%s score=%3d want %3d–%3d  %q\n      feedback: %s", mark, grade.Score, c.Min, c.Max, c.Attempt, grade.Feedback)
+			detail := ""
+			if runs > 1 {
+				detail = fmt.Sprintf(" (runs: %v)", scores)
+			}
+			t.Logf("%s score=%3d want %3d–%3d%s  %q\n      feedback: %s", mark, score, c.Min, c.Max, detail, c.Attempt, feedback)
 			if !inRange {
-				t.Errorf("score %d outside %d–%d", grade.Score, c.Min, c.Max)
+				t.Errorf("median score %d outside %d–%d", score, c.Min, c.Max)
 			}
 		})
 	}
-	t.Logf("%d/%d cases in range", len(samples.Cases)-failures, len(samples.Cases))
+}
+
+// liveGradingRuns reads GRADING_LIVE_RUNS: how many times to grade each case
+// (the median score is checked). Defaults to 1.
+func liveGradingRuns(t *testing.T) int {
+	t.Helper()
+	v := strings.TrimSpace(os.Getenv("GRADING_LIVE_RUNS"))
+	if v == "" {
+		return 1
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 1 {
+		t.Fatalf("GRADING_LIVE_RUNS must be a positive integer, got %q", v)
+	}
+	return n
 }
 
 // liveGradingPrompt returns the system prompt the live run should use: the

@@ -489,6 +489,15 @@ export function useApiService() {
         return fetchAPI(`/admin/stories/${storyId}/students${queryParams}`);
       },
 
+      getStudentStoryDrilldown: (
+        storyId: string,
+        userId: string,
+      ): Promise<APIResponse<unknown>> => {
+        return fetchAPI(
+          `/admin/stories/${storyId}/students/${encodeURIComponent(userId)}`,
+        );
+      },
+
       resetStudentProgress: (
         storyId: string,
         userId: string,

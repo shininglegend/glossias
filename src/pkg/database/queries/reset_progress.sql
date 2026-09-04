@@ -39,10 +39,10 @@ DELETE FROM recall_incorrect_answers WHERE user_id = $1 AND story_id = $2;
 -- name: DeleteUserStoryTimeTracking :execrows
 DELETE FROM user_time_tracking WHERE user_id = $1 AND story_id = $2;
 
--- Route patterns mirror the CASE WHEN buckets in GetStoryStudentPerformance
--- (scores.sql) so what the admin sees zeroed matches what was deleted.
--- name: DeleteUserStoryTimeTrackingByRoute :execrows
-DELETE FROM user_time_tracking WHERE user_id = $1 AND story_id = $2 AND route LIKE $3;
+-- phase is the same value GetStoryStudentPerformance (scores.sql) buckets time
+-- under, so what the admin sees zeroed matches what was deleted.
+-- name: DeleteUserStoryTimeTrackingByPhase :execrows
+DELETE FROM user_time_tracking WHERE user_id = $1 AND story_id = $2 AND phase = $3;
 
 -- Whole-story reset in one round trip: clears every answer/submission table.
 -- Time rows are deleted separately by DeleteUserStoryTimeTracking.

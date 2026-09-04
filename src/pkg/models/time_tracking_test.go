@@ -104,6 +104,30 @@ func TestTimeTrackingSession_Expiration(t *testing.T) {
 	}
 }
 
+func TestPhaseFromRoute(t *testing.T) {
+	cases := []struct {
+		route, want string
+	}{
+		{"/stories/12/identify", "identify"},
+		{"/stories/12/translate", "translate"},
+		{"/stories/12/produce", "produce"},
+		{"/stories/12/recall", "recall"},
+		{"/stories/12/video", "video"},
+		{"/stories/12/audio", "video"}, // legacy route name, same phase bucket
+		{"/stories/12/vocab", "vocab"},
+		{"/stories/12/grammar", "grammar"},
+		{"/stories/12/score", ""},
+		{"/stories/12", ""},
+		{"/stories", ""},
+		{"/admin/courses/3/students", ""},
+	}
+	for _, c := range cases {
+		if got := PhaseFromRoute(c.route); got != c.want {
+			t.Errorf("PhaseFromRoute(%q) = %q, want %q", c.route, got, c.want)
+		}
+	}
+}
+
 func TestRecordTimeTracking_Accumulate(t *testing.T) {
 	mockDB := database.NewMockDBTX()
 
@@ -135,7 +159,7 @@ func TestRecordTimeTracking_Create(t *testing.T) {
 	// Stub FindRecentSimilarTimeEntry to return no rows (not found)
 	mockDB.StubQuery("FindRecentSimilarTimeEntry", nil, pgx.ErrNoRows)
 	// Stub CreateCompleteTimeEntry to return a mocked UserTimeTracking record
-	// CreateCompleteTimeEntry scans returns UserTimeTracking: TrackingID, UserID, Route, StoryID, StartedAt, EndedAt, TotalTimeSeconds, CreatedAt
+	// CreateCompleteTimeEntry scans returns UserTimeTracking: TrackingID, UserID, Route, StoryID, StartedAt, EndedAt, TotalTimeSeconds, CreatedAt, Phase
 	mockRow := []any{
 		int32(789),                         // TrackingID
 		"user-123",                         // UserID
@@ -145,6 +169,7 @@ func TestRecordTimeTracking_Create(t *testing.T) {
 		pgtype.Timestamp{Valid: false},     // EndedAt
 		pgtype.Int4{Int32: 3, Valid: true}, // TotalTimeSeconds
 		pgtype.Timestamp{Valid: false},     // CreatedAt
+		pgtype.Text{Valid: false},          // Phase
 	}
 	mockDB.StubQuery("CreateCompleteTimeEntry", [][]any{mockRow}, nil)
 

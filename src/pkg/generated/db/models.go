@@ -308,6 +308,7 @@ type UserTimeTracking struct {
 	EndedAt          pgtype.Timestamp `json:"ended_at"`
 	TotalTimeSeconds pgtype.Int4      `json:"total_time_seconds"`
 	CreatedAt        pgtype.Timestamp `json:"created_at"`
+	Phase            pgtype.Text      `json:"phase"`
 }
 
 type VocabCorrectAnswer struct {

@@ -100,14 +100,15 @@ func (q *Queries) CreateAnonymousTimeEntry(ctx context.Context, arg CreateAnonym
 }
 
 const createCompleteTimeEntry = `-- name: CreateCompleteTimeEntry :one
-INSERT INTO user_time_tracking (user_id, route, story_id, started_at, ended_at, total_time_seconds)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at
+INSERT INTO user_time_tracking (user_id, route, phase, story_id, started_at, ended_at, total_time_seconds)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at, phase
 `
 
 type CreateCompleteTimeEntryParams struct {
 	UserID           string           `json:"user_id"`
 	Route            string           `json:"route"`
+	Phase            pgtype.Text      `json:"phase"`
 	StoryID          pgtype.Int4      `json:"story_id"`
 	StartedAt        pgtype.Timestamp `json:"started_at"`
 	EndedAt          pgtype.Timestamp `json:"ended_at"`
@@ -118,6 +119,7 @@ func (q *Queries) CreateCompleteTimeEntry(ctx context.Context, arg CreateComplet
 	row := q.db.QueryRow(ctx, createCompleteTimeEntry,
 		arg.UserID,
 		arg.Route,
+		arg.Phase,
 		arg.StoryID,
 		arg.StartedAt,
 		arg.EndedAt,
@@ -133,29 +135,35 @@ func (q *Queries) CreateCompleteTimeEntry(ctx context.Context, arg CreateComplet
 		&i.EndedAt,
 		&i.TotalTimeSeconds,
 		&i.CreatedAt,
+		&i.Phase,
 	)
 	return i, err
 }
 
 const createTimeEntry = `-- name: CreateTimeEntry :one
 
-INSERT INTO user_time_tracking (user_id, route, story_id, started_at)
-VALUES ($1, $2, $3, $4)
-RETURNING tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at
+
+INSERT INTO user_time_tracking (user_id, route, phase, story_id, started_at)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at, phase
 `
 
 type CreateTimeEntryParams struct {
 	UserID    string           `json:"user_id"`
 	Route     string           `json:"route"`
+	Phase     pgtype.Text      `json:"phase"`
 	StoryID   pgtype.Int4      `json:"story_id"`
 	StartedAt pgtype.Timestamp `json:"started_at"`
 }
 
 // Time tracking queries
+// phase is derived from the route at write time (models.PhaseFromRoute); the
+// per-phase buckets below match on it instead of route LIKE patterns.
 func (q *Queries) CreateTimeEntry(ctx context.Context, arg CreateTimeEntryParams) (UserTimeTracking, error) {
 	row := q.db.QueryRow(ctx, createTimeEntry,
 		arg.UserID,
 		arg.Route,
+		arg.Phase,
 		arg.StoryID,
 		arg.StartedAt,
 	)
@@ -169,6 +177,7 @@ func (q *Queries) CreateTimeEntry(ctx context.Context, arg CreateTimeEntryParams
 		&i.EndedAt,
 		&i.TotalTimeSeconds,
 		&i.CreatedAt,
+		&i.Phase,
 	)
 	return i, err
 }
@@ -249,7 +258,7 @@ func (q *Queries) GetActiveAnonymousTimeEntry(ctx context.Context, arg GetActive
 }
 
 const getActiveTimeEntry = `-- name: GetActiveTimeEntry :one
-SELECT tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at
+SELECT tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at, phase
 FROM user_time_tracking
 WHERE user_id = $1 AND route = $2 AND story_id IS NOT DISTINCT FROM $3 AND ended_at IS NULL
 ORDER BY started_at DESC
@@ -274,6 +283,7 @@ func (q *Queries) GetActiveTimeEntry(ctx context.Context, arg GetActiveTimeEntry
 		&i.EndedAt,
 		&i.TotalTimeSeconds,
 		&i.CreatedAt,
+		&i.Phase,
 	)
 	return i, err
 }
@@ -301,7 +311,7 @@ func (q *Queries) GetAnonymousTimeEntryByID(ctx context.Context, trackingID int3
 }
 
 const getRecentTimeEntriesForUser = `-- name: GetRecentTimeEntriesForUser :many
-SELECT tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at
+SELECT tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at, phase
 FROM user_time_tracking
 WHERE user_id = $1 AND created_at >= $2
 ORDER BY created_at DESC
@@ -330,6 +340,7 @@ func (q *Queries) GetRecentTimeEntriesForUser(ctx context.Context, arg GetRecent
 			&i.EndedAt,
 			&i.TotalTimeSeconds,
 			&i.CreatedAt,
+			&i.Phase,
 		); err != nil {
 			return nil, err
 		}
@@ -342,7 +353,7 @@ func (q *Queries) GetRecentTimeEntriesForUser(ctx context.Context, arg GetRecent
 }
 
 const getTimeEntriesForStory = `-- name: GetTimeEntriesForStory :many
-SELECT tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at
+SELECT tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at, phase
 FROM user_time_tracking
 WHERE story_id = $1
 ORDER BY started_at DESC
@@ -366,6 +377,7 @@ func (q *Queries) GetTimeEntriesForStory(ctx context.Context, storyID pgtype.Int
 			&i.EndedAt,
 			&i.TotalTimeSeconds,
 			&i.CreatedAt,
+			&i.Phase,
 		); err != nil {
 			return nil, err
 		}
@@ -378,7 +390,7 @@ func (q *Queries) GetTimeEntriesForStory(ctx context.Context, storyID pgtype.Int
 }
 
 const getTimeEntriesForUser = `-- name: GetTimeEntriesForUser :many
-SELECT tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at
+SELECT tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at, phase
 FROM user_time_tracking
 WHERE user_id = $1
 ORDER BY started_at DESC
@@ -402,6 +414,7 @@ func (q *Queries) GetTimeEntriesForUser(ctx context.Context, userID string) ([]U
 			&i.EndedAt,
 			&i.TotalTimeSeconds,
 			&i.CreatedAt,
+			&i.Phase,
 		); err != nil {
 			return nil, err
 		}
@@ -414,7 +427,7 @@ func (q *Queries) GetTimeEntriesForUser(ctx context.Context, userID string) ([]U
 }
 
 const getTimeEntryByID = `-- name: GetTimeEntryByID :one
-SELECT tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at
+SELECT tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at, phase
 FROM user_time_tracking
 WHERE tracking_id = $1
 `
@@ -431,19 +444,20 @@ func (q *Queries) GetTimeEntryByID(ctx context.Context, trackingID int32) (UserT
 		&i.EndedAt,
 		&i.TotalTimeSeconds,
 		&i.CreatedAt,
+		&i.Phase,
 	)
 	return i, err
 }
 
 const getUserStoryTimeTracking = `-- name: GetUserStoryTimeTracking :one
 SELECT
-    COALESCE(SUM(CASE WHEN route LIKE '%vocab%' THEN total_time_seconds END), 0) as vocab_time_seconds,
-    COALESCE(SUM(CASE WHEN route LIKE '%grammar%' THEN total_time_seconds END), 0) as grammar_time_seconds,
-    COALESCE(SUM(CASE WHEN route LIKE '%translate%' THEN total_time_seconds END), 0) as translation_time_seconds,
-    COALESCE(SUM(CASE WHEN route LIKE '%audio%' OR route LIKE '%video%' THEN total_time_seconds END), 0) as video_time_seconds,
-    COALESCE(SUM(CASE WHEN route LIKE '%identify%' THEN total_time_seconds END), 0) as identify_time_seconds,
-    COALESCE(SUM(CASE WHEN route LIKE '%produce%' THEN total_time_seconds END), 0) as produce_time_seconds,
-    COALESCE(SUM(CASE WHEN route LIKE '%recall%' THEN total_time_seconds END), 0) as recall_time_seconds
+    COALESCE(SUM(CASE WHEN phase = 'vocab' THEN total_time_seconds END), 0) as vocab_time_seconds,
+    COALESCE(SUM(CASE WHEN phase = 'grammar' THEN total_time_seconds END), 0) as grammar_time_seconds,
+    COALESCE(SUM(CASE WHEN phase = 'translate' THEN total_time_seconds END), 0) as translation_time_seconds,
+    COALESCE(SUM(CASE WHEN phase = 'video' THEN total_time_seconds END), 0) as video_time_seconds,
+    COALESCE(SUM(CASE WHEN phase = 'identify' THEN total_time_seconds END), 0) as identify_time_seconds,
+    COALESCE(SUM(CASE WHEN phase = 'produce' THEN total_time_seconds END), 0) as produce_time_seconds,
+    COALESCE(SUM(CASE WHEN phase = 'recall' THEN total_time_seconds END), 0) as recall_time_seconds
 FROM user_time_tracking
 WHERE user_id = $1 AND story_id = $2 AND ended_at IS NOT NULL
 `
@@ -511,7 +525,7 @@ const updateTimeEntry = `-- name: UpdateTimeEntry :one
 UPDATE user_time_tracking
 SET ended_at = $2, total_time_seconds = $3
 WHERE tracking_id = $1
-RETURNING tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at
+RETURNING tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at, phase
 `
 
 type UpdateTimeEntryParams struct {
@@ -532,6 +546,7 @@ func (q *Queries) UpdateTimeEntry(ctx context.Context, arg UpdateTimeEntryParams
 		&i.EndedAt,
 		&i.TotalTimeSeconds,
 		&i.CreatedAt,
+		&i.Phase,
 	)
 	return i, err
 }
@@ -555,18 +570,19 @@ func (q *Queries) UpdateTimeEntryIfBigger(ctx context.Context, arg UpdateTimeEnt
 }
 
 const upsertTimeEntry = `-- name: UpsertTimeEntry :one
-INSERT INTO user_time_tracking (user_id, route, story_id, started_at, ended_at, total_time_seconds)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO user_time_tracking (user_id, route, phase, story_id, started_at, ended_at, total_time_seconds)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (tracking_id)
 DO UPDATE SET
     total_time_seconds = GREATEST(user_time_tracking.total_time_seconds, EXCLUDED.total_time_seconds),
     ended_at = EXCLUDED.ended_at
-RETURNING tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at
+RETURNING tracking_id, user_id, route, story_id, started_at, ended_at, total_time_seconds, created_at, phase
 `
 
 type UpsertTimeEntryParams struct {
 	UserID           string           `json:"user_id"`
 	Route            string           `json:"route"`
+	Phase            pgtype.Text      `json:"phase"`
 	StoryID          pgtype.Int4      `json:"story_id"`
 	StartedAt        pgtype.Timestamp `json:"started_at"`
 	EndedAt          pgtype.Timestamp `json:"ended_at"`
@@ -577,6 +593,7 @@ func (q *Queries) UpsertTimeEntry(ctx context.Context, arg UpsertTimeEntryParams
 	row := q.db.QueryRow(ctx, upsertTimeEntry,
 		arg.UserID,
 		arg.Route,
+		arg.Phase,
 		arg.StoryID,
 		arg.StartedAt,
 		arg.EndedAt,
@@ -592,6 +609,7 @@ func (q *Queries) UpsertTimeEntry(ctx context.Context, arg UpsertTimeEntryParams
 		&i.EndedAt,
 		&i.TotalTimeSeconds,
 		&i.CreatedAt,
+		&i.Phase,
 	)
 	return i, err
 }

@@ -105,6 +105,85 @@ func TestResetStudentProgressHandler(t *testing.T) {
 	}
 }
 
+func TestStoryStudentDrilldownHandler(t *testing.T) {
+	h := NewHandler(slog.New(slog.DiscardHandler))
+
+	tests := []struct {
+		name           string
+		authUserID     string
+		hasAuth        bool
+		courseAdmin    bool
+		studentFound   bool
+		expectedStatus int
+		queryBudget    int
+	}{
+		{name: "happy path", authUserID: "admin-1", hasAuth: true, courseAdmin: true, studentFound: true, expectedStatus: http.StatusOK, queryBudget: 10},
+		{name: "student not found", authUserID: "admin-1", hasAuth: true, courseAdmin: true, studentFound: false, expectedStatus: http.StatusNotFound, queryBudget: 4},
+		{name: "unauthorized without user", hasAuth: false, expectedStatus: http.StatusUnauthorized, queryBudget: 0},
+		{name: "unauthorized non-admin", authUserID: "student-1", hasAuth: true, courseAdmin: false, expectedStatus: http.StatusUnauthorized, queryBudget: 3},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDB := database.NewMockDBTX()
+			mockDB.StubQuery("GetCourseIdForStory", [][]any{{pgtype.Int4{Int32: 3, Valid: true}}}, nil)
+			mockDB.StubQuery("IsUserCourseAdmin", [][]any{{tt.courseAdmin}}, nil)
+			if tt.studentFound {
+				mockDB.StubQuery("GetStudentStoryHeader", [][]any{{"student-9", "Student Nine", "nine@example.com", "A Story"}}, nil)
+			}
+			// GetUserStoryTimeTracking sums come back as interface{} columns.
+			mockDB.StubQuery("GetUserStoryTimeTracking", [][]any{{
+				int64(10), int64(20), int64(30), int64(40), int64(50), int64(60), int64(70),
+			}}, nil)
+			// The answer-log, translation and produce queries stay unstubbed:
+			// list queries scan zero rows and GetTranslationRequest returns
+			// ErrNoRows, which the model treats as "phase never started".
+			models.SetDB(mockDB)
+			defer models.SetDB(struct{}{})
+
+			req := httptest.NewRequest(http.MethodGet, "/api/admin/stories/7/students/student-9", nil)
+			req = mux.SetURLVars(req, map[string]string{"id": "7", "userId": "student-9"})
+			if tt.hasAuth {
+				req = req.WithContext(context.WithValue(req.Context(), auth.UserIDKey, tt.authUserID))
+			}
+
+			rr := assertQueryBudget(t, tt.queryBudget, h.storyStudentDrilldownHandler, req)
+
+			if rr.Code != tt.expectedStatus {
+				t.Fatalf("status = %d, want %d; body: %s", rr.Code, tt.expectedStatus, rr.Body.String())
+			}
+			if tt.expectedStatus != http.StatusOK {
+				return
+			}
+
+			var resp types.APIResponse
+			if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			if !resp.Success {
+				t.Errorf("expected success=true")
+			}
+			data, _ := resp.Data.(map[string]any)
+			if data["user_id"] != "student-9" || data["story_title"] != "A Story" {
+				t.Errorf("unexpected header fields: %v", data)
+			}
+			for _, key := range []string{"identify_answers", "translate", "produce_segments", "recall_attempts", "time"} {
+				if _, ok := data[key]; !ok {
+					t.Errorf("missing %q in response: %v", key, data)
+				}
+			}
+			translate, _ := data["translate"].(map[string]any)
+			if translate["started"] != false {
+				t.Errorf("expected translate.started=false for a fresh student, got %v", translate)
+			}
+			timeData, _ := data["time"].(map[string]any)
+			if timeData["identify_seconds"] != float64(50) {
+				t.Errorf("identify_seconds = %v, want 50", timeData["identify_seconds"])
+			}
+		})
+	}
+}
+
 func TestStudentRoutesResolve(t *testing.T) {
 	h := NewHandler(slog.New(slog.DiscardHandler))
 	router := mux.NewRouter()
@@ -114,6 +193,7 @@ func TestStudentRoutesResolve(t *testing.T) {
 		method, path, wantTemplate string
 	}{
 		{http.MethodGet, "/api/admin/stories/7/students", "/api/admin/stories/{id:[0-9]+}/students"},
+		{http.MethodGet, "/api/admin/stories/7/students/user_abc", "/api/admin/stories/{id:[0-9]+}/students/{userId}"},
 		{http.MethodDelete, "/api/admin/stories/7/students/user_abc/progress", "/api/admin/stories/{id:[0-9]+}/students/{userId}/progress"},
 	}
 	for _, c := range cases {

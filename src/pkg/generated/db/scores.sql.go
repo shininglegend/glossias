@@ -257,13 +257,13 @@ WITH vocab_c AS (
     WHERE story_id = $1
 ), time_stats AS (
     SELECT user_id,
-        COALESCE(SUM(CASE WHEN route LIKE '%vocab%' THEN total_time_seconds END), 0)::INT AS vocab_time_seconds,
-        COALESCE(SUM(CASE WHEN route LIKE '%grammar%' THEN total_time_seconds END), 0)::INT AS grammar_time_seconds,
-        COALESCE(SUM(CASE WHEN route LIKE '%translate%' THEN total_time_seconds END), 0)::INT AS translation_time_seconds,
-        COALESCE(SUM(CASE WHEN route LIKE '%audio%' OR route LIKE '%video%' THEN total_time_seconds END), 0)::INT AS video_time_seconds,
-        COALESCE(SUM(CASE WHEN route LIKE '%identify%' THEN total_time_seconds END), 0)::INT AS identify_time_seconds,
-        COALESCE(SUM(CASE WHEN route LIKE '%produce%' THEN total_time_seconds END), 0)::INT AS produce_time_seconds,
-        COALESCE(SUM(CASE WHEN route LIKE '%recall%' THEN total_time_seconds END), 0)::INT AS recall_time_seconds,
+        COALESCE(SUM(CASE WHEN phase = 'vocab' THEN total_time_seconds END), 0)::INT AS vocab_time_seconds,
+        COALESCE(SUM(CASE WHEN phase = 'grammar' THEN total_time_seconds END), 0)::INT AS grammar_time_seconds,
+        COALESCE(SUM(CASE WHEN phase = 'translate' THEN total_time_seconds END), 0)::INT AS translation_time_seconds,
+        COALESCE(SUM(CASE WHEN phase = 'video' THEN total_time_seconds END), 0)::INT AS video_time_seconds,
+        COALESCE(SUM(CASE WHEN phase = 'identify' THEN total_time_seconds END), 0)::INT AS identify_time_seconds,
+        COALESCE(SUM(CASE WHEN phase = 'produce' THEN total_time_seconds END), 0)::INT AS produce_time_seconds,
+        COALESCE(SUM(CASE WHEN phase = 'recall' THEN total_time_seconds END), 0)::INT AS recall_time_seconds,
         COALESCE(SUM(total_time_seconds), 0)::INT AS total_time_seconds
     FROM user_time_tracking
     WHERE story_id = $1 AND ended_at IS NOT NULL

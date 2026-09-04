@@ -55,6 +55,8 @@ type Querier interface {
 	CreateStoryImage(ctx context.Context, arg CreateStoryImageParams) (StoryImage, error)
 	CreateTargetVocabulary(ctx context.Context, arg CreateTargetVocabularyParams) (CreateTargetVocabularyRow, error)
 	// Time tracking queries
+	// phase is derived from the route at write time (models.PhaseFromRoute); the
+	// per-phase buckets below match on it instead of route LIKE patterns.
 	CreateTimeEntry(ctx context.Context, arg CreateTimeEntryParams) (UserTimeTracking, error)
 	// Translation requests management queries
 	CreateTranslationRequest(ctx context.Context, arg CreateTranslationRequestParams) (CreateTranslationRequestRow, error)
@@ -110,9 +112,9 @@ type Querier interface {
 	DeleteUserStoryRecallCorrect(ctx context.Context, arg DeleteUserStoryRecallCorrectParams) (int64, error)
 	DeleteUserStoryRecallIncorrect(ctx context.Context, arg DeleteUserStoryRecallIncorrectParams) (int64, error)
 	DeleteUserStoryTimeTracking(ctx context.Context, arg DeleteUserStoryTimeTrackingParams) (int64, error)
-	// Route patterns mirror the CASE WHEN buckets in GetStoryStudentPerformance
-	// (scores.sql) so what the admin sees zeroed matches what was deleted.
-	DeleteUserStoryTimeTrackingByRoute(ctx context.Context, arg DeleteUserStoryTimeTrackingByRouteParams) (int64, error)
+	// phase is the same value GetStoryStudentPerformance (scores.sql) buckets time
+	// under, so what the admin sees zeroed matches what was deleted.
+	DeleteUserStoryTimeTrackingByPhase(ctx context.Context, arg DeleteUserStoryTimeTrackingByPhaseParams) (int64, error)
 	DeleteUserStoryTranslationRequest(ctx context.Context, arg DeleteUserStoryTranslationRequestParams) (int64, error)
 	// Per-student per-story progress resets. Every table here carries user_id and
 	// story_id directly, so a reset is a plain two-column delete. Phase completion
@@ -216,6 +218,10 @@ type Querier interface {
 	GetStoryTranslationRequests(ctx context.Context, storyID int32) ([]GetStoryTranslationRequestsRow, error)
 	GetStoryVocabScores(ctx context.Context, storyID int32) ([]GetStoryVocabScoresRow, error)
 	GetStoryWithDescription(ctx context.Context, storyID int32) (GetStoryWithDescriptionRow, error)
+	// Per-student drill-down (T16): the actual answers and submissions behind one
+	// row of the admin performance table — one student on one story. Read-only,
+	// served by GET /api/admin/stories/{id}/students/{userId}.
+	GetStudentStoryHeader(ctx context.Context, arg GetStudentStoryHeaderParams) (GetStudentStoryHeaderRow, error)
 	GetTargetVocabulary(ctx context.Context, id int32) (GetTargetVocabularyRow, error)
 	// GetTargetVocabularyOccurrences returns every place a target word appears in
 	// the story text, by joining vocabulary_items on lexical_form. The Identify
@@ -242,6 +248,9 @@ type Querier interface {
 	GetUserLatestVocabScoresByLine(ctx context.Context, arg GetUserLatestVocabScoresByLineParams) ([]GetUserLatestVocabScoresByLineRow, error)
 	GetUserRecallCorrectAnswers(ctx context.Context, arg GetUserRecallCorrectAnswersParams) ([]GetUserRecallCorrectAnswersRow, error)
 	GetUserStoryGrammarSummary(ctx context.Context, arg GetUserStoryGrammarSummaryParams) (GetUserStoryGrammarSummaryRow, error)
+	// Every Identify pick, correct and incorrect, in the order the student made
+	// them. selected_word is empty on correct rows (the pick was the target).
+	GetUserStoryIdentifyAnswerLog(ctx context.Context, arg GetUserStoryIdentifyAnswerLogParams) ([]GetUserStoryIdentifyAnswerLogRow, error)
 	GetUserStoryIdentifySummary(ctx context.Context, arg GetUserStoryIdentifySummaryParams) (GetUserStoryIdentifySummaryRow, error)
 	// Navigation queries: everything the "next page" decision needs in one round trip.
 	// GetUserStoryPageCompletion returns, for one user and story, the authored total
@@ -252,10 +261,16 @@ type Querier interface {
 	// Elapsed time is computed in the database so it never depends on the app
 	// server and database clocks agreeing.
 	GetUserStoryProduceAttemptStarts(ctx context.Context, arg GetUserStoryProduceAttemptStartsParams) ([]GetUserStoryProduceAttemptStartsRow, error)
+	// Every Produce submission (not just the latest per segment, which is what the
+	// performance table scores on), oldest first within each segment.
+	GetUserStoryProduceSubmissionHistory(ctx context.Context, arg GetUserStoryProduceSubmissionHistoryParams) ([]GetUserStoryProduceSubmissionHistoryRow, error)
 	// GetUserStoryProduceSubmissions returns the latest submission per segment,
 	// which is what the Score page reports on.
 	GetUserStoryProduceSubmissions(ctx context.Context, arg GetUserStoryProduceSubmissionsParams) ([]GetUserStoryProduceSubmissionsRow, error)
 	GetUserStoryProduceSummary(ctx context.Context, arg GetUserStoryProduceSummaryParams) (GetUserStoryProduceSummaryRow, error)
+	// Every Recall placement across all attempts. Correct rows placed the sentence
+	// at its own sequence_order; the model layer groups rows back into attempts.
+	GetUserStoryRecallAnswerLog(ctx context.Context, arg GetUserStoryRecallAnswerLogParams) ([]GetUserStoryRecallAnswerLogRow, error)
 	GetUserStoryRecallSummary(ctx context.Context, arg GetUserStoryRecallSummaryParams) (GetUserStoryRecallSummaryRow, error)
 	// GetUserStoryScoreSummary: every per-user answer count the score page needs in
 	// one round trip. Produce aggregates the latest submission per segment, like

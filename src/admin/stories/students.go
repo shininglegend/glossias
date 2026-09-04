@@ -40,6 +40,38 @@ func (h *Handler) storyStudentsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(types.APIResponse{Success: true, Data: performanceData})
 }
 
+// storyStudentDrilldownHandler serves GET /api/admin/stories/{id}/students/{userId}:
+// the actual answers and submissions behind one row of the performance table —
+// every Identify pick, the requested translation lines, every Produce
+// submission with its AI score and feedback, every Recall ordering attempt,
+// and the per-phase time.
+func (h *Handler) storyStudentDrilldownHandler(w http.ResponseWriter, r *http.Request) {
+	storyID, ok := h.authorizeStoryEdit(w, r)
+	if !ok {
+		return
+	}
+
+	studentID := mux.Vars(r)["userId"]
+	if studentID == "" {
+		writeJSONError(w, "Missing student ID", http.StatusBadRequest)
+		return
+	}
+
+	drilldown, err := models.GetStudentStoryDrilldown(r.Context(), int32(storyID), studentID)
+	if err != nil {
+		if errors.Is(err, models.ErrNotFound) {
+			writeJSONError(w, "Student not found", http.StatusNotFound)
+			return
+		}
+		h.log.Error("Failed to build student drill-down", "error", err, "storyID", storyID, "studentID", studentID)
+		writeJSONError(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(types.APIResponse{Success: true, Data: drilldown})
+}
+
 // resetStudentProgressHandler serves
 // DELETE /api/admin/stories/{id}/students/{userId}/progress?phase=all|video|identify|translate|produce|recall|vocab|grammar
 // and wipes that student's answers, submissions and time rows for the story

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { useApiService } from "../services/api";
 import type { ResetPhase, Story } from "../types/api";
 import Button from "./ui/Button";
@@ -506,9 +506,13 @@ export function CourseStudentPerformance() {
                     <tr key={student.user_id} className="hover:bg-gray-50">
                       <td className="border border-gray-300 p-3">
                         <div>
-                          <div className="font-semibold">
-                            {student.user_name}
-                          </div>
+                          <Link
+                            to={`/admin/stories/${selectedStoryId}/students/${encodeURIComponent(student.user_id)}`}
+                            className="font-semibold text-primary-600 hover:underline"
+                            title="View this student's answers and submissions"
+                          >
+                            {student.user_name || student.email}
+                          </Link>
                           <div className="text-sm text-gray-600">
                             {student.email}
                           </div>

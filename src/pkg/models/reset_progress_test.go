@@ -72,8 +72,11 @@ func TestPhaseSpecsCoverEveryPhase(t *testing.T) {
 			t.Errorf("phase %q has no spec", p)
 			continue
 		}
-		if len(spec.routePatterns) == 0 {
-			t.Errorf("phase %q has no time-tracking route patterns", p)
+		if spec.timePhase == "" {
+			t.Errorf("phase %q has no time-tracking phase", p)
+		}
+		if got := PhaseFromRoute("/stories/7/" + spec.timePhase); got != spec.timePhase {
+			t.Errorf("PhaseFromRoute does not produce %q for its own route (got %q), so reset would miss the time rows", spec.timePhase, got)
 		}
 	}
 }

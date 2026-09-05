@@ -3,7 +3,9 @@ import Button from "~/components/ui/Button";
 import Label from "~/components/ui/Label";
 import Textarea from "~/components/ui/Textarea";
 import { Card, CardContent } from "~/components/ui/Card";
+import ConfirmDialog from "~/components/ui/ConfirmDialog";
 import { useUnsavedChangesGuard } from "../../hooks/useUnsavedChangesGuard";
+import { wouldOverrideEdit } from "../../lib/produceRange";
 import { useAdminApi } from "../../services/adminApi";
 import { usePhaseAssetUploader } from "../../lib/phaseAssets";
 import ReadinessPanel from "./ReadinessPanel";
@@ -192,6 +194,7 @@ function RecallSentenceCard({
   const [saving, setSaving] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [pendingPick, setPendingPick] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   // Re-sync when a reload brings different content for this slot.
@@ -308,7 +311,26 @@ function RecallSentenceCard({
               sentences={storySentences}
               usedByPosition={usedByPosition}
               currentOrder={order}
-              onPick={setHebrewText}
+              onPick={(text) => {
+                if (wouldOverrideEdit(hebrewText, "", text)) {
+                  setPendingPick(text);
+                  return;
+                }
+                setHebrewText(text);
+              }}
+            />
+            <ConfirmDialog
+              isOpen={pendingPick !== null}
+              onClose={() => setPendingPick(null)}
+              onConfirm={() => {
+                if (pendingPick !== null) setHebrewText(pendingPick);
+                setPendingPick(null);
+              }}
+              variant="warning"
+              title="Replace edited text?"
+              message="The selected sentences don't match the Hebrew sentence. Replace it?"
+              confirmText="Replace"
+              cancelText="Keep edits"
             />
             <Textarea
               value={hebrewText}

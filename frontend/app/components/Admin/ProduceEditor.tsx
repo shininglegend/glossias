@@ -3,7 +3,14 @@ import Button from "~/components/ui/Button";
 import Label from "~/components/ui/Label";
 import Textarea from "~/components/ui/Textarea";
 import { Card, CardContent } from "~/components/ui/Card";
+import ConfirmDialog from "~/components/ui/ConfirmDialog";
 import { useAdminApi } from "../../services/adminApi";
+import {
+  adoptRangeText,
+  englishForRange,
+  hebrewForRange,
+  wouldOverrideEdit,
+} from "../../lib/produceRange";
 import ReadinessPanel from "./ReadinessPanel";
 import type { ProducePage, GrammarPoint, StoryLine } from "../../types/admin";
 
@@ -202,35 +209,6 @@ function lineLabel(line: StoryLine): string {
   return `${line.lineNumber}. ${text}`;
 }
 
-/** Joins a story's Hebrew text for lines start..end (inclusive). */
-function hebrewForRange(
-  storyLines: StoryLine[],
-  start: number,
-  end: number,
-): string {
-  return storyLines
-    .filter((l) => l.lineNumber >= start && l.lineNumber <= end)
-    .map((l) => l.text)
-    .join("\n");
-}
-
-/**
- * Joins the English translations for lines start..end. Lines with no stored
- * translation are skipped rather than left as gaps.
- */
-function englishForRange(
-  translations: Map<number, string>,
-  start: number,
-  end: number,
-): string {
-  const parts: string[] = [];
-  for (let n = start; n <= end; n++) {
-    const t = translations.get(n);
-    if (t) parts.push(t);
-  }
-  return parts.join("\n");
-}
-
 function SegmentCard({
   storyId,
   order,
@@ -248,8 +226,7 @@ function SegmentCard({
   const [grammarPointId, setGrammarPointId] = React.useState<number | "">(
     segment?.grammarPointId ?? "",
   );
-  // The line range picker: what the author is currently choosing, which may
-  // differ from the segment's saved range until "Replace" is clicked.
+  // Picker values may differ from the saved range until Save.
   const [lineStart, setLineStart] = React.useState<number | "">(
     segment?.lineStart ?? "",
   );
@@ -258,6 +235,10 @@ function SegmentCard({
   );
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [pendingOverride, setPendingOverride] = React.useState<{
+    next: { hebrew: string; english: string };
+    prev: { hebrew: string; english: string };
+  } | null>(null);
 
   // Re-sync when a reload brings different content for this slot.
   React.useEffect(() => {
@@ -296,32 +277,54 @@ function SegmentCard({
     hebrewText.trim() !== "" &&
     !chosenLine.text.includes(hebrewText.trim());
 
-  // Replace: (re)derive the Hebrew passage and reference English from the
-  // range currently picked above, discarding whatever was there before.
-  const replace = () => {
-    if (!storyLines || !rangeValid) return;
-    setHebrewText(hebrewForRange(storyLines, lineStart, lineEnd));
+  const generatedFor = (start: number | "", end: number | "") => {
+    if (!storyLines || start === "" || end === "" || start > end) {
+      return { hebrew: "", english: "" };
+    }
+    return {
+      hebrew: hebrewForRange(storyLines, start, end),
+      english: translations ? englishForRange(translations, start, end) : "",
+    };
+  };
+
+  const applyGenerated = (
+    next: { hebrew: string; english: string },
+    prev: { hebrew: string; english: string },
+    force: boolean,
+  ) => {
+    setHebrewText((current) =>
+      adoptRangeText(current, prev.hebrew, next.hebrew, force),
+    );
     if (translations) {
-      setReferenceEnglish(englishForRange(translations, lineStart, lineEnd));
+      setReferenceEnglish((current) =>
+        adoptRangeText(current, prev.english, next.english, force),
+      );
     }
   };
 
-  // Sync: re-derive from the segment's already-saved line range, refreshing
-  // stale text (e.g. the story or its translation changed since) without
-  // requiring the author to re-pick lines.
-  const sync = () => {
-    if (!storyLines || segment?.lineStart == null || segment?.lineEnd == null)
+  const fillFromRange = (
+    start: number | "",
+    end: number | "",
+    prevStart: number | "",
+    prevEnd: number | "",
+    force = false,
+  ) => {
+    if (!storyLines || start === "" || end === "" || start > end) return;
+    const next = generatedFor(start, end);
+    const prev = generatedFor(prevStart, prevEnd);
+    if (force) {
+      applyGenerated(next, prev, true);
       return;
-    setLineStart(segment.lineStart);
-    setLineEnd(segment.lineEnd);
-    setHebrewText(
-      hebrewForRange(storyLines, segment.lineStart, segment.lineEnd),
-    );
-    if (translations) {
-      setReferenceEnglish(
-        englishForRange(translations, segment.lineStart, segment.lineEnd),
-      );
     }
+    const clobber =
+      wouldOverrideEdit(hebrewText, prev.hebrew, next.hebrew) ||
+      (translations != null &&
+        wouldOverrideEdit(referenceEnglish, prev.english, next.english));
+    if (clobber) {
+      setPendingOverride({ next, prev });
+      return;
+    }
+    applyGenerated(next, prev, false);
   };
 
   const save = async () => {
@@ -386,20 +389,19 @@ function SegmentCard({
         <div className="mt-4">
           <Label className="mb-1">Story lines</Label>
           <p className="text-xs text-slate-500 mb-1">
-            Where this passage sits in the story. Pick the line range it spans,
-            then Replace to fill in the Hebrew passage and reference English
-            below from it; students see the passage highlighted (or the whole
-            range, if it's more than a single line) and write the English right
-            under it.
+            Where this passage sits in the story. Pick the line range it spans;
+            students see the passage highlighted (or the whole range, if it's
+            more than a single line) and write the English right under it.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={lineStart}
-              onChange={(event) =>
-                setLineStart(
-                  event.target.value === "" ? "" : Number(event.target.value),
-                )
-              }
+              onChange={(event) => {
+                const next =
+                  event.target.value === "" ? "" : Number(event.target.value);
+                setLineStart(next);
+                fillFromRange(next, lineEnd, lineStart, lineEnd);
+              }}
               dir="auto"
               className="flex-1 min-w-[10rem] rounded-md border border-slate-300 bg-white py-2 px-3 text-sm shadow-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
             >
@@ -417,11 +419,12 @@ function SegmentCard({
             <span className="text-sm text-slate-500">to</span>
             <select
               value={lineEnd}
-              onChange={(event) =>
-                setLineEnd(
-                  event.target.value === "" ? "" : Number(event.target.value),
-                )
-              }
+              onChange={(event) => {
+                const next =
+                  event.target.value === "" ? "" : Number(event.target.value);
+                setLineEnd(next);
+                fillFromRange(lineStart, next, lineStart, lineEnd);
+              }}
               dir="auto"
               className="flex-1 min-w-[10rem] rounded-md border border-slate-300 bg-white py-2 px-3 text-sm shadow-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
             >
@@ -441,20 +444,9 @@ function SegmentCard({
               variant="outline"
               size="sm"
               disabled={!storyLines || !rangeValid}
-              onClick={replace}
-            >
-              Replace
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={
-                !storyLines ||
-                segment?.lineStart == null ||
-                segment?.lineEnd == null
+              onClick={() =>
+                fillFromRange(lineStart, lineEnd, lineStart, lineEnd, true)
               }
-              onClick={sync}
             >
               Sync
             </Button>
@@ -530,6 +522,27 @@ function SegmentCard({
             {saving ? "Saving..." : "Save segment"}
           </Button>
         </div>
+
+        <ConfirmDialog
+          isOpen={pendingOverride !== null}
+          onClose={() => {
+            if (pendingOverride) {
+              applyGenerated(pendingOverride.next, pendingOverride.prev, false);
+            }
+            setPendingOverride(null);
+          }}
+          onConfirm={() => {
+            if (pendingOverride) {
+              applyGenerated(pendingOverride.next, pendingOverride.prev, true);
+            }
+            setPendingOverride(null);
+          }}
+          variant="warning"
+          title="Replace edited text?"
+          message="The selected lines don't match the Hebrew passage or reference English. Replace them?"
+          confirmText="Replace"
+          cancelText="Keep edits"
+        />
       </CardContent>
     </Card>
   );

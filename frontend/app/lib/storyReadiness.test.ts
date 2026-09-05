@@ -3,6 +3,7 @@ import {
   clearStoryReadinessCache,
   getCachedStoryReadiness,
   setCachedStoryPhase,
+  translateReadiness,
   videoReadiness,
 } from "./storyReadiness";
 
@@ -23,6 +24,26 @@ describe("videoReadiness", () => {
     expect(videoReadiness("").ready).toBe(false);
     expect(videoReadiness("   ").ready).toBe(false);
     expect(videoReadiness(undefined).ready).toBe(false);
+  });
+});
+
+describe("translateReadiness", () => {
+  it("is ready when every line has English", () => {
+    expect(
+      translateReadiness([{ english: "one" }, { english: "two" }]).ready,
+    ).toBe(true);
+  });
+
+  it("counts blank lines", () => {
+    const report = translateReadiness([
+      { english: "one" },
+      { english: "  " },
+      { english: "" },
+    ]);
+    expect(report.ready).toBe(false);
+    expect(report.issues[0]?.message).toBe(
+      "2 lines have no English translation",
+    );
   });
 });
 

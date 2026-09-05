@@ -47,3 +47,22 @@ export function videoReadiness(videoUrl: string | undefined): PhaseReadiness {
     : [{ field: "videoUrl", message: "story has no video link" }];
   return { phase: "video", ready: issues.length === 0, issues };
 }
+
+export function translateReadiness(
+  lines: { english: string }[],
+): PhaseReadiness {
+  const missing = lines.filter((line) => line.english.trim() === "").length;
+  const issues =
+    missing === 0
+      ? []
+      : [
+          {
+            field: "translations",
+            message:
+              missing === 1
+                ? "1 line has no English translation"
+                : `${missing} lines have no English translation`,
+          },
+        ];
+  return { phase: "translate", ready: issues.length === 0, issues };
+}

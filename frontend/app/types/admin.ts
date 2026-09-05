@@ -104,6 +104,8 @@ export interface StoryContentReadiness {
   identify: PhaseReadiness;
   produce: PhaseReadiness;
   recall: PhaseReadiness;
+  /** Client-only; computed from the Translate editor, not the readiness API. */
+  translate?: PhaseReadiness;
 }
 
 export interface TargetVocabularyPage {

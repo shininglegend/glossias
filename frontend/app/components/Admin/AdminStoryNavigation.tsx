@@ -12,7 +12,7 @@ interface AdminStoryNavigationProps {
 const EDITORS = [
   { path: "annotate", label: "Annotate" },
   { path: "metadata", label: "Metadata", phase: "video" },
-  { path: "translate", label: "Translate" },
+  { path: "translate", label: "Translate", phase: "translate" },
   { path: "target-vocab", label: "Target Vocab", phase: "identify" },
   { path: "produce", label: "Produce", phase: "produce" },
   { path: "recall", label: "Recall", phase: "recall" },

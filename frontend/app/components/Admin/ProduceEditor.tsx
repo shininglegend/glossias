@@ -5,6 +5,7 @@ import Textarea from "~/components/ui/Textarea";
 import { Card, CardContent } from "~/components/ui/Card";
 import ConfirmDialog from "~/components/ui/ConfirmDialog";
 import { useUnsavedChangesGuard } from "../../hooks/useUnsavedChangesGuard";
+import { useReportPhase } from "../../contexts/StoryReadinessContext";
 import { useAdminApi } from "../../services/adminApi";
 import {
   adoptRangeText,
@@ -93,6 +94,8 @@ export default function ProduceEditor({ storyId }: ProduceEditorProps) {
   React.useEffect(() => {
     load();
   }, [load]);
+
+  useReportPhase("produce", page?.readiness);
 
   const explanationChanged = explanation !== (page?.explanation ?? "");
   useUnsavedChangesGuard(explanationChanged || dirtyOrders.size > 0);

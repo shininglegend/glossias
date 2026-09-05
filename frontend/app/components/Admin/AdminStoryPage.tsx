@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import AdminStoryNavigation from "./AdminStoryNavigation";
+import { StoryReadinessProvider } from "~/contexts/StoryReadinessContext";
 import { useAdminApi } from "~/services/adminApi";
-import type { StoryContentReadiness } from "~/types/admin";
 
 interface AdminStoryPageProps {
   storyId: string | number;
@@ -26,9 +26,6 @@ export default function AdminStoryPage({
 }: AdminStoryPageProps) {
   const adminApi = useAdminApi();
   const [storyTitle, setStoryTitle] = useState<string | null>(null);
-  const [readiness, setReadiness] = useState<StoryContentReadiness | null>(
-    null,
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -40,14 +37,6 @@ export default function AdminStoryPage({
       .catch(() => {
         if (!cancelled) setStoryTitle(null);
       });
-    adminApi
-      .getContentReadiness(Number(storyId))
-      .then((r) => {
-        if (!cancelled) setReadiness(r);
-      })
-      .catch(() => {
-        if (!cancelled) setReadiness(null);
-      });
     return () => {
       cancelled = true;
     };
@@ -55,23 +44,25 @@ export default function AdminStoryPage({
   }, [storyId]);
 
   return (
-    <main className="container mx-auto p-6">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="mb-1 flex flex-wrap items-baseline gap-x-3">
-            <h1 className="text-2xl font-bold">{title}</h1>
-            <span className="text-lg text-slate-500 min-h-7">
-              {storyTitle && `"${storyTitle}"`}
-            </span>
+    <StoryReadinessProvider storyId={Number(storyId)}>
+      <main className="container mx-auto p-6">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="mb-1 flex flex-wrap items-baseline gap-x-3">
+              <h1 className="text-2xl font-bold">{title}</h1>
+              <span className="text-lg text-slate-500 min-h-7">
+                {storyTitle && `"${storyTitle}"`}
+              </span>
+            </div>
+            <p className="text-sm text-slate-600 min-h-5">{description}</p>
           </div>
-          <p className="text-sm text-slate-600 min-h-5">{description}</p>
+          {actions && (
+            <div className="flex items-center gap-2 sm:shrink-0">{actions}</div>
+          )}
         </div>
-        {actions && (
-          <div className="flex items-center gap-2 sm:shrink-0">{actions}</div>
-        )}
-      </div>
-      <AdminStoryNavigation storyId={storyId} readiness={readiness} />
-      {children}
-    </main>
+        <AdminStoryNavigation storyId={storyId} />
+        {children}
+      </main>
+    </StoryReadinessProvider>
   );
 }

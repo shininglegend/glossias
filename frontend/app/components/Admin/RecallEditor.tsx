@@ -6,6 +6,7 @@ import { Card, CardContent } from "~/components/ui/Card";
 import ConfirmDialog from "~/components/ui/ConfirmDialog";
 import { useUnsavedChangesGuard } from "../../hooks/useUnsavedChangesGuard";
 import { wouldOverrideEdit } from "../../lib/produceRange";
+import { useReportPhase } from "../../contexts/StoryReadinessContext";
 import { useAdminApi } from "../../services/adminApi";
 import { usePhaseAssetUploader } from "../../lib/phaseAssets";
 import ReadinessPanel from "./ReadinessPanel";
@@ -59,6 +60,8 @@ export default function RecallEditor({ storyId }: RecallEditorProps) {
   React.useEffect(() => {
     load();
   }, [load]);
+
+  useReportPhase("recall", page?.readiness);
 
   useUnsavedChangesGuard(dirtyOrders.size > 0);
 

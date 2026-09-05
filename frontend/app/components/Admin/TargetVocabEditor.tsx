@@ -3,6 +3,7 @@ import Button from "~/components/ui/Button";
 import Badge from "~/components/ui/Badge";
 import Label from "~/components/ui/Label";
 import { Card, CardContent } from "~/components/ui/Card";
+import { useReportPhase } from "../../contexts/StoryReadinessContext";
 import { useAdminApi } from "../../services/adminApi";
 import { usePhaseAssetUploader } from "../../lib/phaseAssets";
 import ReadinessPanel from "./ReadinessPanel";
@@ -44,6 +45,8 @@ export default function TargetVocabEditor({ storyId }: TargetVocabEditorProps) {
   React.useEffect(() => {
     load();
   }, [load]);
+
+  useReportPhase("identify", page?.readiness);
 
   const addWord = async (lexicalForm: string) => {
     setAdding(true);

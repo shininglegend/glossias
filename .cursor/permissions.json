@@ -1,0 +1,35 @@
+{
+  "terminalAllowlist": [
+    "cat",
+    "ls",
+    "head",
+    "rg",
+    "git status",
+    "git log",
+    "git diff",
+    "git add",
+    "git commit",
+    "gofmt",
+    "go vet",
+    "go test",
+    "go build",
+    "sqlc generate",
+    "npm run format",
+    "npm run lint",
+    "npm run typecheck",
+    "npm run test",
+    "npm run build"
+  ],
+  "autoRun": {
+    "allow_instructions": [
+      "Read-only git and file inspection in this repo is fine.",
+      "Backend checks from the repo root are fine: gofmt, go vet, go test, go build.",
+      "Frontend checks from frontend/ are fine: npm run format, lint, typecheck, test, build."
+    ],
+    "block_instructions": [
+      "Do not auto-run git push, git reset, git rebase, git checkout, or --force git.",
+      "Do not auto-run database migrations or anything that uses DATABASE_URL against a non-local database.",
+      "Do not auto-run npm install or go get that changes lockfiles without approval."
+    ]
+  }
+}

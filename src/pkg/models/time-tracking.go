@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"glossias/src/pkg/generated/db"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,6 +14,32 @@ import (
 const DEDUP_WINDOW = 30 * time.Second
 const ELAPSED_TIME_TOLERANCE = 5 * time.Second
 const SESSION_MAX_AGE = 2 * time.Hour // Sessions expire after 2 hours of inactivity
+
+// PhaseFromRoute maps a tracked frontend route to the story phase it belongs
+// to, or "" for routes outside the story flow (story list, admin pages).
+// Stored on user_time_tracking.phase at write time; the per-phase time buckets
+// (GetUserStoryTimeTracking, GetStoryStudentPerformance) and per-phase resets
+// (reset_progress.go) match on it. The backfill CASE in migration
+// 00012_time_tracking_phase.sql mirrors these rules — keep the two in sync.
+func PhaseFromRoute(route string) string {
+	switch {
+	case strings.Contains(route, "identify"):
+		return "identify"
+	case strings.Contains(route, "translate"):
+		return "translate"
+	case strings.Contains(route, "produce"):
+		return "produce"
+	case strings.Contains(route, "recall"):
+		return "recall"
+	case strings.Contains(route, "video"), strings.Contains(route, "audio"):
+		return "video"
+	case strings.Contains(route, "vocab"):
+		return "vocab"
+	case strings.Contains(route, "grammar"):
+		return "grammar"
+	}
+	return ""
+}
 
 type TimeTrackingSession struct {
 	SessionID string
@@ -159,9 +186,14 @@ func RecordTimeTracking(ctx context.Context, userID, route string, storyID *int3
 	}
 
 	// No recent similar entry found, create new one
+	var phase pgtype.Text
+	if p := PhaseFromRoute(route); p != "" {
+		phase = pgtype.Text{String: p, Valid: true}
+	}
 	_, err = queries.CreateCompleteTimeEntry(ctx, db.CreateCompleteTimeEntryParams{
 		UserID:           userID,
 		Route:            route,
+		Phase:            phase,
 		StoryID:          pgStoryID,
 		StartedAt:        pgtype.Timestamp{Time: startTime, Valid: true},
 		EndedAt:          pgtype.Timestamp{Time: now, Valid: true},

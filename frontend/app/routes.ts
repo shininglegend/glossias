@@ -15,6 +15,10 @@ export default [
   route("admin", "routes/admin.index.tsx"),
   route("admin/courses", "routes/admin.courses.tsx"),
   route("admin/courses/:id/students", "routes/admin.courses.$id.students.tsx"),
+  route(
+    "admin/stories/:id/students/:userId",
+    "routes/admin.stories.$id.students.$userId.tsx",
+  ),
   route("admin/performance", "routes/admin.performance.tsx"),
   route("admin/stories/add", "routes/admin.stories.add.tsx"),
   route("admin/stories/:id", "routes/admin.stories.$id.tsx"),

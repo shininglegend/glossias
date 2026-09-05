@@ -1,9 +1,12 @@
 import { useParams } from "react-router";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import type { Story } from "../types/admin";
 import { useAdminApi } from "../services/adminApi";
 import AdminStoryPage from "../components/Admin/AdminStoryPage";
+import ReadinessPanel from "../components/Admin/ReadinessPanel";
 import Button from "~/components/ui/Button";
+import { useReportPhase } from "../contexts/StoryReadinessContext";
+import { translateReadiness } from "../lib/storyReadiness";
 import { useUnsavedChangesGuard } from "../hooks/useUnsavedChangesGuard";
 import { pageMeta } from "~/lib/pageTitle";
 
@@ -137,6 +140,7 @@ export default function TranslateStory() {
       {!loading && !story && (
         <div className="text-center py-8">Failed to load story</div>
       )}
+      {!loading && story && <TranslateReadiness lines={translations} />}
       <div className="space-y-6">
         {translations.map((translation) => (
           <TranslationLineEditor
@@ -149,6 +153,17 @@ export default function TranslateStory() {
         ))}
       </div>
     </AdminStoryPage>
+  );
+}
+
+function TranslateReadiness({ lines }: { lines: TranslationLine[] }) {
+  const readiness = useMemo(() => translateReadiness(lines), [lines]);
+  useReportPhase("translate", readiness);
+  return (
+    <ReadinessPanel
+      readiness={readiness}
+      requirement="Every story line needs an English translation."
+    />
   );
 }
 

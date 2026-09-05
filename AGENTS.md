@@ -2,11 +2,11 @@
 
 Language-learning platform for introductory students: interactive stories with vocabulary, grammar, and translation exercises. Go backend + React frontend.
 
+Frontend agent instructions live in [`frontend/AGENTS.md`](frontend/AGENTS.md).
+
 ## Architecture
 
 **Backend:** Go 1.25 · Gorilla Mux · PostgreSQL (Supabase) · SQLC-generated queries · Clerk JWT auth · BigCache
-
-**Frontend:** React 19 · React Router 7 (SPA mode) · Vite 6 · Tailwind CSS 4 · TypeScript 5 · Clerk React
 
 **Three-layer backend pattern:** HTTP handlers → models (business logic) → SQLC generated queries → PostgreSQL
 
@@ -18,29 +18,17 @@ Language-learning platform for introductory students: interactive stories with v
 go run main.go
 ```
 
-**Frontend** (port 5173, proxies `/api` to `:8080`):
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Both must run concurrently for the app to work. The Vite dev server handles the proxy — no CORS config needed in dev.
+Frontend (port 5173) is documented in `frontend/AGENTS.md`. Both must run concurrently for the app to work. The Vite dev server proxies `/api` to `:8080` — no CORS config needed in dev.
 
 ## Building
 
 ```bash
-# Backend
 go build ./...
-
-# Frontend
-cd frontend && npm run build   # output: frontend/build/
 ```
 
 ## After every non-trivial change
 
-Run the checks for whichever side was touched before considering a task done. Do not skip steps.
+Run the checks for whichever side was touched before considering a task done. Do not skip steps. Frontend checks: `frontend/AGENTS.md`.
 
 **DB query budgets:** every request logs `db_queries=N` and warns above 15 (`dbQueryWarnThreshold` in `main.go`). Handler tests should wrap the success case in `assertQueryBudget(t, max, handler, req)` (`src/apis/handlers/querybudget_test.go`). If a budget has to rise, the fix is almost always a batch SQLC query (`WHERE id = ANY($1::int[])`) rather than a bigger number.
 
@@ -57,16 +45,6 @@ Optionally, run `go test -v ./src/pkg/models/...` for verbose package tests
 
 **Go style:** use modern Go 1.22+ idioms — `for i := range n` instead of `for i := 0; i < n; i++`, `min`/`max` builtins, `slices`/`maps` packages over hand-rolled loops.
 
-### Frontend
-
-```bash
-cd frontend
-npm run format    # prettier
-npm run lint      # eslint
-npm run typecheck
-npm run build
-```
-
 ## Key Environment Variables
 
 Backend (`.env`):
@@ -78,10 +56,6 @@ Backend (`.env`):
 - `STORAGE_URL`, `STORAGE_API_KEY`
 - `DEV_USER` — when set, bypasses Clerk auth (dev only)
 - `ANTHROPIC_API_KEY` — enables AI grading of Produce submissions (`claude-haiku-4-5`, background, fail-open). Unset → submissions are stored ungraded and a warning is logged at startup.
-
-Frontend:
-
-- `VITE_CLERK_PUBLISHABLE_KEY`
 
 ## Directory Layout
 
@@ -99,15 +73,7 @@ src/
     generated/db/           # SQLC-generated query code (do not edit manually)
     models/                 # Business logic layer
     cache/                  # BigCache wrapper
-frontend/
-  app/
-    routes/                 # File-based page components (admin.*, stories-*)
-    components/             # Reusable UI components
-    contexts/               # React Context (UserContext)
-    services/               # API call helpers
-    types/                  # Shared TypeScript types
-  vite.config.ts            # Proxy config
-  react-router.config.ts    # SPA mode (SSR: false)
+frontend/                   # React app — see frontend/AGENTS.md
 bruno-reqs/                 # Bruno REST client request collection
 scripts/                    # Python analytics scripts
 ```
@@ -126,18 +92,17 @@ Never edit files under `src/pkg/generated/db/` by hand.
 
 ## Auth
 
-Clerk is used for both frontend (ClerkProvider in `root.tsx`) and backend (JWT middleware in `src/auth/`). Role-based access: `super_admin`, `course_admin`, `student`. The `DEV_USER` env var bypasses auth entirely — never set it in production.
+Clerk is used for both frontend (ClerkProvider in `frontend/app/root.tsx`) and backend (JWT middleware in `src/auth/`). Role-based access: `super_admin`, `course_admin`, `student`. The `DEV_USER` env var bypasses auth entirely — never set it in production.
 If you want to cURL a request, include `'dev_auth: 12345678'` as a header to be authenticated as admin.
 
 ## Routing Conventions
 
 - Student API routes: `/api/*`
 - Admin API routes: `/api/admin/*`
-- Frontend routes: file-based under `frontend/app/routes/`
+- Frontend routes: file-based under `frontend/app/routes/` — see `frontend/AGENTS.md`
 
 ## Known Issues
 
 - Global `queries` variable shared across requests creates a race condition in transactions — should be scoped per-request.
 - Rate limiter uses an unbounded map (memory leak under load).
-- Several large "god components" in the frontend (~400–640 lines with 15+ state variables).
 - N+1 query pattern in story loading (no batching). The per-request `db_queries` log field / WARN exposes which endpoints are affected.

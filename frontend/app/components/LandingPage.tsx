@@ -6,7 +6,7 @@ export function LandingPage() {
       {/* Hero Section */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-purple-600/10"></div>
-        <div className="relative max-w-6xl mx-auto px-4 py-24">
+        <div className="relative max-w-6xl mx-auto px-4 pt-16 pb-8">
           <div className="text-center">
             <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-slate-900 mb-8">
               Master Languages Through
@@ -14,7 +14,7 @@ export function LandingPage() {
                 Interactive Stories
               </span>
             </h1>
-            <p className="text-xl md:text-2xl text-slate-600 mb-12 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-xl md:text-2xl text-slate-600 max-w-3xl mx-auto leading-relaxed">
               Immerse yourself in carefully crafted stories with integrated
               audio, vocabulary guides, and grammar explanations. Learn
               naturally through context and repetition.

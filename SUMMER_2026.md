@@ -199,7 +199,7 @@ Behavior:
 
 **AI grading (net-new integration):**
 
-- Add the Anthropic Go SDK (`github.com/anthropics/anthropic-sdk-go`) to `go.mod`; new env var `ANTHROPIC_API_KEY` (document in CLAUDE.md's env list). New model file `src/pkg/models/ai_grading.go`.
+- Add the Anthropic Go SDK (`github.com/anthropics/anthropic-sdk-go`) to `go.mod`; new env var `ANTHROPIC_API_KEY` (document in AGENTS.md's env list). New model file `src/pkg/models/ai_grading.go`.
 - Grade synchronously in the submit handler (segments are 5–10 words; a single small-model call is fast — use `claude-haiku-4-5`). Prompt: Hebrew segment + reference English + student English + grammar point name/description → return a 0–100 accuracy score and one-sentence feedback as JSON, weighting whether the grammar point was understood (tense, person, number, definiteness rendered correctly). Store both on `produce_submissions`.
 - **The system prompt is versioned, not hard-coded.** `produce_grading_prompts` (migration `00010`) is append-only and `produce_grading_active_prompt` (`00011`) points at the version in use, read per grading run. Super admins edit it on the admin System page (`/admin/system`): `PUT /api/admin/system/grading-prompt` saves text — new text appends a version and activates it; text identical to an earlier version re-activates that version instead of duplicating it — and `PUT …/grading-prompt/active {id}` switches to any stored version. `models.DefaultGradingSystemPrompt` seeds the first row at startup (`EnsureProduceGradingPrompt`) and is the fallback if the table can't be read.
 - **Every grading run is logged** to `produce_grading_log` (migration `00009`, `00010`): the Hebrew/reference/student text, model, `prompt_id` (the prompt version used; NULL = built-in fallback), user prompt, raw model response, stop reason, token usage, latency, and either the parsed score/feedback or the error. Blank attempts graded locally appear with no model/prompt. Written best-effort from `ProduceGradingService.grade`; query it directly (e.g. `SELECT student_text, score, feedback, raw_response FROM produce_grading_log WHERE story_id = … ORDER BY created_at DESC`) to review what the grader is being asked and answering.
@@ -264,7 +264,7 @@ Ranked by risk. See also `developer_review.md` items marked ⚡S26, which intera
 6. **Produce** + AI grading.
 7. **Score page** last, once all answer tables exist.
 
-After each step, run the checks from CLAUDE.md (backend: `gofmt`/`go vet`/`go test`/`go build`; frontend: `npm run format`/`lint`/`typecheck`/`build`) and `sqlc generate` after any query change.
+After each step, run the checks from AGENTS.md (backend: `gofmt`/`go vet`/`go test`/`go build`; frontend: `npm run format`/`lint`/`typecheck`/`build`) and `sqlc generate` after any query change.
 
 ## Content-authoring requirements per story (non-code)
 

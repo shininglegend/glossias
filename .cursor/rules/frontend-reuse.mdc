@@ -1,0 +1,31 @@
+---
+description: Frontend modularity, component reuse, and no extra visible copy
+globs: frontend/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Frontend reuse
+
+Prefer an existing component, hook, or helper over a new one. Search `frontend/app/components/` and `frontend/app/lib/` before adding files.
+
+## Primitives first
+
+Use `frontend/app/components/ui/` as-is. Do not restyle a raw `<button>`, `<input>`, or `<textarea>` when `Button`, `Input`, `Textarea`, `Label`, `Badge`, `Card` / `CardHeader` / `CardContent` / `CardFooter`, `Modal`, or `ConfirmDialog` already cover it. Extend a primitive (new `variant` / `size`) instead of forking its markup.
+
+Admin and story surfaces already share `AssetSlot`, `ReadinessPanel`, and `usePhaseAssetUploader`. Reuse those; do not invent a second upload slot or readiness list.
+
+```tsx
+// BAD — new look, parallel API
+<button className="bg-primary-500 text-white px-8 py-4 rounded-lg">Save</button>
+
+// GOOD
+<Button variant="primary" size="lg">Save</Button>
+```
+
+## Extract, don't copy
+
+If the same JSX or logic appears a third time, extract a component or hook. Keep route files as composition. Put reusable widgets in `components/`, shared logic in `lib/` or a hook. Do not grow a page into a second design system.
+
+## Visible copy
+
+Do not add user-visible words the request did not ask for: helper blurbs, "what will happen" / "what will not happen" explanations, empty-state essays, tooltips, placeholders, or confirmation prose. Change existing copy only when asked. Layout, spacing, and structure changes must not introduce new sentences.

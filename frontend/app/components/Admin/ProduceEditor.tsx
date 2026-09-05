@@ -13,6 +13,7 @@ import {
   wouldOverrideEdit,
 } from "../../lib/produceRange";
 import ReadinessPanel from "./ReadinessPanel";
+import StoryLineRangePicker from "./StoryLineRangePicker";
 import type { ProducePage, GrammarPoint, StoryLine } from "../../types/admin";
 
 interface ProduceEditorProps {
@@ -221,12 +222,6 @@ interface SegmentCardProps {
   onDirty: (order: number, dirty: boolean) => void;
 }
 
-/** Shortens a story line for the picker's option label. */
-function lineLabel(line: StoryLine): string {
-  const text = line.text.length > 60 ? `${line.text.slice(0, 60)}…` : line.text;
-  return `${line.lineNumber}. ${text}`;
-}
-
 function SegmentCard({
   storyId,
   order,
@@ -260,6 +255,7 @@ function SegmentCard({
     next: { hebrew: string; english: string };
     prev: { hebrew: string; english: string };
   } | null>(null);
+  const [pickerOpen, setPickerOpen] = React.useState(false);
 
   // Re-sync when a reload brings different content for this slot.
   React.useEffect(() => {
@@ -421,51 +417,18 @@ function SegmentCard({
             more than a single line) and write the English right under it.
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={lineStart}
-              onChange={(event) => {
-                const next =
-                  event.target.value === "" ? "" : Number(event.target.value);
-                setLineStart(next);
-                fillFromRange(next, lineEnd, lineStart, lineEnd);
-              }}
-              dir="auto"
-              className="flex-1 min-w-[10rem] rounded-md border border-slate-300 bg-white py-2 px-3 text-sm shadow-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
+            <span className="text-sm text-slate-600">
+              {rangeValid ? `Lines ${lineStart}–${lineEnd}` : "No lines"}
+            </span>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={!storyLines || storyLines.length === 0}
+              onClick={() => setPickerOpen(true)}
             >
-              <option value="">From line…</option>
-              {storyLines
-                ? storyLines.map((line) => (
-                    <option key={line.lineNumber} value={line.lineNumber}>
-                      {lineLabel(line)}
-                    </option>
-                  ))
-                : lineStart !== "" && (
-                    <option value={lineStart}>Line {lineStart}</option>
-                  )}
-            </select>
-            <span className="text-sm text-slate-500">to</span>
-            <select
-              value={lineEnd}
-              onChange={(event) => {
-                const next =
-                  event.target.value === "" ? "" : Number(event.target.value);
-                setLineEnd(next);
-                fillFromRange(lineStart, next, lineStart, lineEnd);
-              }}
-              dir="auto"
-              className="flex-1 min-w-[10rem] rounded-md border border-slate-300 bg-white py-2 px-3 text-sm shadow-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-200"
-            >
-              <option value="">To line…</option>
-              {storyLines
-                ? storyLines.map((line) => (
-                    <option key={line.lineNumber} value={line.lineNumber}>
-                      {lineLabel(line)}
-                    </option>
-                  ))
-                : lineEnd !== "" && (
-                    <option value={lineEnd}>Line {lineEnd}</option>
-                  )}
-            </select>
+              Pick from story
+            </Button>
             <Button
               type="button"
               variant="outline"
@@ -478,11 +441,18 @@ function SegmentCard({
               Sync
             </Button>
           </div>
-          {lineStart !== "" && lineEnd !== "" && !rangeValid && (
-            <p className="text-xs text-rose-700 mt-1">
-              "To line" must be the same as or after "From line".
-            </p>
-          )}
+          <StoryLineRangePicker
+            isOpen={pickerOpen}
+            onClose={() => setPickerOpen(false)}
+            lines={storyLines ?? []}
+            lineStart={lineStart}
+            lineEnd={lineEnd}
+            onPick={(start, end) => {
+              setLineStart(start);
+              setLineEnd(end);
+              fillFromRange(start, end, lineStart, lineEnd);
+            }}
+          />
         </div>
 
         <div className="mt-4">

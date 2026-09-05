@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   adoptRangeText,
+  clickLineRange,
   wouldOverrideEdit,
   hebrewForRange,
   englishForRange,
@@ -34,6 +35,21 @@ describe("adoptRangeText", () => {
 
   it("overwrites when forced", () => {
     expect(adoptRangeText("trimmed", "ד\nה", "ד\nה\nו", true)).toBe("ד\nה\nו");
+  });
+});
+
+describe("clickLineRange", () => {
+  it("starts a single-line range", () => {
+    expect(clickLineRange("", "", 4)).toEqual({ start: 4, end: 4 });
+  });
+
+  it("expands a single line to the clicked end", () => {
+    expect(clickLineRange(4, 4, 6)).toEqual({ start: 4, end: 6 });
+    expect(clickLineRange(6, 6, 4)).toEqual({ start: 4, end: 6 });
+  });
+
+  it("restarts after a completed range", () => {
+    expect(clickLineRange(4, 6, 2)).toEqual({ start: 2, end: 2 });
   });
 });
 

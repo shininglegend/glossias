@@ -11,6 +11,21 @@ export function adoptRangeText(
   return current;
 }
 
+/** First click sets a single line; the next click expands to that range. */
+export function clickLineRange(
+  start: number | "",
+  end: number | "",
+  clicked: number,
+): { start: number; end: number } {
+  if (start === "" || end === "" || start !== end) {
+    return { start: clicked, end: clicked };
+  }
+  return {
+    start: Math.min(start, clicked),
+    end: Math.max(end, clicked),
+  };
+}
+
 /** True when current text is a manual edit that the new range would replace. */
 export function wouldOverrideEdit(
   current: string,

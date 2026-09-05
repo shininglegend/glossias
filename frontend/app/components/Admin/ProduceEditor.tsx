@@ -242,8 +242,10 @@ function SegmentCard({
     segment?.referenceEnglish ?? "",
   );
   const [hebrewText, setHebrewText] = React.useState(segment?.hebrewText ?? "");
+  const soleGrammarId =
+    grammarPoints.length === 1 ? grammarPoints[0].id : ("" as const);
   const [grammarPointId, setGrammarPointId] = React.useState<number | "">(
-    segment?.grammarPointId ?? "",
+    segment?.grammarPointId ?? soleGrammarId,
   );
   // Picker values may differ from the saved range until Save.
   const [lineStart, setLineStart] = React.useState<number | "">(
@@ -263,7 +265,7 @@ function SegmentCard({
   React.useEffect(() => {
     setReferenceEnglish(segment?.referenceEnglish ?? "");
     setHebrewText(segment?.hebrewText ?? "");
-    setGrammarPointId(segment?.grammarPointId ?? "");
+    setGrammarPointId(segment?.grammarPointId ?? soleGrammarId);
     setLineStart(segment?.lineStart ?? "");
     setLineEnd(segment?.lineEnd ?? "");
   }, [
@@ -272,6 +274,7 @@ function SegmentCard({
     segment?.grammarPointId,
     segment?.lineStart,
     segment?.lineEnd,
+    soleGrammarId,
   ]);
 
   const changed =

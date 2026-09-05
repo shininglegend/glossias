@@ -4,6 +4,7 @@ import Label from "~/components/ui/Label";
 import Textarea from "~/components/ui/Textarea";
 import { Card, CardContent } from "~/components/ui/Card";
 import ConfirmDialog from "~/components/ui/ConfirmDialog";
+import { useUnsavedChangesGuard } from "../../hooks/useUnsavedChangesGuard";
 import { useAdminApi } from "../../services/adminApi";
 import {
   adoptRangeText,
@@ -39,6 +40,9 @@ export default function ProduceEditor({ storyId }: ProduceEditorProps) {
     number,
     string
   > | null>(null);
+  const [dirtyOrders, setDirtyOrders] = React.useState<Set<number>>(
+    () => new Set(),
+  );
 
   // Story text feeds the line picker and the Hebrew passage; the English
   // translations seed the reference English. A failure in either shouldn't
@@ -89,6 +93,19 @@ export default function ProduceEditor({ storyId }: ProduceEditorProps) {
     load();
   }, [load]);
 
+  const explanationChanged = explanation !== (page?.explanation ?? "");
+  useUnsavedChangesGuard(explanationChanged || dirtyOrders.size > 0);
+
+  const markDirty = React.useCallback((order: number, dirty: boolean) => {
+    setDirtyOrders((prev) => {
+      if (prev.has(order) === dirty) return prev;
+      const next = new Set(prev);
+      if (dirty) next.add(order);
+      else next.delete(order);
+      return next;
+    });
+  }, []);
+
   const saveExplanation = async () => {
     setSavingExplanation(true);
     setError(null);
@@ -121,7 +138,6 @@ export default function ProduceEditor({ storyId }: ProduceEditorProps) {
   }
 
   const slots = Array.from({ length: page.required }, (_, index) => index + 1);
-  const explanationChanged = explanation !== page.explanation;
 
   return (
     <div>
@@ -155,6 +171,7 @@ export default function ProduceEditor({ storyId }: ProduceEditorProps) {
             storyLines={storyLines}
             translations={translations}
             onChanged={load}
+            onDirty={markDirty}
           />
         ))}
       </div>
@@ -201,6 +218,7 @@ interface SegmentCardProps {
   /** English line translations for seeding the prompt; null if unavailable. */
   translations: Map<number, string> | null;
   onChanged: () => Promise<void>;
+  onDirty: (order: number, dirty: boolean) => void;
 }
 
 /** Shortens a story line for the picker's option label. */
@@ -217,6 +235,7 @@ function SegmentCard({
   storyLines,
   translations,
   onChanged,
+  onDirty,
 }: SegmentCardProps) {
   const adminApi = useAdminApi();
   const [referenceEnglish, setReferenceEnglish] = React.useState(
@@ -261,6 +280,11 @@ function SegmentCard({
     grammarPointId !== (segment?.grammarPointId ?? "") ||
     lineStart !== (segment?.lineStart ?? "") ||
     lineEnd !== (segment?.lineEnd ?? "");
+
+  React.useEffect(() => {
+    onDirty(order, changed);
+    return () => onDirty(order, false);
+  }, [changed, onDirty, order]);
 
   const rangeValid = lineStart !== "" && lineEnd !== "" && lineStart <= lineEnd;
 

@@ -206,10 +206,20 @@ func StartStudentStoryRedo(ctx context.Context, userID string, storyID int32, ti
 	if err != nil {
 		return ResetResult{}, err
 	}
-	if err := persistCompletedAttempt(ctx, userID, storyID, snap); err != nil {
+
+	// Snapshot and wipe commit together: a failed wipe must not leave a
+	// frozen attempt beside still-live answers (or vice versa).
+	result := newExerciseResetResult()
+	err = withTransaction(ctx, func(txCtx context.Context) error {
+		if err := persistCompletedAttempt(txCtx, userID, storyID, snap); err != nil {
+			return err
+		}
+		return resetExercises(txCtx, userID, storyID, result.Deleted)
+	})
+	if err != nil {
 		return ResetResult{}, err
 	}
-	return ResetUserStoryExercises(ctx, userID, storyID)
+	return result, nil
 }
 
 func persistCompletedAttempt(ctx context.Context, userID string, storyID int32, snap *AttemptScoreSnapshot) error {
@@ -221,27 +231,17 @@ func persistCompletedAttempt(ctx context.Context, userID string, storyID int32, 
 		return err
 	}
 
-	latest, err := queries.GetLatestUserStoryAttempt(ctx, db.GetLatestUserStoryAttemptParams{
+	// The latest row is the open attempt; a student who has never redone has
+	// no rows yet, so attempt 1 is created here.
+	current, err := queries.GetLatestUserStoryAttempt(ctx, db.GetLatestUserStoryAttemptParams{
 		UserID:  userID,
 		StoryID: storyID,
-	})
-	nextNumber := int32(1)
-	if err == nil {
-		nextNumber = latest.AttemptNumber
-	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return err
-	}
-
-	current, err := queries.GetUserStoryAttemptByNumber(ctx, db.GetUserStoryAttemptByNumberParams{
-		UserID:        userID,
-		StoryID:       storyID,
-		AttemptNumber: nextNumber,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		current, err = queries.CreateStoryAttempt(ctx, db.CreateStoryAttemptParams{
 			UserID:        userID,
 			StoryID:       storyID,
-			AttemptNumber: nextNumber,
+			AttemptNumber: 1,
 		})
 	}
 	if err != nil {

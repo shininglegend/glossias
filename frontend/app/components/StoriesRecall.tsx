@@ -171,6 +171,8 @@ export function RecallSession({
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
   const sentenceAudioRef = useRef<HTMLAudioElement | null>(null);
+  // Sentence clips are bare Audio elements, so stop them when the page goes.
+  useEffect(() => () => sentenceAudioRef.current?.pause(), []);
 
   // ---- Audio-only narration ------------------------------------------------
 

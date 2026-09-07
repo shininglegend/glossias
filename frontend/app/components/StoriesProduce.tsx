@@ -35,6 +35,9 @@ import {
 const RTL_LANGUAGES = ["he", "ar", "fa", "ur"];
 /** Countdown turns urgent (red) at or below this many seconds. */
 const URGENT_SECONDS = 15;
+/** Grading feedback poll: the server gives up on a job after 30s, so ~2 min covers it. */
+const GRADING_POLL_INTERVAL_MS = 2500;
+const GRADING_POLL_LIMIT = 48;
 
 /**
  * Loads the Produce payload and hands it to `ProduceSession`, which owns the
@@ -321,7 +324,14 @@ export function ProduceSession({
   useEffect(() => {
     if (!gradingPending) return;
     let cancelled = false;
+    let remaining = GRADING_POLL_LIMIT;
     const poll = async () => {
+      // A submission stuck ungraded (e.g. server restart mid-grade) would
+      // otherwise keep this tab polling forever.
+      if (remaining-- <= 0) {
+        clearInterval(id);
+        return;
+      }
       try {
         const response = await api.getStoryProduce(pageData.story_id);
         if (!response.success || !response.data || cancelled) return;
@@ -342,8 +352,8 @@ export function ProduceSession({
         console.error("Failed to refresh produce grading:", err);
       }
     };
+    const id = setInterval(() => void poll(), GRADING_POLL_INTERVAL_MS);
     void poll();
-    const id = setInterval(() => void poll(), 2500);
     return () => {
       cancelled = true;
       clearInterval(id);

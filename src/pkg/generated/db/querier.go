@@ -151,7 +151,6 @@ type Querier interface {
 	GetAllUsersStoryVocabSummary(ctx context.Context, storyID int32) ([]GetAllUsersStoryVocabSummaryRow, error)
 	GetAllVocabularyForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllVocabularyForStoryRow, error)
 	GetAnonymousTimeEntryByID(ctx context.Context, trackingID int32) (AnonymousTimeTracking, error)
-	GetAttemptScoreSnapshot(ctx context.Context, attemptID int64) (GetAttemptScoreSnapshotRow, error)
 	GetAudioFile(ctx context.Context, audioFileID int32) (LineAudioFile, error)
 	GetAudioFilesByLabel(ctx context.Context, label string) ([]LineAudioFile, error)
 	GetCourse(ctx context.Context, courseID int32) (Course, error)
@@ -253,9 +252,7 @@ type Querier interface {
 	GetUserLatestGrammarScoresByLine(ctx context.Context, arg GetUserLatestGrammarScoresByLineParams) ([]GetUserLatestGrammarScoresByLineRow, error)
 	GetUserLatestVocabScoresByLine(ctx context.Context, arg GetUserLatestVocabScoresByLineParams) ([]GetUserLatestVocabScoresByLineRow, error)
 	GetUserRecallCorrectAnswers(ctx context.Context, arg GetUserRecallCorrectAnswersParams) ([]GetUserRecallCorrectAnswersRow, error)
-	GetUserStoryAttemptByNumber(ctx context.Context, arg GetUserStoryAttemptByNumberParams) (StoryAttempt, error)
 	GetUserStoryAttemptSnapshotByNumber(ctx context.Context, arg GetUserStoryAttemptSnapshotByNumberParams) (GetUserStoryAttemptSnapshotByNumberRow, error)
-	GetUserStoryAttempts(ctx context.Context, arg GetUserStoryAttemptsParams) ([]StoryAttempt, error)
 	GetUserStoryAttemptsWithSnapshots(ctx context.Context, arg GetUserStoryAttemptsWithSnapshotsParams) ([]GetUserStoryAttemptsWithSnapshotsRow, error)
 	GetUserStoryGrammarSummary(ctx context.Context, arg GetUserStoryGrammarSummaryParams) (GetUserStoryGrammarSummaryRow, error)
 	// Every Identify pick, correct and incorrect, in the order the student made

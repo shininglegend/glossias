@@ -57,24 +57,6 @@ func (q *Queries) DeleteUserStoryAttempts(ctx context.Context, arg DeleteUserSto
 	return result.RowsAffected(), nil
 }
 
-const getAttemptScoreSnapshot = `-- name: GetAttemptScoreSnapshot :one
-SELECT snapshot, snapshot_at
-FROM story_attempt_score_snapshots
-WHERE attempt_id = $1
-`
-
-type GetAttemptScoreSnapshotRow struct {
-	Snapshot   []byte             `json:"snapshot"`
-	SnapshotAt pgtype.Timestamptz `json:"snapshot_at"`
-}
-
-func (q *Queries) GetAttemptScoreSnapshot(ctx context.Context, attemptID int64) (GetAttemptScoreSnapshotRow, error) {
-	row := q.db.QueryRow(ctx, getAttemptScoreSnapshot, attemptID)
-	var i GetAttemptScoreSnapshotRow
-	err := row.Scan(&i.Snapshot, &i.SnapshotAt)
-	return i, err
-}
-
 const getLatestUserStoryAttempt = `-- name: GetLatestUserStoryAttempt :one
 SELECT attempt_id, user_id, story_id, attempt_number, started_at, completed_at
 FROM story_attempts
@@ -90,32 +72,6 @@ type GetLatestUserStoryAttemptParams struct {
 
 func (q *Queries) GetLatestUserStoryAttempt(ctx context.Context, arg GetLatestUserStoryAttemptParams) (StoryAttempt, error) {
 	row := q.db.QueryRow(ctx, getLatestUserStoryAttempt, arg.UserID, arg.StoryID)
-	var i StoryAttempt
-	err := row.Scan(
-		&i.AttemptID,
-		&i.UserID,
-		&i.StoryID,
-		&i.AttemptNumber,
-		&i.StartedAt,
-		&i.CompletedAt,
-	)
-	return i, err
-}
-
-const getUserStoryAttemptByNumber = `-- name: GetUserStoryAttemptByNumber :one
-SELECT attempt_id, user_id, story_id, attempt_number, started_at, completed_at
-FROM story_attempts
-WHERE user_id = $1 AND story_id = $2 AND attempt_number = $3
-`
-
-type GetUserStoryAttemptByNumberParams struct {
-	UserID        string `json:"user_id"`
-	StoryID       int32  `json:"story_id"`
-	AttemptNumber int32  `json:"attempt_number"`
-}
-
-func (q *Queries) GetUserStoryAttemptByNumber(ctx context.Context, arg GetUserStoryAttemptByNumberParams) (StoryAttempt, error) {
-	row := q.db.QueryRow(ctx, getUserStoryAttemptByNumber, arg.UserID, arg.StoryID, arg.AttemptNumber)
 	var i StoryAttempt
 	err := row.Scan(
 		&i.AttemptID,
@@ -158,45 +114,6 @@ func (q *Queries) GetUserStoryAttemptSnapshotByNumber(ctx context.Context, arg G
 		&i.AttemptNumber,
 	)
 	return i, err
-}
-
-const getUserStoryAttempts = `-- name: GetUserStoryAttempts :many
-SELECT attempt_id, user_id, story_id, attempt_number, started_at, completed_at
-FROM story_attempts
-WHERE user_id = $1 AND story_id = $2
-ORDER BY attempt_number
-`
-
-type GetUserStoryAttemptsParams struct {
-	UserID  string `json:"user_id"`
-	StoryID int32  `json:"story_id"`
-}
-
-func (q *Queries) GetUserStoryAttempts(ctx context.Context, arg GetUserStoryAttemptsParams) ([]StoryAttempt, error) {
-	rows, err := q.db.Query(ctx, getUserStoryAttempts, arg.UserID, arg.StoryID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []StoryAttempt{}
-	for rows.Next() {
-		var i StoryAttempt
-		if err := rows.Scan(
-			&i.AttemptID,
-			&i.UserID,
-			&i.StoryID,
-			&i.AttemptNumber,
-			&i.StartedAt,
-			&i.CompletedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getUserStoryAttemptsWithSnapshots = `-- name: GetUserStoryAttemptsWithSnapshots :many

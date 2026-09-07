@@ -224,15 +224,8 @@ func indexRunes(haystack, needle []rune) int {
 	if n == 0 || n > len(haystack) {
 		return -1
 	}
-	for i := 0; i <= len(haystack)-n; i++ {
-		match := true
-		for j := range n {
-			if haystack[i+j] != needle[j] {
-				match = false
-				break
-			}
-		}
-		if match {
+	for i := range len(haystack) - n + 1 {
+		if slices.Equal(haystack[i:i+n], needle) {
 			return i
 		}
 	}

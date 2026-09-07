@@ -190,30 +190,40 @@ var exerciseTimePhases = []string{"identify", "translate", "produce", "recall", 
 // vocab/grammar) answers so the student can redo the sequence. Video time is
 // not deleted.
 func ResetUserStoryExercises(ctx context.Context, userID string, storyID int32) (ResetResult, error) {
-	result := ResetResult{Phase: ResetPhase("exercises"), Deleted: map[string]int64{}}
+	result := newExerciseResetResult()
 	err := withTransaction(ctx, func(txCtx context.Context) error {
-		if err := resetAnswers(txCtx, userID, storyID, result.Deleted); err != nil {
-			return err
-		}
-		var n int64
-		for _, phase := range exerciseTimePhases {
-			c, err := queries.DeleteUserStoryTimeTrackingByPhase(txCtx, db.DeleteUserStoryTimeTrackingByPhaseParams{
-				UserID:  userID,
-				StoryID: pgtype.Int4{Int32: storyID, Valid: true},
-				Phase:   pgtype.Text{String: phase, Valid: true},
-			})
-			if err != nil {
-				return fmt.Errorf("delete time tracking %s: %w", phase, err)
-			}
-			n += c
-		}
-		result.Deleted["time_tracking"] = n
-		return nil
+		return resetExercises(txCtx, userID, storyID, result.Deleted)
 	})
 	if err != nil {
 		return ResetResult{}, err
 	}
 	return result, nil
+}
+
+func newExerciseResetResult() ResetResult {
+	return ResetResult{Phase: ResetPhase("exercises"), Deleted: map[string]int64{}}
+}
+
+// resetExercises is the transaction body of ResetUserStoryExercises, split out
+// so a student redo can run it in the same transaction as the score snapshot.
+func resetExercises(ctx context.Context, userID string, storyID int32, deleted map[string]int64) error {
+	if err := resetAnswers(ctx, userID, storyID, deleted); err != nil {
+		return err
+	}
+	var n int64
+	for _, phase := range exerciseTimePhases {
+		c, err := queries.DeleteUserStoryTimeTrackingByPhase(ctx, db.DeleteUserStoryTimeTrackingByPhaseParams{
+			UserID:  userID,
+			StoryID: pgtype.Int4{Int32: storyID, Valid: true},
+			Phase:   pgtype.Text{String: phase, Valid: true},
+		})
+		if err != nil {
+			return fmt.Errorf("delete time tracking %s: %w", phase, err)
+		}
+		n += c
+	}
+	deleted["time_tracking"] = n
+	return nil
 }
 
 func resetAnswers(ctx context.Context, userID string, storyID int32, deleted map[string]int64) error {

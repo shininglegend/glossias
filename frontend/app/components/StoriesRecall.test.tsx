@@ -312,7 +312,7 @@ describe("RecallSession", () => {
     expect(FakeAudio.byLine(1).playCalls).toBe(1);
   });
 
-  it("shows the cards in server order as 3:4 boxes and does not move them", async () => {
+  it("shows the cards in server order as square boxes and does not move them", async () => {
     await setup();
     await listenThrough();
 
@@ -323,7 +323,9 @@ describe("RecallSession", () => {
     expect(
       screen.getByTestId("recall-cards").querySelectorAll("img"),
     ).toHaveLength(4);
-    expect(screen.getByTestId("recall-card-3")).toHaveClass("aspect-[3/4]");
+    expect(
+      screen.getByTestId("recall-card-3").querySelector("img"),
+    ).toHaveClass("object-contain");
     expect(screen.getByText("לוש")).toHaveClass("target-word");
     expect(screen.getByText("לוש")).not.toHaveClass("underline");
 

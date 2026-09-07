@@ -493,7 +493,7 @@ export function RecallSession({
           )}
 
           <div
-            className="flex justify-center items-stretch gap-2 sm:gap-3 w-full h-[min(calc((100vw-2rem)*4/15),calc(100dvh-14rem))]"
+            className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 w-full"
             data-testid="recall-cards"
             role="list"
           >
@@ -632,7 +632,7 @@ function RecallSelectCard({
             ? "Not this one"
             : "Sentence option"
       }
-      className={`flex flex-col h-full aspect-[3/4] min-w-0 rounded-xl border-4 bg-white shadow-sm overflow-hidden ${tone} ${
+      className={`flex flex-col min-w-0 rounded-xl border-4 bg-white shadow-sm overflow-hidden ${tone} ${
         clickable
           ? "cursor-pointer hover:border-primary-400 hover:scale-[1.02] focus:outline-none focus-visible:ring-4 focus-visible:ring-primary-300"
           : result === "correct"
@@ -640,12 +640,12 @@ function RecallSelectCard({
             : "cursor-not-allowed"
       }`}
     >
-      <div className="flex-1 min-h-0 bg-slate-50">
+      <div className="aspect-square w-full bg-slate-50">
         {card.image_url ? (
           <img
             src={card.image_url}
             alt=""
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain"
             draggable={false}
           />
         ) : (

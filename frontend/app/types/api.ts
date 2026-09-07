@@ -100,24 +100,54 @@ export interface NavigationGuidanceRequest {
 export interface NavigationGuidanceResponse {
   nextPage: PageType;
   displayName: string;
+  /** Archived runs of the story; finishing one clears the live progress. */
+  completedAttempts: number;
 }
 
-/** Scope of an admin progress reset: the whole story or one phase. */
+/**
+ * Scope of an admin progress reset. Everything but "all" acts on the
+ * student's current attempt; "all" also deletes archived attempts.
+ */
 export type ResetPhase =
   | "all"
+  | "exercises"
   | "video"
   | "identify"
   | "translate"
   | "produce"
   | "recall"
   | "vocab"
-  | "grammar"
-  | "exercises";
+  | "grammar";
 
 export interface ResetProgressResult {
   phase: ResetPhase;
   /** Rows removed, keyed by table name plus "time_tracking". */
   deleted: Record<string, number>;
+}
+
+/** One phase of a student's live attempt that holds answers or time. */
+export interface AttemptStage {
+  phase: ResetPhase;
+  detail: string;
+  seconds: number;
+}
+
+/**
+ * Mirrors models.AttemptSummary: an archived attempt with its frozen score,
+ * or the live current attempt (is_current) with its deletable stages.
+ */
+export interface StudentAttemptSummary {
+  number: number;
+  is_current: boolean;
+  completed_at?: string;
+  score?: {
+    overall_accuracy: number;
+    total_time_seconds: number;
+    produce_segments_submitted: number;
+    produce_segments_graded: number;
+  };
+  /** Only on the current attempt; empty means not started. */
+  stages?: AttemptStage[];
 }
 
 export type PageType =

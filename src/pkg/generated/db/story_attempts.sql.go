@@ -11,33 +11,58 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createStoryAttempt = `-- name: CreateStoryAttempt :one
+const archiveStoryAttempt = `-- name: ArchiveStoryAttempt :one
 
-INSERT INTO story_attempts (user_id, story_id, attempt_number)
-VALUES ($1, $2, $3)
-RETURNING attempt_id, user_id, story_id, attempt_number, started_at, completed_at
+WITH attempt AS (
+    INSERT INTO story_attempts (user_id, story_id, attempt_number)
+    SELECT $1::TEXT, $2::INT, COALESCE(MAX(sa.attempt_number), 0) + 1
+    FROM story_attempts sa
+    WHERE sa.user_id = $1::TEXT AND sa.story_id = $2::INT
+    RETURNING attempt_id, attempt_number
+), snap AS (
+    INSERT INTO story_attempt_score_snapshots (attempt_id, snapshot)
+    SELECT attempt_id, CAST($3::TEXT AS JSONB) FROM attempt
+    RETURNING attempt_id
+)
+SELECT attempt.attempt_number FROM attempt
 `
 
-type CreateStoryAttemptParams struct {
+type ArchiveStoryAttemptParams struct {
+	UserID   string `json:"user_id"`
+	StoryID  int32  `json:"story_id"`
+	Snapshot string `json:"snapshot"`
+}
+
+// Story-level attempts: one row per *completed* run of a story, each with a
+// frozen score JSON. The live answer tables hold only the in-progress attempt,
+// so "current attempt number" is always (completed count + 1).
+// ArchiveStoryAttempt files the live score as the next completed attempt in
+// one statement. The snapshot is bound as text and cast, because the pool runs
+// the simple protocol, under which pgx sends []byte as a bytea literal that
+// jsonb rejects (SQLSTATE 22P02).
+func (q *Queries) ArchiveStoryAttempt(ctx context.Context, arg ArchiveStoryAttemptParams) (int32, error) {
+	row := q.db.QueryRow(ctx, archiveStoryAttempt, arg.UserID, arg.StoryID, arg.Snapshot)
+	var attempt_number int32
+	err := row.Scan(&attempt_number)
+	return attempt_number, err
+}
+
+const deleteUserStoryAttemptByNumber = `-- name: DeleteUserStoryAttemptByNumber :execrows
+DELETE FROM story_attempts WHERE user_id = $1 AND story_id = $2 AND attempt_number = $3
+`
+
+type DeleteUserStoryAttemptByNumberParams struct {
 	UserID        string `json:"user_id"`
 	StoryID       int32  `json:"story_id"`
 	AttemptNumber int32  `json:"attempt_number"`
 }
 
-// Story-level attempts: one row per student redo cycle. The live answer
-// tables stay current-attempt only; completed attempts freeze a score JSON.
-func (q *Queries) CreateStoryAttempt(ctx context.Context, arg CreateStoryAttemptParams) (StoryAttempt, error) {
-	row := q.db.QueryRow(ctx, createStoryAttempt, arg.UserID, arg.StoryID, arg.AttemptNumber)
-	var i StoryAttempt
-	err := row.Scan(
-		&i.AttemptID,
-		&i.UserID,
-		&i.StoryID,
-		&i.AttemptNumber,
-		&i.StartedAt,
-		&i.CompletedAt,
-	)
-	return i, err
+func (q *Queries) DeleteUserStoryAttemptByNumber(ctx context.Context, arg DeleteUserStoryAttemptByNumberParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUserStoryAttemptByNumber, arg.UserID, arg.StoryID, arg.AttemptNumber)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteUserStoryAttempts = `-- name: DeleteUserStoryAttempts :execrows
@@ -55,33 +80,6 @@ func (q *Queries) DeleteUserStoryAttempts(ctx context.Context, arg DeleteUserSto
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const getLatestUserStoryAttempt = `-- name: GetLatestUserStoryAttempt :one
-SELECT attempt_id, user_id, story_id, attempt_number, started_at, completed_at
-FROM story_attempts
-WHERE user_id = $1 AND story_id = $2
-ORDER BY attempt_number DESC
-LIMIT 1
-`
-
-type GetLatestUserStoryAttemptParams struct {
-	UserID  string `json:"user_id"`
-	StoryID int32  `json:"story_id"`
-}
-
-func (q *Queries) GetLatestUserStoryAttempt(ctx context.Context, arg GetLatestUserStoryAttemptParams) (StoryAttempt, error) {
-	row := q.db.QueryRow(ctx, getLatestUserStoryAttempt, arg.UserID, arg.StoryID)
-	var i StoryAttempt
-	err := row.Scan(
-		&i.AttemptID,
-		&i.UserID,
-		&i.StoryID,
-		&i.AttemptNumber,
-		&i.StartedAt,
-		&i.CompletedAt,
-	)
-	return i, err
 }
 
 const getUserStoryAttemptSnapshotByNumber = `-- name: GetUserStoryAttemptSnapshotByNumber :one
@@ -116,43 +114,40 @@ func (q *Queries) GetUserStoryAttemptSnapshotByNumber(ctx context.Context, arg G
 	return i, err
 }
 
-const getUserStoryAttemptsWithSnapshots = `-- name: GetUserStoryAttemptsWithSnapshots :many
-SELECT sa.attempt_id, sa.attempt_number, sa.started_at, sa.completed_at,
-       (snap.attempt_id IS NOT NULL)::BOOLEAN AS has_snapshot
+const listUserStoryAttemptSnapshots = `-- name: ListUserStoryAttemptSnapshots :many
+SELECT sa.attempt_id, sa.attempt_number, sa.completed_at, snap.snapshot
 FROM story_attempts sa
-LEFT JOIN story_attempt_score_snapshots snap ON snap.attempt_id = sa.attempt_id
+JOIN story_attempt_score_snapshots snap ON snap.attempt_id = sa.attempt_id
 WHERE sa.user_id = $1 AND sa.story_id = $2
 ORDER BY sa.attempt_number
 `
 
-type GetUserStoryAttemptsWithSnapshotsParams struct {
+type ListUserStoryAttemptSnapshotsParams struct {
 	UserID  string `json:"user_id"`
 	StoryID int32  `json:"story_id"`
 }
 
-type GetUserStoryAttemptsWithSnapshotsRow struct {
+type ListUserStoryAttemptSnapshotsRow struct {
 	AttemptID     int64              `json:"attempt_id"`
 	AttemptNumber int32              `json:"attempt_number"`
-	StartedAt     pgtype.Timestamptz `json:"started_at"`
 	CompletedAt   pgtype.Timestamptz `json:"completed_at"`
-	HasSnapshot   bool               `json:"has_snapshot"`
+	Snapshot      []byte             `json:"snapshot"`
 }
 
-func (q *Queries) GetUserStoryAttemptsWithSnapshots(ctx context.Context, arg GetUserStoryAttemptsWithSnapshotsParams) ([]GetUserStoryAttemptsWithSnapshotsRow, error) {
-	rows, err := q.db.Query(ctx, getUserStoryAttemptsWithSnapshots, arg.UserID, arg.StoryID)
+func (q *Queries) ListUserStoryAttemptSnapshots(ctx context.Context, arg ListUserStoryAttemptSnapshotsParams) ([]ListUserStoryAttemptSnapshotsRow, error) {
+	rows, err := q.db.Query(ctx, listUserStoryAttemptSnapshots, arg.UserID, arg.StoryID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GetUserStoryAttemptsWithSnapshotsRow{}
+	items := []ListUserStoryAttemptSnapshotsRow{}
 	for rows.Next() {
-		var i GetUserStoryAttemptsWithSnapshotsRow
+		var i ListUserStoryAttemptSnapshotsRow
 		if err := rows.Scan(
 			&i.AttemptID,
 			&i.AttemptNumber,
-			&i.StartedAt,
 			&i.CompletedAt,
-			&i.HasSnapshot,
+			&i.Snapshot,
 		); err != nil {
 			return nil, err
 		}
@@ -164,31 +159,95 @@ func (q *Queries) GetUserStoryAttemptsWithSnapshots(ctx context.Context, arg Get
 	return items, nil
 }
 
-const markStoryAttemptComplete = `-- name: MarkStoryAttemptComplete :exec
-UPDATE story_attempts
-SET completed_at = CURRENT_TIMESTAMP
-WHERE attempt_id = $1 AND completed_at IS NULL
+const listUserStoryAttemptsAfter = `-- name: ListUserStoryAttemptsAfter :many
+SELECT attempt_id, attempt_number FROM story_attempts
+WHERE user_id = $1 AND story_id = $2 AND attempt_number > $3
+ORDER BY attempt_number
 `
 
-func (q *Queries) MarkStoryAttemptComplete(ctx context.Context, attemptID int64) error {
-	_, err := q.db.Exec(ctx, markStoryAttemptComplete, attemptID)
-	return err
+type ListUserStoryAttemptsAfterParams struct {
+	UserID        string `json:"user_id"`
+	StoryID       int32  `json:"story_id"`
+	AttemptNumber int32  `json:"attempt_number"`
 }
 
-const upsertAttemptScoreSnapshot = `-- name: UpsertAttemptScoreSnapshot :exec
-INSERT INTO story_attempt_score_snapshots (attempt_id, snapshot, snapshot_at)
-VALUES ($1, $2, CURRENT_TIMESTAMP)
-ON CONFLICT (attempt_id) DO UPDATE
-SET snapshot = EXCLUDED.snapshot,
-    snapshot_at = CURRENT_TIMESTAMP
+type ListUserStoryAttemptsAfterRow struct {
+	AttemptID     int64 `json:"attempt_id"`
+	AttemptNumber int32 `json:"attempt_number"`
+}
+
+// Renumbering after a delete happens one row at a time in ascending order
+// (see models.DeleteArchivedAttempt): the unique (user, story, number) key is
+// not deferrable, so a single "SET attempt_number = attempt_number - 1" could
+// collide mid-statement depending on row order.
+func (q *Queries) ListUserStoryAttemptsAfter(ctx context.Context, arg ListUserStoryAttemptsAfterParams) ([]ListUserStoryAttemptsAfterRow, error) {
+	rows, err := q.db.Query(ctx, listUserStoryAttemptsAfter, arg.UserID, arg.StoryID, arg.AttemptNumber)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUserStoryAttemptsAfterRow{}
+	for rows.Next() {
+		var i ListUserStoryAttemptsAfterRow
+		if err := rows.Scan(&i.AttemptID, &i.AttemptNumber); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserStoryCompletedAttempts = `-- name: ListUserStoryCompletedAttempts :many
+SELECT sa.attempt_number, sa.completed_at
+FROM story_attempts sa
+JOIN story_attempt_score_snapshots snap ON snap.attempt_id = sa.attempt_id
+WHERE sa.user_id = $1 AND sa.story_id = $2
+ORDER BY sa.attempt_number
 `
 
-type UpsertAttemptScoreSnapshotParams struct {
-	AttemptID int64  `json:"attempt_id"`
-	Snapshot  []byte `json:"snapshot"`
+type ListUserStoryCompletedAttemptsParams struct {
+	UserID  string `json:"user_id"`
+	StoryID int32  `json:"story_id"`
 }
 
-func (q *Queries) UpsertAttemptScoreSnapshot(ctx context.Context, arg UpsertAttemptScoreSnapshotParams) error {
-	_, err := q.db.Exec(ctx, upsertAttemptScoreSnapshot, arg.AttemptID, arg.Snapshot)
+type ListUserStoryCompletedAttemptsRow struct {
+	AttemptNumber int32              `json:"attempt_number"`
+	CompletedAt   pgtype.Timestamptz `json:"completed_at"`
+}
+
+func (q *Queries) ListUserStoryCompletedAttempts(ctx context.Context, arg ListUserStoryCompletedAttemptsParams) ([]ListUserStoryCompletedAttemptsRow, error) {
+	rows, err := q.db.Query(ctx, listUserStoryCompletedAttempts, arg.UserID, arg.StoryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUserStoryCompletedAttemptsRow{}
+	for rows.Next() {
+		var i ListUserStoryCompletedAttemptsRow
+		if err := rows.Scan(&i.AttemptNumber, &i.CompletedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setStoryAttemptNumber = `-- name: SetStoryAttemptNumber :exec
+UPDATE story_attempts SET attempt_number = $2 WHERE attempt_id = $1
+`
+
+type SetStoryAttemptNumberParams struct {
+	AttemptID     int64 `json:"attempt_id"`
+	AttemptNumber int32 `json:"attempt_number"`
+}
+
+func (q *Queries) SetStoryAttemptNumber(ctx context.Context, arg SetStoryAttemptNumberParams) error {
+	_, err := q.db.Exec(ctx, setStoryAttemptNumber, arg.AttemptID, arg.AttemptNumber)
 	return err
 }

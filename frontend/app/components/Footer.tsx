@@ -1,13 +1,15 @@
+import { Link } from "react-router";
+import { STORY_PHASES } from "~/lib/storyPhases";
+
 export function Footer() {
   return (
-    <div className="bg-slate-50 border-t">
-      <div className="max-w-6xl mx-auto px-4 py-6">
+    <footer className="w-full bg-slate-50 border-t border-slate-200">
+      <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="grid md:grid-cols-4 gap-8">
           <div className="md:col-span-2">
             <h3 className="text-2xl font-bold text-slate-900 mb-4">Glossias</h3>
             <p className="text-slate-600 mb-6">
-              Interactive language learning through immersive stories targeting
-              vocabulary and grammar in context.
+              Interactive language learning through immersive stories.
             </p>
             <div className="flex space-x-4">
               <a
@@ -28,42 +30,13 @@ export function Footer() {
           <div className="grid grid-cols-2 md:col-span-2 gap-8">
             <div>
               <h4 className="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-4">
-                Features
+                Story Phases
               </h4>
-              <ul className="space-y-2">
-                <li>
-                  <a
-                    href="#"
-                    className="text-slate-600 hover:text-slate-900 transition-colors"
-                  >
-                    Audio Stories
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="#"
-                    className="text-slate-600 hover:text-slate-900 transition-colors"
-                  >
-                    Vocabulary Tools
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="#"
-                    className="text-slate-600 hover:text-slate-900 transition-colors"
-                  >
-                    Grammar Guide
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="#"
-                    className="text-slate-600 hover:text-slate-900 transition-colors"
-                  >
-                    Scoreboard
-                  </a>
-                </li>
-              </ul>
+              <ol className="grid grid-cols-2 gap-x-4 gap-y-2 text-slate-600">
+                {STORY_PHASES.map((phase) => (
+                  <li key={phase.title}>{phase.title}</li>
+                ))}
+              </ol>
             </div>
             <div>
               <h4 className="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-4">
@@ -95,31 +68,31 @@ export function Footer() {
                   </a>
                 </li>
                 <li>
-                  <a
-                    href="/privacy-policy"
+                  <Link
+                    to="/privacy-policy"
                     className="text-slate-600 hover:text-slate-900 transition-colors"
                   >
                     Privacy Policy
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a
-                    href="/terms-of-service"
+                  <Link
+                    to="/terms-of-service"
                     className="text-slate-600 hover:text-slate-900 transition-colors"
                   >
                     Terms of Service
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </div>
           </div>
         </div>
-        <div className="border-t border-slate-200 mt-4 pt-4 text-center">
-          <p className="text-slate-600">
-            &copy; 2025 Titus M. All rights reserved.
+        <div className="border-t border-slate-200 mt-6 pt-4 text-center">
+          <p className="text-sm text-slate-600">
+            &copy; {new Date().getFullYear()} Titus M. All rights reserved.
           </p>
         </div>
       </div>
-    </div>
+    </footer>
   );
 }

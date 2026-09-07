@@ -2,11 +2,26 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useApiService } from "../services/api";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
-import { useRedoStory } from "../hooks/useRedoStory";
 import { CompletionMessage } from "./story-components/CompletionMessage";
-import { RedoStoryButton } from "./story-components/RedoStoryButton";
+import Button from "./ui/Button";
 import type { StoryMetadata } from "../services/api";
 import type { NavigationGuidanceResponse } from "../types/api";
+
+/** Shown once the student has an archived attempt, since finishing clears the live progress. */
+function ScoresButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="lg"
+      onClick={onClick}
+      className="h-auto px-8 py-4 text-lg font-semibold text-primary-700 border-2 border-primary-500 hover:bg-primary-50"
+    >
+      <span className="material-icons">emoji_events</span>
+      <span>View your scores</span>
+    </Button>
+  );
+}
 
 function getYouTubeEmbedUrl(url: string): string | null {
   const regex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -34,8 +49,8 @@ export function StoriesVideo() {
   const [guidanceCache, setGuidanceCache] =
     useState<NavigationGuidanceResponse | null>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
-  const { redo, redoing, error: redoError } = useRedoStory(id);
-  const storyCompleted = guidanceCache?.nextPage === "score";
+  const hasScores = (guidanceCache?.completedAttempts ?? 0) > 0;
+  const goToScores = () => navigate(`/stories/${id}/score`);
 
   useEffect(() => {
     const fetchMetadataAndGuidance = async () => {
@@ -125,13 +140,7 @@ export function StoriesVideo() {
             <span>Skip to {nextStepName}</span>
             <span className="material-icons ml-2">arrow_forward</span>
           </button>
-          {storyCompleted && (
-            <RedoStoryButton
-              onRedo={redo}
-              redoing={redoing}
-              error={redoError}
-            />
-          )}
+          {hasScores && <ScoresButton onClick={goToScores} />}
         </div>
       </div>
     );
@@ -185,13 +194,7 @@ export function StoriesVideo() {
               <span className="material-icons mr-2">play_arrow</span>
               <span>Start video</span>
             </button>
-            {storyCompleted && (
-              <RedoStoryButton
-                onRedo={redo}
-                redoing={redoing}
-                error={redoError}
-              />
-            )}
+            {hasScores && <ScoresButton onClick={goToScores} />}
           </div>
         </div>
       </>
@@ -277,13 +280,9 @@ export function StoriesVideo() {
               nextStepName={nextStepName}
               onContinue={goToNextStep}
             />
-            {storyCompleted && (
+            {hasScores && (
               <div className="text-center -mt-4 mb-10">
-                <RedoStoryButton
-                  onRedo={redo}
-                  redoing={redoing}
-                  error={redoError}
-                />
+                <ScoresButton onClick={goToScores} />
               </div>
             )}
           </>

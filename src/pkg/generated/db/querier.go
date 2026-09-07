@@ -16,6 +16,14 @@ type Querier interface {
 	AddCourseAdmin(ctx context.Context, arg AddCourseAdminParams) (CourseAdmin, error)
 	AddMultiUsersToCourse(ctx context.Context, arg AddMultiUsersToCourseParams) error
 	AddUserToCourse(ctx context.Context, arg AddUserToCourseParams) error
+	// Story-level attempts: one row per *completed* run of a story, each with a
+	// frozen score JSON. The live answer tables hold only the in-progress attempt,
+	// so "current attempt number" is always (completed count + 1).
+	// ArchiveStoryAttempt files the live score as the next completed attempt in
+	// one statement. The snapshot is bound as text and cast, because the pool runs
+	// the simple protocol, under which pgx sends []byte as a bytea literal that
+	// jsonb rejects (SQLSTATE 22P02).
+	ArchiveStoryAttempt(ctx context.Context, arg ArchiveStoryAttemptParams) (int32, error)
 	BulkCreateAudioFiles(ctx context.Context, arg []BulkCreateAudioFilesParams) (int64, error)
 	BulkCreateGrammarItems(ctx context.Context, arg []BulkCreateGrammarItemsParams) (int64, error)
 	BulkCreateLineTranslations(ctx context.Context, arg []BulkCreateLineTranslationsParams) (int64, error)
@@ -51,9 +59,6 @@ type Querier interface {
 	CreateGrammarPoint(ctx context.Context, arg CreateGrammarPointParams) (GrammarPoint, error)
 	CreateProduceSubmission(ctx context.Context, arg CreateProduceSubmissionParams) (ProduceSubmission, error)
 	CreateStory(ctx context.Context, arg CreateStoryParams) (CreateStoryRow, error)
-	// Story-level attempts: one row per student redo cycle. The live answer
-	// tables stay current-attempt only; completed attempts freeze a score JSON.
-	CreateStoryAttempt(ctx context.Context, arg CreateStoryAttemptParams) (StoryAttempt, error)
 	// Story images management queries
 	CreateStoryImage(ctx context.Context, arg CreateStoryImageParams) (StoryImage, error)
 	CreateTargetVocabulary(ctx context.Context, arg CreateTargetVocabularyParams) (CreateTargetVocabularyRow, error)
@@ -106,6 +111,7 @@ type Querier interface {
 	DeleteTargetVocabulary(ctx context.Context, id int32) error
 	DeleteTranslationRequest(ctx context.Context, arg DeleteTranslationRequestParams) error
 	DeleteUser(ctx context.Context, userID string) error
+	DeleteUserStoryAttemptByNumber(ctx context.Context, arg DeleteUserStoryAttemptByNumberParams) (int64, error)
 	DeleteUserStoryAttempts(ctx context.Context, arg DeleteUserStoryAttemptsParams) (int64, error)
 	DeleteUserStoryGrammarCorrect(ctx context.Context, arg DeleteUserStoryGrammarCorrectParams) (int64, error)
 	DeleteUserStoryGrammarIncorrect(ctx context.Context, arg DeleteUserStoryGrammarIncorrectParams) (int64, error)
@@ -116,9 +122,10 @@ type Querier interface {
 	DeleteUserStoryRecallCorrect(ctx context.Context, arg DeleteUserStoryRecallCorrectParams) (int64, error)
 	DeleteUserStoryRecallIncorrect(ctx context.Context, arg DeleteUserStoryRecallIncorrectParams) (int64, error)
 	DeleteUserStoryTimeTracking(ctx context.Context, arg DeleteUserStoryTimeTrackingParams) (int64, error)
-	// phase is the same value GetStoryStudentPerformance (scores.sql) buckets time
-	// under, so what the admin sees zeroed matches what was deleted.
-	DeleteUserStoryTimeTrackingByPhase(ctx context.Context, arg DeleteUserStoryTimeTrackingByPhaseParams) (int64, error)
+	// phases are the same values GetStoryStudentPerformance (scores.sql) buckets
+	// time under, so what the admin sees zeroed matches what was deleted. One
+	// statement covers a single-phase reset and the multi-phase exercise reset.
+	DeleteUserStoryTimeTrackingByPhases(ctx context.Context, arg DeleteUserStoryTimeTrackingByPhasesParams) (int64, error)
 	DeleteUserStoryTranslationRequest(ctx context.Context, arg DeleteUserStoryTranslationRequestParams) (int64, error)
 	// Per-student per-story progress resets. Every table here carries user_id and
 	// story_id directly, so a reset is a plain two-column delete. Phase completion
@@ -166,7 +173,6 @@ type Querier interface {
 	GetGrammarPoint(ctx context.Context, grammarPointID int32) (GrammarPoint, error)
 	GetGrammarPointByName(ctx context.Context, arg GetGrammarPointByNameParams) (GrammarPoint, error)
 	GetIncompleteVocabForUser(ctx context.Context, arg GetIncompleteVocabForUserParams) ([]GetIncompleteVocabForUserRow, error)
-	GetLatestUserStoryAttempt(ctx context.Context, arg GetLatestUserStoryAttemptParams) (StoryAttempt, error)
 	GetLineAudioFiles(ctx context.Context, arg GetLineAudioFilesParams) ([]LineAudioFile, error)
 	GetLineText(ctx context.Context, arg GetLineTextParams) (string, error)
 	GetLineTranslation(ctx context.Context, arg GetLineTranslationParams) (string, error)
@@ -263,7 +269,6 @@ type Querier interface {
 	GetUserLatestVocabScoresByLine(ctx context.Context, arg GetUserLatestVocabScoresByLineParams) ([]GetUserLatestVocabScoresByLineRow, error)
 	GetUserRecallCorrectAnswers(ctx context.Context, arg GetUserRecallCorrectAnswersParams) ([]GetUserRecallCorrectAnswersRow, error)
 	GetUserStoryAttemptSnapshotByNumber(ctx context.Context, arg GetUserStoryAttemptSnapshotByNumberParams) (GetUserStoryAttemptSnapshotByNumberRow, error)
-	GetUserStoryAttemptsWithSnapshots(ctx context.Context, arg GetUserStoryAttemptsWithSnapshotsParams) ([]GetUserStoryAttemptsWithSnapshotsRow, error)
 	GetUserStoryGrammarSummary(ctx context.Context, arg GetUserStoryGrammarSummaryParams) (GetUserStoryGrammarSummaryRow, error)
 	// Every Identify pick, correct and incorrect, in the order the student made
 	// them. selected_word is empty on correct rows (the pick was the target).
@@ -272,8 +277,9 @@ type Querier interface {
 	// Navigation queries: everything the "next page" decision needs in one round trip.
 	// GetUserStoryPageCompletion returns, for one user and story, the authored total
 	// and the user's progress for every skippable phase of the Summer 2026 flow:
-	// Identify, Translate, Produce, Recall. Completion rules (e.g. "no segments
-	// means produce is done") live in models.PageCompletion.
+	// Identify, Translate, Produce, Recall, plus how many completed attempts are
+	// archived (the live rows are always the current attempt). Completion rules
+	// (e.g. "no segments means produce is done") live in models.PageCompletion.
 	GetUserStoryPageCompletion(ctx context.Context, arg GetUserStoryPageCompletionParams) (GetUserStoryPageCompletionRow, error)
 	// Elapsed time is computed in the database so it never depends on the app
 	// server and database clocks agreeing.
@@ -292,6 +298,9 @@ type Querier interface {
 	// GetUserStoryScoreSummary: every per-user answer count the score page needs in
 	// one round trip. Produce aggregates the latest submission per segment, like
 	// GetUserStoryProduceSummary; ungraded segments are excluded from the average.
+	// produce_pending counts latest submissions the background grader has not
+	// stamped yet; anything older than five minutes is treated as settled so a
+	// grader that died mid-job cannot hold the attempt open forever.
 	GetUserStoryScoreSummary(ctx context.Context, arg GetUserStoryScoreSummaryParams) (GetUserStoryScoreSummaryRow, error)
 	GetUserStoryTimeTracking(ctx context.Context, arg GetUserStoryTimeTrackingParams) (GetUserStoryTimeTrackingRow, error)
 	GetUserStoryVocabSummary(ctx context.Context, arg GetUserStoryVocabSummaryParams) (GetUserStoryVocabSummaryRow, error)
@@ -313,11 +322,17 @@ type Querier interface {
 	ListGrammarPoints(ctx context.Context) ([]GrammarPoint, error)
 	ListProduceGradingPrompts(ctx context.Context) ([]ProduceGradingPrompt, error)
 	ListSuperAdmins(ctx context.Context) ([]User, error)
+	ListUserStoryAttemptSnapshots(ctx context.Context, arg ListUserStoryAttemptSnapshotsParams) ([]ListUserStoryAttemptSnapshotsRow, error)
+	// Renumbering after a delete happens one row at a time in ascending order
+	// (see models.DeleteArchivedAttempt): the unique (user, story, number) key is
+	// not deferrable, so a single "SET attempt_number = attempt_number - 1" could
+	// collide mid-statement depending on row order.
+	ListUserStoryAttemptsAfter(ctx context.Context, arg ListUserStoryAttemptsAfterParams) ([]ListUserStoryAttemptsAfterRow, error)
+	ListUserStoryCompletedAttempts(ctx context.Context, arg ListUserStoryCompletedAttemptsParams) ([]ListUserStoryCompletedAttemptsRow, error)
 	ListUsers(ctx context.Context) ([]User, error)
 	// MarkProduceGradingFailed stamps graded_at with no score so the student page
 	// can tell "grading failed" from "still waiting".
 	MarkProduceGradingFailed(ctx context.Context, id int32) error
-	MarkStoryAttemptComplete(ctx context.Context, attemptID int64) error
 	MarkTranslationRequestComplete(ctx context.Context, arg MarkTranslationRequestCompleteParams) error
 	RemoveCourseAdmin(ctx context.Context, arg RemoveCourseAdminParams) error
 	RemoveUserFromCourse(ctx context.Context, arg RemoveUserFromCourseParams) error
@@ -335,6 +350,7 @@ type Querier interface {
 	SaveVocabIncorrectAnswer(ctx context.Context, arg SaveVocabIncorrectAnswerParams) error
 	SaveVocabScore(ctx context.Context, arg SaveVocabScoreParams) error
 	SetActiveProduceGradingPrompt(ctx context.Context, arg SetActiveProduceGradingPromptParams) error
+	SetStoryAttemptNumber(ctx context.Context, arg SetStoryAttemptNumberParams) error
 	// StartProduceAttempt records when the student began a segment. A second call
 	// for the same segment is a no-op update so the original start is returned:
 	// the countdown cannot be reset by reloading.
@@ -359,7 +375,6 @@ type Querier interface {
 	UpdateVocabularyByPosition(ctx context.Context, arg UpdateVocabularyByPositionParams) error
 	UpdateVocabularyByWord(ctx context.Context, arg UpdateVocabularyByWordParams) error
 	UpdateVocabularyItem(ctx context.Context, arg UpdateVocabularyItemParams) error
-	UpsertAttemptScoreSnapshot(ctx context.Context, arg UpsertAttemptScoreSnapshotParams) error
 	UpsertLineTranslation(ctx context.Context, arg UpsertLineTranslationParams) error
 	UpsertProduceSegment(ctx context.Context, arg UpsertProduceSegmentParams) (UpsertProduceSegmentRow, error)
 	UpsertRecallSentence(ctx context.Context, arg UpsertRecallSentenceParams) (UpsertRecallSentenceRow, error)

@@ -740,12 +740,14 @@ SELECT
     (SELECT COUNT(*) FROM recall_incorrect_answers t WHERE t.user_id = $1 AND t.story_id = $2)::INT AS recall_incorrect,
     COALESCE(latest.submitted, 0)::INT AS produce_submitted,
     COALESCE(latest.graded, 0)::INT AS produce_graded,
-    COALESCE(latest.average_score, 0)::FLOAT8 AS produce_average_score
+    COALESCE(latest.average_score, 0)::FLOAT8 AS produce_average_score,
+    COALESCE(latest.pending, 0)::INT AS produce_pending
 FROM (SELECT 1) AS one
 LEFT JOIN (
-    SELECT COUNT(*) AS submitted, COUNT(ai_score) AS graded, AVG(ai_score) AS average_score
+    SELECT COUNT(*) AS submitted, COUNT(ai_score) AS graded, AVG(ai_score) AS average_score,
+           COUNT(*) FILTER (WHERE graded_at IS NULL AND created_at > LOCALTIMESTAMP - INTERVAL '5 minutes') AS pending
     FROM (
-        SELECT DISTINCT ON (segment_id) segment_id, ai_score
+        SELECT DISTINCT ON (segment_id) segment_id, ai_score, graded_at, created_at
         FROM produce_submissions
         WHERE user_id = $1 AND story_id = $2
         ORDER BY segment_id, created_at DESC
@@ -770,11 +772,15 @@ type GetUserStoryScoreSummaryRow struct {
 	ProduceSubmitted    int32   `json:"produce_submitted"`
 	ProduceGraded       int32   `json:"produce_graded"`
 	ProduceAverageScore float64 `json:"produce_average_score"`
+	ProducePending      int32   `json:"produce_pending"`
 }
 
 // GetUserStoryScoreSummary: every per-user answer count the score page needs in
 // one round trip. Produce aggregates the latest submission per segment, like
 // GetUserStoryProduceSummary; ungraded segments are excluded from the average.
+// produce_pending counts latest submissions the background grader has not
+// stamped yet; anything older than five minutes is treated as settled so a
+// grader that died mid-job cannot hold the attempt open forever.
 func (q *Queries) GetUserStoryScoreSummary(ctx context.Context, arg GetUserStoryScoreSummaryParams) (GetUserStoryScoreSummaryRow, error) {
 	row := q.db.QueryRow(ctx, getUserStoryScoreSummary, arg.UserID, arg.StoryID)
 	var i GetUserStoryScoreSummaryRow
@@ -790,6 +796,7 @@ func (q *Queries) GetUserStoryScoreSummary(ctx context.Context, arg GetUserStory
 		&i.ProduceSubmitted,
 		&i.ProduceGraded,
 		&i.ProduceAverageScore,
+		&i.ProducePending,
 	)
 	return i, err
 }

@@ -15,8 +15,10 @@ params:query {
 }
 
 docs {
-  phase: all | video | identify | translate | produce | recall | vocab | grammar (default all).
+  phase: all | exercises | video | identify | translate | produce | recall | vocab | grammar (default all).
   Deletes the student's answer/submission rows and time-tracking rows for the story (or phase).
+  Live rows are the current attempt: every phase but "all" leaves archived attempts (the official
+  first score) intact; "all" also deletes the archive. "exercises" is the current attempt minus video time.
 }
 
 settings {

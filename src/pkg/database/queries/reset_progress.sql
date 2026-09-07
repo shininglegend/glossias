@@ -39,10 +39,12 @@ DELETE FROM recall_incorrect_answers WHERE user_id = $1 AND story_id = $2;
 -- name: DeleteUserStoryTimeTracking :execrows
 DELETE FROM user_time_tracking WHERE user_id = $1 AND story_id = $2;
 
--- phase is the same value GetStoryStudentPerformance (scores.sql) buckets time
--- under, so what the admin sees zeroed matches what was deleted.
--- name: DeleteUserStoryTimeTrackingByPhase :execrows
-DELETE FROM user_time_tracking WHERE user_id = $1 AND story_id = $2 AND phase = $3;
+-- phases are the same values GetStoryStudentPerformance (scores.sql) buckets
+-- time under, so what the admin sees zeroed matches what was deleted. One
+-- statement covers a single-phase reset and the multi-phase exercise reset.
+-- name: DeleteUserStoryTimeTrackingByPhases :execrows
+DELETE FROM user_time_tracking
+WHERE user_id = @user_id AND story_id = @story_id::INT AND phase = ANY(@phases::TEXT[]);
 
 -- Whole-story reset in one round trip: clears every answer/submission table.
 -- Time rows are deleted separately by DeleteUserStoryTimeTracking.

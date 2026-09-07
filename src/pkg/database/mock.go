@@ -113,17 +113,26 @@ type MockQueryResult struct {
 	Err  error
 }
 
+// MockCall is one statement a MockDBTX received, with its bound arguments.
+type MockCall struct {
+	SQL  string
+	Args []any
+}
+
 // MockDBTX implements db.DBTX for testing with query stubbing
 type MockDBTX struct {
-	queries map[string]MockQueryResult
-	execs   map[string]error
+	queries  map[string]MockQueryResult
+	execs    map[string]error
+	execRows map[string]int64
+	calls    []MockCall
 }
 
 // NewMockDBTX creates a new mock DBTX connection with query stubbing capabilities
 func NewMockDBTX() *MockDBTX {
 	return &MockDBTX{
-		queries: make(map[string]MockQueryResult),
-		execs:   make(map[string]error),
+		queries:  make(map[string]MockQueryResult),
+		execs:    make(map[string]error),
+		execRows: make(map[string]int64),
 	}
 }
 
@@ -137,16 +146,45 @@ func (m *MockDBTX) StubExec(querySubstr string, err error) {
 	m.execs[querySubstr] = err
 }
 
+// StubExecRows sets the rows-affected count reported for exec statements
+// matching substring (SQLC :execrows queries); unstubbed execs report 0.
+func (m *MockDBTX) StubExecRows(querySubstr string, rows int64) {
+	m.execRows[querySubstr] = rows
+}
+
+// Calls returns every statement whose SQL contains the substring, in order,
+// so tests can assert what was written and with which arguments.
+func (m *MockDBTX) Calls(sqlSubstr string) []MockCall {
+	var out []MockCall
+	for _, c := range m.calls {
+		if strings.Contains(c.SQL, sqlSubstr) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func (m *MockDBTX) record(sql string, args []any) {
+	m.calls = append(m.calls, MockCall{SQL: sql, Args: args})
+}
+
 func (m *MockDBTX) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	m.record(sql, args)
 	for k, err := range m.execs {
 		if strings.Contains(sql, k) {
 			return pgconn.CommandTag{}, err
+		}
+	}
+	for k, n := range m.execRows {
+		if strings.Contains(sql, k) {
+			return pgconn.NewCommandTag(fmt.Sprintf("UPDATE %d", n)), nil
 		}
 	}
 	return pgconn.CommandTag{}, nil
 }
 
 func (m *MockDBTX) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	m.record(sql, args)
 	for k, qr := range m.queries {
 		if strings.Contains(sql, k) {
 			if qr.Err != nil {
@@ -159,6 +197,7 @@ func (m *MockDBTX) Query(ctx context.Context, sql string, args ...any) (pgx.Rows
 }
 
 func (m *MockDBTX) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	m.record(sql, args)
 	for k, qr := range m.queries {
 		if strings.Contains(sql, k) {
 			if qr.Err != nil {

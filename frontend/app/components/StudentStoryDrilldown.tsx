@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useApiService } from "../services/api";
 import Button from "./ui/Button";
+import { AttemptPicker } from "./story-components/AttemptPicker";
 
 /** Mirrors models.StudentStoryDrilldown. */
 interface DrilldownData {
@@ -13,7 +14,7 @@ interface DrilldownData {
 
   attempt_number: number;
   attempt_count: number;
-  attempts: { number: number; has_snapshot: boolean; is_current: boolean }[];
+  attempts: { number: number; is_current: boolean; completed_at?: string }[];
   from_snapshot: boolean;
   score?: {
     overall_accuracy: number;
@@ -213,29 +214,19 @@ export function StudentStoryDrilldown() {
         </Button>
       </div>
 
-      {data.attempts?.length > 1 && (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold text-gray-700">Attempt</span>
-          {data.attempts.map((item) => (
-            <button
-              key={item.number}
-              type="button"
-              onClick={() => setAttempt(item.number)}
-              className={`rounded border px-3 py-1 text-sm ${
-                item.number === data.attempt_number
-                  ? "border-primary-500 bg-primary-50 font-semibold text-primary-700"
-                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              {item.number}
-              {item.is_current ? " (current)" : ""}
-            </button>
-          ))}
-          <span className="text-sm text-gray-500">
-            Done {data.attempt_count} time{data.attempt_count === 1 ? "" : "s"}
-          </span>
-        </div>
-      )}
+      <AttemptPicker
+        className="mb-4"
+        attempts={(data.attempts ?? []).map((item) => ({
+          number: item.number,
+          suffix: item.is_current ? "(current)" : undefined,
+        }))}
+        selected={data.attempt_number}
+        onSelect={setAttempt}
+      >
+        <span className="text-sm text-gray-500">
+          Done {data.attempt_count} time{data.attempt_count === 1 ? "" : "s"}
+        </span>
+      </AttemptPicker>
 
       {data.from_snapshot && (
         <p className="mb-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">

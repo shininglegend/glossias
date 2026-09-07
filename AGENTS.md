@@ -90,6 +90,14 @@ Never edit files under `src/pkg/generated/db/` by hand.
 
 **The goose migrations in `src/pkg/database/migrations/` are the single source of truth for the schema** — SQLC reads that directory directly (see `sqlc.yaml`), and the backend applies the migrations on startup. To change the schema, add a numbered migration with `-- +goose Up` / `-- +goose Down` sections and re-run `sqlc generate`. There is no separate `schema.sql` to keep in sync.
 
+### Verifying against the local database
+
+`DATABASE_URL` in `.env` points at the local Supabase Postgres (`localhost:54322`); `psql` lives at `/opt/homebrew/opt/postgresql@18/bin/psql`. It is a development database, but the real accounts in it (the `DEV_USER` account included) carry state the developer is using.
+
+- **Destructive checks only against `user_test_student`** ("Test Student", `test.student@example.com`, enrolled in course 1). It exists for this purpose. Seed whatever shape of data you need on that user first; never delete or reset rows belonging to any other account, even to "verify" an endpoint. Cleaning up: `DELETE /api/admin/stories/{id}/students/user_test_student/progress?phase=all`.
+- To hit the running backend as an admin, send the `dev_auth: 12345678` header. Unauthenticated student routes return 401 without it.
+- The backend does not hot-reload: new routes need a restart (or run a second instance with `PORT=8099 go run main.go`).
+
 ## Auth
 
 Clerk is used for both frontend (ClerkProvider in `frontend/app/root.tsx`) and backend (JWT middleware in `src/auth/`). Role-based access: `super_admin`, `course_admin`, `student`. The `DEV_USER` env var bypasses auth entirely — never set it in production.

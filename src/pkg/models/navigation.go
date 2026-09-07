@@ -18,6 +18,9 @@ type PageCompletion struct {
 	RecallCorrect        int
 	ProduceTotal         int
 	ProduceSubmitted     int
+	// CompletedAttempts is how many archived runs the student has; the live
+	// rows above are always attempt CompletedAttempts+1.
+	CompletedAttempts int
 }
 
 // GetUserStoryPageCompletion loads the user's phase progress for a story in one
@@ -43,6 +46,7 @@ func GetUserStoryPageCompletion(ctx context.Context, userID string, storyID int)
 		RecallCorrect:        int(row.RecallCorrect),
 		ProduceTotal:         int(row.ProduceTotal),
 		ProduceSubmitted:     int(row.ProduceSubmitted),
+		CompletedAttempts:    int(row.CompletedAttempts),
 	}, nil
 }
 

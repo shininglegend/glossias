@@ -1,0 +1,21 @@
+meta {
+  name: Student Attempts
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseURL}}/api/admin/stories/1/students/USER_ID/attempts
+  body: none
+  auth: inherit
+}
+
+docs {
+  Every archived attempt (number, completed_at, frozen score) followed by the live current
+  attempt (is_current: true) with `stages`: the phases that hold answers or time, each
+  deletable via "Reset Student Progress" with that phase. No stages = not started.
+}
+
+settings {
+  encodeUrl: true
+}

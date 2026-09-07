@@ -112,12 +112,17 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 		Methods("PUT", "DELETE", "OPTIONS")
 
 	// Per-student performance on this story, the per-student answer drill-down,
-	// and per-student progress reset.
+	// per-student progress reset (live attempt, by phase) and archived-attempt
+	// management.
 	stories.HandleFunc("/{id:[0-9]+}/students", h.validateStoryID(h.storyStudentsHandler)).
 		Methods("GET", "OPTIONS")
 	stories.HandleFunc("/{id:[0-9]+}/students/{userId}", h.validateStoryID(h.storyStudentDrilldownHandler)).
 		Methods("GET", "OPTIONS")
 	stories.HandleFunc("/{id:[0-9]+}/students/{userId}/progress", h.validateStoryID(h.resetStudentProgressHandler)).
+		Methods("DELETE", "OPTIONS")
+	stories.HandleFunc("/{id:[0-9]+}/students/{userId}/attempts", h.validateStoryID(h.studentAttemptsHandler)).
+		Methods("GET", "OPTIONS")
+	stories.HandleFunc("/{id:[0-9]+}/students/{userId}/attempts/{attempt:[0-9]+}", h.validateStoryID(h.deleteStudentAttemptHandler)).
 		Methods("DELETE", "OPTIONS")
 }
 

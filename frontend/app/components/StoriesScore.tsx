@@ -2,10 +2,17 @@ import { useState, useEffect, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useApiService } from "../services/api";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
-import { useRedoStory } from "../hooks/useRedoStory";
 import { RedoStoryButton } from "./story-components/RedoStoryButton";
+import { AttemptPicker } from "./story-components/AttemptPicker";
 import { ProduceMoreDetailsButton } from "./story-components/ProduceFeedbackModal";
 import confetti from "canvas-confetti";
+
+interface ScoreAttempt {
+  number: number;
+  completed_at?: string;
+  /** Finished but still waiting on Produce grading; not frozen yet. */
+  pending?: boolean;
+}
 
 interface ScoreData {
   story_title: string;
@@ -36,17 +43,16 @@ interface ScoreData {
   recall_attempts: number;
   recall_total: number;
 
-  // Legacy Vocabulary (stories authored before the five-phase flow).
-  vocab_accuracy: number;
-  vocab_correct_count: number;
-  vocab_incorrect_count: number;
-
   video_time_seconds: number;
   identify_time_seconds: number;
   translation_time_seconds: number;
   produce_time_seconds: number;
   recall_time_seconds: number;
-  vocab_time_seconds: number;
+
+  attempt_number: number;
+  attempts: ScoreAttempt[];
+  /** False only while a finished attempt waits on Produce grading. */
+  archived: boolean;
 }
 
 interface MissingActivity {
@@ -68,7 +74,6 @@ const ACTIVITY_ICONS: Record<string, string> = {
   translation: "translate",
   produce: "edit_note",
   recall: "low_priority",
-  vocab: "quiz",
 };
 
 function fireConfetti() {
@@ -133,7 +138,7 @@ function scoreBorderClass(score: number | null): string {
 interface PhaseCardProps {
   title: string;
   icon: string;
-  colour: "primary" | "purple" | "teal" | "orange" | "gray";
+  colour: "primary" | "purple" | "teal" | "orange";
   /** 0–100, or null when there is no score to show yet (e.g. grading pending). */
   score: number | null;
   scoreLabel?: string;
@@ -147,7 +152,6 @@ const COLOURS = {
   purple: { icon: "text-purple-600", title: "text-purple-900" },
   teal: { icon: "text-teal-600", title: "text-teal-900" },
   orange: { icon: "text-orange-600", title: "text-orange-900" },
-  gray: { icon: "text-gray-600", title: "text-gray-800" },
 } as const;
 
 function PhaseCard({
@@ -247,7 +251,8 @@ export function StoriesScore() {
   const [error, setError] = useState<string | null>(null);
   const [confettiFired, setConfettiFired] = useState(false);
   const [, setNextStepName] = useState<string>("Back to Stories");
-  const { redo, redoing, error: redoError } = useRedoStory(id);
+  // undefined asks the server for the newest attempt.
+  const [attempt, setAttempt] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     const fetchScoreData = async () => {
@@ -258,7 +263,7 @@ export function StoriesScore() {
       }
 
       try {
-        const response = await api.getStoryScore(id);
+        const response = await api.getStoryScore(id, attempt);
         if (response.success && response.data) {
           const data = response.data as Record<string, unknown>;
           if ("complete" in data && data.complete === false) {
@@ -278,7 +283,7 @@ export function StoriesScore() {
 
     fetchScoreData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, attempt]);
 
   useEffect(() => {
     const fetchNextStep = async () => {
@@ -409,8 +414,6 @@ export function StoriesScore() {
   const hasIdentify = scoreData.identify_total > 0;
   const hasProduce = scoreData.produce_total > 0;
   const hasRecall = scoreData.recall_total > 0;
-  const hasLegacyVocab =
-    scoreData.vocab_correct_count + scoreData.vocab_incorrect_count > 0;
   const producePending = hasProduce && scoreData.produce_segments_graded === 0;
 
   return (
@@ -428,7 +431,7 @@ export function StoriesScore() {
               <p className="text-green-600 text-lg">
                 Total Time: {formatTime(scoreData.total_time_seconds)}
               </p>
-              {producePending && (
+              {producePending && !scoreData.archived && (
                 <p className="text-green-700 text-sm mt-2">
                   Your Produce writing is still being graded — check back for
                   your final score.
@@ -436,6 +439,15 @@ export function StoriesScore() {
               )}
             </div>
           </div>
+          <AttemptPicker
+            className="justify-center"
+            attempts={(scoreData.attempts ?? []).map((a) => ({
+              number: a.number,
+              suffix: a.pending ? "(grading)" : undefined,
+            }))}
+            selected={scoreData.attempt_number}
+            onSelect={setAttempt}
+          />
         </div>
 
         <div className="text-center flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -446,7 +458,8 @@ export function StoriesScore() {
             <span>Back to Stories</span>
             <span className="material-icons ml-2">home</span>
           </button>
-          <RedoStoryButton onRedo={redo} redoing={redoing} error={redoError} />
+          {/* The exercises are only clear once the attempt is archived. */}
+          {scoreData.archived && id && <RedoStoryButton storyId={id} />}
         </div>
       </header>
 
@@ -594,32 +607,10 @@ export function StoriesScore() {
                 label="Recall"
                 seconds={scoreData.recall_time_seconds}
                 colourClass="text-orange-600"
-                span={scoreData.vocab_time_seconds <= 0}
+                span
               />
-              {scoreData.vocab_time_seconds > 0 && (
-                <TimeCell
-                  label="Vocabulary"
-                  seconds={scoreData.vocab_time_seconds}
-                  colourClass="text-gray-600"
-                />
-              )}
             </div>
           </div>
-
-          {hasLegacyVocab && (
-            <PhaseCard
-              title="Vocabulary"
-              icon={ACTIVITY_ICONS.vocab}
-              colour="gray"
-              score={scoreData.vocab_accuracy}
-              timeSeconds={scoreData.vocab_time_seconds}
-            >
-              <Attempts
-                correct={scoreData.vocab_correct_count}
-                wrong={scoreData.vocab_incorrect_count}
-              />
-            </PhaseCard>
-          )}
         </div>
 
         {/* Encouragement Message */}

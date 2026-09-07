@@ -1,0 +1,22 @@
+meta {
+  name: Delete Student Attempt
+  type: http
+  seq: 9
+}
+
+delete {
+  url: {{baseURL}}/api/admin/stories/1/students/USER_ID/attempts/1
+  body: none
+  auth: inherit
+}
+
+docs {
+  Deletes one archived attempt (its score snapshot cascades) and renumbers later attempts
+  so they stay contiguous; the live attempt is always archived count + 1. 404 if the
+  number is not an archived attempt. Archived attempts are all-or-nothing — trim the live
+  attempt phase by phase with "Reset Student Progress" instead.
+}
+
+settings {
+  encodeUrl: true
+}

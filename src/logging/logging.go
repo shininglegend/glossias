@@ -39,6 +39,9 @@ type Options struct {
 	Level slog.Leveler
 	// Control color output
 	UseColors bool
+	// Format is "json" (Better Stack) or "pretty" (local). Empty follows
+	// LOG_FORMAT, then pretty on a TTY and json otherwise.
+	Format string
 }
 
 // groupOrAttrs holds either a group name or a list of slog.Attrs.

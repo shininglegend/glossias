@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"glossias/src/pkg/models"
 	"log/slog"
 	"net/http"
@@ -174,6 +176,41 @@ func GetUserID(r *http.Request) string {
 		return ""
 	}
 	return userID
+}
+
+// userIDForLog is for diagnostic logs only — not authorization. Rate limiting
+// runs before auth, so context is usually empty; peek at DEV_USER or the JWT
+// subject when present.
+func userIDForLog(r *http.Request) string {
+	if id := GetUserID(r); id != "" {
+		return id
+	}
+	if devUser := os.Getenv("DEV_USER"); devUser != "" && r.Header.Get("dev_auth") == "12345678" {
+		return devUser
+	}
+	return jwtSubject(r.Header.Get("Authorization"))
+}
+
+func jwtSubject(authHeader string) string {
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+	if token == authHeader || token == "" {
+		return ""
+	}
+	parts := strings.Split(token, ".")
+	if len(parts) < 2 {
+		return ""
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+	var claims struct {
+		Sub string `json:"sub"`
+	}
+	if json.Unmarshal(payload, &claims) != nil {
+		return ""
+	}
+	return claims.Sub
 }
 
 // HasPermission checks if user has permission to access a course (non-admin)

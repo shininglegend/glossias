@@ -12,8 +12,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-var ErrStoryNotComplete = errors.New("story is not complete")
-
 // AttemptProduceSegment is one Produce passage frozen with its AI notes.
 type AttemptProduceSegment struct {
 	SegmentOrder     int    `json:"segment_order"`
@@ -67,10 +65,10 @@ type AttemptScoreSnapshot struct {
 	RequestedLines       []int32 `json:"requested_lines,omitempty"`
 }
 
-// StoryAttemptInfo is one redo cycle for admin attempt switching.
+// StoryAttemptInfo is one run of a story: an archived attempt (CompletedAt
+// set) or the implicit current one backed by the live answer tables.
 type StoryAttemptInfo struct {
 	Number      int        `json:"number"`
-	HasSnapshot bool       `json:"has_snapshot"`
 	IsCurrent   bool       `json:"is_current"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
 }
@@ -95,13 +93,22 @@ func StoryExercisesComplete(c *PageCompletion) bool {
 	return true
 }
 
+// ReadyToArchive reports whether the live rows are a finished attempt whose
+// Produce grades have settled. Archiving earlier would freeze "grading
+// pending" into the official score, because the grader updates the live
+// submission row that the archive wipes.
+func ReadyToArchive(c *PageCompletion, s *UserStoryScoreSummary) bool {
+	return StoryExercisesComplete(c) && (s == nil || s.ProducePending == 0)
+}
+
 // GetOfficialAttemptScore returns the frozen first-attempt score, or nil
-// when the student has never redone (live rows are still attempt 1).
+// when the student has never finished the story.
 func GetOfficialAttemptScore(ctx context.Context, userID string, storyID int) (*AttemptScoreSnapshot, error) {
 	return GetAttemptScore(ctx, userID, storyID, 1)
 }
 
-// GetAttemptScore loads a frozen score for one attempt number.
+// GetAttemptScore loads a frozen score for one attempt number, or nil when
+// that attempt was never archived.
 func GetAttemptScore(ctx context.Context, userID string, storyID, attemptNumber int) (*AttemptScoreSnapshot, error) {
 	if queries == nil {
 		return nil, errors.New("database not initialized")
@@ -120,12 +127,9 @@ func GetAttemptScore(ctx context.Context, userID string, storyID, attemptNumber 
 	return unmarshalAttemptScore(row.Snapshot)
 }
 
-// BuildLiveAttemptScore computes the current Score payload from live rows.
-func BuildLiveAttemptScore(ctx context.Context, userID string, storyID int, title string) (*AttemptScoreSnapshot, error) {
-	summary, err := GetUserStoryScoreSummary(ctx, userID, storyID)
-	if err != nil {
-		return nil, err
-	}
+// BuildLiveAttemptScore computes the Score payload from the live rows, given
+// the caller's already-loaded answer counts.
+func BuildLiveAttemptScore(ctx context.Context, userID string, storyID int, title string, summary *UserStoryScoreSummary) (*AttemptScoreSnapshot, error) {
 	timeData, err := GetUserStoryTimeTracking(ctx, userID, int32(storyID))
 	if err != nil {
 		return nil, err
@@ -190,114 +194,70 @@ func BuildLiveAttemptScore(ctx context.Context, userID string, storyID int, titl
 	}, nil
 }
 
-// StartStudentStoryRedo freezes the current live score as the completed
-// attempt, opens the next attempt, and wipes exercise answers so Identify
-// starts clean. Video time is left intact.
-func StartStudentStoryRedo(ctx context.Context, userID string, storyID int32, title string) (ResetResult, error) {
-	completion, err := GetUserStoryPageCompletion(ctx, userID, int(storyID))
-	if err != nil {
-		return ResetResult{}, err
-	}
-	if !StoryExercisesComplete(completion) {
-		return ResetResult{}, ErrStoryNotComplete
-	}
-
-	snap, err := BuildLiveAttemptScore(ctx, userID, int(storyID), title)
-	if err != nil {
-		return ResetResult{}, err
-	}
-
-	// Snapshot and wipe commit together: a failed wipe must not leave a
-	// frozen attempt beside still-live answers (or vice versa).
-	result := newExerciseResetResult()
-	err = withTransaction(ctx, func(txCtx context.Context) error {
-		if err := persistCompletedAttempt(txCtx, userID, storyID, snap); err != nil {
-			return err
-		}
-		return resetExercises(txCtx, userID, storyID, result.Deleted)
-	})
-	if err != nil {
-		return ResetResult{}, err
-	}
-	return result, nil
-}
-
-func persistCompletedAttempt(ctx context.Context, userID string, storyID int32, snap *AttemptScoreSnapshot) error {
+// ArchiveCompletedAttempt freezes the live score as the next completed
+// attempt and wipes the exercise answers so Identify starts clean; video time
+// is left intact. summary is the caller's already-loaded live counts (the
+// same ones ReadyToArchive was decided on). It returns the archived attempt
+// number and its snapshot.
+//
+// Snapshot and wipe commit together: a failed wipe must not leave a frozen
+// attempt beside still-live answers (or vice versa).
+func ArchiveCompletedAttempt(ctx context.Context, userID string, storyID int32, title string, summary *UserStoryScoreSummary) (int, *AttemptScoreSnapshot, error) {
 	if queries == nil {
-		return errors.New("database not initialized")
+		return 0, nil, errors.New("database not initialized")
+	}
+	snap, err := BuildLiveAttemptScore(ctx, userID, int(storyID), title, summary)
+	if err != nil {
+		return 0, nil, err
 	}
 	payload, err := json.Marshal(snap)
 	if err != nil {
-		return err
+		return 0, nil, err
 	}
 
-	// The latest row is the open attempt; a student who has never redone has
-	// no rows yet, so attempt 1 is created here.
-	current, err := queries.GetLatestUserStoryAttempt(ctx, db.GetLatestUserStoryAttemptParams{
-		UserID:  userID,
-		StoryID: storyID,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		current, err = queries.CreateStoryAttempt(ctx, db.CreateStoryAttemptParams{
-			UserID:        userID,
-			StoryID:       storyID,
-			AttemptNumber: 1,
+	var number int32
+	err = withTransaction(ctx, func(txCtx context.Context) error {
+		n, err := queries.ArchiveStoryAttempt(txCtx, db.ArchiveStoryAttemptParams{
+			UserID:   userID,
+			StoryID:  storyID,
+			Snapshot: string(payload),
 		})
-	}
-	if err != nil {
-		return err
-	}
-
-	if err := queries.UpsertAttemptScoreSnapshot(ctx, db.UpsertAttemptScoreSnapshotParams{
-		AttemptID: current.AttemptID,
-		Snapshot:  payload,
-	}); err != nil {
-		return err
-	}
-	if err := queries.MarkStoryAttemptComplete(ctx, current.AttemptID); err != nil {
-		return err
-	}
-
-	_, err = queries.CreateStoryAttempt(ctx, db.CreateStoryAttemptParams{
-		UserID:        userID,
-		StoryID:       storyID,
-		AttemptNumber: current.AttemptNumber + 1,
+		if err != nil {
+			return err
+		}
+		number = n
+		return resetExercises(txCtx, userID, storyID, map[string]int64{})
 	})
-	return err
+	if err != nil {
+		return 0, nil, err
+	}
+	return int(number), snap, nil
 }
 
-// ListUserStoryAttempts returns every redo cycle, synthesizing attempt 1
-// when the student has never redone.
+// ListUserStoryAttempts returns every archived attempt in order followed by
+// the current (live) one, so there is always at least one entry.
 func ListUserStoryAttempts(ctx context.Context, userID string, storyID int32) ([]StoryAttemptInfo, error) {
 	if queries == nil {
 		return nil, errors.New("database not initialized")
 	}
-	rows, err := queries.GetUserStoryAttemptsWithSnapshots(ctx, db.GetUserStoryAttemptsWithSnapshotsParams{
+	rows, err := queries.ListUserStoryCompletedAttempts(ctx, db.ListUserStoryCompletedAttemptsParams{
 		UserID:  userID,
 		StoryID: storyID,
 	})
 	if err != nil {
 		return nil, err
 	}
-	if len(rows) == 0 {
-		return []StoryAttemptInfo{{Number: 1, IsCurrent: true}}, nil
-	}
 
-	current := int(rows[len(rows)-1].AttemptNumber)
-	out := make([]StoryAttemptInfo, 0, len(rows))
+	out := make([]StoryAttemptInfo, 0, len(rows)+1)
 	for _, row := range rows {
-		info := StoryAttemptInfo{
-			Number:      int(row.AttemptNumber),
-			HasSnapshot: row.HasSnapshot,
-			IsCurrent:   int(row.AttemptNumber) == current,
-		}
+		info := StoryAttemptInfo{Number: int(row.AttemptNumber)}
 		if row.CompletedAt.Valid {
 			t := row.CompletedAt.Time
 			info.CompletedAt = &t
 		}
 		out = append(out, info)
 	}
-	return out, nil
+	return append(out, StoryAttemptInfo{Number: len(rows) + 1, IsCurrent: true}), nil
 }
 
 // ScoreProduceNotes is the latest Produce submission per segment for the

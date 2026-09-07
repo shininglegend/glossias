@@ -35,11 +35,11 @@ func TestNavigate(t *testing.T) {
 	h := NewHandler(slog.New(slog.DiscardHandler), nil)
 
 	// Column order: identify total/correct, translate, recall total/correct,
-	// produce total/submitted.
-	allDone := []any{int32(4), int32(4), true, int32(5), int32(5), int32(2), int32(2)}
-	freshStory := []any{int32(4), int32(0), false, int32(5), int32(0), int32(2), int32(0)}
-	identifyDone := []any{int32(4), int32(4), false, int32(5), int32(0), int32(2), int32(0)}
-	produceLeft := []any{int32(4), int32(4), true, int32(5), int32(5), int32(2), int32(1)}
+	// produce total/submitted, completed attempts.
+	allDone := []any{int32(4), int32(4), true, int32(5), int32(5), int32(2), int32(2), int32(0)}
+	freshStory := []any{int32(4), int32(0), false, int32(5), int32(0), int32(2), int32(0), int32(1)}
+	identifyDone := []any{int32(4), int32(4), false, int32(5), int32(0), int32(2), int32(0), int32(0)}
+	produceLeft := []any{int32(4), int32(4), true, int32(5), int32(5), int32(2), int32(1), int32(0)}
 
 	tests := []struct {
 		name        string
@@ -83,6 +83,11 @@ func TestNavigate(t *testing.T) {
 			}
 			if resp.Data.NextPage != tt.wantNext {
 				t.Errorf("nextPage = %q, want %q", resp.Data.NextPage, tt.wantNext)
+			}
+			// An archived run leaves the live rows fresh; the count is what
+			// lets the Video page still offer the Score page.
+			if want := int(tt.completion[7].(int32)); resp.Data.CompletedAttempts != want {
+				t.Errorf("completedAttempts = %d, want %d", resp.Data.CompletedAttempts, want)
 			}
 		})
 	}

@@ -7,14 +7,15 @@ import (
 	"glossias/src/pkg/models"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 )
 
-// ScoreData is the student's result for a completed story: one accuracy per
-// five-phase activity (Identify, Produce, Recall), a per-phase time breakdown,
-// and leftover Vocabulary counts for stories authored before the five-phase
-// flow. Grammar is no longer shown on the student Score page.
+// ScoreData is the student's result for one attempt at a story: one accuracy
+// per five-phase activity (Identify, Produce, Recall) and a per-phase time
+// breakdown. Archived vocab/grammar results are never shown, even when the
+// student has leftover scores from those pages.
 type ScoreData struct {
 	StoryTitle       string  `json:"story_title"`
 	TotalTimeSeconds int     `json:"total_time_seconds"`
@@ -31,29 +32,32 @@ type ScoreData struct {
 	ProduceTotal             int                            `json:"produce_total"`
 	ProduceSegments          []models.AttemptProduceSegment `json:"produce_segments"`
 
-	AttemptNumber int `json:"attempt_number"`
-	AttemptCount  int `json:"attempt_count"`
-
 	RecallAccuracy       float64 `json:"recall_accuracy"` // Percentage (0-100)
 	RecallCorrectCount   int     `json:"recall_correct_count"`
 	RecallIncorrectCount int     `json:"recall_incorrect_count"`
 	RecallAttempts       int     `json:"recall_attempts"`
 	RecallTotal          int     `json:"recall_total"`
 
-	VocabAccuracy         float64 `json:"vocab_accuracy"` // Percentage (0-100)
-	VocabCorrectCount     int     `json:"vocab_correct_count"`
-	VocabIncorrectCount   int     `json:"vocab_incorrect_count"`
-	GrammarAccuracy       float64 `json:"grammar_accuracy"` // Percentage (0-100)
-	GrammarCorrectCount   int     `json:"grammar_correct_count"`
-	GrammarIncorrectCount int     `json:"grammar_incorrect_count"`
-
 	VideoTimeSeconds       int `json:"video_time_seconds"`
 	IdentifyTimeSeconds    int `json:"identify_time_seconds"`
 	TranslationTimeSeconds int `json:"translation_time_seconds"`
 	ProduceTimeSeconds     int `json:"produce_time_seconds"`
 	RecallTimeSeconds      int `json:"recall_time_seconds"`
-	VocabTimeSeconds       int `json:"vocab_time_seconds"`
-	GrammarTimeSeconds     int `json:"grammar_time_seconds"`
+
+	// AttemptNumber is the attempt shown; Attempts lists every one the
+	// student can switch to. Archived is false only for a finished attempt
+	// still waiting on Produce grading, which is served live and frozen on a
+	// later visit.
+	AttemptNumber int            `json:"attempt_number"`
+	Attempts      []ScoreAttempt `json:"attempts"`
+	Archived      bool           `json:"archived"`
+}
+
+// ScoreAttempt is one entry on the Score page's attempt picker.
+type ScoreAttempt struct {
+	Number      int        `json:"number"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	Pending     bool       `json:"pending,omitempty"`
 }
 
 // MissingActivity represents an incomplete activity
@@ -72,16 +76,33 @@ type IncompleteDataResponse struct {
 	Message           string            `json:"message"`
 }
 
-// GetScoresData serves GET /api/stories/{id}/scores. A phase blocks the score
-// page only if the story has content for it (a story missing Identify words,
-// Produce segments or Recall sentences degrades to fewer cards, not a wall).
-// Legacy vocab/grammar pages are not in the flow and never block.
+// GetScoresData serves GET /api/stories/{id}/scores[?attempt=N].
+//
+// Finishing a story is what archives it: when the live rows are complete (and
+// Produce grading has settled) this handler freezes them as the next attempt
+// and wipes the exercises, so the student's next visit to Identify starts a
+// fresh run without being asked. The page then shows the requested attempt,
+// defaulting to the newest, with every archived attempt selectable.
+//
+// A phase blocks the page only if the story has content for it (a story
+// missing Identify words, Produce segments or Recall sentences degrades to
+// fewer cards, not a wall). Legacy vocab/grammar pages never block.
 func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 	storyID := mux.Vars(r)["id"]
 	id, err := strconv.Atoi(storyID)
 	if err != nil {
 		h.sendError(w, "Invalid story ID format", http.StatusBadRequest)
 		return
+	}
+
+	requested := 0
+	if raw := r.URL.Query().Get("attempt"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 {
+			h.sendError(w, "Invalid attempt parameter", http.StatusBadRequest)
+			return
+		}
+		requested = n
 	}
 
 	userID := auth.GetUserID(r)
@@ -99,26 +120,12 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 	}
 	title := story.Metadata.Title["en"]
 
-	if official, err := models.GetOfficialAttemptScore(r.Context(), userID, id); err != nil {
-		h.log.Error("Failed to fetch official attempt score", "error", err, "storyID", id, "userID", userID)
-		h.sendError(w, "Internal server error", http.StatusInternalServerError)
-		return
-	} else if official != nil {
-		attemptCount := 2
-		if attempts, listErr := models.ListUserStoryAttempts(r.Context(), userID, int32(id)); listErr == nil {
-			attemptCount = len(attempts)
-		}
-		h.writeJSON(w, types.APIResponse{Success: true, Data: scoreDataFromSnapshot(*official, attemptCount)})
-		return
-	}
-
 	completion, err := models.GetUserStoryPageCompletion(r.Context(), userID, id)
 	if err != nil {
 		h.log.Error("Failed to fetch page completion", "error", err, "storyID", id, "userID", userID)
 		h.sendError(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-
 	summary, err := models.GetUserStoryScoreSummary(r.Context(), userID, id)
 	if err != nil {
 		h.log.Error("Failed to fetch score summary", "error", err, "storyID", id, "userID", userID)
@@ -126,99 +133,87 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	missing := missingActivities(completion, summary)
-	if len(missing) > 0 {
+	livePending := models.StoryExercisesComplete(completion)
+	var justArchived *models.AttemptScoreSnapshot
+	justArchivedNumber := 0
+	if models.ReadyToArchive(completion, summary) {
+		justArchivedNumber, justArchived, err = models.ArchiveCompletedAttempt(r.Context(), userID, int32(id), title, summary)
+		if err != nil {
+			h.log.Error("Failed to archive completed story attempt", "error", err, "storyID", id, "userID", userID)
+			h.sendError(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		h.log.Info("Story attempt archived", "userID", userID, "storyID", id, "attempt", justArchivedNumber)
+		livePending = false
+	}
+
+	attempts, err := models.ListUserStoryAttempts(r.Context(), userID, int32(id))
+	if err != nil {
+		h.log.Error("Failed to list story attempts", "error", err, "storyID", id, "userID", userID)
+		h.sendError(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	current := attempts[len(attempts)-1].Number
+	picker := make([]ScoreAttempt, 0, len(attempts))
+	for _, a := range attempts[:len(attempts)-1] {
+		picker = append(picker, ScoreAttempt{Number: a.Number, CompletedAt: a.CompletedAt})
+	}
+	if livePending {
+		picker = append(picker, ScoreAttempt{Number: current, Pending: true})
+	}
+
+	if len(picker) == 0 {
+		if requested != 0 {
+			h.sendError(w, "Attempt not found", http.StatusNotFound)
+			return
+		}
 		h.writeJSON(w, types.APIResponse{
 			Success: true,
 			Data: IncompleteDataResponse{
 				Complete:          false,
 				StoryTitle:        title,
-				MissingActivities: missing,
+				MissingActivities: missingActivities(completion, summary),
 				Message:           "Please complete the missing activities to view your scores",
 			},
 		})
 		return
 	}
+	if requested == 0 {
+		requested = picker[len(picker)-1].Number
+	}
 
-	timeData, err := models.GetUserStoryTimeTracking(r.Context(), userID, int32(id))
+	var snap *models.AttemptScoreSnapshot
+	switch {
+	case justArchived != nil && requested == justArchivedNumber:
+		snap = justArchived
+	case livePending && requested == current:
+		snap, err = models.BuildLiveAttemptScore(r.Context(), userID, id, title, summary)
+	case requested < current:
+		snap, err = models.GetAttemptScore(r.Context(), userID, id, requested)
+	}
 	if err != nil {
-		h.log.Error("Failed to fetch time tracking data", "error", err, "storyID", id, "userID", userID)
+		h.log.Error("Failed to load attempt score", "error", err, "storyID", id, "userID", userID, "attempt", requested)
 		h.sendError(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-
-	legacy := getVocabAndGrammarCount(*story)
-	totals := models.PhaseTotals{
-		VocabTotal:    int(legacy.VocabCount),
-		GrammarTotal:  int(legacy.GrammarCount),
-		IdentifyTotal: completion.IdentifyTotal,
-		ProduceTotal:  completion.ProduceTotal,
-		RecallTotal:   completion.RecallTotal,
-	}
-	scores := models.ComputePhaseScores(*summary, totals)
-
-	totalTime := timeData.VideoTimeSeconds + timeData.IdentifyTimeSeconds +
-		timeData.TranslationTimeSeconds + timeData.ProduceTimeSeconds + timeData.RecallTimeSeconds +
-		timeData.VocabTimeSeconds
-
-	produceNotes, err := models.ScoreProduceNotes(r.Context(), userID, id)
-	if err != nil {
-		h.log.Error("Failed to fetch produce notes", "error", err, "storyID", id, "userID", userID)
-		h.sendError(w, "Internal server error", http.StatusInternalServerError)
+	if snap == nil {
+		h.sendError(w, "Attempt not found", http.StatusNotFound)
 		return
 	}
 
-	h.writeJSON(w, types.APIResponse{
-		Success: true,
-		Data: ScoreData{
-			StoryTitle:       title,
-			TotalTimeSeconds: totalTime,
-			OverallAccuracy:  scores.Overall,
-
-			IdentifyAccuracy:       scores.IdentifyAccuracy,
-			IdentifyCorrectCount:   summary.IdentifyCorrect,
-			IdentifyIncorrectCount: summary.IdentifyIncorrect,
-			IdentifyTotal:          totals.IdentifyTotal,
-
-			ProduceScore:             scores.ProduceScore,
-			ProduceSegmentsSubmitted: summary.ProduceSubmitted,
-			ProduceSegmentsGraded:    summary.ProduceGraded,
-			ProduceTotal:             totals.ProduceTotal,
-			ProduceSegments:          produceNotes,
-
-			RecallAccuracy:       scores.RecallAccuracy,
-			RecallCorrectCount:   summary.RecallCorrect,
-			RecallIncorrectCount: summary.RecallIncorrect,
-			RecallAttempts:       scores.RecallAttempts,
-			RecallTotal:          totals.RecallTotal,
-
-			VocabAccuracy:         scores.VocabAccuracy,
-			VocabCorrectCount:     summary.VocabCorrect,
-			VocabIncorrectCount:   summary.VocabIncorrect,
-			GrammarAccuracy:       scores.GrammarAccuracy,
-			GrammarCorrectCount:   summary.GrammarCorrect,
-			GrammarIncorrectCount: summary.GrammarIncorrect,
-
-			VideoTimeSeconds:       timeData.VideoTimeSeconds,
-			IdentifyTimeSeconds:    timeData.IdentifyTimeSeconds,
-			TranslationTimeSeconds: timeData.TranslationTimeSeconds,
-			ProduceTimeSeconds:     timeData.ProduceTimeSeconds,
-			RecallTimeSeconds:      timeData.RecallTimeSeconds,
-			VocabTimeSeconds:       timeData.VocabTimeSeconds,
-			GrammarTimeSeconds:     timeData.GrammarTimeSeconds,
-
-			AttemptNumber: 1,
-			AttemptCount:  1,
-		},
-	})
+	data := scoreDataFromSnapshot(*snap)
+	data.AttemptNumber = requested
+	data.Attempts = picker
+	data.Archived = requested < current
+	h.writeJSON(w, types.APIResponse{Success: true, Data: data})
 }
 
-func scoreDataFromSnapshot(s models.AttemptScoreSnapshot, attemptCount int) ScoreData {
+// scoreDataFromSnapshot projects the frozen payload onto the student API,
+// dropping the archived vocab/grammar fields the snapshot keeps for admins.
+func scoreDataFromSnapshot(s models.AttemptScoreSnapshot) ScoreData {
 	b, _ := json.Marshal(s)
 	var d ScoreData
 	_ = json.Unmarshal(b, &d)
-	d.AttemptNumber = 1
-	d.AttemptCount = attemptCount
 	if d.ProduceSegments == nil {
 		d.ProduceSegments = []models.AttemptProduceSegment{}
 	}
@@ -257,13 +252,4 @@ func missingActivities(c *models.PageCompletion, s *models.UserStoryScoreSummary
 func (h *Handler) writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)
-}
-
-func getVocabAndGrammarCount(story models.Story) struct{ VocabCount, GrammarCount int64 } {
-	counts := struct{ VocabCount, GrammarCount int64 }{}
-	for _, line := range story.Content.Lines {
-		counts.VocabCount += int64(len(line.Vocabulary))
-		counts.GrammarCount += int64(len(line.Grammar))
-	}
-	return counts
 }

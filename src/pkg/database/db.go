@@ -30,6 +30,9 @@ func RunMigrations(connStr string) error {
 	if err != nil {
 		return err
 	}
+	// Match the pool's exec mode: Supabase's transaction-mode pooler (Supavisor)
+	// rejects pgx's per-connection prepared-statement cache with 42P05.
+	config.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 	db := stdlib.OpenDB(*config)
 	defer db.Close()
 

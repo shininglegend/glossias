@@ -2,6 +2,7 @@ import { SignUpButton, SignInButton } from "@clerk/react-router";
 import Button from "./ui/Button";
 import { Card, CardContent } from "./ui/Card";
 import { STORY_PHASES } from "~/lib/storyPhases";
+import { cn } from "~/lib/cn";
 
 function AuthButtons({ dark = false }: { dark?: boolean }) {
   return (
@@ -57,9 +58,14 @@ export function LandingPage() {
               <Card className="h-full hover:shadow-md transition-shadow">
                 <CardContent className="p-6 h-full flex flex-col">
                   <div className="flex items-center justify-between mb-5">
-                    <div className="w-11 h-11 bg-primary-100 rounded-lg flex items-center justify-center">
+                    <div
+                      className={cn(
+                        "w-11 h-11 rounded-lg flex items-center justify-center",
+                        phase.theme.barMuted,
+                      )}
+                    >
                       <span
-                        className="material-icons text-primary-600"
+                        className={cn("material-icons", phase.theme.icon)}
                         aria-hidden="true"
                       >
                         {phase.icon}

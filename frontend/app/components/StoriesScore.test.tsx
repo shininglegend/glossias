@@ -9,11 +9,6 @@ const getStoryScore = vi.fn();
 vi.mock("../services/api", () => ({
   useApiService: () => ({ getStoryScore }),
 }));
-vi.mock("../hooks/useNavigationGuidance", () => ({
-  useNavigationGuidance: () => ({
-    getNavigationGuidance: vi.fn().mockResolvedValue(null),
-  }),
-}));
 
 const baseScore = {
   story_title: "A Story",

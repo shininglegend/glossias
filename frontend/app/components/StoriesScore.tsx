@@ -1,10 +1,12 @@
 import { useState, useEffect, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useApiService } from "../services/api";
-import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import { RedoStoryButton } from "./story-components/RedoStoryButton";
 import { AttemptPicker } from "./story-components/AttemptPicker";
 import { ProduceMoreDetailsButton } from "./story-components/ProduceFeedbackModal";
+import { StoryShell } from "./story-components/StoryShell";
+import { PHASE_THEME } from "~/lib/storyPhases";
+import Button from "./ui/Button";
 import confetti from "canvas-confetti";
 
 interface ScoreAttempt {
@@ -138,7 +140,7 @@ function scoreBorderClass(score: number | null): string {
 interface PhaseCardProps {
   title: string;
   icon: string;
-  colour: "primary" | "purple" | "teal" | "orange";
+  colour: "identify" | "produce" | "recall";
   /** 0–100, or null when there is no score to show yet (e.g. grading pending). */
   score: number | null;
   scoreLabel?: string;
@@ -148,10 +150,9 @@ interface PhaseCardProps {
 
 // Phase colour is only for the name and icon; the border and bar follow the score.
 const COLOURS = {
-  primary: { icon: "text-primary-600", title: "text-primary-900" },
-  purple: { icon: "text-purple-600", title: "text-purple-900" },
-  teal: { icon: "text-teal-600", title: "text-teal-900" },
-  orange: { icon: "text-orange-600", title: "text-orange-900" },
+  identify: PHASE_THEME.identify,
+  produce: PHASE_THEME.produce,
+  recall: PHASE_THEME.recall,
 } as const;
 
 function PhaseCard({
@@ -243,14 +244,12 @@ export function StoriesScore() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
   const navigate = useNavigate();
-  const { getNavigationGuidance } = useNavigationGuidance();
   const [scoreData, setScoreData] = useState<ScoreData | null>(null);
   const [incompleteData, setIncompleteData] =
     useState<IncompleteResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confettiFired, setConfettiFired] = useState(false);
-  const [, setNextStepName] = useState<string>("Back to Stories");
   // undefined asks the server for the newest attempt.
   const [attempt, setAttempt] = useState<number | undefined>(undefined);
 
@@ -285,22 +284,6 @@ export function StoriesScore() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, attempt]);
 
-  useEffect(() => {
-    const fetchNextStep = async () => {
-      if (!id) return;
-      try {
-        const guidance = await getNavigationGuidance(id, "score");
-        if (guidance) {
-          setNextStepName(guidance.displayName);
-        }
-      } catch (error) {
-        console.error("Failed to get navigation guidance:", error);
-      }
-    };
-
-    fetchNextStep();
-  }, [id, getNavigationGuidance]);
-
   // Fire confetti when data loads
   useEffect(() => {
     if (scoreData && !confettiFired) {
@@ -309,30 +292,25 @@ export function StoriesScore() {
     }
   }, [scoreData, confettiFired]);
 
-  if (loading) {
+  if (loading || error || (!scoreData && !incompleteData)) {
     return (
-      <div className="container">
-        <p>Loading your results...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="container">
-        <p>Error: {error}</p>
-        <button onClick={() => navigate("/")}>Back to Stories</button>
-      </div>
+      <StoryShell
+        phasePath="score"
+        loading={loading}
+        error={
+          error ||
+          (!loading && !scoreData && !incompleteData
+            ? "No score data found"
+            : null)
+        }
+      />
     );
   }
 
   if (incompleteData) {
     return (
-      <>
+      <StoryShell phasePath="score" storyTitle={incompleteData.story_title}>
         <header>
-          <h1>{incompleteData.story_title}</h1>
-          <h2>Complete Your Activities</h2>
-
           <div className="bg-secondary-50 border border-secondary-300 p-6 mb-4 rounded-lg text-center">
             <div className="flex items-center justify-center mb-4">
               <span className="material-icons text-secondary-600 mr-2 text-2xl">
@@ -388,26 +366,22 @@ export function StoriesScore() {
           </div>
 
           <div className="text-center mt-8">
-            <button
+            <Button
+              type="button"
+              variant="secondary"
               onClick={() => navigate("/")}
-              className="inline-flex items-center px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-medium transition-all duration-200"
             >
-              <span>Back to Stories</span>
-              <span className="material-icons ml-2">home</span>
-            </button>
+              Back to Stories
+              <span className="material-icons">home</span>
+            </Button>
           </div>
         </div>
-      </>
+      </StoryShell>
     );
   }
 
   if (!scoreData) {
-    return (
-      <div className="container">
-        <p>No score data found</p>
-        <button onClick={() => navigate("/")}>Back to Stories</button>
-      </div>
-    );
+    return <StoryShell phasePath="score" error="No score data found" />;
   }
 
   const overallScore = Math.round(scoreData.overall_accuracy);
@@ -417,11 +391,8 @@ export function StoriesScore() {
   const producePending = hasProduce && scoreData.produce_segments_graded === 0;
 
   return (
-    <>
+    <StoryShell phasePath="score" storyTitle={scoreData.story_title}>
       <header>
-        <h1>{scoreData.story_title}</h1>
-        <h2>🎉 Congratulations! You've completed the story! 🎉</h2>
-
         <div className="bg-green-50 border border-green-300 p-6 mb-4 rounded-lg text-center">
           <div className="flex items-center justify-center mb-4">
             <div>
@@ -451,13 +422,15 @@ export function StoriesScore() {
         </div>
 
         <div className="text-center flex flex-col sm:flex-row items-center justify-center gap-4">
-          <button
+          <Button
+            type="button"
+            size="lg"
             onClick={() => navigate("/")}
-            className="inline-flex items-center px-8 py-4 bg-primary-500 text-white rounded-lg hover:bg-primary-600 text-lg font-semibold transition-all duration-200 shadow-lg"
+            className="h-auto px-8 py-4 text-lg font-semibold"
           >
-            <span>Back to Stories</span>
-            <span className="material-icons ml-2">home</span>
-          </button>
+            Back to Stories
+            <span className="material-icons">home</span>
+          </Button>
           {/* The exercises are only clear once the attempt is archived. */}
           {scoreData.archived && id && <RedoStoryButton storyId={id} />}
         </div>
@@ -470,7 +443,7 @@ export function StoriesScore() {
             <PhaseCard
               title="Identify"
               icon={ACTIVITY_ICONS.identify}
-              colour="primary"
+              colour="identify"
               score={scoreData.identify_accuracy}
               timeSeconds={scoreData.identify_time_seconds}
             >
@@ -494,7 +467,7 @@ export function StoriesScore() {
             <PhaseCard
               title="Produce"
               icon={ACTIVITY_ICONS.produce}
-              colour="teal"
+              colour="produce"
               score={producePending ? null : scoreData.produce_score}
               scoreLabel="AI score:"
               timeSeconds={scoreData.produce_time_seconds}
@@ -547,7 +520,7 @@ export function StoriesScore() {
             <PhaseCard
               title="Recall"
               icon={ACTIVITY_ICONS.recall}
-              colour="orange"
+              colour="recall"
               score={scoreData.recall_accuracy}
               timeSeconds={scoreData.recall_time_seconds}
             >
@@ -586,27 +559,27 @@ export function StoriesScore() {
               <TimeCell
                 label="Watch"
                 seconds={scoreData.video_time_seconds}
-                colourClass="text-red-600"
+                colourClass={PHASE_THEME.video.icon}
               />
               <TimeCell
                 label="Identify"
                 seconds={scoreData.identify_time_seconds}
-                colourClass="text-primary-600"
+                colourClass={PHASE_THEME.identify.icon}
               />
               <TimeCell
                 label="Translate"
                 seconds={scoreData.translation_time_seconds}
-                colourClass="text-secondary-500"
+                colourClass={PHASE_THEME.translate.icon}
               />
               <TimeCell
                 label="Produce"
                 seconds={scoreData.produce_time_seconds}
-                colourClass="text-teal-600"
+                colourClass={PHASE_THEME.produce.icon}
               />
               <TimeCell
                 label="Recall"
                 seconds={scoreData.recall_time_seconds}
-                colourClass="text-orange-600"
+                colourClass={PHASE_THEME.recall.icon}
                 span
               />
             </div>
@@ -635,6 +608,6 @@ export function StoriesScore() {
           </p>
         </div>
       </div>
-    </>
+    </StoryShell>
   );
 }

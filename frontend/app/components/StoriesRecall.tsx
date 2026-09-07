@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useParams, useNavigate, Link } from "react-router";
+import { useParams, useNavigate } from "react-router";
+import { StoryShell } from "./story-components/StoryShell";
 import { useApiService } from "../services/api";
 import type {
   CheckRecallPickResult,
@@ -29,6 +30,7 @@ export function StoriesRecall() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
+  const [navError, setNavError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -83,44 +85,37 @@ export function StoriesRecall() {
     if (!id) return;
     try {
       const guidance = await getNavigationGuidance(id, "recall");
-      if (guidance) navigate(`/stories/${id}/${guidance.nextPage}`);
+      if (guidance) {
+        navigate(`/stories/${id}/${guidance.nextPage}`);
+        return;
+      }
+      setNavError("Couldn't open the next phase.");
     } catch (err) {
       console.error("Failed to navigate to next phase:", err);
+      setNavError("Couldn't open the next phase.");
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
-      </div>
-    );
-  }
-
-  if (error || !pageData) {
-    return (
-      <div className="container max-w-xl mx-auto mt-10 p-6 bg-red-50 border border-red-200 rounded-lg text-center">
-        <h2 className="text-red-700 font-bold mb-2">Error Loading Phase</h2>
-        <p className="text-red-600 mb-4">
-          {error || "Could not retrieve story details."}
-        </p>
-        <Link
-          to="/"
-          className="text-primary-600 hover:text-primary-700 underline font-medium"
-        >
-          Back to Stories
-        </Link>
-      </div>
-    );
-  }
-
   return (
-    <RecallSession
-      pageData={pageData}
-      nextStepName={nextStepName}
-      onCheckPick={checkPick}
-      onContinue={handleContinue}
-    />
+    <StoryShell
+      phasePath="recall"
+      storyTitle={pageData?.story_title}
+      loading={loading}
+      error={
+        error ||
+        (!loading && !pageData ? "Could not retrieve story details." : null)
+      }
+      navError={navError}
+    >
+      {pageData ? (
+        <RecallSession
+          pageData={pageData}
+          nextStepName={nextStepName}
+          onCheckPick={checkPick}
+          onContinue={handleContinue}
+        />
+      ) : null}
+    </StoryShell>
   );
 }
 
@@ -345,16 +340,6 @@ export function RecallSession({
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
-      <header className="mb-6 text-center">
-        <span className="inline-block px-3 py-1 bg-primary-50 text-primary-700 rounded-full text-xs font-semibold uppercase tracking-wider mb-3">
-          Phase 5 of 5
-        </span>
-        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight sm:text-4xl mb-2">
-          {pageData.story_title}
-        </h1>
-        <h2 className="text-lg font-medium text-gray-500">Recall Phase</h2>
-      </header>
-
       {isListeningPhase && (
         <section
           className="bg-white shadow-xl rounded-2xl border border-gray-100 max-w-2xl mx-auto p-8"

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router";
 import { useApiService } from "../services/api";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import { CompletionMessage } from "./story-components/CompletionMessage";
+import { StoryShell } from "./story-components/StoryShell";
 import Button from "./ui/Button";
 import type { StoryMetadata } from "../services/api";
 import type { NavigationGuidanceResponse } from "../types/api";
@@ -35,6 +36,13 @@ function isYouTubeUrl(url: string): boolean {
   return url.includes("youtube.com") || url.includes("youtu.be");
 }
 
+function storyTitle(metadata: StoryMetadata | null): string | undefined {
+  if (!metadata) return undefined;
+  return typeof metadata.title === "string"
+    ? metadata.title
+    : metadata.title?.en || "Story";
+}
+
 export function StoriesVideo() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
@@ -43,6 +51,7 @@ export function StoriesVideo() {
   const [metadata, setMetadata] = useState<StoryMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [navError, setNavError] = useState<string | null>(null);
   const [videoStarted, setVideoStarted] = useState(false);
   const [videoWatched, setVideoWatched] = useState(false);
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
@@ -87,94 +96,52 @@ export function StoriesVideo() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  if (loading) {
-    return (
-      <div className="container">
-        <p>Loading video...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="container">
-        <p>Error: {error}</p>
-        <button onClick={() => navigate("/")}>Back to Stories</button>
-      </div>
-    );
-  }
-
-  if (!metadata) {
-    return (
-      <div className="container">
-        <p>No story found</p>
-        <button onClick={() => navigate("/")}>Back to Stories</button>
-      </div>
-    );
-  }
-
-  if (!metadata.videoUrl) {
-    return (
-      <div className="container">
-        <h1>
-          {typeof metadata.title === "string"
-            ? metadata.title
-            : metadata.title?.en || "Story"}
-        </h1>
-        <p>No video available for this story</p>
-        <div className="text-center flex flex-col items-center gap-4">
-          <button
-            onClick={async () => {
-              try {
-                const guidance =
-                  guidanceCache || (await getNavigationGuidance(id!, "video"));
-                if (guidance) {
-                  navigate(`/stories/${id}/${guidance.nextPage}`);
-                }
-              } catch (error) {
-                console.error("Failed to get navigation guidance:", error);
-              }
-            }}
-            className="inline-flex items-center px-8 py-4 bg-secondary-500 text-white rounded-lg hover:bg-secondary-600 text-lg font-semibold transition-all duration-200 shadow-lg"
-          >
-            <span>Skip to {nextStepName}</span>
-            <span className="material-icons ml-2">arrow_forward</span>
-          </button>
-          {hasScores && <ScoresButton onClick={goToScores} />}
-        </div>
-      </div>
-    );
-  }
-
-  const title =
-    typeof metadata.title === "string"
-      ? metadata.title
-      : metadata.title?.en || "Story";
-  const summary = metadata.description?.text || "";
-  const isYouTube = isYouTubeUrl(metadata.videoUrl);
-  // Direct <video> reports progress, so Continue is gated on it. YouTube
-  // embeds can't report progress without the IFrame API, so leave ungated.
-  const canContinue = isYouTube || videoWatched;
-
   const goToNextStep = async () => {
     try {
       const guidance =
         guidanceCache || (await getNavigationGuidance(id!, "video"));
       if (guidance) {
         navigate(`/stories/${id}/${guidance.nextPage}`);
+        return;
       }
-    } catch (error) {
-      console.error("Failed to get navigation guidance:", error);
+      setNavError("Couldn't open the next phase.");
+    } catch (err) {
+      console.error("Failed to get navigation guidance:", err);
+      setNavError("Couldn't open the next phase.");
     }
   };
 
-  if (!videoStarted) {
-    return (
-      <>
-        <header>
-          <h1>{title}</h1>
-          <h2>Before you watch</h2>
-        </header>
+  const title = storyTitle(metadata);
+  const summary = metadata?.description?.text || "";
+  const videoUrl = metadata?.videoUrl;
+  const isYouTube = videoUrl ? isYouTubeUrl(videoUrl) : false;
+  // Direct <video> reports progress, so Continue is gated on it. YouTube
+  // embeds can't report progress without the IFrame API, so leave ungated.
+  const canContinue = isYouTube || videoWatched;
+
+  return (
+    <StoryShell
+      phasePath="video"
+      storyTitle={title}
+      loading={loading}
+      error={error || (!loading && !metadata ? "No story found" : null)}
+      navError={navError}
+    >
+      {metadata && !videoUrl ? (
+        <div className="text-center flex flex-col items-center gap-4">
+          <p>No video available for this story</p>
+          <Button
+            type="button"
+            size="lg"
+            onClick={goToNextStep}
+            className="h-auto px-8 py-4 text-lg font-semibold"
+          >
+            Skip to {nextStepName}
+            <span className="material-icons">arrow_forward</span>
+          </Button>
+          {hasScores && <ScoresButton onClick={goToScores} />}
+        </div>
+      ) : metadata && !videoStarted ? (
         <div className="max-w-2xl mx-auto px-5 text-center">
           {summary ? (
             <p className="text-xl leading-relaxed text-gray-800 mb-8">
@@ -187,122 +154,116 @@ export function StoriesVideo() {
             </p>
           )}
           <div className="flex flex-col items-center gap-4">
-            <button
+            <Button
+              type="button"
+              size="lg"
               onClick={() => setVideoStarted(true)}
-              className="inline-flex items-center px-8 py-4 bg-secondary-500 text-white rounded-lg hover:bg-secondary-600 text-lg font-semibold transition-all duration-200 shadow-lg"
+              className="h-auto px-8 py-4 text-lg font-semibold"
+              icon={<span className="material-icons">play_arrow</span>}
             >
-              <span className="material-icons mr-2">play_arrow</span>
-              <span>Start video</span>
-            </button>
+              Start video
+            </Button>
             {hasScores && <ScoresButton onClick={goToScores} />}
           </div>
         </div>
-      </>
-    );
-  }
-
-  return (
-    <>
-      <header>
-        <h1>{title}</h1>
-        <h2>Watch the story video</h2>
-      </header>
-      <div className="max-w-4xl mx-auto px-5">
-        <div
-          className="video-container"
-          style={{
-            width: "100%",
-            maxWidth: "800px",
-            margin: "0 auto",
-            aspectRatio: "16/9",
-            position: "relative",
-          }}
-        >
-          {isYouTube ? (
-            <>
-              {!iframeLoaded && (
-                <div
-                  className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-lg"
-                  style={{
-                    borderRadius: "8px",
-                  }}
-                >
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-2"></div>
-                    <p className="text-gray-600">Loading video...</p>
+      ) : metadata && videoUrl ? (
+        <div className="max-w-4xl mx-auto px-5">
+          <div
+            className="video-container"
+            style={{
+              width: "100%",
+              maxWidth: "800px",
+              margin: "0 auto",
+              aspectRatio: "16/9",
+              position: "relative",
+            }}
+          >
+            {isYouTube ? (
+              <>
+                {!iframeLoaded && (
+                  <div
+                    className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-lg"
+                    style={{
+                      borderRadius: "8px",
+                    }}
+                  >
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-2"></div>
+                      <p className="text-gray-600">Loading video...</p>
+                    </div>
                   </div>
-                </div>
-              )}
-              <iframe
-                src={getYouTubeEmbedUrl(metadata.videoUrl) || ""}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                onLoad={() => setIframeLoaded(true)}
+                )}
+                <iframe
+                  src={getYouTubeEmbedUrl(videoUrl) || ""}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  onLoad={() => setIframeLoaded(true)}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    borderRadius: "8px",
+                    border: "none",
+                    opacity: iframeLoaded ? 1 : 0,
+                    transition: "opacity 0.3s ease-in-out",
+                  }}
+                />
+              </>
+            ) : (
+              <video
+                src={videoUrl}
+                controls
+                autoPlay
+                onEnded={() => setVideoWatched(true)}
+                onTimeUpdate={(e) => {
+                  const video = e.target as HTMLVideoElement;
+                  if (
+                    video.duration &&
+                    video.currentTime / video.duration > 0.8
+                  ) {
+                    setVideoWatched(true);
+                  }
+                }}
                 style={{
                   width: "100%",
                   height: "100%",
                   borderRadius: "8px",
-                  border: "none",
-                  opacity: iframeLoaded ? 1 : 0,
-                  transition: "opacity 0.3s ease-in-out",
                 }}
+              >
+                Your browser does not support the video tag.
+              </video>
+            )}
+          </div>
+          {canContinue ? (
+            <>
+              <CompletionMessage
+                currentStepName="video"
+                nextStepName={nextStepName}
+                onContinue={goToNextStep}
               />
+              {hasScores && (
+                <div className="text-center -mt-4 mb-10">
+                  <ScoresButton onClick={goToScores} />
+                </div>
+              )}
             </>
           ) : (
-            <video
-              src={metadata.videoUrl}
-              controls
-              autoPlay
-              onEnded={() => setVideoWatched(true)}
-              onTimeUpdate={(e) => {
-                const video = e.target as HTMLVideoElement;
-                if (
-                  video.duration &&
-                  video.currentTime / video.duration > 0.8
-                ) {
-                  setVideoWatched(true);
-                }
-              }}
-              style={{
-                width: "100%",
-                height: "100%",
-                borderRadius: "8px",
-              }}
-            >
-              Your browser does not support the video tag.
-            </video>
+            <div className="text-center m-10 p-6 bg-gray-50 rounded-xl border-2 border-yellow-400">
+              <div className="flex items-start justify-center">
+                <span className="material-icons text-gray-600 mr-2 mt-1">
+                  info
+                </span>
+                <p className="text-gray-700 m-0">
+                  <strong>
+                    Please watch the entire video before continuing.
+                  </strong>{" "}
+                  The continue button will appear once the video is nearly
+                  finished.
+                </p>
+              </div>
+            </div>
           )}
         </div>
-        {canContinue ? (
-          <>
-            <CompletionMessage
-              currentStepName="video"
-              nextStepName={nextStepName}
-              onContinue={goToNextStep}
-            />
-            {hasScores && (
-              <div className="text-center -mt-4 mb-10">
-                <ScoresButton onClick={goToScores} />
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="text-center m-10 p-6 bg-gray-50 rounded-xl border-2 border-yellow-400">
-            <div className="flex items-start justify-center">
-              <span className="material-icons text-gray-600 mr-2 mt-1">
-                info
-              </span>
-              <p className="text-gray-700 m-0">
-                <strong>
-                  Please watch the entire video before continuing.
-                </strong>{" "}
-                The continue button will appear once the video is nearly
-                finished.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-    </>
+      ) : null}
+    </StoryShell>
   );
 }

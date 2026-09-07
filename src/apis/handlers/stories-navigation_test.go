@@ -39,6 +39,7 @@ func TestNavigate(t *testing.T) {
 	allDone := []any{int32(4), int32(4), true, int32(5), int32(5), int32(2), int32(2), int32(0)}
 	freshStory := []any{int32(4), int32(0), false, int32(5), int32(0), int32(2), int32(0), int32(1)}
 	identifyDone := []any{int32(4), int32(4), false, int32(5), int32(0), int32(2), int32(0), int32(0)}
+	identifyInProgress := []any{int32(4), int32(2), false, int32(5), int32(0), int32(2), int32(0), int32(0)}
 	produceLeft := []any{int32(4), int32(4), true, int32(5), int32(5), int32(2), int32(1), int32(0)}
 
 	tests := []struct {
@@ -56,6 +57,10 @@ func TestNavigate(t *testing.T) {
 		{"identify continue always goes to translate", "identify", identifyDone, "translate"},
 		{"identify continue does not skip a completed translate", "identify", allDone, "translate"},
 		{"translate continue always goes to produce", "translate", allDone, "produce"},
+		{"list + fresh opens watch", "list", freshStory, "video"},
+		{"list + identify in progress resumes there", "list", identifyInProgress, "identify"},
+		{"list + identify done skips to translate", "list", identifyDone, "translate"},
+		{"list + all done goes to score", "list", allDone, "score"},
 	}
 
 	for _, tt := range tests {
@@ -83,6 +88,13 @@ func TestNavigate(t *testing.T) {
 			}
 			if resp.Data.NextPage != tt.wantNext {
 				t.Errorf("nextPage = %q, want %q", resp.Data.NextPage, tt.wantNext)
+			}
+			wantName := map[string]string{
+				"video": "Watch", "identify": "Identify", "translate": "Translate",
+				"produce": "Produce", "recall": "Recall", "score": "Score",
+			}[tt.wantNext]
+			if resp.Data.DisplayName != wantName {
+				t.Errorf("displayName = %q, want %q", resp.Data.DisplayName, wantName)
 			}
 			// An archived run leaves the live rows fresh; the count is what
 			// lets the Video page still offer the Score page.

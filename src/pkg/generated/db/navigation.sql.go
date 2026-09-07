@@ -9,6 +9,89 @@ import (
 	"context"
 )
 
+const getUserStoriesPageCompletion = `-- name: GetUserStoriesPageCompletion :many
+SELECT
+    ids.story_id::INT AS story_id,
+    (SELECT COUNT(*) FROM target_vocabulary tv
+      JOIN vocabulary_items vi ON vi.story_id = tv.story_id AND vi.lexical_form = tv.lexical_form
+      WHERE tv.story_id = ids.story_id)::INT AS identify_total,
+    (SELECT COUNT(*) FROM target_vocabulary tv
+      JOIN vocabulary_items vi ON vi.story_id = tv.story_id AND vi.lexical_form = tv.lexical_form
+      WHERE tv.story_id = ids.story_id
+        AND EXISTS (SELECT 1 FROM identify_correct_answers ica
+                     WHERE ica.user_id = $1 AND ica.story_id = tv.story_id
+                       AND ica.line_number = vi.line_number AND ica.target_vocab_id = tv.id))::INT AS identify_correct,
+    EXISTS (SELECT 1 FROM translation_requests tr
+             WHERE tr.user_id = $1 AND tr.story_id = ids.story_id AND tr.completed_at IS NOT NULL) AS translation_completed,
+    (SELECT COUNT(*) FROM recall_sentences rs
+      WHERE rs.story_id = ids.story_id)::INT AS recall_total,
+    (SELECT COUNT(*) FROM recall_sentences rs
+      WHERE rs.story_id = ids.story_id
+        AND EXISTS (SELECT 1 FROM recall_correct_answers rca
+                     WHERE rca.user_id = $1 AND rca.story_id = rs.story_id
+                       AND rca.recall_sentence_id = rs.id))::INT AS recall_correct,
+    (SELECT COUNT(*) FROM produce_segments ps
+      WHERE ps.story_id = ids.story_id)::INT AS produce_total,
+    (SELECT COUNT(*) FROM produce_segments ps
+      WHERE ps.story_id = ids.story_id
+        AND EXISTS (SELECT 1 FROM produce_submissions psub
+                     WHERE psub.user_id = $1 AND psub.story_id = ps.story_id
+                       AND psub.segment_id = ps.id))::INT AS produce_submitted,
+    (SELECT COUNT(*) FROM story_attempts sa
+      WHERE sa.user_id = $1 AND sa.story_id = ids.story_id)::INT AS completed_attempts
+FROM unnest($2::int[]) AS ids(story_id)
+`
+
+type GetUserStoriesPageCompletionParams struct {
+	UserID   string  `json:"user_id"`
+	StoryIds []int32 `json:"story_ids"`
+}
+
+type GetUserStoriesPageCompletionRow struct {
+	StoryID              int32 `json:"story_id"`
+	IdentifyTotal        int32 `json:"identify_total"`
+	IdentifyCorrect      int32 `json:"identify_correct"`
+	TranslationCompleted bool  `json:"translation_completed"`
+	RecallTotal          int32 `json:"recall_total"`
+	RecallCorrect        int32 `json:"recall_correct"`
+	ProduceTotal         int32 `json:"produce_total"`
+	ProduceSubmitted     int32 `json:"produce_submitted"`
+	CompletedAttempts    int32 `json:"completed_attempts"`
+}
+
+// GetUserStoriesPageCompletion is the list-page batch of
+// GetUserStoryPageCompletion: one row per requested story_id, including
+// stories with no progress yet (unnest, not an inner join).
+func (q *Queries) GetUserStoriesPageCompletion(ctx context.Context, arg GetUserStoriesPageCompletionParams) ([]GetUserStoriesPageCompletionRow, error) {
+	rows, err := q.db.Query(ctx, getUserStoriesPageCompletion, arg.UserID, arg.StoryIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetUserStoriesPageCompletionRow{}
+	for rows.Next() {
+		var i GetUserStoriesPageCompletionRow
+		if err := rows.Scan(
+			&i.StoryID,
+			&i.IdentifyTotal,
+			&i.IdentifyCorrect,
+			&i.TranslationCompleted,
+			&i.RecallTotal,
+			&i.RecallCorrect,
+			&i.ProduceTotal,
+			&i.ProduceSubmitted,
+			&i.CompletedAttempts,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserStoryPageCompletion = `-- name: GetUserStoryPageCompletion :one
 
 SELECT

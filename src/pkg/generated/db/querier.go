@@ -268,6 +268,10 @@ type Querier interface {
 	GetUserLatestGrammarScoresByLine(ctx context.Context, arg GetUserLatestGrammarScoresByLineParams) ([]GetUserLatestGrammarScoresByLineRow, error)
 	GetUserLatestVocabScoresByLine(ctx context.Context, arg GetUserLatestVocabScoresByLineParams) ([]GetUserLatestVocabScoresByLineRow, error)
 	GetUserRecallCorrectAnswers(ctx context.Context, arg GetUserRecallCorrectAnswersParams) ([]GetUserRecallCorrectAnswersRow, error)
+	// GetUserStoriesPageCompletion is the list-page batch of
+	// GetUserStoryPageCompletion: one row per requested story_id, including
+	// stories with no progress yet (unnest, not an inner join).
+	GetUserStoriesPageCompletion(ctx context.Context, arg GetUserStoriesPageCompletionParams) ([]GetUserStoriesPageCompletionRow, error)
 	GetUserStoryAttemptSnapshotByNumber(ctx context.Context, arg GetUserStoryAttemptSnapshotByNumberParams) (GetUserStoryAttemptSnapshotByNumberRow, error)
 	GetUserStoryGrammarSummary(ctx context.Context, arg GetUserStoryGrammarSummaryParams) (GetUserStoryGrammarSummaryRow, error)
 	// Every Identify pick, correct and incorrect, in the order the student made

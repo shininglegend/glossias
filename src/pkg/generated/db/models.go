@@ -239,6 +239,21 @@ type Story struct {
 	CourseID     pgtype.Int4      `json:"course_id"`
 }
 
+type StoryAttempt struct {
+	AttemptID     int64              `json:"attempt_id"`
+	UserID        string             `json:"user_id"`
+	StoryID       int32              `json:"story_id"`
+	AttemptNumber int32              `json:"attempt_number"`
+	StartedAt     pgtype.Timestamptz `json:"started_at"`
+	CompletedAt   pgtype.Timestamptz `json:"completed_at"`
+}
+
+type StoryAttemptScoreSnapshot struct {
+	AttemptID  int64              `json:"attempt_id"`
+	Snapshot   []byte             `json:"snapshot"`
+	SnapshotAt pgtype.Timestamptz `json:"snapshot_at"`
+}
+
 type StoryDescription struct {
 	StoryID         int32  `json:"story_id"`
 	LanguageCode    string `json:"language_code"`

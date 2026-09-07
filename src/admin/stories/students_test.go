@@ -43,7 +43,7 @@ func TestResetStudentProgressHandler(t *testing.T) {
 		expectedStatus int
 		queryBudget    int
 	}{
-		{name: "reset all", phase: "", authUserID: "admin-1", hasAuth: true, courseAdmin: true, expectedStatus: http.StatusOK, queryBudget: 5},
+		{name: "reset all", phase: "", authUserID: "admin-1", hasAuth: true, courseAdmin: true, expectedStatus: http.StatusOK, queryBudget: 6},
 		{name: "reset single phase", phase: "identify", authUserID: "admin-1", hasAuth: true, courseAdmin: true, expectedStatus: http.StatusOK, queryBudget: 6},
 		{name: "reset video (time only)", phase: "video", authUserID: "admin-1", hasAuth: true, courseAdmin: true, expectedStatus: http.StatusOK, queryBudget: 5},
 		{name: "invalid phase", phase: "bogus", authUserID: "admin-1", hasAuth: true, courseAdmin: true, expectedStatus: http.StatusBadRequest, queryBudget: 3},
@@ -117,7 +117,7 @@ func TestStoryStudentDrilldownHandler(t *testing.T) {
 		expectedStatus int
 		queryBudget    int
 	}{
-		{name: "happy path", authUserID: "admin-1", hasAuth: true, courseAdmin: true, studentFound: true, expectedStatus: http.StatusOK, queryBudget: 10},
+		{name: "happy path", authUserID: "admin-1", hasAuth: true, courseAdmin: true, studentFound: true, expectedStatus: http.StatusOK, queryBudget: 12},
 		{name: "student not found", authUserID: "admin-1", hasAuth: true, courseAdmin: true, studentFound: false, expectedStatus: http.StatusNotFound, queryBudget: 4},
 		{name: "unauthorized without user", hasAuth: false, expectedStatus: http.StatusUnauthorized, queryBudget: 0},
 		{name: "unauthorized non-admin", authUserID: "student-1", hasAuth: true, courseAdmin: false, expectedStatus: http.StatusUnauthorized, queryBudget: 3},

@@ -303,6 +303,9 @@ func produceSubmissionViews(segments []models.ProduceSegment, submissions []mode
 					SegmentID:        seg.ID,
 					StudentText:      sub.StudentText,
 					ReferenceEnglish: seg.ReferenceEnglish,
+					AiScore:          sub.AiScore,
+					AiFeedback:       sub.AiFeedback,
+					GradingFailed:    sub.GradingFailed(),
 				})
 				break
 			}

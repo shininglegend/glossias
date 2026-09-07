@@ -56,6 +56,13 @@ INSERT INTO produce_submissions (user_id, story_id, segment_id, student_text)
 VALUES ($1, $2, $3, $4)
 RETURNING id, user_id, story_id, segment_id, student_text, ai_score, ai_feedback, graded_at, created_at;
 
+-- MarkProduceGradingFailed stamps graded_at with no score so the student page
+-- can tell "grading failed" from "still waiting".
+-- name: MarkProduceGradingFailed :exec
+UPDATE produce_submissions
+SET graded_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND ai_score IS NULL;
+
 -- name: GradeProduceSubmission :exec
 UPDATE produce_submissions
 SET ai_score = $2,
@@ -69,7 +76,7 @@ WHERE id = $1;
 SELECT DISTINCT ON (psub.segment_id)
     psub.id, psub.user_id, psub.story_id, psub.segment_id, psub.student_text,
     psub.ai_score, psub.ai_feedback, psub.graded_at, psub.created_at,
-    ps.segment_order
+    ps.segment_order, ps.hebrew_text, ps.reference_english
 FROM produce_submissions psub
 JOIN produce_segments ps ON ps.id = psub.segment_id
 WHERE psub.user_id = $1 AND psub.story_id = $2

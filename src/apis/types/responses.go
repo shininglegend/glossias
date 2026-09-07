@@ -259,6 +259,10 @@ type ProduceSubmissionView struct {
 	SegmentID        int    `json:"segment_id"`
 	StudentText      string `json:"student_text"`
 	ReferenceEnglish string `json:"reference_english"`
+	AiScore          *int   `json:"ai_score,omitempty"`
+	AiFeedback       string `json:"ai_feedback,omitempty"`
+	// GradingFailed: grading gave up (error, quota, or disabled); no score is coming.
+	GradingFailed bool `json:"grading_failed,omitempty"`
 }
 
 // ProducePageData is the payload for the Produce phase.

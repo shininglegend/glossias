@@ -241,7 +241,7 @@ const getUserStoryProduceSubmissions = `-- name: GetUserStoryProduceSubmissions 
 SELECT DISTINCT ON (psub.segment_id)
     psub.id, psub.user_id, psub.story_id, psub.segment_id, psub.student_text,
     psub.ai_score, psub.ai_feedback, psub.graded_at, psub.created_at,
-    ps.segment_order
+    ps.segment_order, ps.hebrew_text, ps.reference_english
 FROM produce_submissions psub
 JOIN produce_segments ps ON ps.id = psub.segment_id
 WHERE psub.user_id = $1 AND psub.story_id = $2
@@ -254,16 +254,18 @@ type GetUserStoryProduceSubmissionsParams struct {
 }
 
 type GetUserStoryProduceSubmissionsRow struct {
-	ID           int32            `json:"id"`
-	UserID       string           `json:"user_id"`
-	StoryID      int32            `json:"story_id"`
-	SegmentID    int32            `json:"segment_id"`
-	StudentText  string           `json:"student_text"`
-	AiScore      pgtype.Int4      `json:"ai_score"`
-	AiFeedback   pgtype.Text      `json:"ai_feedback"`
-	GradedAt     pgtype.Timestamp `json:"graded_at"`
-	CreatedAt    pgtype.Timestamp `json:"created_at"`
-	SegmentOrder int32            `json:"segment_order"`
+	ID               int32            `json:"id"`
+	UserID           string           `json:"user_id"`
+	StoryID          int32            `json:"story_id"`
+	SegmentID        int32            `json:"segment_id"`
+	StudentText      string           `json:"student_text"`
+	AiScore          pgtype.Int4      `json:"ai_score"`
+	AiFeedback       pgtype.Text      `json:"ai_feedback"`
+	GradedAt         pgtype.Timestamp `json:"graded_at"`
+	CreatedAt        pgtype.Timestamp `json:"created_at"`
+	SegmentOrder     int32            `json:"segment_order"`
+	HebrewText       string           `json:"hebrew_text"`
+	ReferenceEnglish string           `json:"reference_english"`
 }
 
 // GetUserStoryProduceSubmissions returns the latest submission per segment,
@@ -288,6 +290,8 @@ func (q *Queries) GetUserStoryProduceSubmissions(ctx context.Context, arg GetUse
 			&i.GradedAt,
 			&i.CreatedAt,
 			&i.SegmentOrder,
+			&i.HebrewText,
+			&i.ReferenceEnglish,
 		); err != nil {
 			return nil, err
 		}
@@ -412,6 +416,19 @@ func (q *Queries) InsertProduceGradingLog(ctx context.Context, arg InsertProduce
 		arg.Feedback,
 		arg.Error,
 	)
+	return err
+}
+
+const markProduceGradingFailed = `-- name: MarkProduceGradingFailed :exec
+UPDATE produce_submissions
+SET graded_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND ai_score IS NULL
+`
+
+// MarkProduceGradingFailed stamps graded_at with no score so the student page
+// can tell "grading failed" from "still waiting".
+func (q *Queries) MarkProduceGradingFailed(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, markProduceGradingFailed, id)
 	return err
 }
 

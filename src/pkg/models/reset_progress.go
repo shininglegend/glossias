@@ -164,6 +164,59 @@ func ResetUserStoryProgress(ctx context.Context, userID string, storyID int32, p
 }
 
 func resetAll(ctx context.Context, userID string, storyID int32, deleted map[string]int64) error {
+	if err := resetAnswers(ctx, userID, storyID, deleted); err != nil {
+		return err
+	}
+
+	n, err := queries.DeleteUserStoryTimeTracking(ctx, db.DeleteUserStoryTimeTrackingParams{UserID: userID, StoryID: pgtype.Int4{Int32: storyID, Valid: true}})
+	if err != nil {
+		return fmt.Errorf("delete time tracking: %w", err)
+	}
+	deleted["time_tracking"] = n
+
+	attempts, err := queries.DeleteUserStoryAttempts(ctx, db.DeleteUserStoryAttemptsParams{UserID: userID, StoryID: storyID})
+	if err != nil {
+		return fmt.Errorf("delete story attempts: %w", err)
+	}
+	deleted["story_attempts"] = attempts
+	return nil
+}
+
+// exerciseTimePhases are the phases a student redo wipes. Video is omitted so
+// watch time and the video page stay intact.
+var exerciseTimePhases = []string{"identify", "translate", "produce", "recall", "vocab", "grammar"}
+
+// ResetUserStoryExercises clears Identify/Translate/Produce/Recall (and leftover
+// vocab/grammar) answers so the student can redo the sequence. Video time is
+// not deleted.
+func ResetUserStoryExercises(ctx context.Context, userID string, storyID int32) (ResetResult, error) {
+	result := ResetResult{Phase: ResetPhase("exercises"), Deleted: map[string]int64{}}
+	err := withTransaction(ctx, func(txCtx context.Context) error {
+		if err := resetAnswers(txCtx, userID, storyID, result.Deleted); err != nil {
+			return err
+		}
+		var n int64
+		for _, phase := range exerciseTimePhases {
+			c, err := queries.DeleteUserStoryTimeTrackingByPhase(txCtx, db.DeleteUserStoryTimeTrackingByPhaseParams{
+				UserID:  userID,
+				StoryID: pgtype.Int4{Int32: storyID, Valid: true},
+				Phase:   pgtype.Text{String: phase, Valid: true},
+			})
+			if err != nil {
+				return fmt.Errorf("delete time tracking %s: %w", phase, err)
+			}
+			n += c
+		}
+		result.Deleted["time_tracking"] = n
+		return nil
+	})
+	if err != nil {
+		return ResetResult{}, err
+	}
+	return result, nil
+}
+
+func resetAnswers(ctx context.Context, userID string, storyID int32, deleted map[string]int64) error {
 	counts, err := queries.ResetUserStoryAnswers(ctx, db.ResetUserStoryAnswersParams{UserID: userID, StoryID: storyID})
 	if err != nil {
 		return err
@@ -179,11 +232,5 @@ func resetAll(ctx context.Context, userID string, storyID int32, deleted map[str
 	deleted["produce_attempt_starts"] = counts.ProduceAttemptStarts
 	deleted["recall_correct_answers"] = counts.RecallCorrect
 	deleted["recall_incorrect_answers"] = counts.RecallIncorrect
-
-	n, err := queries.DeleteUserStoryTimeTracking(ctx, db.DeleteUserStoryTimeTrackingParams{UserID: userID, StoryID: pgtype.Int4{Int32: storyID, Valid: true}})
-	if err != nil {
-		return fmt.Errorf("delete time tracking: %w", err)
-	}
-	deleted["time_tracking"] = n
 	return nil
 }

@@ -174,6 +174,9 @@ export interface ProduceSubmissionView {
   segment_id: number;
   student_text: string;
   reference_english: string;
+  ai_score?: number | null;
+  ai_feedback?: string;
+  grading_failed?: boolean;
 }
 
 export interface ProduceData {
@@ -512,10 +515,20 @@ export function useApiService() {
       getStudentStoryDrilldown: (
         storyId: string,
         userId: string,
+        attempt?: number,
       ): Promise<APIResponse<unknown>> => {
+        const query = attempt && attempt > 1 ? `?attempt=${attempt}` : "";
         return fetchAPI(
-          `/admin/stories/${storyId}/students/${encodeURIComponent(userId)}`,
+          `/admin/stories/${storyId}/students/${encodeURIComponent(userId)}${query}`,
         );
+      },
+
+      resetOwnStoryProgress: (
+        storyId: string,
+      ): Promise<APIResponse<ResetProgressResult>> => {
+        return fetchAPI<ResetProgressResult>(`/stories/${storyId}/progress`, {
+          method: "DELETE",
+        });
       },
 
       resetStudentProgress: (

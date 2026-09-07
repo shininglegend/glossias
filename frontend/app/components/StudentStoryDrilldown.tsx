@@ -11,6 +11,17 @@ interface DrilldownData {
   story_id: number;
   story_title: string;
 
+  attempt_number: number;
+  attempt_count: number;
+  attempts: { number: number; has_snapshot: boolean; is_current: boolean }[];
+  from_snapshot: boolean;
+  score?: {
+    overall_accuracy: number;
+    identify_accuracy: number;
+    produce_score: number;
+    recall_accuracy: number;
+  };
+
   identify_answers: IdentifyAnswer[];
   translate: TranslateDetail;
   produce_segments: ProduceSegment[];
@@ -125,6 +136,7 @@ export function StudentStoryDrilldown() {
   const api = useApiService();
   const navigate = useNavigate();
   const [data, setData] = useState<DrilldownData | null>(null);
+  const [attempt, setAttempt] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -135,10 +147,16 @@ export function StudentStoryDrilldown() {
         setLoading(false);
         return;
       }
+      setLoading(true);
       try {
-        const response = await api.getStudentStoryDrilldown(id, userId);
+        const response = await api.getStudentStoryDrilldown(
+          id,
+          userId,
+          attempt,
+        );
         if (response.success && response.data) {
           setData(response.data as DrilldownData);
+          setError(null);
         } else {
           setError(response.error || "Failed to fetch student detail");
         }
@@ -150,7 +168,7 @@ export function StudentStoryDrilldown() {
     };
     fetchDrilldown();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, userId]);
+  }, [id, userId, attempt]);
 
   if (loading) {
     return (
@@ -194,6 +212,47 @@ export function StudentStoryDrilldown() {
           Back
         </Button>
       </div>
+
+      {data.attempts?.length > 1 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-gray-700">Attempt</span>
+          {data.attempts.map((item) => (
+            <button
+              key={item.number}
+              type="button"
+              onClick={() => setAttempt(item.number)}
+              className={`rounded border px-3 py-1 text-sm ${
+                item.number === data.attempt_number
+                  ? "border-primary-500 bg-primary-50 font-semibold text-primary-700"
+                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              {item.number}
+              {item.is_current ? " (current)" : ""}
+            </button>
+          ))}
+          <span className="text-sm text-gray-500">
+            Done {data.attempt_count} time{data.attempt_count === 1 ? "" : "s"}
+          </span>
+        </div>
+      )}
+
+      {data.from_snapshot && (
+        <p className="mb-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          This is a completed earlier attempt. Scores and Produce notes are
+          kept; the click-by-click Identify and Recall log is only on the
+          current attempt.
+        </p>
+      )}
+
+      {data.score && (
+        <p className="mb-4 text-sm text-gray-700">
+          Overall {data.score.overall_accuracy.toFixed(1)}% · Identify{" "}
+          {data.score.identify_accuracy.toFixed(1)}% · Produce{" "}
+          {data.score.produce_score.toFixed(1)}% · Recall{" "}
+          {data.score.recall_accuracy.toFixed(1)}%
+        </p>
+      )}
 
       <SectionCard title="Watch" time={data.time.video_seconds}>
         <p className="text-sm text-gray-600">

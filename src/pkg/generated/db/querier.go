@@ -51,6 +51,9 @@ type Querier interface {
 	CreateGrammarPoint(ctx context.Context, arg CreateGrammarPointParams) (GrammarPoint, error)
 	CreateProduceSubmission(ctx context.Context, arg CreateProduceSubmissionParams) (ProduceSubmission, error)
 	CreateStory(ctx context.Context, arg CreateStoryParams) (CreateStoryRow, error)
+	// Story-level attempts: one row per student redo cycle. The live answer
+	// tables stay current-attempt only; completed attempts freeze a score JSON.
+	CreateStoryAttempt(ctx context.Context, arg CreateStoryAttemptParams) (StoryAttempt, error)
 	// Story images management queries
 	CreateStoryImage(ctx context.Context, arg CreateStoryImageParams) (StoryImage, error)
 	CreateTargetVocabulary(ctx context.Context, arg CreateTargetVocabularyParams) (CreateTargetVocabularyRow, error)
@@ -103,6 +106,7 @@ type Querier interface {
 	DeleteTargetVocabulary(ctx context.Context, id int32) error
 	DeleteTranslationRequest(ctx context.Context, arg DeleteTranslationRequestParams) error
 	DeleteUser(ctx context.Context, userID string) error
+	DeleteUserStoryAttempts(ctx context.Context, arg DeleteUserStoryAttemptsParams) (int64, error)
 	DeleteUserStoryGrammarCorrect(ctx context.Context, arg DeleteUserStoryGrammarCorrectParams) (int64, error)
 	DeleteUserStoryGrammarIncorrect(ctx context.Context, arg DeleteUserStoryGrammarIncorrectParams) (int64, error)
 	DeleteUserStoryIdentifyCorrect(ctx context.Context, arg DeleteUserStoryIdentifyCorrectParams) (int64, error)
@@ -147,6 +151,7 @@ type Querier interface {
 	GetAllUsersStoryVocabSummary(ctx context.Context, storyID int32) ([]GetAllUsersStoryVocabSummaryRow, error)
 	GetAllVocabularyForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllVocabularyForStoryRow, error)
 	GetAnonymousTimeEntryByID(ctx context.Context, trackingID int32) (AnonymousTimeTracking, error)
+	GetAttemptScoreSnapshot(ctx context.Context, attemptID int64) (GetAttemptScoreSnapshotRow, error)
 	GetAudioFile(ctx context.Context, audioFileID int32) (LineAudioFile, error)
 	GetAudioFilesByLabel(ctx context.Context, label string) ([]LineAudioFile, error)
 	GetCourse(ctx context.Context, courseID int32) (Course, error)
@@ -162,6 +167,7 @@ type Querier interface {
 	GetGrammarPoint(ctx context.Context, grammarPointID int32) (GrammarPoint, error)
 	GetGrammarPointByName(ctx context.Context, arg GetGrammarPointByNameParams) (GrammarPoint, error)
 	GetIncompleteVocabForUser(ctx context.Context, arg GetIncompleteVocabForUserParams) ([]GetIncompleteVocabForUserRow, error)
+	GetLatestUserStoryAttempt(ctx context.Context, arg GetLatestUserStoryAttemptParams) (StoryAttempt, error)
 	GetLineAudioFiles(ctx context.Context, arg GetLineAudioFilesParams) ([]LineAudioFile, error)
 	GetLineText(ctx context.Context, arg GetLineTextParams) (string, error)
 	GetLineTranslation(ctx context.Context, arg GetLineTranslationParams) (string, error)
@@ -247,6 +253,10 @@ type Querier interface {
 	GetUserLatestGrammarScoresByLine(ctx context.Context, arg GetUserLatestGrammarScoresByLineParams) ([]GetUserLatestGrammarScoresByLineRow, error)
 	GetUserLatestVocabScoresByLine(ctx context.Context, arg GetUserLatestVocabScoresByLineParams) ([]GetUserLatestVocabScoresByLineRow, error)
 	GetUserRecallCorrectAnswers(ctx context.Context, arg GetUserRecallCorrectAnswersParams) ([]GetUserRecallCorrectAnswersRow, error)
+	GetUserStoryAttemptByNumber(ctx context.Context, arg GetUserStoryAttemptByNumberParams) (StoryAttempt, error)
+	GetUserStoryAttemptSnapshotByNumber(ctx context.Context, arg GetUserStoryAttemptSnapshotByNumberParams) (GetUserStoryAttemptSnapshotByNumberRow, error)
+	GetUserStoryAttempts(ctx context.Context, arg GetUserStoryAttemptsParams) ([]StoryAttempt, error)
+	GetUserStoryAttemptsWithSnapshots(ctx context.Context, arg GetUserStoryAttemptsWithSnapshotsParams) ([]GetUserStoryAttemptsWithSnapshotsRow, error)
 	GetUserStoryGrammarSummary(ctx context.Context, arg GetUserStoryGrammarSummaryParams) (GetUserStoryGrammarSummaryRow, error)
 	// Every Identify pick, correct and incorrect, in the order the student made
 	// them. selected_word is empty on correct rows (the pick was the target).
@@ -297,6 +307,10 @@ type Querier interface {
 	ListProduceGradingPrompts(ctx context.Context) ([]ProduceGradingPrompt, error)
 	ListSuperAdmins(ctx context.Context) ([]User, error)
 	ListUsers(ctx context.Context) ([]User, error)
+	// MarkProduceGradingFailed stamps graded_at with no score so the student page
+	// can tell "grading failed" from "still waiting".
+	MarkProduceGradingFailed(ctx context.Context, id int32) error
+	MarkStoryAttemptComplete(ctx context.Context, attemptID int64) error
 	MarkTranslationRequestComplete(ctx context.Context, arg MarkTranslationRequestCompleteParams) error
 	RemoveCourseAdmin(ctx context.Context, arg RemoveCourseAdminParams) error
 	RemoveUserFromCourse(ctx context.Context, arg RemoveUserFromCourseParams) error
@@ -338,6 +352,7 @@ type Querier interface {
 	UpdateVocabularyByPosition(ctx context.Context, arg UpdateVocabularyByPositionParams) error
 	UpdateVocabularyByWord(ctx context.Context, arg UpdateVocabularyByWordParams) error
 	UpdateVocabularyItem(ctx context.Context, arg UpdateVocabularyItemParams) error
+	UpsertAttemptScoreSnapshot(ctx context.Context, arg UpsertAttemptScoreSnapshotParams) error
 	UpsertLineTranslation(ctx context.Context, arg UpsertLineTranslationParams) error
 	UpsertProduceSegment(ctx context.Context, arg UpsertProduceSegmentParams) (UpsertProduceSegmentRow, error)
 	UpsertRecallSentence(ctx context.Context, arg UpsertRecallSentenceParams) (UpsertRecallSentenceRow, error)

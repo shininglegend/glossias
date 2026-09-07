@@ -21,6 +21,12 @@ type StudentStoryDrilldown struct {
 	StoryID    int32  `json:"story_id"`
 	StoryTitle string `json:"story_title"`
 
+	AttemptNumber int                   `json:"attempt_number"`
+	AttemptCount  int                   `json:"attempt_count"`
+	Attempts      []StoryAttemptInfo    `json:"attempts"`
+	FromSnapshot  bool                  `json:"from_snapshot"`
+	Score         *AttemptScoreSnapshot `json:"score,omitempty"`
+
 	IdentifyAnswers []IdentifyAnswerDetail `json:"identify_answers"`
 	Translate       TranslateDetail        `json:"translate"`
 	ProduceSegments []ProduceSegmentDetail `json:"produce_segments"`
@@ -93,15 +99,35 @@ type PhaseTimeBreakdown struct {
 }
 
 // GetStudentStoryDrilldown assembles the per-phase answer detail for one
-// student on one story. Returns ErrNotFound if the user does not exist.
-// Seven queries regardless of how much the student has done.
-func GetStudentStoryDrilldown(ctx context.Context, storyID int32, userID string) (*StudentStoryDrilldown, error) {
+// student on one story. attemptNumber <= 0 defaults to 1 (official).
+// Frozen past attempts return score + Produce notes only; the current
+// attempt still has the live click log.
+func GetStudentStoryDrilldown(ctx context.Context, storyID int32, userID string, attemptNumber int) (*StudentStoryDrilldown, error) {
+	if attemptNumber < 1 {
+		attemptNumber = 1
+	}
+
 	header, err := queries.GetStudentStoryHeader(ctx, db.GetStudentStoryHeaderParams{StoryID: int32(storyID), UserID: userID})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
+	}
+
+	attempts, err := ListUserStoryAttempts(ctx, userID, storyID)
+	if err != nil {
+		return nil, err
+	}
+	var selected *StoryAttemptInfo
+	for i := range attempts {
+		if attempts[i].Number == attemptNumber {
+			selected = &attempts[i]
+			break
+		}
+	}
+	if selected == nil {
+		return nil, ErrNotFound
 	}
 
 	result := &StudentStoryDrilldown{
@@ -111,9 +137,17 @@ func GetStudentStoryDrilldown(ctx context.Context, storyID int32, userID string)
 		StoryID:    storyID,
 		StoryTitle: header.StoryTitle,
 
+		AttemptNumber: attemptNumber,
+		AttemptCount:  len(attempts),
+		Attempts:      attempts,
+
 		IdentifyAnswers: []IdentifyAnswerDetail{},
 		ProduceSegments: []ProduceSegmentDetail{},
 		RecallAttempts:  []RecallAttemptDetail{},
+	}
+
+	if selected.HasSnapshot && !selected.IsCurrent {
+		return fillDrilldownFromSnapshot(ctx, result, userID, int(storyID), attemptNumber)
 	}
 
 	identifyRows, err := queries.GetUserStoryIdentifyAnswerLog(ctx, db.GetUserStoryIdentifyAnswerLogParams{UserID: userID, StoryID: storyID})
@@ -161,6 +195,59 @@ func GetStudentStoryDrilldown(ctx context.Context, storyID int32, userID string)
 	}
 
 	return result, nil
+}
+
+func fillDrilldownFromSnapshot(ctx context.Context, result *StudentStoryDrilldown, userID string, storyID, attemptNumber int) (*StudentStoryDrilldown, error) {
+	snap, err := GetAttemptScore(ctx, userID, storyID, attemptNumber)
+	if err != nil {
+		return nil, err
+	}
+	if snap == nil {
+		return nil, ErrNotFound
+	}
+	result.FromSnapshot = true
+	result.Score = snap
+	result.Translate = TranslateDetail{
+		Started:        snap.TranslationCompleted || len(snap.RequestedLines) > 0,
+		Completed:      snap.TranslationCompleted,
+		RequestedLines: snap.RequestedLines,
+	}
+	if result.Translate.RequestedLines == nil {
+		result.Translate.RequestedLines = []int32{}
+	}
+	result.ProduceSegments = produceDetailsFromSnapshot(snap.ProduceSegments)
+	result.Time = PhaseTimeBreakdown{
+		VideoSeconds:     snap.VideoTimeSeconds,
+		IdentifySeconds:  snap.IdentifyTimeSeconds,
+		TranslateSeconds: snap.TranslationTimeSeconds,
+		ProduceSeconds:   snap.ProduceTimeSeconds,
+		RecallSeconds:    snap.RecallTimeSeconds,
+		VocabSeconds:     snap.VocabTimeSeconds,
+		GrammarSeconds:   snap.GrammarTimeSeconds,
+	}
+	return result, nil
+}
+
+func produceDetailsFromSnapshot(segments []AttemptProduceSegment) []ProduceSegmentDetail {
+	out := make([]ProduceSegmentDetail, 0, len(segments))
+	for _, seg := range segments {
+		detail := ProduceSegmentDetail{
+			SegmentOrder:     int32(seg.SegmentOrder),
+			HebrewText:       seg.HebrewText,
+			ReferenceEnglish: seg.ReferenceEnglish,
+			Submissions:      []ProduceSubmissionDetail{},
+		}
+		if seg.StudentText != "" || seg.AiScore != nil || seg.AiFeedback != "" {
+			sub := ProduceSubmissionDetail{StudentText: seg.StudentText, AiFeedback: seg.AiFeedback}
+			if seg.AiScore != nil {
+				score := int32(*seg.AiScore)
+				sub.AiScore = &score
+			}
+			detail.Submissions = append(detail.Submissions, sub)
+		}
+		out = append(out, detail)
+	}
+	return out
 }
 
 func translateDetail(ctx context.Context, userID string, storyID int32) (TranslateDetail, error) {

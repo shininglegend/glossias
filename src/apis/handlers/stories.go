@@ -38,6 +38,7 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/{id}/produce", h.SubmitProduce).Methods("POST")
 	router.HandleFunc("/{id}/produce/start", h.StartProduce).Methods("POST", "OPTIONS")
 	router.HandleFunc("/{id}/scores", h.GetScoresData).Methods("GET", "OPTIONS")
+	router.HandleFunc("/{id}/progress", h.ResetOwnProgress).Methods("DELETE", "OPTIONS")
 
 	// Audio endpoints
 	router.HandleFunc("/{id}/audio/signed", h.GetSignedAudioURLs).Methods("GET", "OPTIONS")

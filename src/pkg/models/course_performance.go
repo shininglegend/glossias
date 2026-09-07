@@ -61,6 +61,10 @@ type CourseStudentPerformance struct {
 	VocabTimeSeconds       int32 `json:"vocab_time_seconds"`
 	GrammarTimeSeconds     int32 `json:"grammar_time_seconds"`
 	TotalTimeSeconds       int32 `json:"total_time_seconds"`
+
+	// AttemptCount is how many times the student has done the story.
+	// Scores on this row are always attempt 1 (official).
+	AttemptCount int `json:"attempt_count"`
 }
 
 // CalculateScoreWithRetriesAllowed calculates a score for vocab/grammar exercises where students must retry until correct.
@@ -172,6 +176,13 @@ func GetStoryStudentPerformance(ctx context.Context, storyID int32, status strin
 			GrammarTimeSeconds:     row.GrammarTimeSeconds,
 			TotalTimeSeconds:       row.TotalTimeSeconds,
 		}
+
+		attemptCount := int(row.AttemptCount)
+		if attemptCount == 0 && hasLiveExerciseWork(row) {
+			attemptCount = 1
+		}
+		results[i].AttemptCount = attemptCount
+		applyOfficialSnapshot(&results[i], row.FirstAttemptSnapshot)
 	}
 
 	// Best overall first; ties broken by least time (faster is better when

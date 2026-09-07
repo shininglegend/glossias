@@ -53,8 +53,8 @@ func TestGetScoresDataComplete(t *testing.T) {
 	stubScoreDB(t, fullStoryDone, fullSummary)
 
 	// Budget: 10 for the uncached GetStoryData load (cached in production)
-	// + completion + summary + time tracking.
-	rr := assertQueryBudget(t, 13, h.GetScoresData, scoreRequest())
+	// + official-snapshot miss + completion + summary + time + produce notes.
+	rr := assertQueryBudget(t, 15, h.GetScoresData, scoreRequest())
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
 	}
@@ -125,7 +125,7 @@ func TestGetScoresDataIncomplete(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			stubScoreDB(t, tt.completion, tt.summary)
-			rr := assertQueryBudget(t, 13, h.GetScoresData, scoreRequest())
+			rr := assertQueryBudget(t, 14, h.GetScoresData, scoreRequest())
 			if rr.Code != http.StatusOK {
 				t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
 			}
@@ -165,7 +165,7 @@ func TestGetScoresDataLegacyStoryIsNotBlocked(t *testing.T) {
 		[]any{int32(0), int32(0), true, int32(0), int32(0), int32(0), int32(0)},
 		[]any{int32(3), int32(1), int32(2), int32(0), int32(0), int32(0), int32(0), int32(0), int32(0), int32(0), float64(0)},
 	)
-	rr := assertQueryBudget(t, 13, h.GetScoresData, scoreRequest())
+	rr := assertQueryBudget(t, 15, h.GetScoresData, scoreRequest())
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
 	}

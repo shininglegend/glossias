@@ -33,6 +33,9 @@ export interface ProduceAttempt {
   segmentId: number;
   studentText: string;
   referenceEnglish: string;
+  aiScore?: number | null;
+  aiFeedback?: string;
+  gradingFailed?: boolean;
 }
 
 /** A segment already started on the server, with the countdown remaining. */
@@ -81,7 +84,9 @@ export type ProduceEvent =
   /** Dismiss the explanation popup. */
   | { type: "CLOSE_EXPLANATION" }
   /** Re-open the explanation after finishing. */
-  | { type: "SHOW_EXPLANATION" };
+  | { type: "SHOW_EXPLANATION" }
+  /** AI feedback arrived (or was refreshed) for a stored attempt. */
+  | { type: "FEEDBACK"; attempt: ProduceAttempt };
 
 export interface ProduceResume {
   attempts: ProduceAttempt[];
@@ -240,6 +245,18 @@ export function produceReducer(
     case "SHOW_EXPLANATION": {
       if (phase.kind !== "complete") return state;
       return { ...state, phase: { kind: "explanation" } };
+    }
+
+    case "FEEDBACK": {
+      const existing = state.attempts[event.attempt.segmentId];
+      if (!existing) return state;
+      return {
+        ...state,
+        attempts: {
+          ...state.attempts,
+          [event.attempt.segmentId]: { ...existing, ...event.attempt },
+        },
+      };
     }
 
     default:

@@ -13,8 +13,8 @@ import (
 
 // ScoreData is the student's result for a completed story: one accuracy per
 // five-phase activity (Identify, Produce, Recall), a per-phase time breakdown,
-// and the legacy Vocabulary/Grammar counts for stories authored before the
-// five-phase flow (the frontend shows those cards only when attempts exist).
+// and leftover Vocabulary counts for stories authored before the five-phase
+// flow. Grammar is no longer shown on the student Score page.
 type ScoreData struct {
 	StoryTitle       string  `json:"story_title"`
 	TotalTimeSeconds int     `json:"total_time_seconds"`
@@ -25,10 +25,14 @@ type ScoreData struct {
 	IdentifyIncorrectCount int     `json:"identify_incorrect_count"`
 	IdentifyTotal          int     `json:"identify_total"`
 
-	ProduceScore             float64 `json:"produce_score"` // AI average over graded segments (0-100)
-	ProduceSegmentsSubmitted int     `json:"produce_segments_submitted"`
-	ProduceSegmentsGraded    int     `json:"produce_segments_graded"`
-	ProduceTotal             int     `json:"produce_total"`
+	ProduceScore             float64                        `json:"produce_score"` // AI average over graded segments (0-100)
+	ProduceSegmentsSubmitted int                            `json:"produce_segments_submitted"`
+	ProduceSegmentsGraded    int                            `json:"produce_segments_graded"`
+	ProduceTotal             int                            `json:"produce_total"`
+	ProduceSegments          []models.AttemptProduceSegment `json:"produce_segments"`
+
+	AttemptNumber int `json:"attempt_number"`
+	AttemptCount  int `json:"attempt_count"`
 
 	RecallAccuracy       float64 `json:"recall_accuracy"` // Percentage (0-100)
 	RecallCorrectCount   int     `json:"recall_correct_count"`
@@ -95,6 +99,19 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 	}
 	title := story.Metadata.Title["en"]
 
+	if official, err := models.GetOfficialAttemptScore(r.Context(), userID, id); err != nil {
+		h.log.Error("Failed to fetch official attempt score", "error", err, "storyID", id, "userID", userID)
+		h.sendError(w, "Internal server error", http.StatusInternalServerError)
+		return
+	} else if official != nil {
+		attemptCount := 2
+		if attempts, listErr := models.ListUserStoryAttempts(r.Context(), userID, int32(id)); listErr == nil {
+			attemptCount = len(attempts)
+		}
+		h.writeJSON(w, types.APIResponse{Success: true, Data: scoreDataFromSnapshot(*official, attemptCount)})
+		return
+	}
+
 	completion, err := models.GetUserStoryPageCompletion(r.Context(), userID, id)
 	if err != nil {
 		h.log.Error("Failed to fetch page completion", "error", err, "storyID", id, "userID", userID)
@@ -142,7 +159,14 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 
 	totalTime := timeData.VideoTimeSeconds + timeData.IdentifyTimeSeconds +
 		timeData.TranslationTimeSeconds + timeData.ProduceTimeSeconds + timeData.RecallTimeSeconds +
-		timeData.VocabTimeSeconds + timeData.GrammarTimeSeconds
+		timeData.VocabTimeSeconds
+
+	produceNotes, err := models.ScoreProduceNotes(r.Context(), userID, id)
+	if err != nil {
+		h.log.Error("Failed to fetch produce notes", "error", err, "storyID", id, "userID", userID)
+		h.sendError(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 
 	h.writeJSON(w, types.APIResponse{
 		Success: true,
@@ -160,6 +184,7 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 			ProduceSegmentsSubmitted: summary.ProduceSubmitted,
 			ProduceSegmentsGraded:    summary.ProduceGraded,
 			ProduceTotal:             totals.ProduceTotal,
+			ProduceSegments:          produceNotes,
 
 			RecallAccuracy:       scores.RecallAccuracy,
 			RecallCorrectCount:   summary.RecallCorrect,
@@ -181,8 +206,23 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 			RecallTimeSeconds:      timeData.RecallTimeSeconds,
 			VocabTimeSeconds:       timeData.VocabTimeSeconds,
 			GrammarTimeSeconds:     timeData.GrammarTimeSeconds,
+
+			AttemptNumber: 1,
+			AttemptCount:  1,
 		},
 	})
+}
+
+func scoreDataFromSnapshot(s models.AttemptScoreSnapshot, attemptCount int) ScoreData {
+	b, _ := json.Marshal(s)
+	var d ScoreData
+	_ = json.Unmarshal(b, &d)
+	d.AttemptNumber = 1
+	d.AttemptCount = attemptCount
+	if d.ProduceSegments == nil {
+		d.ProduceSegments = []models.AttemptProduceSegment{}
+	}
+	return d
 }
 
 // missingActivities lists the five-phase activities that still block the score

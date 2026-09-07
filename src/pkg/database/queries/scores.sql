@@ -218,6 +218,16 @@ WITH vocab_c AS (
     FROM user_time_tracking
     WHERE story_id = @story_id AND ended_at IS NOT NULL
     GROUP BY user_id
+), attempt_stats AS (
+    SELECT user_id, COUNT(*)::INT AS attempt_count
+    FROM story_attempts
+    WHERE story_id = @story_id
+    GROUP BY user_id
+), first_snap AS (
+    SELECT sa.user_id, snap.snapshot
+    FROM story_attempts sa
+    JOIN story_attempt_score_snapshots snap ON snap.attempt_id = sa.attempt_id
+    WHERE sa.story_id = @story_id AND sa.attempt_number = 1
 )
 SELECT
     u.user_id,
@@ -244,7 +254,9 @@ SELECT
     COALESCE(time_stats.identify_time_seconds, 0)::INT AS identify_time_seconds,
     COALESCE(time_stats.produce_time_seconds, 0)::INT AS produce_time_seconds,
     COALESCE(time_stats.recall_time_seconds, 0)::INT AS recall_time_seconds,
-    COALESCE(time_stats.total_time_seconds, 0)::INT AS total_time_seconds
+    COALESCE(time_stats.total_time_seconds, 0)::INT AS total_time_seconds,
+    COALESCE(attempt_stats.attempt_count, 0)::INT AS attempt_count,
+    first_snap.snapshot AS first_attempt_snapshot
 FROM users u
 JOIN course_users cu ON u.user_id = cu.user_id
 JOIN stories s ON cu.course_id = s.course_id
@@ -260,6 +272,8 @@ LEFT JOIN recall_i ON recall_i.user_id = u.user_id
 LEFT JOIN produce_stats ON produce_stats.user_id = u.user_id
 LEFT JOIN tr ON tr.user_id = u.user_id
 LEFT JOIN time_stats ON time_stats.user_id = u.user_id
+LEFT JOIN attempt_stats ON attempt_stats.user_id = u.user_id
+LEFT JOIN first_snap ON first_snap.user_id = u.user_id
 WHERE s.story_id = @story_id
   AND (@status::TEXT = '' OR cu.status = @status)
 ORDER BY u.name;

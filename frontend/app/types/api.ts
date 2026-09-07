@@ -136,16 +136,50 @@ export interface AttemptStage {
  * Mirrors models.AttemptSummary: an archived attempt with its frozen score,
  * or the live current attempt (is_current) with its deletable stages.
  */
+/** Subset of the Score snapshot used in the Manage Attempts dropdown. */
+export interface AttemptScoreSummary {
+  overall_accuracy: number;
+  total_time_seconds: number;
+  produce_segments_submitted: number;
+  produce_segments_graded: number;
+  identify_accuracy?: number;
+  identify_correct_count?: number;
+  identify_incorrect_count?: number;
+  identify_total?: number;
+  produce_score?: number;
+  produce_total?: number;
+  produce_segments?: {
+    segment_order: number;
+    student_text?: string;
+    ai_score?: number | null;
+  }[];
+  recall_accuracy?: number;
+  recall_correct_count?: number;
+  recall_incorrect_count?: number;
+  recall_attempts?: number;
+  recall_total?: number;
+  requested_lines?: number[];
+  video_time_seconds?: number;
+  identify_time_seconds?: number;
+  translation_time_seconds?: number;
+  produce_time_seconds?: number;
+  recall_time_seconds?: number;
+  translation_completed?: boolean;
+  vocab_accuracy?: number;
+  vocab_correct_count?: number;
+  vocab_incorrect_count?: number;
+  vocab_time_seconds?: number;
+  grammar_accuracy?: number;
+  grammar_correct_count?: number;
+  grammar_incorrect_count?: number;
+  grammar_time_seconds?: number;
+}
+
 export interface StudentAttemptSummary {
   number: number;
   is_current: boolean;
   completed_at?: string;
-  score?: {
-    overall_accuracy: number;
-    total_time_seconds: number;
-    produce_segments_submitted: number;
-    produce_segments_graded: number;
-  };
+  score?: AttemptScoreSummary;
   /** Only on the current attempt; empty means not started. */
   stages?: AttemptStage[];
 }

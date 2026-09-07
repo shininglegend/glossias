@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { ManageAttemptsModal, formatSeconds } from "./ManageAttemptsModal";
+import {
+  ManageAttemptsModal,
+  attemptBreakdown,
+  formatSeconds,
+} from "./ManageAttemptsModal";
 import type { StudentAttemptSummary } from "../types/api";
 
 const getStudentAttempts = vi.fn();
@@ -24,6 +28,25 @@ const archived = (number: number, accuracy: number): StudentAttemptSummary => ({
     total_time_seconds: 3725,
     produce_segments_submitted: 1,
     produce_segments_graded: 1,
+    identify_accuracy: 80,
+    identify_correct_count: 4,
+    identify_incorrect_count: 1,
+    identify_total: 5,
+    identify_time_seconds: 90,
+    video_time_seconds: 120,
+    produce_score: 70,
+    produce_total: 2,
+    produce_time_seconds: 200,
+    recall_accuracy: 100,
+    recall_correct_count: 3,
+    recall_incorrect_count: 0,
+    recall_attempts: 1,
+    recall_time_seconds: 45,
+    translation_completed: true,
+    translation_time_seconds: 60,
+    requested_lines: [3, 10],
+    recall_total: 3,
+    produce_segments: [{ segment_order: 1, ai_score: 70 }],
   },
 });
 
@@ -66,6 +89,27 @@ describe("ManageAttemptsModal", () => {
     expect(formatSeconds(3725)).toBe("1:02:05");
   });
 
+  it("builds a score/time breakdown from a frozen snapshot", () => {
+    const rows = attemptBreakdown(archived(1, 63.1));
+    expect(rows.map((r) => r.phase)).toEqual([
+      "video",
+      "identify",
+      "translate",
+      "produce",
+      "recall",
+    ]);
+    expect(rows[1]).toMatchObject({
+      headline: "80.0%",
+      stats: ["4 correct", "1 incorrect", "of 5"],
+      seconds: 90,
+    });
+    expect(rows[2]).toMatchObject({
+      headline: "Completed",
+      stats: ["2 lines requested", "3, 10"],
+    });
+    expect(rows[3].extra).toEqual(["Passage 1: 70"]);
+  });
+
   it("lists archived attempts with scores and the live attempt by stage", async () => {
     getStudentAttempts.mockResolvedValue({
       success: true,
@@ -77,6 +121,9 @@ describe("ManageAttemptsModal", () => {
     expect(screen.getByText("84.7%")).toBeInTheDocument();
     expect(screen.getByText("Official")).toBeInTheDocument();
     expect(screen.getByText("In progress")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Attempt 3, In progress").closest("details"),
+    ).toHaveAttribute("open");
     expect(screen.getByText("3 correct / 1 incorrect")).toBeInTheDocument();
     // Archived rows delete whole; the live row deletes by stage only.
     expect(
@@ -90,6 +137,17 @@ describe("ManageAttemptsModal", () => {
     expect(
       screen.queryByRole("button", { name: "Delete attempt 3" }),
     ).toBeNull();
+
+    const archivedSummary = screen.getByLabelText("Attempt 1, Completed");
+    const archivedDetails = archivedSummary.closest("details");
+    expect(archivedDetails).not.toHaveAttribute("open");
+    fireEvent.click(archivedSummary);
+    expect(archivedDetails).toHaveAttribute("open");
+    expect(archivedDetails).toHaveTextContent("80.0%");
+    expect(archivedDetails).toHaveTextContent("4 correct");
+    expect(archivedDetails).toHaveTextContent("of 5");
+    expect(archivedDetails).toHaveTextContent("Passage 1: 70");
+    expect(archivedDetails).toHaveTextContent("1:30");
   });
 
   it("shows an untouched live attempt as not started with nothing to delete", async () => {

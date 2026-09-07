@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate, useSearchParams } from "react-router";
 import { useApiService } from "../services/api";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import { CompletionMessage } from "./story-components/CompletionMessage";
@@ -45,6 +45,7 @@ function storyTitle(metadata: StoryMetadata | null): string | undefined {
 
 export function StoriesVideo() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const api = useApiService();
   const navigate = useNavigate();
   const { getNavigationGuidance } = useNavigationGuidance();
@@ -52,7 +53,7 @@ export function StoriesVideo() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [navError, setNavError] = useState<string | null>(null);
-  const [videoStarted, setVideoStarted] = useState(false);
+  const videoStarted = searchParams.has("watch");
   const [videoWatched, setVideoWatched] = useState(false);
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
   const [guidanceCache, setGuidanceCache] =
@@ -121,7 +122,7 @@ export function StoriesVideo() {
 
   return (
     <StoryShell
-      phasePath="video"
+      phasePath={videoStarted ? "video" : "intro"}
       storyTitle={title}
       loading={loading}
       error={error || (!loading && !metadata ? "No story found" : null)}
@@ -157,7 +158,7 @@ export function StoriesVideo() {
             <Button
               type="button"
               size="lg"
-              onClick={() => setVideoStarted(true)}
+              onClick={() => setSearchParams({ watch: "1" }, { replace: true })}
               className="h-auto px-8 py-4 text-lg font-semibold"
               icon={<span className="material-icons">play_arrow</span>}
             >

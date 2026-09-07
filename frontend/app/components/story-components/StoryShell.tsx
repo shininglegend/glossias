@@ -2,8 +2,9 @@ import type { ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { cn } from "~/lib/cn";
 import {
-  STORY_FLOW_PHASES,
+  STORY_BAR_PHASES,
   phaseByPath,
+  phaseHref,
   type StoryPhasePath,
 } from "~/lib/storyPhases";
 import Button from "../ui/Button";
@@ -28,37 +29,29 @@ export function StoryShell({
   const phase = phaseByPath(phasePath);
 
   return (
-    <div className="w-full">
-      <div className="flex items-center gap-3 mb-4">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 hover:text-slate-900"
-        >
-          <span className="material-icons text-base" aria-hidden="true">
-            home
-          </span>
-          Stories
-        </Link>
-      </div>
-
-      <nav aria-label="Story phases" className="mb-6">
-        <ol className="flex gap-2 overflow-x-auto pb-1">
-          {STORY_FLOW_PHASES.map((item) => {
+    <div className="w-full min-w-0">
+      <nav aria-label="Story phases" className="mb-5 w-full">
+        <ol className="flex w-full overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+          {STORY_BAR_PHASES.map((item, i) => {
             const current = item.path === phasePath;
             return (
-              <li key={item.path} className="shrink-0">
+              <li
+                key={item.path}
+                className={cn(
+                  "flex min-w-9 flex-1 overflow-hidden",
+                  i > 0 && "border-l border-slate-200",
+                  i === 0 && "rounded-l-lg",
+                  i === STORY_BAR_PHASES.length - 1 && "rounded-r-lg",
+                )}
+              >
                 <Link
-                  to={id ? `/stories/${id}/${item.path}` : "/"}
+                  to={id ? phaseHref(id, item.path) : "/"}
                   aria-current={current ? "page" : undefined}
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ring-1 transition-colors",
+                    "relative flex flex-1 items-center justify-center gap-1 px-1.5 py-2 text-xs font-medium transition-colors",
                     current
-                      ? cn(
-                          item.theme.barMuted,
-                          item.theme.title,
-                          item.theme.ring,
-                        )
-                      : "bg-slate-50 text-slate-500 ring-slate-200 hover:bg-slate-100 hover:text-slate-800",
+                      ? cn(item.theme.barMuted, item.theme.title)
+                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-800",
                   )}
                 >
                   <span
@@ -70,7 +63,22 @@ export function StoryShell({
                   >
                     {item.icon}
                   </span>
-                  {item.title}
+                  <span
+                    className={cn(
+                      "truncate",
+                      current ? "inline" : "hidden xl:inline",
+                    )}
+                  >
+                    {item.title}
+                  </span>
+                  {current ? (
+                    <span
+                      className={cn(
+                        "absolute inset-x-0 bottom-0 h-0.5",
+                        item.theme.bar,
+                      )}
+                    />
+                  ) : null}
                 </Link>
               </li>
             );

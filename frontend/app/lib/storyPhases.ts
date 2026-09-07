@@ -11,6 +11,13 @@ export type PhaseTheme = {
 };
 
 export const PHASE_THEME = {
+  intro: {
+    icon: "text-indigo-600",
+    title: "text-indigo-900",
+    bar: "bg-indigo-600",
+    barMuted: "bg-indigo-100",
+    ring: "ring-indigo-500",
+  },
   video: {
     icon: "text-red-600",
     title: "text-red-900",
@@ -100,12 +107,24 @@ export const STORY_PHASES = [
   },
 ] as const;
 
-export type StoryPhasePath = (typeof STORY_PHASES)[number]["path"];
+/** Bar-only preface before Watch. Same `/video` URL; `?watch=1` is Watch. */
+export const STORY_INTRO_PHASE = {
+  path: "intro",
+  icon: "auto_stories",
+  title: "Intro",
+  theme: PHASE_THEME.intro,
+} as const;
 
-export const STORY_FLOW_PHASES = STORY_PHASES.filter(
-  (phase) => phase.path !== "score",
-);
+export const STORY_BAR_PHASES = [STORY_INTRO_PHASE, ...STORY_PHASES] as const;
+
+export type StoryPhasePath = (typeof STORY_BAR_PHASES)[number]["path"];
 
 export function phaseByPath(path: string) {
-  return STORY_PHASES.find((phase) => phase.path === path);
+  return STORY_BAR_PHASES.find((phase) => phase.path === path);
+}
+
+export function phaseHref(storyId: string, path: StoryPhasePath): string {
+  if (path === "intro") return `/stories/${storyId}/video`;
+  if (path === "video") return `/stories/${storyId}/video?watch=1`;
+  return `/stories/${storyId}/${path}`;
 }

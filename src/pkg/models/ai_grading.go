@@ -70,7 +70,7 @@ type ProduceGrader interface {
 
 // GradingModel is the model used for grading. Segments are 5–10 words, so a
 // small fast model is sufficient and keeps per-grade cost negligible.
-const GradingModel = anthropic.ModelClaudeHaiku4_5
+const GradingModel = anthropic.ModelClaudeSonnet5
 
 // gradingRequestTimeout bounds a single grading call. Grading runs off the
 // request path, so this only limits how long a stuck call holds a worker.

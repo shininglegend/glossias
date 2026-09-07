@@ -81,9 +81,32 @@ func (h *Handler) GetStories(w http.ResponseWriter, r *http.Request) {
 	// Convert to API format
 	stories := types.ConvertStoriesToAPI(dbStories)
 
+	userID := auth.GetUserID(r)
+	if userID != "" && len(stories) > 0 {
+		ids := make([]int, len(stories))
+		for i, story := range stories {
+			ids[i] = story.ID
+		}
+		completions, err := models.GetUserStoriesPageCompletion(r.Context(), userID, ids)
+		if err != nil {
+			h.log.Error("Failed to load story list progress", "error", err, "userID", userID)
+		} else {
+			for i := range stories {
+				c := completions[stories[i].ID]
+				if c == nil {
+					c = &models.PageCompletion{}
+				}
+				status, next := storyListProgress(c)
+				stories[i].Status = status
+				stories[i].NextPage = next.Path
+				stories[i].NextPageName = next.DisplayName
+			}
+		}
+	}
+
 	// Admins see which stories still need authoring work. Students skip this
 	// so the list stays a single query plus the admin check.
-	if userID := auth.GetUserID(r); auth.IsAnyAdmin(r.Context(), userID) {
+	if userID != "" && auth.IsAnyAdmin(r.Context(), userID) {
 		ids := make([]int, len(stories))
 		for i, story := range stories {
 			ids[i] = story.ID

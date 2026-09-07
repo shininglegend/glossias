@@ -136,14 +136,19 @@ func TestGetStories(t *testing.T) {
 			"user-1", "u@example.com", "User", pgtype.Bool{Bool: false, Valid: true}, pgtype.Timestamp{}, pgtype.Timestamp{},
 		}}, nil)
 		mockDB.StubQuery("IsUserAdminOfAnyCourse", [][]any{{false}}, nil)
+		mockDB.StubQuery("GetUserStoriesPageCompletion", [][]any{
+			{int32(1), int32(4), int32(0), false, int32(5), int32(0), int32(2), int32(0), int32(0)},
+			{int32(2), int32(4), int32(2), false, int32(5), int32(0), int32(2), int32(0), int32(0)},
+			{int32(3), int32(4), int32(4), true, int32(5), int32(5), int32(2), int32(2), int32(0)},
+		}, nil)
 		models.SetDB(mockDB)
 		t.Cleanup(func() { models.SetDB(struct{}{}) })
 
 		req := httptest.NewRequest("GET", "/api/stories", nil)
 		req = req.WithContext(context.WithValue(req.Context(), auth.UserIDKey, "user-1"))
 
-		// List + GetUser + course-admin check; no per-story readiness.
-		rr := assertQueryBudget(t, 3, h.GetStories, req)
+		// List + GetUser + course-admin check + batched page completion.
+		rr := assertQueryBudget(t, 4, h.GetStories, req)
 		if rr.Code != http.StatusOK {
 			t.Fatalf("status %d", rr.Code)
 		}
@@ -151,9 +156,21 @@ func TestGetStories(t *testing.T) {
 		if len(stories) != 3 {
 			t.Fatalf("got %d stories, want 3", len(stories))
 		}
-		for _, story := range stories {
+		want := []struct {
+			status, page, name string
+		}{
+			{"not_started", "video", "Watch"},
+			{"in_progress", "identify", "Identify"},
+			{"complete", "score", "Score"},
+		}
+		for i, story := range stories {
 			if len(story.MissingPhases) != 0 {
 				t.Errorf("student saw missing_phases on story %d: %v", story.ID, story.MissingPhases)
+			}
+			if story.Status != want[i].status || story.NextPage != want[i].page || story.NextPageName != want[i].name {
+				t.Errorf("story %d status=%q next=%q/%q, want %q %q/%q",
+					story.ID, story.Status, story.NextPage, story.NextPageName,
+					want[i].status, want[i].page, want[i].name)
 			}
 		}
 	})
@@ -171,8 +188,8 @@ func TestGetStories(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/stories", nil)
 		req = req.WithContext(context.WithValue(req.Context(), auth.UserIDKey, "admin-1"))
 
-		// List + super-admin GetUser + 8 batched readiness queries, independent of story count.
-		rr := assertQueryBudget(t, 10, h.GetStories, req)
+		// List + super-admin GetUser + batched progress + 8 batched readiness queries.
+		rr := assertQueryBudget(t, 11, h.GetStories, req)
 		if rr.Code != http.StatusOK {
 			t.Fatalf("status %d", rr.Code)
 		}

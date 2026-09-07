@@ -7,6 +7,16 @@ import type { Story } from "../services/api";
 import Button from "./ui/Button";
 import { Card, CardContent } from "./ui/Card";
 
+function storyCta(story: Story): string {
+  if (story.status === "complete") return "See score";
+  if (story.status === "in_progress") {
+    return story.next_page_name
+      ? `Continue · ${story.next_page_name}`
+      : "Continue";
+  }
+  return "Start";
+}
+
 function StoryCard({
   story,
   loading,
@@ -41,7 +51,7 @@ function StoryCard({
             ) : undefined
           }
         >
-          {loading ? "Loading..." : "Start Reading"}
+          {loading ? "Loading..." : storyCta(story)}
         </Button>
       </CardContent>
     </Card>
@@ -55,7 +65,7 @@ function StoryGrid({
 }: {
   stories: Story[];
   loadingStory: number | null;
-  onOpen: (id: number) => void;
+  onOpen: (story: Story) => void;
 }) {
   return (
     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -64,7 +74,7 @@ function StoryGrid({
           key={story.id}
           story={story}
           loading={loadingStory === story.id}
-          onOpen={() => onOpen(story.id)}
+          onOpen={() => onOpen(story)}
         />
       ))}
     </div>
@@ -81,7 +91,7 @@ function CollapsedSection({
   title: string;
   stories: Story[];
   loadingStory: number | null;
-  onOpen: (id: number) => void;
+  onOpen: (story: Story) => void;
 }) {
   if (stories.length === 0) return null;
   return (
@@ -111,11 +121,12 @@ function CollapsedSection({
 export function StoryList() {
   const api = useApiService();
   const navigate = useNavigate();
-  const { getNavigationGuidance } = useNavigationGuidance();
+  const { getNavigationGuidance, clearCache } = useNavigationGuidance();
   const { userInfo } = useUserContext();
   const [stories, setStories] = useState<Story[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [openError, setOpenError] = useState<string | null>(null);
   const [loadingStory, setLoadingStory] = useState<number | null>(null);
 
   // Group stories by course status
@@ -154,12 +165,6 @@ export function StoryList() {
         const response = await api.getStories();
         if (response.success && response.data) {
           setStories(response.data.stories);
-          // Preload navigation guidance for first story only
-          response.data.stories.slice(0, 1).forEach((story) => {
-            getNavigationGuidance(story.id.toString(), "list").catch(() => {
-              // Silently fail preloading
-            });
-          });
         } else {
           setError(response.error || "Failed to fetch stories");
         }
@@ -174,15 +179,24 @@ export function StoryList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleStoryClick = async (storyId: number) => {
-    setLoadingStory(storyId);
+  const handleStoryClick = async (story: Story) => {
+    setLoadingStory(story.id);
+    setOpenError(null);
+    clearCache();
     try {
-      const guidance = await getNavigationGuidance(storyId.toString(), "list");
-      if (guidance) {
-        navigate(`/stories/${storyId}/${guidance.nextPage}`);
+      if (story.next_page) {
+        navigate(`/stories/${story.id}/${story.next_page}`);
+        return;
       }
-    } catch (error) {
-      console.error("Failed to get navigation guidance:", error);
+      const guidance = await getNavigationGuidance(story.id.toString(), "list");
+      if (guidance) {
+        navigate(`/stories/${story.id}/${guidance.nextPage}`);
+        return;
+      }
+      setOpenError("Couldn't open this story.");
+    } catch (err) {
+      console.error("Failed to get navigation guidance:", err);
+      setOpenError("Couldn't open this story.");
     } finally {
       setLoadingStory(null);
     }
@@ -196,6 +210,12 @@ export function StoryList() {
         </h1>
         <p className="mt-1 text-slate-600">Select a story to begin reading</p>
       </div>
+
+      {openError ? (
+        <p className="text-rose-700 mb-4" role="alert">
+          {openError}
+        </p>
+      ) : null}
 
       {loading ? (
         <p className="text-slate-600">Loading stories...</p>
@@ -223,7 +243,9 @@ export function StoryList() {
               <StoryGrid
                 stories={groupedStories.active}
                 loadingStory={loadingStory}
-                onOpen={handleStoryClick}
+                onOpen={(story) => {
+                  void handleStoryClick(story);
+                }}
               />
             </section>
           )}

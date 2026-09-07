@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useReducer, useCallback } from "react";
-import { useParams, useNavigate, Link } from "react-router";
+import { useParams, useNavigate } from "react-router";
+import { StoryShell } from "./story-components/StoryShell";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import { useAuthenticatedFetch } from "../lib/authFetch";
 import type { VocabLine } from "../services/api";
@@ -65,6 +66,7 @@ export function StoriesTranslate() {
   const [error, setError] = useState<string | null>(null);
   const [audioURLs, setAudioURLs] = useState<Record<string, string>>({});
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
+  const [navError, setNavError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -160,46 +162,33 @@ export function StoriesTranslate() {
       const guidance = await getNavigationGuidance(id!, "translate");
       if (guidance) {
         navigate(`/stories/${id}/${guidance.nextPage}`);
+        return;
       }
+      setNavError("Couldn't open the next phase.");
     } catch (error) {
       console.error("Failed to get navigation guidance:", error);
+      setNavError("Couldn't open the next phase.");
     }
   };
 
-  if (loading) {
-    return (
-      <div className="container">
-        <p>Loading page...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="container">
-        <p>Error: {error}</p>
-        <Link to="/">Back to Stories</Link>
-      </div>
-    );
-  }
-
-  if (!pageData) {
-    return (
-      <div className="container">
-        <p>No page data found</p>
-        <Link to="/">Back to Stories</Link>
-      </div>
-    );
-  }
-
   return (
-    <TranslateSession
-      pageData={pageData}
-      audioURLs={audioURLs}
-      nextStepName={nextStepName}
-      onSave={saveRequestedLines}
-      onContinue={handleContinue}
-    />
+    <StoryShell
+      phasePath="translate"
+      storyTitle={pageData?.story_title}
+      loading={loading}
+      error={error || (!loading && !pageData ? "No page data found" : null)}
+      navError={navError}
+    >
+      {pageData ? (
+        <TranslateSession
+          pageData={pageData}
+          audioURLs={audioURLs}
+          nextStepName={nextStepName}
+          onSave={saveRequestedLines}
+          onContinue={handleContinue}
+        />
+      ) : null}
+    </StoryShell>
   );
 }
 
@@ -389,9 +378,6 @@ function TranslateSession({
   return (
     <>
       <header>
-        <h1>{pageData.story_title}</h1>
-        <h2>Translation</h2>
-
         {isComplete && (
           <CompletionMessage
             currentStepName="translation"

@@ -84,7 +84,7 @@ export default function App() {
         <div id="app-shell" className="flex-1 flex flex-col overflow-x-clip">
           <NavBar />
           <div className="p-4 container mx-auto flex-1 flex flex-col">
-            <main className="flex-1 flex flex-col">
+            <main className="flex-1 flex w-full flex-col">
               <Outlet />
             </main>
           </div>

@@ -18,11 +18,11 @@ type PageType struct {
 }
 
 var (
-	PageTypeVideo     = PageType{Path: "video", DisplayName: "Video"}
+	PageTypeVideo     = PageType{Path: "video", DisplayName: "Watch"}
 	PageTypeVocab     = PageType{Path: "vocab", DisplayName: "Vocabulary"}
 	PageTypeIdentify  = PageType{Path: "identify", DisplayName: "Identify"}
-	PageTypeTranslate = PageType{Path: "translate", DisplayName: "Translation"}
-	PageTypeProduce   = PageType{Path: "produce", DisplayName: "Production"}
+	PageTypeTranslate = PageType{Path: "translate", DisplayName: "Translate"}
+	PageTypeProduce   = PageType{Path: "produce", DisplayName: "Produce"}
 	PageTypeRecall    = PageType{Path: "recall", DisplayName: "Recall"}
 	PageTypeGrammar   = PageType{Path: "grammar", DisplayName: "Grammar"}
 	PageTypeScore     = PageType{Path: "score", DisplayName: "Score"}
@@ -97,7 +97,7 @@ func (h *Handler) Navigate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nextPage := h.determineNextPage(req.CurrentPage, pageCompletionStatus(completion))
+	nextPage := h.determineNextPage(req.CurrentPage, completion)
 
 	response := types.APIResponse{
 		Success: true,
@@ -130,9 +130,35 @@ func pageCompletionStatus(c *models.PageCompletion) map[PageType]bool {
 	}
 }
 
-// determineNextPage finds the next page to visit based on current page and completion status
-func (h *Handler) determineNextPage(currentPage string, completionStatus map[PageType]bool) PageType {
-	// Find current page index in the order
+func storyListProgress(c *models.PageCompletion) (status string, next PageType) {
+	next = determineNextPageFrom("list", c)
+	switch {
+	case c.FlowComplete():
+		return "complete", next
+	case c.LaterPhaseStarted():
+		return "in_progress", next
+	default:
+		return "not_started", next
+	}
+}
+
+func (h *Handler) determineNextPage(currentPage string, c *models.PageCompletion) PageType {
+	return determineNextPageFrom(currentPage, c)
+}
+
+func determineNextPageFrom(currentPage string, c *models.PageCompletion) PageType {
+	completionStatus := pageCompletionStatus(c)
+
+	// List resume: unstarted live rows always open Watch, even when archived
+	// attempts exist. Once a later phase has progress, skip Watch the same
+	// way Continue-from-Video does.
+	if currentPage == "list" {
+		if !c.LaterPhaseStarted() {
+			return PageTypeVideo
+		}
+		currentPage = PageTypeVideo.Path
+	}
+
 	currentIndex := -1
 	for i, page := range defaultPageOrder {
 		if page.Path == currentPage {
@@ -141,7 +167,6 @@ func (h *Handler) determineNextPage(currentPage string, completionStatus map[Pag
 		}
 	}
 
-	// If current page not found in order, start from beginning
 	if currentIndex == -1 {
 		return PageTypeVideo
 	}

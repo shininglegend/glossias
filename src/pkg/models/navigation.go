@@ -38,16 +38,50 @@ func GetUserStoryPageCompletion(ctx context.Context, userID string, storyID int)
 		return nil, err
 	}
 
+	return pageCompletionFromRow(row.IdentifyTotal, row.IdentifyCorrect, row.TranslationCompleted, row.RecallTotal, row.RecallCorrect, row.ProduceTotal, row.ProduceSubmitted, row.CompletedAttempts), nil
+}
+
+// GetUserStoriesPageCompletion loads phase progress for many stories in one
+// round trip. Stories with no row (should not happen) are omitted.
+func GetUserStoriesPageCompletion(ctx context.Context, userID string, storyIDs []int) (map[int]*PageCompletion, error) {
+	if queries == nil {
+		return nil, errors.New("database not initialized")
+	}
+	if len(storyIDs) == 0 {
+		return map[int]*PageCompletion{}, nil
+	}
+
+	ids := make([]int32, len(storyIDs))
+	for i, id := range storyIDs {
+		ids[i] = int32(id)
+	}
+
+	rows, err := queries.GetUserStoriesPageCompletion(ctx, db.GetUserStoriesPageCompletionParams{
+		UserID:   userID,
+		StoryIds: ids,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(map[int]*PageCompletion, len(rows))
+	for _, row := range rows {
+		out[int(row.StoryID)] = pageCompletionFromRow(row.IdentifyTotal, row.IdentifyCorrect, row.TranslationCompleted, row.RecallTotal, row.RecallCorrect, row.ProduceTotal, row.ProduceSubmitted, row.CompletedAttempts)
+	}
+	return out, nil
+}
+
+func pageCompletionFromRow(identifyTotal, identifyCorrect int32, translationCompleted bool, recallTotal, recallCorrect, produceTotal, produceSubmitted, completedAttempts int32) *PageCompletion {
 	return &PageCompletion{
-		IdentifyTotal:        int(row.IdentifyTotal),
-		IdentifyCorrect:      int(row.IdentifyCorrect),
-		TranslationCompleted: row.TranslationCompleted,
-		RecallTotal:          int(row.RecallTotal),
-		RecallCorrect:        int(row.RecallCorrect),
-		ProduceTotal:         int(row.ProduceTotal),
-		ProduceSubmitted:     int(row.ProduceSubmitted),
-		CompletedAttempts:    int(row.CompletedAttempts),
-	}, nil
+		IdentifyTotal:        int(identifyTotal),
+		IdentifyCorrect:      int(identifyCorrect),
+		TranslationCompleted: translationCompleted,
+		RecallTotal:          int(recallTotal),
+		RecallCorrect:        int(recallCorrect),
+		ProduceTotal:         int(produceTotal),
+		ProduceSubmitted:     int(produceSubmitted),
+		CompletedAttempts:    int(completedAttempts),
+	}
 }
 
 // IdentifyComplete: every target-word occurrence picked correctly. A story with
@@ -72,4 +106,17 @@ func (c *PageCompletion) RecallComplete() bool {
 // as complete (matching produceCompleted).
 func (c *PageCompletion) ProduceComplete() bool {
 	return c.ProduceSubmitted >= c.ProduceTotal
+}
+
+// LaterPhaseStarted is true once the student has stored progress past Watch.
+// Empty Produce (submitted=0, total=0) does not count: ProduceComplete would
+// be true on a story they have not actually started.
+func (c *PageCompletion) LaterPhaseStarted() bool {
+	return c.IdentifyCorrect > 0 || c.TranslationCompleted || c.ProduceSubmitted > 0 || c.RecallCorrect > 0
+}
+
+// FlowComplete is true when every skippable phase may be skipped, so list
+// resume and the story-card CTA can send the student to Score.
+func (c *PageCompletion) FlowComplete() bool {
+	return c.IdentifyComplete() && c.TranslateComplete() && c.ProduceComplete() && c.RecallComplete()
 }

@@ -19,6 +19,9 @@ export interface Story {
   week_number: number;
   day_letter: string;
   course_id?: number;
+  status?: "not_started" | "in_progress" | "complete";
+  next_page?: string;
+  next_page_name?: string;
 }
 
 export interface Description {

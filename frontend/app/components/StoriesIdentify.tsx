@@ -6,7 +6,8 @@ import {
   useCallback,
   useMemo,
 } from "react";
-import { useParams, useNavigate, Link } from "react-router";
+import { useParams, useNavigate } from "react-router";
+import { StoryShell } from "./story-components/StoryShell";
 import { useApiService } from "../services/api";
 import type {
   IdentifyData,
@@ -45,6 +46,7 @@ export function StoriesIdentify() {
   const [pageData, setPageData] = useState<IdentifyData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [navError, setNavError] = useState<string | null>(null);
   const [nextStepName, setNextStepName] = useState<string>("Next Step");
 
   useEffect(() => {
@@ -105,44 +107,37 @@ export function StoriesIdentify() {
     if (!id) return;
     try {
       const guidance = await getNavigationGuidance(id, "identify");
-      if (guidance) navigate(`/stories/${id}/${guidance.nextPage}`);
+      if (guidance) {
+        navigate(`/stories/${id}/${guidance.nextPage}`);
+        return;
+      }
+      setNavError("Couldn't open the next phase.");
     } catch (err) {
       console.error("Failed to navigate to next phase:", err);
+      setNavError("Couldn't open the next phase.");
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
-      </div>
-    );
-  }
-
-  if (error || !pageData) {
-    return (
-      <div className="container max-w-xl mx-auto mt-10 p-6 bg-red-50 border border-red-200 rounded-lg text-center">
-        <h2 className="text-red-700 font-bold mb-2">Error Loading Phase</h2>
-        <p className="text-red-600 mb-4">
-          {error || "Could not retrieve story details."}
-        </p>
-        <Link
-          to="/"
-          className="text-primary-600 hover:text-primary-700 underline font-medium"
-        >
-          Back to Stories
-        </Link>
-      </div>
-    );
-  }
-
   return (
-    <IdentifySession
-      pageData={pageData}
-      nextStepName={nextStepName}
-      onCheckPick={checkPick}
-      onContinue={handleContinue}
-    />
+    <StoryShell
+      phasePath="identify"
+      storyTitle={pageData?.story_title}
+      loading={loading}
+      error={
+        error ||
+        (!loading && !pageData ? "Could not retrieve story details." : null)
+      }
+      navError={navError}
+    >
+      {pageData ? (
+        <IdentifySession
+          pageData={pageData}
+          nextStepName={nextStepName}
+          onCheckPick={checkPick}
+          onContinue={handleContinue}
+        />
+      ) : null}
+    </StoryShell>
   );
 }
 
@@ -341,9 +336,6 @@ export function IdentifySession({
   return (
     <>
       <header>
-        <h1>{pageData.story_title}</h1>
-        <h2>Identify</h2>
-
         {isComplete && (
           <CompletionMessage
             currentStepName="identify"

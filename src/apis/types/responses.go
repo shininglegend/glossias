@@ -22,6 +22,11 @@ type Story struct {
 	// "recall") whose content is not fully authored. Populated only for admin
 	// callers; omitted when the story is complete.
 	MissingPhases []string `json:"missing_phases,omitempty"`
+	// Status / NextPage / NextPageName are the student's resume point, from
+	// the same rules as POST /next with currentPage=list.
+	Status       string `json:"status,omitempty"`
+	NextPage     string `json:"next_page,omitempty"`
+	NextPageName string `json:"next_page_name,omitempty"`
 }
 
 // StoriesResponse contains array of stories

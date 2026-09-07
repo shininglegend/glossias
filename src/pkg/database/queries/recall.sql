@@ -6,6 +6,12 @@ FROM recall_sentences
 WHERE story_id = $1
 ORDER BY sequence_order;
 
+-- name: GetStoriesRecallSentences :many
+SELECT id, story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket, audio_path, audio_bucket
+FROM recall_sentences
+WHERE story_id = ANY(sqlc.arg(story_ids)::int[])
+ORDER BY story_id, sequence_order;
+
 -- name: GetRecallSentence :one
 SELECT id, story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket, audio_path, audio_bucket
 FROM recall_sentences

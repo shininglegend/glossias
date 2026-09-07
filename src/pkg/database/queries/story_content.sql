@@ -40,6 +40,12 @@ FROM story_lines
 WHERE story_id = $1
 ORDER BY line_number;
 
+-- name: GetStoriesLines :many
+SELECT story_id, line_number, text
+FROM story_lines
+WHERE story_id = ANY(sqlc.arg(story_ids)::int[])
+ORDER BY story_id, line_number;
+
 -- name: GetStoryLine :one
 SELECT story_id, line_number, text
 FROM story_lines

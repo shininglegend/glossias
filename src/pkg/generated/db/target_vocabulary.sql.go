@@ -91,6 +91,85 @@ func (q *Queries) DeleteTargetVocabulary(ctx context.Context, id int32) error {
 	return err
 }
 
+const getStoriesLexicalFormCounts = `-- name: GetStoriesLexicalFormCounts :many
+SELECT story_id, lexical_form, COUNT(*) AS occurrences
+FROM vocabulary_items
+WHERE story_id = ANY($1::int[])
+GROUP BY story_id, lexical_form
+ORDER BY story_id, lexical_form
+`
+
+type GetStoriesLexicalFormCountsRow struct {
+	StoryID     pgtype.Int4 `json:"story_id"`
+	LexicalForm string      `json:"lexical_form"`
+	Occurrences int64       `json:"occurrences"`
+}
+
+func (q *Queries) GetStoriesLexicalFormCounts(ctx context.Context, storyIds []int32) ([]GetStoriesLexicalFormCountsRow, error) {
+	rows, err := q.db.Query(ctx, getStoriesLexicalFormCounts, storyIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetStoriesLexicalFormCountsRow{}
+	for rows.Next() {
+		var i GetStoriesLexicalFormCountsRow
+		if err := rows.Scan(&i.StoryID, &i.LexicalForm, &i.Occurrences); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getStoriesTargetVocabulary = `-- name: GetStoriesTargetVocabulary :many
+SELECT id, story_id, lexical_form, audio_path, audio_bucket, correct_image_path, image_bucket
+FROM target_vocabulary
+WHERE story_id = ANY($1::int[])
+ORDER BY story_id, id
+`
+
+type GetStoriesTargetVocabularyRow struct {
+	ID               int32       `json:"id"`
+	StoryID          int32       `json:"story_id"`
+	LexicalForm      string      `json:"lexical_form"`
+	AudioPath        pgtype.Text `json:"audio_path"`
+	AudioBucket      pgtype.Text `json:"audio_bucket"`
+	CorrectImagePath pgtype.Text `json:"correct_image_path"`
+	ImageBucket      pgtype.Text `json:"image_bucket"`
+}
+
+func (q *Queries) GetStoriesTargetVocabulary(ctx context.Context, storyIds []int32) ([]GetStoriesTargetVocabularyRow, error) {
+	rows, err := q.db.Query(ctx, getStoriesTargetVocabulary, storyIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetStoriesTargetVocabularyRow{}
+	for rows.Next() {
+		var i GetStoriesTargetVocabularyRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.StoryID,
+			&i.LexicalForm,
+			&i.AudioPath,
+			&i.AudioBucket,
+			&i.CorrectImagePath,
+			&i.ImageBucket,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStoryLexicalFormCounts = `-- name: GetStoryLexicalFormCounts :many
 SELECT lexical_form, COUNT(*) AS occurrences
 FROM vocabulary_items

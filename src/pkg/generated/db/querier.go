@@ -179,8 +179,18 @@ type Querier interface {
 	GetProduceSegment(ctx context.Context, id int32) (GetProduceSegmentRow, error)
 	GetRecallSentence(ctx context.Context, id int32) (GetRecallSentenceRow, error)
 	GetRecentTimeEntriesForUser(ctx context.Context, arg GetRecentTimeEntriesForUserParams) ([]UserTimeTracking, error)
+	GetStoriesAudioFilesByLabel(ctx context.Context, arg GetStoriesAudioFilesByLabelParams) ([]LineAudioFile, error)
 	GetStoriesByCourse(ctx context.Context, courseID pgtype.Int4) ([]Story, error)
 	GetStoriesForUserCourses(ctx context.Context, userID string) ([]Story, error)
+	GetStoriesLexicalFormCounts(ctx context.Context, storyIds []int32) ([]GetStoriesLexicalFormCountsRow, error)
+	GetStoriesLines(ctx context.Context, storyIds []int32) ([]StoryLine, error)
+	GetStoriesProduceExplanations(ctx context.Context, storyIds []int32) ([]GetStoriesProduceExplanationsRow, error)
+	GetStoriesProduceSegments(ctx context.Context, storyIds []int32) ([]GetStoriesProduceSegmentsRow, error)
+	GetStoriesRecallSentences(ctx context.Context, storyIds []int32) ([]GetStoriesRecallSentencesRow, error)
+	GetStoriesTargetVocabulary(ctx context.Context, storyIds []int32) ([]GetStoriesTargetVocabularyRow, error)
+	// GetStoriesVideoURLs is the video half of content readiness for many stories
+	// at once (admin GET /api/stories).
+	GetStoriesVideoURLs(ctx context.Context, storyIds []int32) ([]GetStoriesVideoURLsRow, error)
 	GetStoriesWithGrammarPoint(ctx context.Context, grammarPointID int32) ([]Story, error)
 	// Core story operations
 	GetStory(ctx context.Context, storyID int32) (Story, error)

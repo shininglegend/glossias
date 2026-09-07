@@ -129,6 +129,55 @@ func (q *Queries) GetRecallSentence(ctx context.Context, id int32) (GetRecallSen
 	return i, err
 }
 
+const getStoriesRecallSentences = `-- name: GetStoriesRecallSentences :many
+SELECT id, story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket, audio_path, audio_bucket
+FROM recall_sentences
+WHERE story_id = ANY($1::int[])
+ORDER BY story_id, sequence_order
+`
+
+type GetStoriesRecallSentencesRow struct {
+	ID            int32       `json:"id"`
+	StoryID       int32       `json:"story_id"`
+	SequenceOrder int32       `json:"sequence_order"`
+	HebrewText    string      `json:"hebrew_text"`
+	TargetVocabID pgtype.Int4 `json:"target_vocab_id"`
+	ImagePath     pgtype.Text `json:"image_path"`
+	ImageBucket   pgtype.Text `json:"image_bucket"`
+	AudioPath     pgtype.Text `json:"audio_path"`
+	AudioBucket   pgtype.Text `json:"audio_bucket"`
+}
+
+func (q *Queries) GetStoriesRecallSentences(ctx context.Context, storyIds []int32) ([]GetStoriesRecallSentencesRow, error) {
+	rows, err := q.db.Query(ctx, getStoriesRecallSentences, storyIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetStoriesRecallSentencesRow{}
+	for rows.Next() {
+		var i GetStoriesRecallSentencesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.StoryID,
+			&i.SequenceOrder,
+			&i.HebrewText,
+			&i.TargetVocabID,
+			&i.ImagePath,
+			&i.ImageBucket,
+			&i.AudioPath,
+			&i.AudioBucket,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStoryRecallSentences = `-- name: GetStoryRecallSentences :many
 
 SELECT id, story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket, audio_path, audio_bucket

@@ -126,6 +126,88 @@ func (q *Queries) GetProduceSegment(ctx context.Context, id int32) (GetProduceSe
 	return i, err
 }
 
+const getStoriesProduceExplanations = `-- name: GetStoriesProduceExplanations :many
+SELECT story_id, explanation_text
+FROM story_produce_explanations
+WHERE story_id = ANY($1::int[])
+`
+
+type GetStoriesProduceExplanationsRow struct {
+	StoryID         int32  `json:"story_id"`
+	ExplanationText string `json:"explanation_text"`
+}
+
+func (q *Queries) GetStoriesProduceExplanations(ctx context.Context, storyIds []int32) ([]GetStoriesProduceExplanationsRow, error) {
+	rows, err := q.db.Query(ctx, getStoriesProduceExplanations, storyIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetStoriesProduceExplanationsRow{}
+	for rows.Next() {
+		var i GetStoriesProduceExplanationsRow
+		if err := rows.Scan(&i.StoryID, &i.ExplanationText); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getStoriesProduceSegments = `-- name: GetStoriesProduceSegments :many
+SELECT ps.id, ps.story_id, ps.segment_order, ps.hebrew_text, ps.reference_english,
+       ps.grammar_point_id, ps.line_start, ps.line_end, gp.name AS grammar_point_name
+FROM produce_segments ps
+LEFT JOIN grammar_points gp ON gp.grammar_point_id = ps.grammar_point_id
+WHERE ps.story_id = ANY($1::int[])
+ORDER BY ps.story_id, ps.segment_order
+`
+
+type GetStoriesProduceSegmentsRow struct {
+	ID               int32       `json:"id"`
+	StoryID          int32       `json:"story_id"`
+	SegmentOrder     int32       `json:"segment_order"`
+	HebrewText       string      `json:"hebrew_text"`
+	ReferenceEnglish string      `json:"reference_english"`
+	GrammarPointID   pgtype.Int4 `json:"grammar_point_id"`
+	LineStart        pgtype.Int4 `json:"line_start"`
+	LineEnd          pgtype.Int4 `json:"line_end"`
+	GrammarPointName pgtype.Text `json:"grammar_point_name"`
+}
+
+func (q *Queries) GetStoriesProduceSegments(ctx context.Context, storyIds []int32) ([]GetStoriesProduceSegmentsRow, error) {
+	rows, err := q.db.Query(ctx, getStoriesProduceSegments, storyIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetStoriesProduceSegmentsRow{}
+	for rows.Next() {
+		var i GetStoriesProduceSegmentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.StoryID,
+			&i.SegmentOrder,
+			&i.HebrewText,
+			&i.ReferenceEnglish,
+			&i.GrammarPointID,
+			&i.LineStart,
+			&i.LineEnd,
+			&i.GrammarPointName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStoryProduceExplanation = `-- name: GetStoryProduceExplanation :one
 SELECT story_id, explanation_text
 FROM story_produce_explanations

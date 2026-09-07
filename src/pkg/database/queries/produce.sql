@@ -8,6 +8,14 @@ LEFT JOIN grammar_points gp ON gp.grammar_point_id = ps.grammar_point_id
 WHERE ps.story_id = $1
 ORDER BY ps.segment_order;
 
+-- name: GetStoriesProduceSegments :many
+SELECT ps.id, ps.story_id, ps.segment_order, ps.hebrew_text, ps.reference_english,
+       ps.grammar_point_id, ps.line_start, ps.line_end, gp.name AS grammar_point_name
+FROM produce_segments ps
+LEFT JOIN grammar_points gp ON gp.grammar_point_id = ps.grammar_point_id
+WHERE ps.story_id = ANY(sqlc.arg(story_ids)::int[])
+ORDER BY ps.story_id, ps.segment_order;
+
 -- name: GetProduceSegment :one
 SELECT ps.id, ps.story_id, ps.segment_order, ps.hebrew_text, ps.reference_english,
        ps.grammar_point_id, ps.line_start, ps.line_end, gp.name AS grammar_point_name
@@ -38,6 +46,11 @@ WHERE story_id = $1;
 SELECT story_id, explanation_text
 FROM story_produce_explanations
 WHERE story_id = $1;
+
+-- name: GetStoriesProduceExplanations :many
+SELECT story_id, explanation_text
+FROM story_produce_explanations
+WHERE story_id = ANY(sqlc.arg(story_ids)::int[]);
 
 -- name: UpsertStoryProduceExplanation :one
 INSERT INTO story_produce_explanations (story_id, explanation_text)

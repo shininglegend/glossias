@@ -80,16 +80,22 @@ func (h *Handler) GetStories(w http.ResponseWriter, r *http.Request) {
 	// Convert to API format
 	stories := types.ConvertStoriesToAPI(dbStories)
 
-	// Admins see which stories still need authoring work. The report is cached
-	// per story, but building it costs several queries, so students skip it.
+	// Admins see which stories still need authoring work. Students skip this
+	// so the list stays a single query plus the admin check.
 	if userID := auth.GetUserID(r); auth.IsAnyAdmin(r.Context(), userID) {
-		for i := range stories {
-			readiness, err := models.GetStoryContentReadiness(r.Context(), stories[i].ID)
-			if err != nil {
-				h.log.Error("Failed to build content readiness for story list", "error", err, "storyID", stories[i].ID)
-				continue
+		ids := make([]int, len(stories))
+		for i, story := range stories {
+			ids[i] = story.ID
+		}
+		readiness, err := models.GetStoriesContentReadiness(r.Context(), ids)
+		if err != nil {
+			h.log.Error("Failed to build content readiness for story list", "error", err)
+		} else {
+			for i := range stories {
+				if report, ok := readiness[stories[i].ID]; ok {
+					stories[i].MissingPhases = report.MissingPhases()
+				}
 			}
-			stories[i].MissingPhases = readiness.MissingPhases()
 		}
 	}
 

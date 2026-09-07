@@ -1,13 +1,102 @@
 package auth
 
 import (
+	"bytes"
+	"context"
+	"encoding/base64"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 )
+
+func unsignedJWT(sub string) string {
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none","typ":"JWT"}`))
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"` + sub + `"}`))
+	return header + "." + payload + ".x"
+}
+
+func TestUserIDForLog(t *testing.T) {
+	t.Run("context", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/stories", nil)
+		req = req.WithContext(context.WithValue(req.Context(), UserIDKey, "ctx-user"))
+		if got := userIDForLog(req); got != "ctx-user" {
+			t.Errorf("userIDForLog = %q, want ctx-user", got)
+		}
+	})
+
+	t.Run("bearer JWT", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/stories", nil)
+		req.Header.Set("Authorization", "Bearer "+unsignedJWT("jwt-user"))
+		if got := userIDForLog(req); got != "jwt-user" {
+			t.Errorf("userIDForLog = %q, want jwt-user", got)
+		}
+	})
+
+	t.Run("dev user", func(t *testing.T) {
+		t.Setenv("DEV_USER", "dev-user")
+		req := httptest.NewRequest(http.MethodGet, "/api/stories", nil)
+		req.Header.Set("dev_auth", "12345678")
+		if got := userIDForLog(req); got != "dev-user" {
+			t.Errorf("userIDForLog = %q, want dev-user", got)
+		}
+	})
+
+	t.Run("unavailable", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/stories", nil)
+		if got := userIDForLog(req); got != "" {
+			t.Errorf("userIDForLog = %q, want empty", got)
+		}
+	})
+}
+
+func TestRateLimitExceededLogsUserID(t *testing.T) {
+	resetRateLimiters()
+	rateLimiterMutex.Lock()
+	oldTokensPerSecond := tokensPerSecond
+	tokensPerSecond = 1
+	rateLimiterMutex.Unlock()
+	defer func() {
+		rateLimiterMutex.Lock()
+		tokensPerSecond = oldTokensPerSecond
+		rateLimiterMutex.Unlock()
+		resetRateLimiters()
+	}()
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	handler := RateLimitMiddleware(logger)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	reqWithUser := func() *http.Request {
+		req := httptest.NewRequest(http.MethodGet, "/api/stories", nil)
+		req.RemoteAddr = "192.168.1.50:1234"
+		req.Header.Set("Authorization", "Bearer "+unsignedJWT("user_abc"))
+		return req
+	}
+
+	first := httptest.NewRecorder()
+	handler.ServeHTTP(first, reqWithUser())
+	if first.Code != http.StatusOK {
+		t.Fatalf("first request status = %d, want 200", first.Code)
+	}
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, reqWithUser())
+	if rr.Code != http.StatusTooManyRequests {
+		t.Fatalf("second request status = %d, want 429", rr.Code)
+	}
+	logLine := buf.String()
+	if !strings.Contains(logLine, "rate limit exceeded") {
+		t.Errorf("log %q missing rate limit message", logLine)
+	}
+	if !strings.Contains(logLine, "user_id=user_abc") {
+		t.Errorf("log %q missing user_id", logLine)
+	}
+}
 
 func TestRateLimitMiddleware(t *testing.T) {
 	resetRateLimiters()

@@ -110,7 +110,11 @@ func RateLimitMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
 			limiter := getRateLimiter(clientIP, time.Now())
 
 			if !limiter.Allow() {
-				logger.Warn("rate limit exceeded", "ip", clientIP, "path", r.URL.Path)
+				args := []any{"ip", clientIP, "path", r.URL.Path}
+				if userID := userIDForLog(r); userID != "" {
+					args = append(args, "user_id", userID)
+				}
+				logger.Warn("rate limit exceeded", args...)
 				http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
 				return
 			}

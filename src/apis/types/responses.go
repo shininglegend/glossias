@@ -204,7 +204,7 @@ type TranslationPageData struct {
 type ProduceSegmentView struct {
 	ID               int    `json:"id"`
 	SegmentOrder     int    `json:"segment_order"`
-	ReferenceEnglish string `json:"reference_english"`
+	HebrewText       string `json:"hebrew_text"`
 	GrammarPointName string `json:"grammar_point_name,omitempty"`
 	// Slot locates the segment inside the story text so the page can show the
 	// surrounding Hebrew with the segment's place marked. Nil when the author
@@ -239,11 +239,11 @@ type StartProduceRequest struct {
 }
 
 // ProduceSubmissionView is the student's stored attempt at a segment, with the
-// reference revealed since the attempt is over.
+// instructor-supplied reference English revealed since the attempt is over.
 type ProduceSubmissionView struct {
-	SegmentID   int    `json:"segment_id"`
-	StudentText string `json:"student_text"`
-	HebrewText  string `json:"hebrew_text"`
+	SegmentID        int    `json:"segment_id"`
+	StudentText      string `json:"student_text"`
+	ReferenceEnglish string `json:"reference_english"`
 }
 
 // ProducePageData is the payload for the Produce phase.

@@ -94,7 +94,7 @@ func (h *Handler) GetProducePage(w http.ResponseWriter, r *http.Request) {
 		views = append(views, types.ProduceSegmentView{
 			ID:               s.ID,
 			SegmentOrder:     s.SegmentOrder,
-			ReferenceEnglish: s.ReferenceEnglish,
+			HebrewText:       s.HebrewText,
 			GrammarPointName: s.GrammarPointName,
 			Slot:             produceSlot(lineTexts, s),
 		})
@@ -218,9 +218,9 @@ func (h *Handler) SubmitProduce(w http.ResponseWriter, r *http.Request) {
 		Success: true,
 		Data: types.SubmitProduceResponse{
 			Submission: types.ProduceSubmissionView{
-				SegmentID:   segment.ID,
-				StudentText: studentText,
-				HebrewText:  segment.HebrewText,
+				SegmentID:        segment.ID,
+				StudentText:      studentText,
+				ReferenceEnglish: segment.ReferenceEnglish,
 			},
 			Completed: produceCompleted(segments, existing),
 		},
@@ -300,9 +300,9 @@ func produceSubmissionViews(segments []models.ProduceSegment, submissions []mode
 		for _, sub := range submissions {
 			if sub.SegmentID == seg.ID {
 				views = append(views, types.ProduceSubmissionView{
-					SegmentID:   seg.ID,
-					StudentText: sub.StudentText,
-					HebrewText:  seg.HebrewText,
+					SegmentID:        seg.ID,
+					StudentText:      sub.StudentText,
+					ReferenceEnglish: seg.ReferenceEnglish,
 				})
 				break
 			}

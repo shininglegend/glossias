@@ -1,0 +1,16 @@
+{
+  "name": "Glossias",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "backend",
+      "command": "go run main.go"
+    },
+    {
+      "name": "frontend",
+      "command": "cd frontend && npm run dev -- --host"
+    }
+  ],
+  "ports": [8080, 5173]
+}

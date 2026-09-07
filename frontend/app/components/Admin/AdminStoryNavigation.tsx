@@ -1,11 +1,9 @@
 import { Link, useLocation } from "react-router";
 import Button from "~/components/ui/Button";
-import type { StoryContentReadiness } from "~/types/admin";
+import { useStoryReadiness } from "~/contexts/StoryReadinessContext";
 
 interface AdminStoryNavigationProps {
   storyId: string | number;
-  /** Phase readiness report; editors whose phase is not ready get a warning. */
-  readiness?: StoryContentReadiness | null;
 }
 
 // The first three editors cover a story's shared content; the last three author
@@ -14,7 +12,7 @@ interface AdminStoryNavigationProps {
 const EDITORS = [
   { path: "annotate", label: "Annotate" },
   { path: "metadata", label: "Metadata", phase: "video" },
-  { path: "translate", label: "Translate" },
+  { path: "translate", label: "Translate", phase: "translate" },
   { path: "target-vocab", label: "Target Vocab", phase: "identify" },
   { path: "produce", label: "Produce", phase: "produce" },
   { path: "recall", label: "Recall", phase: "recall" },
@@ -22,9 +20,9 @@ const EDITORS = [
 
 export default function AdminStoryNavigation({
   storyId,
-  readiness,
 }: AdminStoryNavigationProps) {
   const location = useLocation();
+  const { readiness } = useStoryReadiness();
   const basePath = `/admin/stories/${storyId}`;
 
   return (

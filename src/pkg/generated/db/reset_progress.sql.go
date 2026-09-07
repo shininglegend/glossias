@@ -164,20 +164,20 @@ func (q *Queries) DeleteUserStoryTimeTracking(ctx context.Context, arg DeleteUse
 	return result.RowsAffected(), nil
 }
 
-const deleteUserStoryTimeTrackingByRoute = `-- name: DeleteUserStoryTimeTrackingByRoute :execrows
-DELETE FROM user_time_tracking WHERE user_id = $1 AND story_id = $2 AND route LIKE $3
+const deleteUserStoryTimeTrackingByPhase = `-- name: DeleteUserStoryTimeTrackingByPhase :execrows
+DELETE FROM user_time_tracking WHERE user_id = $1 AND story_id = $2 AND phase = $3
 `
 
-type DeleteUserStoryTimeTrackingByRouteParams struct {
+type DeleteUserStoryTimeTrackingByPhaseParams struct {
 	UserID  string      `json:"user_id"`
 	StoryID pgtype.Int4 `json:"story_id"`
-	Route   string      `json:"route"`
+	Phase   pgtype.Text `json:"phase"`
 }
 
-// Route patterns mirror the CASE WHEN buckets in GetStoryStudentPerformance
-// (scores.sql) so what the admin sees zeroed matches what was deleted.
-func (q *Queries) DeleteUserStoryTimeTrackingByRoute(ctx context.Context, arg DeleteUserStoryTimeTrackingByRouteParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteUserStoryTimeTrackingByRoute, arg.UserID, arg.StoryID, arg.Route)
+// phase is the same value GetStoryStudentPerformance (scores.sql) buckets time
+// under, so what the admin sees zeroed matches what was deleted.
+func (q *Queries) DeleteUserStoryTimeTrackingByPhase(ctx context.Context, arg DeleteUserStoryTimeTrackingByPhaseParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUserStoryTimeTrackingByPhase, arg.UserID, arg.StoryID, arg.Phase)
 	if err != nil {
 		return 0, err
 	}

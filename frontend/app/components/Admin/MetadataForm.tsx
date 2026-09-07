@@ -1,5 +1,7 @@
 import React from "react";
 import type { StoryMetadata } from "../../types/admin";
+import { useReportPhase } from "../../contexts/StoryReadinessContext";
+import { videoReadiness } from "../../lib/storyReadiness";
 import Input from "~/components/ui/Input";
 import Textarea from "~/components/ui/Textarea";
 import Label from "~/components/ui/Label";
@@ -22,6 +24,11 @@ export default function MetadataForm({
     ...value,
     grammarPoints: value.grammarPoints || [],
   });
+
+  useReportPhase(
+    "video",
+    React.useMemo(() => videoReadiness(meta.videoUrl), [meta.videoUrl]),
+  );
 
   const nameInputRef = React.useRef<HTMLInputElement>(null);
   const descInputRef = React.useRef<HTMLInputElement>(null);

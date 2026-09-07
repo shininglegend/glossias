@@ -45,15 +45,15 @@ type ResetResult struct {
 type rowDeleter func(ctx context.Context, userID string, storyID int32) (int64, error)
 
 // phaseSpec lists the answer tables a single phase owns and the
-// user_time_tracking route patterns GetStoryStudentPerformance (scores.sql)
-// buckets under that phase. Keep the two in sync.
+// user_time_tracking.phase value its time rows carry (set from the route at
+// write time by PhaseFromRoute, which GetStoryStudentPerformance buckets on).
 type phaseSpec struct {
-	tables        map[string]rowDeleter
-	routePatterns []string
+	tables    map[string]rowDeleter
+	timePhase string
 }
 
 var phaseSpecs = map[ResetPhase]phaseSpec{
-	ResetVideo: {routePatterns: []string{"%video%", "%audio%"}},
+	ResetVideo: {timePhase: "video"},
 	ResetIdentify: {
 		tables: map[string]rowDeleter{
 			"identify_correct_answers": func(ctx context.Context, u string, s int32) (int64, error) {
@@ -63,7 +63,7 @@ var phaseSpecs = map[ResetPhase]phaseSpec{
 				return queries.DeleteUserStoryIdentifyIncorrect(ctx, db.DeleteUserStoryIdentifyIncorrectParams{UserID: u, StoryID: s})
 			},
 		},
-		routePatterns: []string{"%identify%"},
+		timePhase: "identify",
 	},
 	ResetTranslate: {
 		tables: map[string]rowDeleter{
@@ -71,7 +71,7 @@ var phaseSpecs = map[ResetPhase]phaseSpec{
 				return queries.DeleteUserStoryTranslationRequest(ctx, db.DeleteUserStoryTranslationRequestParams{UserID: u, StoryID: s})
 			},
 		},
-		routePatterns: []string{"%translate%"},
+		timePhase: "translate",
 	},
 	ResetProduce: {
 		tables: map[string]rowDeleter{
@@ -82,7 +82,7 @@ var phaseSpecs = map[ResetPhase]phaseSpec{
 				return queries.DeleteUserStoryProduceAttemptStarts(ctx, db.DeleteUserStoryProduceAttemptStartsParams{UserID: u, StoryID: s})
 			},
 		},
-		routePatterns: []string{"%produce%"},
+		timePhase: "produce",
 	},
 	ResetRecall: {
 		tables: map[string]rowDeleter{
@@ -93,7 +93,7 @@ var phaseSpecs = map[ResetPhase]phaseSpec{
 				return queries.DeleteUserStoryRecallIncorrect(ctx, db.DeleteUserStoryRecallIncorrectParams{UserID: u, StoryID: s})
 			},
 		},
-		routePatterns: []string{"%recall%"},
+		timePhase: "recall",
 	},
 	ResetVocab: {
 		tables: map[string]rowDeleter{
@@ -104,7 +104,7 @@ var phaseSpecs = map[ResetPhase]phaseSpec{
 				return queries.DeleteUserStoryVocabIncorrect(ctx, db.DeleteUserStoryVocabIncorrectParams{UserID: u, StoryID: s})
 			},
 		},
-		routePatterns: []string{"%vocab%"},
+		timePhase: "vocab",
 	},
 	ResetGrammar: {
 		tables: map[string]rowDeleter{
@@ -115,7 +115,7 @@ var phaseSpecs = map[ResetPhase]phaseSpec{
 				return queries.DeleteUserStoryGrammarIncorrect(ctx, db.DeleteUserStoryGrammarIncorrectParams{UserID: u, StoryID: s})
 			},
 		},
-		routePatterns: []string{"%grammar%"},
+		timePhase: "grammar",
 	},
 }
 
@@ -146,15 +146,15 @@ func ResetUserStoryProgress(ctx context.Context, userID string, storyID int32, p
 			}
 			result.Deleted[table] = n
 		}
-		for _, pattern := range spec.routePatterns {
-			n, err := queries.DeleteUserStoryTimeTrackingByRoute(txCtx, db.DeleteUserStoryTimeTrackingByRouteParams{
-				UserID: userID, StoryID: pgtype.Int4{Int32: storyID, Valid: true}, Route: pattern,
-			})
-			if err != nil {
-				return fmt.Errorf("delete time tracking: %w", err)
-			}
-			result.Deleted["time_tracking"] += n
+		n, err := queries.DeleteUserStoryTimeTrackingByPhase(txCtx, db.DeleteUserStoryTimeTrackingByPhaseParams{
+			UserID:  userID,
+			StoryID: pgtype.Int4{Int32: storyID, Valid: true},
+			Phase:   pgtype.Text{String: spec.timePhase, Valid: true},
+		})
+		if err != nil {
+			return fmt.Errorf("delete time tracking: %w", err)
 		}
+		result.Deleted["time_tracking"] = n
 		return nil
 	})
 	if err != nil {

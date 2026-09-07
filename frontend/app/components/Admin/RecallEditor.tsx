@@ -3,6 +3,10 @@ import Button from "~/components/ui/Button";
 import Label from "~/components/ui/Label";
 import Textarea from "~/components/ui/Textarea";
 import { Card, CardContent } from "~/components/ui/Card";
+import ConfirmDialog from "~/components/ui/ConfirmDialog";
+import { useUnsavedChangesGuard } from "../../hooks/useUnsavedChangesGuard";
+import { wouldOverrideEdit } from "../../lib/produceRange";
+import { useReportPhase } from "../../contexts/StoryReadinessContext";
 import { useAdminApi } from "../../services/adminApi";
 import { usePhaseAssetUploader } from "../../lib/phaseAssets";
 import ReadinessPanel from "./ReadinessPanel";
@@ -37,6 +41,9 @@ export default function RecallEditor({ storyId }: RecallEditorProps) {
   );
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [dirtyOrders, setDirtyOrders] = React.useState<Set<number>>(
+    () => new Set(),
+  );
 
   const load = React.useCallback(async () => {
     try {
@@ -53,6 +60,20 @@ export default function RecallEditor({ storyId }: RecallEditorProps) {
   React.useEffect(() => {
     load();
   }, [load]);
+
+  useReportPhase("recall", page?.readiness);
+
+  useUnsavedChangesGuard(dirtyOrders.size > 0);
+
+  const markDirty = React.useCallback((order: number, dirty: boolean) => {
+    setDirtyOrders((prev) => {
+      if (prev.has(order) === dirty) return prev;
+      const next = new Set(prev);
+      if (dirty) next.add(order);
+      else next.delete(order);
+      return next;
+    });
+  }, []);
 
   // Story text only feeds the sentence picker; a failure here shouldn't block
   // editing, so it's loaded separately and silently falls back to typing.
@@ -131,6 +152,7 @@ export default function RecallEditor({ storyId }: RecallEditorProps) {
               .filter((s) => s.sequenceOrder !== order && s.targetVocabId)
               .map((s) => s.targetVocabId as number)}
             onChanged={load}
+            onDirty={markDirty}
           />
         ))}
       </div>
@@ -150,6 +172,7 @@ interface RecallSentenceCardProps {
   /** Target words already spoken for by another position. */
   usedTargetVocabIds: number[];
   onChanged: () => Promise<void>;
+  onDirty: (order: number, dirty: boolean) => void;
 }
 
 function RecallSentenceCard({
@@ -161,6 +184,7 @@ function RecallSentenceCard({
   usedByPosition,
   usedTargetVocabIds,
   onChanged,
+  onDirty,
 }: RecallSentenceCardProps) {
   const adminApi = useAdminApi();
   const uploadAsset = usePhaseAssetUploader();
@@ -173,6 +197,7 @@ function RecallSentenceCard({
   const [saving, setSaving] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [pendingPick, setPendingPick] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   // Re-sync when a reload brings different content for this slot.
@@ -184,6 +209,11 @@ function RecallSentenceCard({
   const changed =
     hebrewText !== (sentence?.hebrewText ?? "") ||
     targetVocabId !== (sentence?.targetVocabId ?? "");
+
+  React.useEffect(() => {
+    onDirty(order, changed);
+    return () => onDirty(order, false);
+  }, [changed, onDirty, order]);
 
   const save = async () => {
     setSaving(true);
@@ -284,7 +314,26 @@ function RecallSentenceCard({
               sentences={storySentences}
               usedByPosition={usedByPosition}
               currentOrder={order}
-              onPick={setHebrewText}
+              onPick={(text) => {
+                if (wouldOverrideEdit(hebrewText, "", text)) {
+                  setPendingPick(text);
+                  return;
+                }
+                setHebrewText(text);
+              }}
+            />
+            <ConfirmDialog
+              isOpen={pendingPick !== null}
+              onClose={() => setPendingPick(null)}
+              onConfirm={() => {
+                if (pendingPick !== null) setHebrewText(pendingPick);
+                setPendingPick(null);
+              }}
+              variant="warning"
+              title="Replace edited text?"
+              message="The selected sentences don't match the Hebrew sentence. Replace it?"
+              confirmText="Replace"
+              cancelText="Keep edits"
             />
             <Textarea
               value={hebrewText}

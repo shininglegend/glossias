@@ -4,8 +4,109 @@ import { useApiService } from "../services/api";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import { useUserContext } from "../contexts/UserContext";
 import type { Story } from "../services/api";
-import "./StoryList.css";
-import "./StoryList-sections.css";
+import Button from "./ui/Button";
+import { Card, CardContent } from "./ui/Card";
+
+function StoryCard({
+  story,
+  loading,
+  onOpen,
+}: {
+  story: Story;
+  loading: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <Card className="hover:shadow-md transition-shadow">
+      <CardContent className="p-5 flex flex-col gap-4">
+        <div>
+          <h3 className="text-lg font-semibold text-slate-900 leading-snug">
+            {story.title}
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">
+            Week {story.week_number}
+            {story.day_letter}
+          </p>
+        </div>
+        <Button
+          className="self-start"
+          onClick={onOpen}
+          disabled={loading}
+          icon={
+            loading ? (
+              <span
+                className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"
+                aria-hidden="true"
+              />
+            ) : undefined
+          }
+        >
+          {loading ? "Loading..." : "Start Reading"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function StoryGrid({
+  stories,
+  loadingStory,
+  onOpen,
+}: {
+  stories: Story[];
+  loadingStory: number | null;
+  onOpen: (id: number) => void;
+}) {
+  return (
+    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {stories.map((story) => (
+        <StoryCard
+          key={story.id}
+          story={story}
+          loading={loadingStory === story.id}
+          onOpen={() => onOpen(story.id)}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** Collapsed group of stories (upcoming / archived) using a native <details>. */
+function CollapsedSection({
+  title,
+  stories,
+  loadingStory,
+  onOpen,
+}: {
+  title: string;
+  stories: Story[];
+  loadingStory: number | null;
+  onOpen: (id: number) => void;
+}) {
+  if (stories.length === 0) return null;
+  return (
+    <details className="group mb-8">
+      <summary className="list-none cursor-pointer select-none flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-slate-700 font-medium hover:bg-slate-50 transition-colors [&::-webkit-details-marker]:hidden">
+        <span>
+          {title} ({stories.length})
+        </span>
+        <span
+          className="material-icons text-slate-400 transition-transform group-open:rotate-180"
+          aria-hidden="true"
+        >
+          expand_more
+        </span>
+      </summary>
+      <div className="mt-4">
+        <StoryGrid
+          stories={stories}
+          loadingStory={loadingStory}
+          onOpen={onOpen}
+        />
+      </div>
+    </details>
+  );
+}
 
 export function StoryList() {
   const api = useApiService();
@@ -16,8 +117,6 @@ export function StoryList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadingStory, setLoadingStory] = useState<number | null>(null);
-  const [showPast, setShowPast] = useState(false);
-  const [showFuture, setShowFuture] = useState(false);
 
   // Group stories by course status
   const groupedStories = useMemo(() => {
@@ -89,156 +188,61 @@ export function StoryList() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="container">
-        <p>Loading stories...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="container">
-        <p>Error: {error}</p>
-      </div>
-    );
-  }
-
   return (
-    <>
-      <header>
-        <h1>Glossias</h1>
-        <p>Select a story to begin reading</p>
-        <hr />
-      </header>
-      <main className="container">
-        {stories.length === 0 ? (
-          <div className="stories-list">
-            <div className="story-item">
-              <h2>Welcome!</h2>
-              <p>
-                You're in! Please wait to be registered for a course so you can
-                access some stories.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <>
-            {/* Active Stories */}
-            {groupedStories.active.length > 0 && (
-              <section className="story-section">
-                <h2 className="section-title">Current Stories</h2>
-                <div className="stories-list">
-                  {groupedStories.active.map((story) => (
-                    <div key={story.id} className="story-item">
-                      <h2>{story.title}</h2>
-                      <p>
-                        Week {story.week_number}
-                        {story.day_letter}
-                      </p>
-                      <button
-                        onClick={() => handleStoryClick(story.id)}
-                        className="start-reading-button"
-                        disabled={loadingStory === story.id}
-                      >
-                        {loadingStory === story.id ? (
-                          <div className="flex items-center gap-2">
-                            <div className="animate-spin w-4 h-4 border border-white border-t-transparent rounded-full"></div>
-                            Loading...
-                          </div>
-                        ) : (
-                          "Start Reading"
-                        )}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
+    <div className="w-full max-w-5xl mx-auto px-4 py-10">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+          Your Stories
+        </h1>
+        <p className="mt-1 text-slate-600">Select a story to begin reading</p>
+      </div>
 
-            {/* Future Stories */}
-            {groupedStories.future.length > 0 && (
-              <section className="story-section">
-                <button
-                  onClick={() => setShowFuture(!showFuture)}
-                  className="section-toggle"
-                >
-                  <span>Upcoming Stories ({groupedStories.future.length})</span>
-                  <span className="toggle-icon">{showFuture ? "▼" : "▶"}</span>
-                </button>
-                {showFuture && (
-                  <div className="stories-list">
-                    {groupedStories.future.map((story) => (
-                      <div key={story.id} className="story-item">
-                        <h2>{story.title}</h2>
-                        <p>
-                          Week {story.week_number}
-                          {story.day_letter}
-                        </p>
-                        <button
-                          onClick={() => handleStoryClick(story.id)}
-                          className="start-reading-button"
-                          disabled={loadingStory === story.id}
-                        >
-                          {loadingStory === story.id ? (
-                            <div className="flex items-center gap-2">
-                              <div className="animate-spin w-4 h-4 border border-white border-t-transparent rounded-full"></div>
-                              Loading...
-                            </div>
-                          ) : (
-                            "Start Reading"
-                          )}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-            )}
+      {loading ? (
+        <p className="text-slate-600">Loading stories...</p>
+      ) : error ? (
+        <p className="text-rose-700">Error: {error}</p>
+      ) : stories.length === 0 ? (
+        <Card className="max-w-xl">
+          <CardContent className="p-6">
+            <h2 className="text-xl font-semibold text-slate-900 mb-2">
+              Welcome!
+            </h2>
+            <p className="text-slate-600">
+              You're in! Please wait to be registered for a course so you can
+              access some stories.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {groupedStories.active.length > 0 && (
+            <section className="mb-10">
+              <h2 className="text-xl font-semibold text-slate-900 mb-4">
+                Current Stories
+              </h2>
+              <StoryGrid
+                stories={groupedStories.active}
+                loadingStory={loadingStory}
+                onOpen={handleStoryClick}
+              />
+            </section>
+          )}
 
-            {/* Past Stories */}
-            {groupedStories.past.length > 0 && (
-              <section className="story-section">
-                <button
-                  onClick={() => setShowPast(!showPast)}
-                  className="section-toggle"
-                >
-                  <span>Archived Stories ({groupedStories.past.length})</span>
-                  <span className="toggle-icon">{showPast ? "▼" : "▶"}</span>
-                </button>
-                {showPast && (
-                  <div className="stories-list">
-                    {groupedStories.past.map((story) => (
-                      <div key={story.id} className="story-item">
-                        <h2>{story.title}</h2>
-                        <p>
-                          Week {story.week_number}
-                          {story.day_letter}
-                        </p>
-                        <button
-                          onClick={() => handleStoryClick(story.id)}
-                          className="start-reading-button"
-                          disabled={loadingStory === story.id}
-                        >
-                          {loadingStory === story.id ? (
-                            <div className="flex items-center gap-2">
-                              <div className="animate-spin w-4 h-4 border border-white border-t-transparent rounded-full"></div>
-                              Loading...
-                            </div>
-                          ) : (
-                            "Start Reading"
-                          )}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-            )}
-          </>
-        )}
-      </main>
-    </>
+          <CollapsedSection
+            title="Upcoming Stories"
+            stories={groupedStories.future}
+            loadingStory={loadingStory}
+            onOpen={handleStoryClick}
+          />
+
+          <CollapsedSection
+            title="Archived Stories"
+            stories={groupedStories.past}
+            loadingStory={loadingStory}
+            onOpen={handleStoryClick}
+          />
+        </>
+      )}
+    </div>
   );
 }

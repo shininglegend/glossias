@@ -78,10 +78,13 @@ export default function App() {
   return (
     <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
       <UserProvider>
-        <div id="app-shell" className="flex-1 flex flex-col">
+        {/* overflow-x-clip: full-bleed sections are 100vw wide, which
+            overshoots by the scrollbar width on non-overlay scrollbars.
+            `clip` (unlike `hidden`) keeps the sticky NavBar working. */}
+        <div id="app-shell" className="flex-1 flex flex-col overflow-x-clip">
           <NavBar />
-          <div className="pt-16 p-4 container mx-auto flex-1">
-            <main>
+          <div className="p-4 container mx-auto flex-1 flex flex-col">
+            <main className="flex-1 flex flex-col">
               <Outlet />
             </main>
           </div>

@@ -16,9 +16,11 @@ describe("Footer Component", () => {
   it("renders key navigation and support links", () => {
     render(<Footer />);
 
-    // Check Features links
-    expect(screen.getByText("Audio Stories")).toBeInTheDocument();
-    expect(screen.getByText("Vocabulary Tools")).toBeInTheDocument();
+    // Check story phase list
+    expect(screen.getByText("Identify")).toBeInTheDocument();
+    expect(screen.getByText("Recall")).toBeInTheDocument();
+    expect(screen.queryByText("Grammar")).not.toBeInTheDocument();
+    expect(screen.queryByText("Vocabulary")).not.toBeInTheDocument();
 
     // Check Support links
     const statusLink = screen.getByText("Status Page");

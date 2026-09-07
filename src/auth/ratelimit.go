@@ -20,7 +20,8 @@ import (
 var (
 	rateLimiters     = make(map[string]*rateLimiterEntry)
 	rateLimiterMutex sync.Mutex
-	tokensPerSecond  = 15
+	// Sustained rate and burst size (golang.org/x/time/rate).
+	tokensPerSecond = 15
 
 	// rateLimiterIdleTTL is how long an IP may be silent before its limiter is
 	// dropped. A dropped limiter comes back full, which is what a fresh client
@@ -61,7 +62,7 @@ func getRateLimiter(ip string, now time.Time) *rate.Limiter {
 	entry, exists := rateLimiters[ip]
 	if !exists {
 		entry = &rateLimiterEntry{
-			limiter: rate.NewLimiter(rate.Every(time.Second), tokensPerSecond), // burst of tokensPerSecond, refilling 1/sec
+			limiter: rate.NewLimiter(rate.Limit(tokensPerSecond), tokensPerSecond),
 		}
 		rateLimiters[ip] = entry
 	}

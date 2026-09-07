@@ -384,7 +384,7 @@ export function IdentifySession({
             <div>
               <p className="text-gray-700 mb-2">
                 Listen to the story and follow along. The{" "}
-                <span className="text-amber-700 font-semibold underline decoration-amber-400 decoration-2 underline-offset-4">
+                <span className="text-amber-700 font-semibold">
                   highlighted words
                 </span>{" "}
                 are this story's target vocabulary.

@@ -51,8 +51,9 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/{id}/check-grammar", h.CheckGrammar).Methods("POST", "OPTIONS")
 	// Identify picture-quiz endpoint
 	router.HandleFunc("/{id}/check-identify", h.CheckIdentify).Methods("POST", "OPTIONS")
-	// Recall sequencing endpoint
+	// Recall sequencing endpoints
 	router.HandleFunc("/{id}/check-recall", h.CheckRecall).Methods("POST", "OPTIONS")
+	router.HandleFunc("/{id}/check-recall-pick", h.CheckRecallPick).Methods("POST", "OPTIONS")
 
 	// Navigation endpoint
 	router.HandleFunc("/{id}/next", h.Navigate).Methods("POST", "OPTIONS")

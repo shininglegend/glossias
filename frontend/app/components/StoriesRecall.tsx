@@ -1,25 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router";
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { useApiService } from "../services/api";
 import type {
-  CheckRecallResult,
+  CheckRecallPickResult,
   RecallCard,
   RecallData,
   VocabLine,
@@ -30,10 +13,11 @@ import { CompletionMessage } from "./story-components/CompletionMessage";
 
 const RTL_LANGUAGES = ["he", "ar", "fa", "ur"];
 const EMPTY_SET = new Set<number>();
+const ORDINALS = ["first", "second", "third", "fourth", "fifth"];
 
 /**
  * Loads the Recall payload and hands it to `RecallSession`, which owns the
- * listen → arrange → check flow.
+ * listen → select-in-order → check flow.
  */
 export function StoriesRecall() {
   const { id } = useParams<{ id: string }>();
@@ -83,12 +67,12 @@ export function StoriesRecall() {
     fetchNextStep();
   }, [id, getNavigationGuidance]);
 
-  const checkOrder = useCallback(
-    async (orderedIds: number[]) => {
+  const checkPick = useCallback(
+    async (sentenceId: number, position: number) => {
       if (!id) throw new Error("Story ID is required");
-      const response = await api.checkRecall(id, orderedIds);
+      const response = await api.checkRecallPick(id, sentenceId, position);
       if (!response.success || !response.data) {
-        throw new Error(response.error || "Failed to check order");
+        throw new Error(response.error || "Failed to check pick");
       }
       return response.data;
     },
@@ -134,7 +118,7 @@ export function StoriesRecall() {
     <RecallSession
       pageData={pageData}
       nextStepName={nextStepName}
-      onCheckOrder={checkOrder}
+      onCheckPick={checkPick}
       onContinue={handleContinue}
     />
   );
@@ -145,26 +129,28 @@ export function StoriesRecall() {
  *   idle       – before the student presses Start
  *   listening  – the story plays audio-only; no seeking, no skipping
  *   paused     – student paused (only possible while listening)
- *   arranging  – playback finished; the cards can be ordered and submitted
- *   complete   – every card is in the right place (now or on an earlier visit)
+ *   selecting  – playback finished; pick sentences in story order
+ *   complete   – every sentence has been picked in order (now or earlier)
  *
- * A story with no narration skips straight to arranging, and a story with no
+ * A story with no narration skips straight to selecting, and a story with no
  * recall sentences finishes right after the narration.
  */
-type RecallPhase = "idle" | "listening" | "paused" | "arranging" | "complete";
+type RecallPhase = "idle" | "listening" | "paused" | "selecting" | "complete";
 
 interface RecallSessionProps {
   pageData: RecallData;
   nextStepName: string;
-  /** Grades an ordering server-side (sentence IDs in submitted order). */
-  onCheckOrder: (orderedIds: number[]) => Promise<CheckRecallResult>;
+  onCheckPick: (
+    sentenceId: number,
+    position: number,
+  ) => Promise<CheckRecallPickResult>;
   onContinue: () => void;
 }
 
 export function RecallSession({
   pageData,
   nextStepName,
-  onCheckOrder,
+  onCheckPick,
   onContinue,
 }: RecallSessionProps) {
   const hasNarration = Object.keys(pageData.audio_urls).length > 0;
@@ -172,22 +158,19 @@ export function RecallSession({
 
   const [phase, setPhase] = useState<RecallPhase>(() => {
     if (pageData.completed) return "complete";
-    if (!hasNarration) return hasSentences ? "arranging" : "complete";
+    if (!hasNarration) return hasSentences ? "selecting" : "complete";
     return "idle";
   });
-  const [order, setOrder] = useState<number[]>(() =>
-    pageData.sentences.map((s) => s.id),
+  const [nextPosition, setNextPosition] = useState(1);
+  const [correctIds, setCorrectIds] = useState<Set<number>>(
+    () =>
+      new Set(pageData.completed ? pageData.sentences.map((s) => s.id) : []),
   );
-  const [lastResults, setLastResults] = useState<boolean[] | null>(null);
+  const [wrongIds, setWrongIds] = useState<Set<number>>(new Set());
   const [attempts, setAttempts] = useState(pageData.attempts);
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
-
-  const cardsById = useMemo(() => {
-    const map = new Map<number, RecallCard>();
-    for (const s of pageData.sentences) map.set(s.id, s);
-    return map;
-  }, [pageData.sentences]);
+  const sentenceAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // ---- Audio-only narration ------------------------------------------------
 
@@ -234,7 +217,7 @@ export function RecallSession({
     clearListeningProgress(progressKey);
     setPhase((current) => {
       if (current !== "listening") return current;
-      return hasSentences ? "arranging" : "complete";
+      return hasSentences ? "selecting" : "complete";
     });
   }, [hasSentences, progressKey]);
 
@@ -288,43 +271,51 @@ export function RecallSession({
     audioPlayer.playNextLineFromIndex(target - 1);
   };
 
-  // ---- Ordering -------------------------------------------------------------
-
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
-
-  const moveCard = (from: number, to: number) => {
-    if (to < 0 || to >= order.length || from === to) return;
-    setOrder((current) => arrayMove(current, from, to));
-    // The result markers describe the previous arrangement; drop them once
-    // the student changes it.
-    setLastResults(null);
+  const playSentenceAudio = (urls?: string[]) => {
+    sentenceAudioRef.current?.pause();
+    if (!urls?.length) return;
+    let index = 0;
+    const playNext = () => {
+      if (index >= urls.length) return;
+      const audio = new Audio(urls[index]);
+      sentenceAudioRef.current = audio;
+      audio.onended = () => {
+        index += 1;
+        playNext();
+      };
+      audio.play().catch(() => {});
+    };
+    playNext();
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const from = order.indexOf(Number(active.id));
-    const to = order.indexOf(Number(over.id));
-    moveCard(from, to);
-  };
-
-  const handleSubmit = async () => {
-    if (phase !== "arranging" || checking) return;
+  const handlePick = async (sentenceId: number) => {
+    if (phase !== "selecting" || checking || correctIds.has(sentenceId)) {
+      return;
+    }
     setChecking(true);
     setCheckError(null);
     try {
-      const result = await onCheckOrder(order);
+      const result = await onCheckPick(sentenceId, nextPosition);
       setAttempts((n) => n + 1);
-      setLastResults(result.results);
-      if (result.all_correct) setPhase("complete");
+      if (result.correct) {
+        const nextCorrect = new Set(correctIds);
+        nextCorrect.add(sentenceId);
+        setCorrectIds(nextCorrect);
+        setWrongIds(new Set());
+        const card = pageData.sentences.find((s) => s.id === sentenceId);
+        playSentenceAudio(card?.audio_urls);
+        const following = nextPosition + 1;
+        if (following > pageData.sentences.length) {
+          setPhase("complete");
+        } else {
+          setNextPosition(following);
+        }
+      } else {
+        setWrongIds((current) => new Set(current).add(sentenceId));
+      }
     } catch (err) {
-      console.error("Failed to check recall order:", err);
-      setCheckError("Couldn't check your order. Please try again.");
+      console.error("Failed to check recall pick:", err);
+      setCheckError("Couldn't check your answer. Please try again.");
     } finally {
       setChecking(false);
     }
@@ -341,7 +332,7 @@ export function RecallSession({
     lineCount > 0 ? Math.round((linesBehind / lineCount) * 100) : 0;
   const isListeningPhase =
     phase === "idle" || phase === "listening" || phase === "paused";
-  const correctCount = lastResults?.filter(Boolean).length ?? 0;
+  const ordinal = ORDINALS[nextPosition - 1] ?? String(nextPosition);
 
   const playButtonLabel =
     phase === "idle"
@@ -351,8 +342,8 @@ export function RecallSession({
         : "Resume Audio";
 
   return (
-    <div className="max-w-4xl mx-auto px-5 py-8">
-      <header className="mb-8 text-center">
+    <div className="max-w-6xl mx-auto px-4 py-6">
+      <header className="mb-6 text-center">
         <span className="inline-block px-3 py-1 bg-primary-50 text-primary-700 rounded-full text-xs font-semibold uppercase tracking-wider mb-3">
           Phase 5 of 5
         </span>
@@ -375,8 +366,8 @@ export function RecallSession({
               Listen to the whole story
             </h3>
             <p className="text-gray-600 leading-relaxed max-w-md mx-auto">
-              Play the story audio here. When it ends, you'll put five key
-              sentences back into story order.
+              Play the story audio here. When it ends, you'll select the five
+              key sentences in the order they occur in the story.
             </p>
           </div>
 
@@ -474,16 +465,16 @@ export function RecallSession({
       )}
 
       {!isListeningPhase && hasSentences && (
-        <section className="max-w-2xl mx-auto" data-testid="recall-arranging">
-          <div className="bg-gray-50 border border-gray-300 p-4 mb-4 rounded-lg text-center">
+        <section className="w-full" data-testid="recall-selecting">
+          <div className="bg-gray-50 border border-gray-300 p-3 mb-4 rounded-lg text-center">
             <div className="flex items-start justify-center">
-              <span className="material-icons text-gray-600 mr-2 mt-1">
+              <span className="material-icons text-gray-600 mr-2 mt-0.5">
                 info
               </span>
-              <p className="text-gray-700">
+              <p className="text-gray-700" data-testid="recall-prompt">
                 {phase === "complete"
                   ? "Every sentence is in its place. This is the story's order."
-                  : "Drag the sentences into the order they happened in the story, first at the top, then check your answer."}
+                  : `Select the box that occurs ${ordinal} in the story.`}
               </p>
             </div>
           </div>
@@ -499,76 +490,39 @@ export function RecallSession({
             </div>
           )}
 
-          {lastResults && phase !== "complete" && (
-            <div
-              className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4 rounded-r-lg text-left"
-              role="status"
-              data-testid="recall-feedback"
-            >
-              <p className="text-gray-800">
-                {correctCount} of {lastResults.length} in the right place. Move
-                the highlighted cards and check again.
-              </p>
-            </div>
-          )}
-
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
+          <div
+            className="flex justify-center items-stretch gap-2 sm:gap-3 w-full h-[min(calc((100vw-2rem)*4/15),calc(100dvh-14rem))]"
+            data-testid="recall-cards"
+            role="list"
           >
-            <SortableContext
-              items={order}
-              strategy={verticalListSortingStrategy}
-              disabled={phase === "complete"}
-            >
-              <ol className="flex flex-col gap-3" data-testid="recall-cards">
-                {order.map((id, index) => {
-                  const card = cardsById.get(id);
-                  if (!card) return null;
-                  return (
-                    <SortableRecallCard
-                      key={id}
-                      card={card}
-                      position={index + 1}
-                      total={order.length}
-                      result={
-                        phase === "complete" ? true : lastResults?.[index]
-                      }
-                      locked={phase === "complete"}
-                      isRTL={isRTL}
-                      onMoveUp={() => moveCard(index, index - 1)}
-                      onMoveDown={() => moveCard(index, index + 1)}
-                    />
-                  );
-                })}
-              </ol>
-            </SortableContext>
-          </DndContext>
+            {pageData.sentences.map((card) => {
+              const result = correctIds.has(card.id)
+                ? "correct"
+                : wrongIds.has(card.id)
+                  ? "wrong"
+                  : "pending";
+              return (
+                <RecallSelectCard
+                  key={card.id}
+                  card={card}
+                  result={result}
+                  locked={phase === "complete" || result === "correct"}
+                  checking={checking}
+                  isRTL={isRTL}
+                  onSelect={() => handlePick(card.id)}
+                />
+              );
+            })}
+          </div>
 
-          {phase === "arranging" && (
-            <div className="flex flex-wrap items-center justify-center gap-4 mt-6">
-              <button
-                onClick={handleSubmit}
-                disabled={checking}
-                className={`inline-flex items-center gap-2 px-6 py-3 text-white rounded-lg text-base font-semibold transition-colors duration-200 ${
-                  checking
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-primary-600 hover:bg-primary-700 cursor-pointer"
-                }`}
-                type="button"
+          {phase === "selecting" && attempts > 0 && (
+            <div className="flex justify-center mt-4">
+              <span
+                className="text-gray-600 text-sm"
+                data-testid="recall-attempts"
               >
-                <span className="material-icons">check</span>
-                {checking ? "Checking…" : "Check Order"}
-              </button>
-              {attempts > 0 && (
-                <span
-                  className="text-gray-600 text-sm"
-                  data-testid="recall-attempts"
-                >
-                  Attempts: <strong>{attempts}</strong>
-                </span>
-              )}
+                Attempts: <strong>{attempts}</strong>
+              </span>
             </div>
           )}
 
@@ -634,122 +588,92 @@ function clearListeningProgress(key: string) {
   }
 }
 
-interface SortableRecallCardProps {
+type CardResult = "pending" | "correct" | "wrong";
+
+interface RecallSelectCardProps {
   card: RecallCard;
-  position: number;
-  total: number;
-  /** Result of the last check for this position; undefined before a check. */
-  result: boolean | undefined;
+  result: CardResult;
   locked: boolean;
+  checking: boolean;
   isRTL: boolean;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
+  onSelect: () => void;
 }
 
-function SortableRecallCard({
+function RecallSelectCard({
   card,
-  position,
-  total,
   result,
   locked,
+  checking,
   isRTL,
-  onMoveUp,
-  onMoveDown,
-}: SortableRecallCardProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    setActivatorNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: card.id, disabled: locked });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
+  onSelect,
+}: RecallSelectCardProps) {
+  const clickable = !locked && !checking;
   const tone =
-    result === true
-      ? "border-green-500 bg-green-50"
-      : result === false
-        ? "border-red-400 bg-red-50"
-        : "border-gray-200 bg-white";
+    result === "correct"
+      ? "border-green-500"
+      : result === "wrong"
+        ? "border-red-400"
+        : "border-gray-200";
 
   return (
-    <li
-      ref={setNodeRef}
-      style={style}
-      className={`flex items-stretch gap-3 rounded-xl border-2 p-3 shadow-sm ${tone} ${
-        isDragging ? "opacity-70 shadow-lg" : ""
-      }`}
+    <button
+      type="button"
+      role="listitem"
+      disabled={!clickable}
+      onClick={onSelect}
       data-testid={`recall-card-${card.id}`}
-      data-result={
-        result === undefined ? "pending" : result ? "correct" : "wrong"
+      data-result={result}
+      aria-label={
+        result === "correct"
+          ? "Already placed"
+          : result === "wrong"
+            ? "Not this one"
+            : "Sentence option"
       }
+      className={`flex flex-col h-full aspect-[3/4] min-w-0 rounded-xl border-4 bg-white shadow-sm overflow-hidden ${tone} ${
+        clickable
+          ? "cursor-pointer hover:border-primary-400 hover:scale-[1.02] focus:outline-none focus-visible:ring-4 focus-visible:ring-primary-300"
+          : result === "correct"
+            ? "cursor-default"
+            : "cursor-not-allowed"
+      }`}
     >
-      <div className="flex flex-col items-center justify-center w-8 text-gray-500">
-        <span className="font-bold text-lg" aria-label={`Position ${position}`}>
-          {position}
-        </span>
-        {result === true && (
-          <span className="material-icons text-green-600 text-lg">check</span>
-        )}
-        {result === false && (
-          <span className="material-icons text-red-500 text-lg">close</span>
+      <div className="flex-1 min-h-0 bg-slate-50">
+        {card.image_url ? (
+          <img
+            src={card.image_url}
+            alt=""
+            className="h-full w-full object-cover"
+            draggable={false}
+          />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center text-slate-400 text-xs p-2 text-center">
+            No picture
+          </span>
         )}
       </div>
-
-      {card.image_url && (
-        <img
-          src={card.image_url}
-          alt=""
-          className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
-          draggable={false}
-        />
-      )}
-
       <p
-        className="flex-1 self-center text-2xl text-gray-900"
+        className="shrink-0 px-1.5 py-1.5 text-center text-xs sm:text-sm md:text-base leading-snug text-gray-900"
         dir={isRTL ? "rtl" : "ltr"}
+        lang={isRTL ? "he" : undefined}
       >
-        {card.hebrew_text}
+        <RecallCardText card={card} />
       </p>
-
-      {!locked && (
-        <div className="flex flex-col items-center justify-between">
-          <button
-            type="button"
-            onClick={onMoveUp}
-            disabled={position === 1}
-            className="text-gray-500 hover:text-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
-            aria-label={`Move sentence ${position} up`}
-          >
-            <span className="material-icons">expand_less</span>
-          </button>
-          <button
-            type="button"
-            ref={setActivatorNodeRef}
-            {...attributes}
-            {...listeners}
-            className="text-gray-400 hover:text-gray-700 cursor-grab active:cursor-grabbing touch-none"
-            aria-label={`Drag sentence ${position}`}
-          >
-            <span className="material-icons">drag_indicator</span>
-          </button>
-          <button
-            type="button"
-            onClick={onMoveDown}
-            disabled={position === total}
-            className="text-gray-500 hover:text-gray-800 disabled:opacity-30 disabled:cursor-not-allowed"
-            aria-label={`Move sentence ${position} down`}
-          >
-            <span className="material-icons">expand_more</span>
-          </button>
-        </div>
-      )}
-    </li>
+    </button>
   );
+}
+
+function RecallCardText({ card }: { card: RecallCard }) {
+  if (card.text && card.text.length > 0) {
+    return card.text.map((segment, index) =>
+      segment.type === "target" ? (
+        <span key={index} className="target-word text-amber-700 font-semibold">
+          {segment.text}
+        </span>
+      ) : (
+        <span key={index}>{segment.text}</span>
+      ),
+    );
+  }
+  return card.hebrew_text;
 }

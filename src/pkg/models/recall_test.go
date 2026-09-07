@@ -27,6 +27,8 @@ func stubRecallSentences(t *testing.T) {
 			pgtype.Int4{Valid: false}, // target_vocab_id
 			pgtype.Text{Valid: false}, // image_path
 			pgtype.Text{Valid: false}, // image_bucket
+			pgtype.Text{Valid: false}, // audio_path
+			pgtype.Text{Valid: false}, // audio_bucket
 		})
 	}
 	mockDB.StubQuery("FROM recall_sentences", rows, nil)
@@ -95,6 +97,42 @@ func TestSaveRecallAttempt(t *testing.T) {
 			}
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("SaveRecallAttempt() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSaveRecallPick(t *testing.T) {
+	tests := []struct {
+		name       string
+		sentenceID int
+		position   int
+		want       bool
+		wantErr    error
+	}{
+		{name: "correct first sentence", sentenceID: 10, position: 1, want: true},
+		{name: "wrong sentence for first", sentenceID: 12, position: 1, want: false},
+		{name: "position out of range", sentenceID: 10, position: 9, wantErr: ErrInvalidRecallOrder},
+		{name: "foreign sentence", sentenceID: 99, position: 1, wantErr: ErrInvalidRecallOrder},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stubRecallSentences(t)
+
+			got, err := SaveRecallPick(context.Background(), "u1", 1, tt.sentenceID, tt.position)
+
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("SaveRecallPick() error = %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("SaveRecallPick() unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("SaveRecallPick() = %v, want %v", got, tt.want)
 			}
 		})
 	}

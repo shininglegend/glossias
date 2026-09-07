@@ -35,6 +35,13 @@ func TestValidateAssetPath(t *testing.T) {
 			wantOK:     true,
 		},
 		{
+			name:       "a path minted for this recall sentence's audio is accepted",
+			kind:       assetRecallAudio,
+			path:       "stories/12/recall_audio_34_1700000000_line.mp3",
+			wantBucket: bucket,
+			wantOK:     true,
+		},
+		{
 			name:       "an empty path clears the asset",
 			kind:       assetTargetVocabImage,
 			path:       "",
@@ -68,6 +75,12 @@ func TestValidateAssetPath(t *testing.T) {
 		{
 			name:   "a recall image cannot be attached to a target word",
 			kind:   assetTargetVocabImage,
+			path:   "stories/12/image_recall_34_1700000000_scene.png",
+			wantOK: false,
+		},
+		{
+			name:   "a recall image cannot fill the recall audio slot",
+			kind:   assetRecallAudio,
 			path:   "stories/12/image_recall_34_1700000000_scene.png",
 			wantOK: false,
 		},

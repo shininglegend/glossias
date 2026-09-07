@@ -18,7 +18,7 @@ import (
 // Bytes move exactly the way T4 moves them — a signed Supabase upload URL, a
 // direct PUT from the browser, then a confirm step — but the confirm step writes
 // the path onto the row that owns the asset (target_vocabulary.audio_path /
-// .correct_image_path, recall_sentences.image_path) instead of inserting a
+// .correct_image_path, recall_sentences.image_path / .audio_path) instead of inserting a
 // story_images row. Those columns are the source of truth for which asset
 // belongs to which word or sentence: the relationship is 1:1, so a FK-bearing
 // row expresses it better than a label string. story_images is left untouched by
@@ -36,6 +36,7 @@ const (
 	assetTargetVocabImage phaseAssetKind = "target_vocab_image"
 	assetTargetVocabAudio phaseAssetKind = "target_vocab_audio"
 	assetRecallImage      phaseAssetKind = "recall_image"
+	assetRecallAudio      phaseAssetKind = "recall_audio"
 
 	// signedURLExpiry matches the student-facing expiry in src/apis/handlers.
 	signedURLExpiry = 60 * 60
@@ -57,6 +58,8 @@ func specForKind(kind phaseAssetKind) (assetSpec, bool) {
 		return assetSpec{bucket: bucket, prefix: "word_audio_"}, true
 	case assetRecallImage:
 		return assetSpec{bucket: imagesBucket, prefix: "image_recall_"}, true
+	case assetRecallAudio:
+		return assetSpec{bucket: bucket, prefix: "recall_audio_"}, true
 	default:
 		return assetSpec{}, false
 	}
@@ -90,7 +93,7 @@ type phaseAssetUploadResponse struct {
 }
 
 // phaseAssetUploadHandler mints a signed upload URL for a target word's audio or
-// picture, or a recall sentence's picture. The caller PUTs the bytes to
+// picture, or a recall sentence's picture or audio override. The caller PUTs the bytes to
 // UploadURL and then attaches FilePath via the owning row's editor endpoint.
 func (h *Handler) phaseAssetUploadHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -162,7 +165,7 @@ func (h *Handler) verifyAssetOwner(r *http.Request, kind phaseAssetKind, storyID
 		if word.StoryID != storyID {
 			return models.ErrNotFound
 		}
-	case assetRecallImage:
+	case assetRecallImage, assetRecallAudio:
 		sentence, err := models.GetRecallSentence(r.Context(), ownerID)
 		if err != nil {
 			return err

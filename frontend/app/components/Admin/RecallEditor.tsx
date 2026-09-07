@@ -12,6 +12,7 @@ import { usePhaseAssetUploader } from "../../lib/phaseAssets";
 import ReadinessPanel from "./ReadinessPanel";
 import AssetSlot from "./AssetSlot";
 import RecallSentencePicker, {
+  recallCoveredLineNumbers,
   splitStoryIntoSentences,
   type StorySentence,
 } from "./RecallSentencePicker";
@@ -122,7 +123,7 @@ export default function RecallEditor({ storyId }: RecallEditorProps) {
     <div>
       <ReadinessPanel
         readiness={page.readiness}
-        requirement={`All ${page.required} positions need a sentence, a picture, and its own target word — the order below is the correct one students have to reconstruct.`}
+        requirement={`All ${page.required} positions need a sentence, a picture, audio, and its own target word — the order below is the correct one students have to reconstruct.`}
       />
 
       {error && (
@@ -151,6 +152,8 @@ export default function RecallEditor({ storyId }: RecallEditorProps) {
             usedTargetVocabIds={page.sentences
               .filter((s) => s.sequenceOrder !== order && s.targetVocabId)
               .map((s) => s.targetVocabId as number)}
+            storyLines={storyContent?.lines ?? []}
+            lineAudioUrls={page.lineAudioUrls ?? {}}
             onChanged={load}
             onDirty={markDirty}
           />
@@ -171,6 +174,8 @@ interface RecallSentenceCardProps {
   usedByPosition: Map<string, number>;
   /** Target words already spoken for by another position. */
   usedTargetVocabIds: number[];
+  storyLines: { lineNumber: number; text: string }[];
+  lineAudioUrls: Record<string, string>;
   onChanged: () => Promise<void>;
   onDirty: (order: number, dirty: boolean) => void;
 }
@@ -183,6 +188,8 @@ function RecallSentenceCard({
   storySentences,
   usedByPosition,
   usedTargetVocabIds,
+  storyLines,
+  lineAudioUrls,
   onChanged,
   onDirty,
 }: RecallSentenceCardProps) {
@@ -195,7 +202,9 @@ function RecallSentenceCard({
     sentence?.targetVocabId ?? "",
   );
   const [saving, setSaving] = React.useState(false);
-  const [uploading, setUploading] = React.useState(false);
+  const [uploading, setUploading] = React.useState<"image" | "audio" | null>(
+    null,
+  );
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [pendingPick, setPendingPick] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -248,30 +257,40 @@ function RecallSentenceCard({
     }
   };
 
-  const attachImage = async (file: File | null) => {
+  const attachAsset = async (slot: "image" | "audio", file: File | null) => {
     if (!sentence) {
-      setError("Save the sentence before uploading its picture.");
+      setError(
+        slot === "image"
+          ? "Save the sentence before uploading its picture."
+          : "Save the sentence before uploading its audio.",
+      );
       return;
     }
 
-    setUploading(true);
+    setUploading(slot);
     setError(null);
     try {
-      // An empty path clears the slot; a real upload returns the path to attach.
-      const imagePath = file
-        ? await uploadAsset(file, storyId, "recall_image", sentence.id)
+      const filePath = file
+        ? await uploadAsset(
+            file,
+            storyId,
+            slot === "image" ? "recall_image" : "recall_audio",
+            sentence.id,
+          )
         : "";
 
       await adminApi.saveRecallSentence(storyId, order, {
         hebrewText: sentence.hebrewText,
         targetVocabId: sentence.targetVocabId,
-        imagePath,
+        ...(slot === "image"
+          ? { imagePath: filePath }
+          : { audioPath: filePath }),
       });
       await onChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
-      setUploading(false);
+      setUploading(null);
     }
   };
 
@@ -374,30 +393,58 @@ function RecallSentenceCard({
             </Button>
           </div>
 
-          <div>
+          <div className="space-y-4">
             {sentence ? (
-              <AssetSlot
-                label="Picture"
-                accept="image/*"
-                uploading={uploading}
-                hasAsset={Boolean(sentence.imagePath)}
-                onSelect={(file) => attachImage(file)}
-                onClear={() => attachImage(null)}
-                preview={
-                  sentence.imageUrl ? (
-                    <img
-                      src={sentence.imageUrl}
-                      alt={`Picture for recall position ${order}`}
-                      className="max-h-32 rounded border border-slate-200"
-                    />
-                  ) : null
-                }
-              />
+              <>
+                <AssetSlot
+                  label="Picture"
+                  accept="image/*"
+                  uploading={uploading === "image"}
+                  hasAsset={Boolean(sentence.imagePath)}
+                  onSelect={(file) => attachAsset("image", file)}
+                  onClear={() => attachAsset("image", null)}
+                  preview={
+                    sentence.imageUrl ? (
+                      <img
+                        src={sentence.imageUrl}
+                        alt={`Picture for recall position ${order}`}
+                        className="max-h-32 rounded border border-slate-200"
+                      />
+                    ) : null
+                  }
+                />
+                <AssetSlot
+                  label="Audio"
+                  accept="audio/*"
+                  uploading={uploading === "audio"}
+                  hasAsset={Boolean(sentence.audioPath)}
+                  onSelect={(file) => attachAsset("audio", file)}
+                  onClear={() => attachAsset("audio", null)}
+                  preview={
+                    sentence.audioUrl ? (
+                      <audio
+                        controls
+                        src={sentence.audioUrl}
+                        className="w-full"
+                      />
+                    ) : (
+                      <StoryAudioPreview
+                        urls={storyAudioUrlsFor(
+                          hebrewText,
+                          storyLines,
+                          lineAudioUrls,
+                          sentence.storyAudioUrls,
+                        )}
+                      />
+                    )
+                  }
+                />
+              </>
             ) : (
               <div>
-                <Label className="mb-1">Picture</Label>
+                <Label className="mb-1">Picture and audio</Label>
                 <p className="text-xs text-slate-400">
-                  Save the sentence first, then upload its picture.
+                  Save the sentence first, then upload its picture or audio.
                 </p>
               </div>
             )}
@@ -405,5 +452,53 @@ function RecallSentenceCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function storyAudioUrlsFor(
+  hebrew: string,
+  lines: { lineNumber: number; text: string }[],
+  lineAudioUrls: Record<string, string>,
+  fallback?: string[],
+): string[] {
+  const urls = recallCoveredLineNumbers(hebrew, lines)
+    .map((lineNumber) => lineAudioUrls[String(lineNumber)])
+    .filter((url): url is string => Boolean(url));
+  return urls.length > 0 ? urls : (fallback ?? []);
+}
+
+function StoryAudioPreview({ urls }: { urls: string[] }) {
+  const audioRef = React.useRef<HTMLAudioElement>(null);
+  const indexRef = React.useRef(0);
+
+  React.useEffect(() => {
+    indexRef.current = 0;
+    if (audioRef.current && urls[0]) {
+      audioRef.current.src = urls[0];
+    }
+  }, [urls]);
+
+  return (
+    <div>
+      <p className="text-xs text-slate-500 mb-2">
+        No override set. Using audio from the story
+      </p>
+      {urls.length > 0 && (
+        <audio
+          ref={audioRef}
+          controls
+          src={urls[0]}
+          className="w-full"
+          onEnded={() => {
+            indexRef.current += 1;
+            const next = urls[indexRef.current];
+            if (next && audioRef.current) {
+              audioRef.current.src = next;
+              audioRef.current.play().catch(() => {});
+            }
+          }}
+        />
+      )}
+    </div>
   );
 }

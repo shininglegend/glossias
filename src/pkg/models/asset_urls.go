@@ -24,7 +24,8 @@ func asDuplicate(err error) error {
 
 // Assets for the Summer 2026 phases are addressed by the bucket path stored on
 // the row that owns them — target_vocabulary.correct_image_path,
-// target_vocabulary.audio_path, recall_sentences.image_path — rather than by a
+// target_vocabulary.audio_path, recall_sentences.image_path /
+// recall_sentences.audio_path — rather than by a
 // story_images / line_audio_files row ID. The helpers here sign and delete
 // those paths directly. Authorization is the caller's job: admin handlers gate
 // on CanUserEditStory, student handlers on CanUserAccessCourse.
@@ -97,17 +98,24 @@ func SignTargetVocabularyURLs(ctx context.Context, words []TargetVocabulary, exp
 	return nil
 }
 
-// SignRecallSentenceURLs fills ImageURL on each sentence that has an image.
+// SignRecallSentenceURLs fills ImageURL and AudioURL on each sentence that has
+// the corresponding asset.
 func SignRecallSentenceURLs(ctx context.Context, sentences []RecallSentence, expiresInSeconds int) error {
 	for i := range sentences {
-		if sentences[i].ImagePath == "" || sentences[i].ImageBucket == "" {
-			continue
+		if sentences[i].ImagePath != "" && sentences[i].ImageBucket != "" {
+			url, err := GetSignedURLForPath(ctx, sentences[i].ImageBucket, sentences[i].ImagePath, expiresInSeconds)
+			if err != nil {
+				return err
+			}
+			sentences[i].ImageURL = url
 		}
-		url, err := GetSignedURLForPath(ctx, sentences[i].ImageBucket, sentences[i].ImagePath, expiresInSeconds)
-		if err != nil {
-			return err
+		if sentences[i].AudioPath != "" && sentences[i].AudioBucket != "" {
+			url, err := GetSignedURLForPath(ctx, sentences[i].AudioBucket, sentences[i].AudioPath, expiresInSeconds)
+			if err != nil {
+				return err
+			}
+			sentences[i].AudioURL = url
 		}
-		sentences[i].ImageURL = url
 	}
 	return nil
 }

@@ -17,6 +17,27 @@ export interface StorySentence {
  * Most story lines carry no punctuation at all, so in practice a line is
  * usually one sentence; leading tabs used for indentation are stripped.
  */
+/** Story lines whose narration makes up `hebrew`, same rules as the student page. */
+export function recallCoveredLineNumbers(
+  hebrew: string,
+  lines: { lineNumber: number; text: string }[],
+): number[] {
+  const text = hebrew.trim();
+  if (!text) return [];
+
+  const contained = lines
+    .filter((line) => line.text.includes(text))
+    .map((line) => line.lineNumber);
+  if (contained.length > 0) return contained;
+
+  return lines
+    .filter((line) => {
+      const lineText = line.text.trim();
+      return lineText !== "" && text.includes(lineText);
+    })
+    .map((line) => line.lineNumber);
+}
+
 export function splitStoryIntoSentences(
   content: StoryContent | null,
 ): StorySentence[] {

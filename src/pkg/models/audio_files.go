@@ -38,14 +38,16 @@ func CreateAudioFile(ctx context.Context, storyID, lineNumber int, filePath, fil
 		return nil, err
 	}
 
-	return &AudioFile{
+	saved := &AudioFile{
 		ID:         int(result.AudioFileID),
 		StoryID:    int(result.StoryID.Int32),
 		LineNumber: int(result.LineNumber.Int32),
 		FilePath:   result.FilePath,
 		FileBucket: result.FileBucket,
 		Label:      result.Label,
-	}, nil
+	}
+	InvalidateStoryContentReadiness(saved.StoryID)
+	return saved, nil
 }
 
 // GetAudioFile retrieves an audio file by ID
@@ -197,12 +199,15 @@ func DeleteAudioFile(ctx context.Context, audioFileID int) error {
 		return err
 	}
 
-	// Delete from database
 	err = queries.DeleteAudioFile(ctx, int32(audioFileID))
 	if err == sql.ErrNoRows || err == pgx.ErrNoRows {
 		return ErrNotFound
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	InvalidateStoryContentReadiness(audioFile.StoryID)
+	return nil
 }
 
 // DeleteLineAudioFiles deletes all audio files for a specific line
@@ -218,11 +223,14 @@ func DeleteLineAudioFiles(ctx context.Context, storyID, lineNumber int) error {
 		return err
 	}
 
-	// Delete from database
-	return queries.DeleteLineAudioFiles(ctx, db.DeleteLineAudioFilesParams{
+	if err := queries.DeleteLineAudioFiles(ctx, db.DeleteLineAudioFilesParams{
 		StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
 		LineNumber: pgtype.Int4{Int32: int32(lineNumber), Valid: true},
-	})
+	}); err != nil {
+		return err
+	}
+	InvalidateStoryContentReadiness(storyID)
+	return nil
 }
 
 // DeleteStoryAudioFiles deletes all audio files for a story
@@ -238,8 +246,11 @@ func DeleteStoryAudioFiles(ctx context.Context, storyID int) error {
 		return err
 	}
 
-	// Delete from database
-	return queries.DeleteStoryAudioFiles(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+	if err := queries.DeleteStoryAudioFiles(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true}); err != nil {
+		return err
+	}
+	InvalidateStoryContentReadiness(storyID)
+	return nil
 }
 
 // DeleteStoryAudioFilesByLabel deletes all audio files for a story with a specific label
@@ -256,10 +267,14 @@ func DeleteStoryAudioFilesByLabel(ctx context.Context, storyID int, label string
 	}
 
 	// Delete from database
-	return queries.DeleteStoryAudioFilesByLabel(ctx, db.DeleteStoryAudioFilesByLabelParams{
+	if err := queries.DeleteStoryAudioFilesByLabel(ctx, db.DeleteStoryAudioFilesByLabelParams{
 		StoryID: pgtype.Int4{Int32: int32(storyID), Valid: true},
 		Label:   label,
-	})
+	}); err != nil {
+		return err
+	}
+	InvalidateStoryContentReadiness(storyID)
+	return nil
 }
 
 // GetAudioFilesByLabel returns all audio files with a specific label across all stories

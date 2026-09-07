@@ -224,6 +224,8 @@ type RecallSentence struct {
 	ImagePath     pgtype.Text      `json:"image_path"`
 	ImageBucket   pgtype.Text      `json:"image_bucket"`
 	CreatedAt     pgtype.Timestamp `json:"created_at"`
+	AudioPath     pgtype.Text      `json:"audio_path"`
+	AudioBucket   pgtype.Text      `json:"audio_bucket"`
 }
 
 type Story struct {

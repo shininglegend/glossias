@@ -181,9 +181,10 @@ func ValidateProduceContent(segments []ProduceSegment, explanation string) Phase
 }
 
 // ValidateRecallSentences checks the Recall phase's authoring rules: five
-// sentences filling positions 1-5, each with text, a picture, and a distinct
-// target word from this story.
-func ValidateRecallSentences(sentences []RecallSentence, storyTargetVocabIDs map[int]bool) PhaseReadiness {
+// sentences filling positions 1-5, each with text, a picture, playable audio
+// (uploaded override or story-line narration covering the sentence), and a
+// distinct target word from this story.
+func ValidateRecallSentences(sentences []RecallSentence, storyTargetVocabIDs map[int]bool, lines []StoryLine, linesWithAudio map[int]bool) PhaseReadiness {
 	issues := make([]ContentIssue, 0)
 
 	if len(sentences) != RecallSentencesPerStory {
@@ -212,6 +213,10 @@ func ValidateRecallSentences(sentences []RecallSentence, storyTargetVocabIDs map
 
 		if sentence.ImagePath == "" || sentence.ImageBucket == "" {
 			issues = append(issues, ContentIssue{Field: field, Message: "sentence has no picture"})
+		}
+
+		if !RecallSentenceHasAudio(sentence, lines, linesWithAudio) {
+			issues = append(issues, ContentIssue{Field: field, Message: "sentence has no audio"})
 		}
 
 		switch {
@@ -299,6 +304,11 @@ func buildStoryContentReadiness(ctx context.Context, storyID int) (StoryContentR
 		return StoryContentReadiness{}, err
 	}
 
+	lines, linesWithAudio, err := RecallAudioContext(ctx, storyID)
+	if err != nil {
+		return StoryContentReadiness{}, err
+	}
+
 	targetVocabIDs := make(map[int]bool, len(words))
 	for _, word := range words {
 		targetVocabIDs[word.ID] = true
@@ -308,6 +318,27 @@ func buildStoryContentReadiness(ctx context.Context, storyID int) (StoryContentR
 		Video:    ValidateVideo(dbStory.VideoUrl.String),
 		Identify: ValidateTargetVocabulary(words, occurrences),
 		Produce:  ValidateProduceContent(segments, explanation),
-		Recall:   ValidateRecallSentences(sentences, targetVocabIDs),
+		Recall:   ValidateRecallSentences(sentences, targetVocabIDs, lines, linesWithAudio),
 	}, nil
+}
+
+func RecallAudioContext(ctx context.Context, storyID int) ([]StoryLine, map[int]bool, error) {
+	dbLines, err := queries.GetStoryLines(ctx, int32(storyID))
+	if err != nil {
+		return nil, nil, err
+	}
+	lines := make([]StoryLine, 0, len(dbLines))
+	for _, line := range dbLines {
+		lines = append(lines, StoryLine{LineNumber: int(line.LineNumber), Text: line.Text})
+	}
+
+	audioFiles, err := GetStoryAudioFilesByLabel(ctx, storyID, "complete")
+	if err != nil {
+		return nil, nil, err
+	}
+	linesWithAudio := make(map[int]bool, len(audioFiles))
+	for _, file := range audioFiles {
+		linesWithAudio[file.LineNumber] = true
+	}
+	return lines, linesWithAudio, nil
 }

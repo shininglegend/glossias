@@ -150,6 +150,10 @@ export interface RecallSentence {
   imagePath?: string;
   imageBucket?: string;
   imageUrl?: string;
+  audioPath?: string;
+  audioBucket?: string;
+  audioUrl?: string;
+  storyAudioUrls?: string[];
 }
 
 export interface RecallPage {
@@ -157,7 +161,8 @@ export interface RecallPage {
   targetVocabulary: TargetVocabulary[];
   readiness: PhaseReadiness;
   required: number;
+  lineAudioUrls?: Record<string, string>;
 }
 
 export type PhaseAssetKind =
-  "target_vocab_image" | "target_vocab_audio" | "recall_image";
+  "target_vocab_image" | "target_vocab_audio" | "recall_image" | "recall_audio";

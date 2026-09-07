@@ -97,9 +97,11 @@ type CheckIdentifyResponse struct {
 // deliberately carries no position: the server shuffles the cards and the
 // student's job is to recover the order.
 type RecallCard struct {
-	ID         int    `json:"id"`
-	HebrewText string `json:"hebrew_text"`
-	ImageURL   string `json:"image_url,omitempty"`
+	ID         int           `json:"id"`
+	HebrewText string        `json:"hebrew_text"`
+	ImageURL   string        `json:"image_url,omitempty"`
+	AudioURLs  []string      `json:"audio_urls,omitempty"`
+	Text       []TextSegment `json:"text,omitempty"`
 }
 
 // RecallPageData is the payload for the Recall phase.
@@ -129,6 +131,19 @@ type CheckRecallRequest struct {
 type CheckRecallResponse struct {
 	Results    []bool `json:"results"`
 	AllCorrect bool   `json:"all_correct"`
+}
+
+// CheckRecallPickRequest is one sequential pick: the student claims SentenceID
+// is the sentence at 1-based Position in the story.
+type CheckRecallPickRequest struct {
+	SentenceID int `json:"sentence_id"`
+	Position   int `json:"position"`
+}
+
+// CheckRecallPickResponse reports whether that pick was the right sentence
+// for the asked position.
+type CheckRecallPickResponse struct {
+	Correct bool `json:"correct"`
 }
 
 // Line represents a story line in API responses

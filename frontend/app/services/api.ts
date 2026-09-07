@@ -111,6 +111,8 @@ export interface RecallCard {
   id: number;
   hebrew_text: string;
   image_url?: string;
+  audio_urls?: string[];
+  text?: TextSegment[];
 }
 
 export interface RecallData {
@@ -133,6 +135,10 @@ export interface CheckRecallResult {
   /** Correctness per submitted position. */
   results: boolean[];
   all_correct: boolean;
+}
+
+export interface CheckRecallPickResult {
+  correct: boolean;
 }
 
 export interface ProduceSlot {
@@ -356,6 +362,20 @@ export function useApiService() {
         return fetchAPI(`/stories/${id}/check-recall`, {
           method: "POST",
           body: JSON.stringify({ ordered_sentence_ids: orderedSentenceIds }),
+        });
+      },
+
+      checkRecallPick: (
+        id: string,
+        sentenceId: number,
+        position: number,
+      ): Promise<APIResponse<CheckRecallPickResult>> => {
+        return fetchAPI(`/stories/${id}/check-recall-pick`, {
+          method: "POST",
+          body: JSON.stringify({
+            sentence_id: sentenceId,
+            position,
+          }),
         });
       },
 

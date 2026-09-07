@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { useAuthenticatedFetch } from "./authFetch";
 import type { PhaseAssetKind } from "../types/admin";
 
-// Uploading a picture or word audio for the Summer 2026 phases is the same
+// Uploading a picture, word audio, or recall-sentence audio for the Summer 2026 phases is the same
 // three-step flow as line audio (see lib/audio.ts): ask for a signed URL, PUT
 // the bytes straight to storage, then confirm. The difference is the confirm
 // step — instead of registering a story_images row, the caller attaches the

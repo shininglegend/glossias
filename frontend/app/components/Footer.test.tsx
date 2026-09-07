@@ -1,10 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { Footer } from "./Footer";
 
 describe("Footer Component", () => {
   it("renders Glossias description and title", () => {
-    render(<Footer />);
+    render(
+      <MemoryRouter>
+        <Footer />
+      </MemoryRouter>,
+    );
     expect(screen.getByText("Glossias")).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -14,7 +19,11 @@ describe("Footer Component", () => {
   });
 
   it("renders key navigation and support links", () => {
-    render(<Footer />);
+    render(
+      <MemoryRouter>
+        <Footer />
+      </MemoryRouter>,
+    );
 
     // Check story phase list
     expect(screen.getByText("Identify")).toBeInTheDocument();
@@ -32,10 +41,18 @@ describe("Footer Component", () => {
     const privacyLink = screen.getByText("Privacy Policy");
     expect(privacyLink).toBeInTheDocument();
     expect(privacyLink.getAttribute("href")).toBe("/privacy-policy");
+
+    const termsLink = screen.getByText("Terms of Service");
+    expect(termsLink).toBeInTheDocument();
+    expect(termsLink.getAttribute("href")).toBe("/terms-of-service");
   });
 
   it("renders the copyright text", () => {
-    render(<Footer />);
+    render(
+      <MemoryRouter>
+        <Footer />
+      </MemoryRouter>,
+    );
     expect(
       screen.getByText(/Titus M\. All rights reserved\./i),
     ).toBeInTheDocument();

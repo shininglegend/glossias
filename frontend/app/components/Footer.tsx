@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import { STORY_PHASES } from "~/lib/storyPhases";
 
 export function Footer() {
@@ -67,20 +68,20 @@ export function Footer() {
                   </a>
                 </li>
                 <li>
-                  <a
-                    href="/privacy-policy"
+                  <Link
+                    to="/privacy-policy"
                     className="text-slate-600 hover:text-slate-900 transition-colors"
                   >
                     Privacy Policy
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a
-                    href="/terms-of-service"
+                  <Link
+                    to="/terms-of-service"
                     className="text-slate-600 hover:text-slate-900 transition-colors"
                   >
                     Terms of Service
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </div>

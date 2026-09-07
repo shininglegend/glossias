@@ -268,6 +268,27 @@ describe("produceReducer — finishing", () => {
     expect(run(s, { type: "SUBMIT" })).toBe(s);
     expect(run(s, { type: "NEXT" })).toBe(s);
   });
+
+  it("merges AI feedback onto a stored attempt without changing phase", () => {
+    const s = run(
+      afterSecondReveal(),
+      { type: "NEXT" },
+      {
+        type: "CLOSE_EXPLANATION",
+      },
+    );
+    const next = produceReducer(s, {
+      type: "FEEDBACK",
+      attempt: {
+        ...attempt(10),
+        aiScore: 88,
+        aiFeedback: "Clear and accurate.",
+      },
+    });
+    expect(next.phase).toEqual(s.phase);
+    expect(next.attempts[10]?.aiScore).toBe(88);
+    expect(next.attempts[10]?.aiFeedback).toBe("Clear and accurate.");
+  });
 });
 
 describe("formatCountdown", () => {

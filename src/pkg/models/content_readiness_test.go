@@ -256,6 +256,8 @@ func fiveRecallSentences() ([]RecallSentence, map[int]bool) {
 			TargetVocabID: &targetID,
 			ImagePath:     "stories/1/image_recall_" + string(rune('0'+order)),
 			ImageBucket:   "images",
+			AudioPath:     "stories/1/recall_audio_" + string(rune('0'+order)),
+			AudioBucket:   "audio-files",
 		})
 	}
 	return sentences, targetVocabIDs
@@ -287,6 +289,15 @@ func TestValidateRecallSentences(t *testing.T) {
 				return s
 			},
 			wantIssue: "no picture",
+		},
+		{
+			name: "a sentence without audio is rejected",
+			mutate: func(s []RecallSentence, _ map[int]bool) []RecallSentence {
+				s[0].AudioPath = ""
+				s[0].AudioBucket = ""
+				return s
+			},
+			wantIssue: "no audio",
 		},
 		{
 			name: "an empty sentence is rejected",
@@ -334,7 +345,7 @@ func TestValidateRecallSentences(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sentences, ids := fiveRecallSentences()
-			got := ValidateRecallSentences(tt.mutate(sentences, ids), ids)
+			got := ValidateRecallSentences(tt.mutate(sentences, ids), ids, nil, nil)
 
 			if got.Phase != "recall" {
 				t.Errorf("Phase = %q, want %q", got.Phase, "recall")
@@ -349,6 +360,22 @@ func TestValidateRecallSentences(t *testing.T) {
 	}
 }
 
+func TestValidateRecallSentencesStoryLineAudio(t *testing.T) {
+	sentences, ids := fiveRecallSentences()
+	sentences[0].AudioPath = ""
+	sentences[0].AudioBucket = ""
+	lines := []StoryLine{{LineNumber: 1, Text: "משפט"}}
+	withAudio := map[int]bool{1: true}
+
+	if got := ValidateRecallSentences(sentences, ids, lines, withAudio); !got.Ready {
+		t.Errorf("story-line audio should satisfy readiness, got issues %v", got.Issues)
+	}
+
+	if got := ValidateRecallSentences(sentences, ids, lines, nil); got.Ready {
+		t.Error("matching lines without narration must not be ready")
+	}
+}
+
 func TestStoryContentReadinessAllReady(t *testing.T) {
 	words, occurrences := fiveTargetWords()
 	sentences, ids := fiveRecallSentences()
@@ -357,13 +384,13 @@ func TestStoryContentReadinessAllReady(t *testing.T) {
 		Video:    ValidateVideo("https://example.com/video"),
 		Identify: ValidateTargetVocabulary(words, occurrences),
 		Produce:  ValidateProduceContent(twoProduceSegments(), "explained"),
-		Recall:   ValidateRecallSentences(sentences, ids),
+		Recall:   ValidateRecallSentences(sentences, ids, nil, nil),
 	}
 	if !ready.AllReady() {
 		t.Errorf("fully authored story reported not ready: %+v", ready)
 	}
 
-	ready.Recall = ValidateRecallSentences(sentences[:2], ids)
+	ready.Recall = ValidateRecallSentences(sentences[:2], ids, nil, nil)
 	if ready.AllReady() {
 		t.Error("AllReady must be false when one phase is incomplete")
 	}
@@ -371,7 +398,7 @@ func TestStoryContentReadinessAllReady(t *testing.T) {
 		t.Errorf("MissingPhases = %v, want [recall]", got)
 	}
 
-	ready.Recall = ValidateRecallSentences(sentences, ids)
+	ready.Recall = ValidateRecallSentences(sentences, ids, nil, nil)
 	ready.Video = ValidateVideo("  ")
 	if ready.AllReady() {
 		t.Error("AllReady must be false when the video link is missing")

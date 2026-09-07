@@ -53,6 +53,9 @@ func TestNavigate(t *testing.T) {
 		{"unknown page restarts at video", "bogus", freshStory, "video"},
 		{"legacy vocab page is not in the flow", "vocab", freshStory, "video"},
 		{"produce incomplete stops there", "translate", produceLeft, "produce"},
+		{"identify continue always goes to translate", "identify", identifyDone, "translate"},
+		{"identify continue does not skip a completed translate", "identify", allDone, "translate"},
+		{"translate continue always goes to produce", "translate", allDone, "produce"},
 	}
 
 	for _, tt := range tests {

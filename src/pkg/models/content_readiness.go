@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"glossias/src/pkg/generated/db"
 )
 
 // Content readiness for the Summer 2026 phases.
@@ -181,9 +183,10 @@ func ValidateProduceContent(segments []ProduceSegment, explanation string) Phase
 }
 
 // ValidateRecallSentences checks the Recall phase's authoring rules: five
-// sentences filling positions 1-5, each with text, a picture, and a distinct
-// target word from this story.
-func ValidateRecallSentences(sentences []RecallSentence, storyTargetVocabIDs map[int]bool) PhaseReadiness {
+// sentences filling positions 1-5, each with text, a picture, playable audio
+// (uploaded override or story-line narration covering the sentence), and a
+// distinct target word from this story.
+func ValidateRecallSentences(sentences []RecallSentence, storyTargetVocabIDs map[int]bool, lines []StoryLine, linesWithAudio map[int]bool) PhaseReadiness {
 	issues := make([]ContentIssue, 0)
 
 	if len(sentences) != RecallSentencesPerStory {
@@ -212,6 +215,10 @@ func ValidateRecallSentences(sentences []RecallSentence, storyTargetVocabIDs map
 
 		if sentence.ImagePath == "" || sentence.ImageBucket == "" {
 			issues = append(issues, ContentIssue{Field: field, Message: "sentence has no picture"})
+		}
+
+		if !RecallSentenceHasAudio(sentence, lines, linesWithAudio) {
+			issues = append(issues, ContentIssue{Field: field, Message: "sentence has no audio"})
 		}
 
 		switch {
@@ -245,69 +252,235 @@ func ValidateRecallSentences(sentences []RecallSentence, storyTargetVocabIDs map
 }
 
 // GetStoryContentReadiness returns a story's phase readiness report, computing
-// it from the story's Summer 2026 content on a cache miss. The report costs
-// several queries to build, so it is cached per story and invalidated by
-// InvalidateStoryContentReadiness on every write that can change it.
-// every phase.
+// it from the story's Summer 2026 content on a cache miss. The report is
+// cached per story and invalidated by InvalidateStoryContentReadiness on every
+// write that can change it.
 func GetStoryContentReadiness(ctx context.Context, storyID int) (StoryContentReadiness, error) {
-	if cacheInstance == nil || keyBuilder == nil {
-		return buildStoryContentReadiness(ctx, storyID)
+	reports, err := GetStoriesContentReadiness(ctx, []int{storyID})
+	if err != nil {
+		return StoryContentReadiness{}, err
 	}
-	var readiness StoryContentReadiness
-	err := cacheInstance.GetOrSetJSON(keyBuilder.StoryContentReadiness(storyID), &readiness, func() (any, error) {
-		return buildStoryContentReadiness(ctx, storyID)
-	})
-	return readiness, err
+	report, ok := reports[storyID]
+	if !ok {
+		return StoryContentReadiness{}, ErrNotFound
+	}
+	return report, nil
 }
 
-func buildStoryContentReadiness(ctx context.Context, storyID int) (StoryContentReadiness, error) {
+// GetStoriesContentReadiness returns phase readiness for many stories in a
+// constant number of queries. Cache hits are skipped; misses share eight
+// `WHERE story_id = ANY($1)` fetches instead of looping GetStoryContentReadiness.
+func GetStoriesContentReadiness(ctx context.Context, storyIDs []int) (map[int]StoryContentReadiness, error) {
+	out := make(map[int]StoryContentReadiness, len(storyIDs))
+	if len(storyIDs) == 0 {
+		return out, nil
+	}
+
+	misses := make([]int, 0, len(storyIDs))
+	seen := make(map[int]bool, len(storyIDs))
+	for _, id := range storyIDs {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		if cacheInstance != nil && keyBuilder != nil {
+			var cached StoryContentReadiness
+			if err := cacheInstance.GetJSON(keyBuilder.StoryContentReadiness(id), &cached); err == nil {
+				out[id] = cached
+				continue
+			}
+		}
+		misses = append(misses, id)
+	}
+	if len(misses) == 0 {
+		return out, nil
+	}
+
+	built, err := buildStoriesContentReadiness(ctx, misses)
+	if err != nil {
+		return nil, err
+	}
+	for id, report := range built {
+		if cacheInstance != nil && keyBuilder != nil {
+			_ = cacheInstance.SetJSON(keyBuilder.StoryContentReadiness(id), report)
+		}
+		out[id] = report
+	}
+	return out, nil
+}
+
+func buildStoriesContentReadiness(ctx context.Context, storyIDs []int) (map[int]StoryContentReadiness, error) {
 	if queries == nil {
-		return StoryContentReadiness{}, errors.New("database not initialized")
+		return nil, errors.New("database not initialized")
 	}
 
-	dbStory, err := queries.GetStory(ctx, int32(storyID))
+	ids := toInt32IDs(storyIDs)
+
+	videoRows, err := queries.GetStoriesVideoURLs(ctx, ids)
 	if err != nil {
-		return StoryContentReadiness{}, err
+		return nil, err
 	}
-
-	words, err := GetStoryTargetVocabulary(ctx, storyID)
+	wordRows, err := queries.GetStoriesTargetVocabulary(ctx, ids)
 	if err != nil {
-		return StoryContentReadiness{}, err
+		return nil, err
 	}
-
-	counts, err := GetStoryLexicalFormCounts(ctx, storyID)
+	countRows, err := queries.GetStoriesLexicalFormCounts(ctx, ids)
 	if err != nil {
-		return StoryContentReadiness{}, err
+		return nil, err
 	}
-	occurrences := make(map[string]int, len(counts))
-	for _, count := range counts {
-		occurrences[count.LexicalForm] = count.Occurrences
-	}
-
-	segments, err := GetStoryProduceSegments(ctx, storyID)
+	segmentRows, err := queries.GetStoriesProduceSegments(ctx, ids)
 	if err != nil {
-		return StoryContentReadiness{}, err
+		return nil, err
 	}
-
-	explanation, err := GetStoryProduceExplanation(ctx, storyID)
-	if err != nil && !errors.Is(err, ErrNotFound) {
-		return StoryContentReadiness{}, err
-	}
-
-	sentences, err := GetStoryRecallSentences(ctx, storyID)
+	explanationRows, err := queries.GetStoriesProduceExplanations(ctx, ids)
 	if err != nil {
-		return StoryContentReadiness{}, err
+		return nil, err
+	}
+	sentenceRows, err := queries.GetStoriesRecallSentences(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	lineRows, err := queries.GetStoriesLines(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	audioRows, err := queries.GetStoriesAudioFilesByLabel(ctx, db.GetStoriesAudioFilesByLabelParams{
+		StoryIds: ids,
+		Label:    "complete",
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	targetVocabIDs := make(map[int]bool, len(words))
-	for _, word := range words {
-		targetVocabIDs[word.ID] = true
+	videos := make(map[int]string, len(videoRows))
+	for _, row := range videoRows {
+		videos[int(row.StoryID)] = row.VideoUrl.String
 	}
 
-	return StoryContentReadiness{
-		Video:    ValidateVideo(dbStory.VideoUrl.String),
-		Identify: ValidateTargetVocabulary(words, occurrences),
-		Produce:  ValidateProduceContent(segments, explanation),
-		Recall:   ValidateRecallSentences(sentences, targetVocabIDs),
-	}, nil
+	wordsByStory := make(map[int][]TargetVocabulary, len(videos))
+	for _, row := range wordRows {
+		sid := int(row.StoryID)
+		wordsByStory[sid] = append(wordsByStory[sid], TargetVocabulary{
+			ID:               int(row.ID),
+			StoryID:          sid,
+			LexicalForm:      row.LexicalForm,
+			AudioPath:        row.AudioPath.String,
+			AudioBucket:      row.AudioBucket.String,
+			CorrectImagePath: row.CorrectImagePath.String,
+			ImageBucket:      row.ImageBucket.String,
+		})
+	}
+
+	countsByStory := make(map[int]map[string]int, len(videos))
+	for _, row := range countRows {
+		if !row.StoryID.Valid {
+			continue
+		}
+		sid := int(row.StoryID.Int32)
+		if countsByStory[sid] == nil {
+			countsByStory[sid] = make(map[string]int)
+		}
+		countsByStory[sid][row.LexicalForm] = int(row.Occurrences)
+	}
+
+	segmentsByStory := make(map[int][]ProduceSegment, len(videos))
+	for _, row := range segmentRows {
+		sid := int(row.StoryID)
+		segmentsByStory[sid] = append(segmentsByStory[sid], ProduceSegment{
+			ID:               int(row.ID),
+			StoryID:          sid,
+			SegmentOrder:     int(row.SegmentOrder),
+			ReferenceEnglish: row.ReferenceEnglish,
+			HebrewText:       row.HebrewText,
+			GrammarPointName: row.GrammarPointName.String,
+			GrammarPointID:   optionalInt(row.GrammarPointID),
+			LineStart:        optionalInt(row.LineStart),
+			LineEnd:          optionalInt(row.LineEnd),
+		})
+	}
+
+	explanations := make(map[int]string, len(explanationRows))
+	for _, row := range explanationRows {
+		explanations[int(row.StoryID)] = row.ExplanationText
+	}
+
+	sentencesByStory := make(map[int][]RecallSentence, len(videos))
+	for _, row := range sentenceRows {
+		sid := int(row.StoryID)
+		sentencesByStory[sid] = append(sentencesByStory[sid], recallSentenceFromRow(
+			row.ID, row.StoryID, row.SequenceOrder, row.HebrewText,
+			row.TargetVocabID, row.ImagePath, row.ImageBucket, row.AudioPath, row.AudioBucket,
+		))
+	}
+
+	linesByStory := make(map[int][]StoryLine, len(videos))
+	for _, row := range lineRows {
+		sid := int(row.StoryID)
+		linesByStory[sid] = append(linesByStory[sid], StoryLine{LineNumber: int(row.LineNumber), Text: row.Text})
+	}
+
+	audioByStory := make(map[int]map[int]bool, len(videos))
+	for _, row := range audioRows {
+		if !row.StoryID.Valid || !row.LineNumber.Valid {
+			continue
+		}
+		sid := int(row.StoryID.Int32)
+		if audioByStory[sid] == nil {
+			audioByStory[sid] = make(map[int]bool)
+		}
+		audioByStory[sid][int(row.LineNumber.Int32)] = true
+	}
+
+	out := make(map[int]StoryContentReadiness, len(videos))
+	for id, videoURL := range videos {
+		words := wordsByStory[id]
+		occurrences := countsByStory[id]
+		if occurrences == nil {
+			occurrences = map[string]int{}
+		}
+		targetVocabIDs := make(map[int]bool, len(words))
+		for _, word := range words {
+			targetVocabIDs[word.ID] = true
+		}
+		linesWithAudio := audioByStory[id]
+		if linesWithAudio == nil {
+			linesWithAudio = map[int]bool{}
+		}
+		out[id] = StoryContentReadiness{
+			Video:    ValidateVideo(videoURL),
+			Identify: ValidateTargetVocabulary(words, occurrences),
+			Produce:  ValidateProduceContent(segmentsByStory[id], explanations[id]),
+			Recall:   ValidateRecallSentences(sentencesByStory[id], targetVocabIDs, linesByStory[id], linesWithAudio),
+		}
+	}
+	return out, nil
+}
+
+func toInt32IDs(ids []int) []int32 {
+	out := make([]int32, len(ids))
+	for i, id := range ids {
+		out[i] = int32(id)
+	}
+	return out
+}
+
+func RecallAudioContext(ctx context.Context, storyID int) ([]StoryLine, map[int]bool, error) {
+	dbLines, err := queries.GetStoryLines(ctx, int32(storyID))
+	if err != nil {
+		return nil, nil, err
+	}
+	lines := make([]StoryLine, 0, len(dbLines))
+	for _, line := range dbLines {
+		lines = append(lines, StoryLine{LineNumber: int(line.LineNumber), Text: line.Text})
+	}
+
+	audioFiles, err := GetStoryAudioFilesByLabel(ctx, storyID, "complete")
+	if err != nil {
+		return nil, nil, err
+	}
+	linesWithAudio := make(map[int]bool, len(audioFiles))
+	for _, file := range audioFiles {
+		linesWithAudio[file.LineNumber] = true
+	}
+	return lines, linesWithAudio, nil
 }

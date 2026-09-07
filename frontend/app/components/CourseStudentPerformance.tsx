@@ -58,6 +58,7 @@ interface StudentPerformanceData {
   vocab_time_seconds: number;
   grammar_time_seconds: number;
   total_time_seconds: number;
+  attempt_count: number;
 }
 
 function producePending(s: StudentPerformanceData): boolean {
@@ -83,6 +84,7 @@ function downloadCSV(
   const headers = [
     "Student Name",
     "Email",
+    "Times Done",
     "Overall Score (%)",
     "Total Time (seconds)",
     "Watch Time (seconds)",
@@ -120,6 +122,7 @@ function downloadCSV(
     const row: (string | number)[] = [
       s.user_name,
       s.email,
+      s.attempt_count ?? 0,
       s.overall_accuracy.toFixed(1),
       s.total_time_seconds,
       s.video_time_seconds,
@@ -489,6 +492,7 @@ export function CourseStudentPerformance() {
                     <th className="border border-gray-300 p-3 text-left">
                       Student
                     </th>
+                    <th className={TH}>Times</th>
                     <th className={TH}>Overall</th>
                     <th className={TH}>Total Time</th>
                     <th className={TH}>Watch</th>
@@ -517,6 +521,9 @@ export function CourseStudentPerformance() {
                             {student.email}
                           </div>
                         </div>
+                      </td>
+                      <td className="border border-gray-300 p-3 text-center">
+                        {student.attempt_count ?? 0}
                       </td>
                       <td className="border border-gray-300 p-3 text-center">
                         <span

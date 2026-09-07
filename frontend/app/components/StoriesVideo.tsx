@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useApiService } from "../services/api";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
+import { useRedoStory } from "../hooks/useRedoStory";
 import { CompletionMessage } from "./story-components/CompletionMessage";
+import { RedoStoryButton } from "./story-components/RedoStoryButton";
 import type { StoryMetadata } from "../services/api";
 import type { NavigationGuidanceResponse } from "../types/api";
 
@@ -32,6 +34,8 @@ export function StoriesVideo() {
   const [guidanceCache, setGuidanceCache] =
     useState<NavigationGuidanceResponse | null>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
+  const { redo, redoing, error: redoError } = useRedoStory(id);
+  const storyCompleted = guidanceCache?.nextPage === "score";
 
   useEffect(() => {
     const fetchMetadataAndGuidance = async () => {
@@ -103,7 +107,7 @@ export function StoriesVideo() {
             : metadata.title?.en || "Story"}
         </h1>
         <p>No video available for this story</p>
-        <div className="text-center">
+        <div className="text-center flex flex-col items-center gap-4">
           <button
             onClick={async () => {
               try {
@@ -121,6 +125,13 @@ export function StoriesVideo() {
             <span>Skip to {nextStepName}</span>
             <span className="material-icons ml-2">arrow_forward</span>
           </button>
+          {storyCompleted && (
+            <RedoStoryButton
+              onRedo={redo}
+              redoing={redoing}
+              error={redoError}
+            />
+          )}
         </div>
       </div>
     );
@@ -166,13 +177,22 @@ export function StoriesVideo() {
               exercises.
             </p>
           )}
-          <button
-            onClick={() => setVideoStarted(true)}
-            className="inline-flex items-center px-8 py-4 bg-secondary-500 text-white rounded-lg hover:bg-secondary-600 text-lg font-semibold transition-all duration-200 shadow-lg"
-          >
-            <span className="material-icons mr-2">play_arrow</span>
-            <span>Start video</span>
-          </button>
+          <div className="flex flex-col items-center gap-4">
+            <button
+              onClick={() => setVideoStarted(true)}
+              className="inline-flex items-center px-8 py-4 bg-secondary-500 text-white rounded-lg hover:bg-secondary-600 text-lg font-semibold transition-all duration-200 shadow-lg"
+            >
+              <span className="material-icons mr-2">play_arrow</span>
+              <span>Start video</span>
+            </button>
+            {storyCompleted && (
+              <RedoStoryButton
+                onRedo={redo}
+                redoing={redoing}
+                error={redoError}
+              />
+            )}
+          </div>
         </div>
       </>
     );
@@ -251,11 +271,22 @@ export function StoriesVideo() {
           )}
         </div>
         {canContinue ? (
-          <CompletionMessage
-            currentStepName="video"
-            nextStepName={nextStepName}
-            onContinue={goToNextStep}
-          />
+          <>
+            <CompletionMessage
+              currentStepName="video"
+              nextStepName={nextStepName}
+              onContinue={goToNextStep}
+            />
+            {storyCompleted && (
+              <div className="text-center -mt-4 mb-10">
+                <RedoStoryButton
+                  onRedo={redo}
+                  redoing={redoing}
+                  error={redoError}
+                />
+              </div>
+            )}
+          </>
         ) : (
           <div className="text-center m-10 p-6 bg-gray-50 rounded-xl border-2 border-yellow-400">
             <div className="flex items-start justify-center">

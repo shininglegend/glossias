@@ -1,25 +1,33 @@
 -- Recall phase queries: sentences and answer logs
 
 -- name: GetStoryRecallSentences :many
-SELECT id, story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket
+SELECT id, story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket, audio_path, audio_bucket
 FROM recall_sentences
 WHERE story_id = $1
 ORDER BY sequence_order;
 
+-- name: GetStoriesRecallSentences :many
+SELECT id, story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket, audio_path, audio_bucket
+FROM recall_sentences
+WHERE story_id = ANY(sqlc.arg(story_ids)::int[])
+ORDER BY story_id, sequence_order;
+
 -- name: GetRecallSentence :one
-SELECT id, story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket
+SELECT id, story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket, audio_path, audio_bucket
 FROM recall_sentences
 WHERE id = $1;
 
 -- name: UpsertRecallSentence :one
-INSERT INTO recall_sentences (story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO recall_sentences (story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket, audio_path, audio_bucket)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (story_id, sequence_order) DO UPDATE
 SET hebrew_text = EXCLUDED.hebrew_text,
     target_vocab_id = EXCLUDED.target_vocab_id,
     image_path = EXCLUDED.image_path,
-    image_bucket = EXCLUDED.image_bucket
-RETURNING id, story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket;
+    image_bucket = EXCLUDED.image_bucket,
+    audio_path = EXCLUDED.audio_path,
+    audio_bucket = EXCLUDED.audio_bucket
+RETURNING id, story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket, audio_path, audio_bucket;
 
 -- name: DeleteRecallSentence :exec
 DELETE FROM recall_sentences

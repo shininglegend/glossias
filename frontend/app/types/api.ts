@@ -111,7 +111,8 @@ export type ResetPhase =
   | "produce"
   | "recall"
   | "vocab"
-  | "grammar";
+  | "grammar"
+  | "exercises";
 
 export interface ResetProgressResult {
   phase: ResetPhase;

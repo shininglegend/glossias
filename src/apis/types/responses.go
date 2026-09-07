@@ -97,9 +97,11 @@ type CheckIdentifyResponse struct {
 // deliberately carries no position: the server shuffles the cards and the
 // student's job is to recover the order.
 type RecallCard struct {
-	ID         int    `json:"id"`
-	HebrewText string `json:"hebrew_text"`
-	ImageURL   string `json:"image_url,omitempty"`
+	ID         int           `json:"id"`
+	HebrewText string        `json:"hebrew_text"`
+	ImageURL   string        `json:"image_url,omitempty"`
+	AudioURLs  []string      `json:"audio_urls,omitempty"`
+	Text       []TextSegment `json:"text,omitempty"`
 }
 
 // RecallPageData is the payload for the Recall phase.
@@ -129,6 +131,19 @@ type CheckRecallRequest struct {
 type CheckRecallResponse struct {
 	Results    []bool `json:"results"`
 	AllCorrect bool   `json:"all_correct"`
+}
+
+// CheckRecallPickRequest is one sequential pick: the student claims SentenceID
+// is the sentence at 1-based Position in the story.
+type CheckRecallPickRequest struct {
+	SentenceID int `json:"sentence_id"`
+	Position   int `json:"position"`
+}
+
+// CheckRecallPickResponse reports whether that pick was the right sentence
+// for the asked position.
+type CheckRecallPickResponse struct {
+	Correct bool `json:"correct"`
 }
 
 // Line represents a story line in API responses
@@ -204,7 +219,7 @@ type TranslationPageData struct {
 type ProduceSegmentView struct {
 	ID               int    `json:"id"`
 	SegmentOrder     int    `json:"segment_order"`
-	ReferenceEnglish string `json:"reference_english"`
+	HebrewText       string `json:"hebrew_text"`
 	GrammarPointName string `json:"grammar_point_name,omitempty"`
 	// Slot locates the segment inside the story text so the page can show the
 	// surrounding Hebrew with the segment's place marked. Nil when the author
@@ -239,11 +254,15 @@ type StartProduceRequest struct {
 }
 
 // ProduceSubmissionView is the student's stored attempt at a segment, with the
-// reference revealed since the attempt is over.
+// instructor-supplied reference English revealed since the attempt is over.
 type ProduceSubmissionView struct {
-	SegmentID   int    `json:"segment_id"`
-	StudentText string `json:"student_text"`
-	HebrewText  string `json:"hebrew_text"`
+	SegmentID        int    `json:"segment_id"`
+	StudentText      string `json:"student_text"`
+	ReferenceEnglish string `json:"reference_english"`
+	AiScore          *int   `json:"ai_score,omitempty"`
+	AiFeedback       string `json:"ai_feedback,omitempty"`
+	// GradingFailed: grading gave up (error, quota, or disabled); no score is coming.
+	GradingFailed bool `json:"grading_failed,omitempty"`
 }
 
 // ProducePageData is the payload for the Produce phase.

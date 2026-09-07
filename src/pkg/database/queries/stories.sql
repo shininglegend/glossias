@@ -5,6 +5,14 @@ SELECT s.story_id, s.week_number, s.day_letter, s.video_url, s.last_revision, s.
 FROM stories s
 WHERE s.story_id = $1;
 
+-- GetStoriesVideoURLs is the video half of content readiness for many stories
+-- at once (admin GET /api/stories).
+-- name: GetStoriesVideoURLs :many
+SELECT story_id, video_url
+FROM stories
+WHERE story_id = ANY(sqlc.arg(story_ids)::int[])
+ORDER BY story_id;
+
 -- name: GetAllStories :many
 SELECT s.story_id, s.week_number, s.day_letter, s.video_url, s.last_revision, s.author_id, s.author_name, s.course_id
 FROM stories s

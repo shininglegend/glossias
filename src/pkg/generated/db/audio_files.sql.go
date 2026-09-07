@@ -229,6 +229,46 @@ func (q *Queries) GetLineAudioFiles(ctx context.Context, arg GetLineAudioFilesPa
 	return items, nil
 }
 
+const getStoriesAudioFilesByLabel = `-- name: GetStoriesAudioFilesByLabel :many
+SELECT laf.audio_file_id, laf.story_id, laf.line_number, laf.file_path, laf.file_bucket, laf.label, laf.created_at
+FROM line_audio_files laf
+WHERE laf.story_id = ANY($1::int[]) AND laf.label = $2
+ORDER BY laf.story_id, laf.line_number
+`
+
+type GetStoriesAudioFilesByLabelParams struct {
+	StoryIds []int32 `json:"story_ids"`
+	Label    string  `json:"label"`
+}
+
+func (q *Queries) GetStoriesAudioFilesByLabel(ctx context.Context, arg GetStoriesAudioFilesByLabelParams) ([]LineAudioFile, error) {
+	rows, err := q.db.Query(ctx, getStoriesAudioFilesByLabel, arg.StoryIds, arg.Label)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LineAudioFile{}
+	for rows.Next() {
+		var i LineAudioFile
+		if err := rows.Scan(
+			&i.AudioFileID,
+			&i.StoryID,
+			&i.LineNumber,
+			&i.FilePath,
+			&i.FileBucket,
+			&i.Label,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStoryAudioFilesByLabel = `-- name: GetStoryAudioFilesByLabel :many
 SELECT laf.audio_file_id, laf.story_id, laf.line_number, laf.file_path, laf.file_bucket, laf.label, laf.created_at
 FROM line_audio_files laf

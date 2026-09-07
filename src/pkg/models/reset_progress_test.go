@@ -31,11 +31,34 @@ func TestResetUserStoryProgress_AllUsesBatchQuery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := database.QueryCount(ctx); got > 2 {
-		t.Errorf("whole-story reset made %d queries, want <= 2 (batch CTE + time rows)", got)
+	if got := database.QueryCount(ctx); got > 3 {
+		t.Errorf("whole-story reset made %d queries, want <= 3 (batch CTE + time rows + attempts)", got)
 	}
 	if res.Deleted["recall_correct_answers"] != 7 || res.Deleted["identify_correct_answers"] != 5 {
 		t.Errorf("counts not mapped from batch row: %v", res.Deleted)
+	}
+	if _, ok := res.Deleted["time_tracking"]; !ok {
+		t.Errorf("expected time_tracking key: %v", res.Deleted)
+	}
+}
+
+func TestResetUserStoryExercises_ClearsAnswersNotVideoTime(t *testing.T) {
+	mockDB := database.NewMockDBTX()
+	mockDB.StubQuery("ResetUserStoryAnswers", [][]any{{
+		int64(1), int64(2), int64(3), int64(4), int64(1), int64(5), int64(6), int64(2), int64(2), int64(7), int64(8),
+	}}, nil)
+	SetDB(mockDB)
+	defer SetDB(struct{}{})
+
+	res, err := ResetUserStoryExercises(context.Background(), "u1", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Phase != ResetPhase("exercises") {
+		t.Errorf("phase = %q, want exercises", res.Phase)
+	}
+	if res.Deleted["identify_correct_answers"] != 5 {
+		t.Errorf("identify answers not mapped: %v", res.Deleted)
 	}
 	if _, ok := res.Deleted["time_tracking"]; !ok {
 		t.Errorf("expected time_tracking key: %v", res.Deleted)

@@ -63,16 +63,18 @@ func toPgInt4(v *int) pgtype.Int4 {
 // the attempt is ungraded — including when grading failed, so that a grading
 // outage never blocks the student.
 type ProduceSubmission struct {
-	ID           int        `json:"id"`
-	UserID       string     `json:"userId"`
-	StoryID      int        `json:"storyId"`
-	SegmentID    int        `json:"segmentId"`
-	SegmentOrder int        `json:"segmentOrder,omitempty"`
-	StudentText  string     `json:"studentText"`
-	AiScore      *int       `json:"aiScore,omitempty"`
-	AiFeedback   string     `json:"aiFeedback,omitempty"`
-	GradedAt     *time.Time `json:"gradedAt,omitempty"`
-	CreatedAt    *time.Time `json:"createdAt,omitempty"`
+	ID               int        `json:"id"`
+	UserID           string     `json:"userId"`
+	StoryID          int        `json:"storyId"`
+	SegmentID        int        `json:"segmentId"`
+	SegmentOrder     int        `json:"segmentOrder,omitempty"`
+	StudentText      string     `json:"studentText"`
+	HebrewText       string     `json:"hebrewText,omitempty"`
+	ReferenceEnglish string     `json:"referenceEnglish,omitempty"`
+	AiScore          *int       `json:"aiScore,omitempty"`
+	AiFeedback       string     `json:"aiFeedback,omitempty"`
+	GradedAt         *time.Time `json:"gradedAt,omitempty"`
+	CreatedAt        *time.Time `json:"createdAt,omitempty"`
 }
 
 // ProduceSummary aggregates a user's latest submission per segment for scoring.
@@ -365,6 +367,19 @@ func CreateProduceSubmission(ctx context.Context, userID string, storyID, segmen
 	return submission, nil
 }
 
+// MarkProduceGradingFailed records that grading will not produce a score.
+func MarkProduceGradingFailed(ctx context.Context, submissionID int) error {
+	if queries == nil {
+		return errors.New("database not initialized")
+	}
+	return queries.MarkProduceGradingFailed(ctx, int32(submissionID))
+}
+
+// GradingFailed is true once grading gave up without a score.
+func (s ProduceSubmission) GradingFailed() bool {
+	return s.AiScore == nil && s.GradedAt != nil
+}
+
 // GradeProduceSubmission attaches an AI score and feedback to a submission.
 func GradeProduceSubmission(ctx context.Context, submissionID, score int, feedback string) error {
 	if queries == nil {
@@ -396,13 +411,15 @@ func GetUserStoryProduceSubmissions(ctx context.Context, userID string, storyID 
 	submissions := make([]ProduceSubmission, 0, len(rows))
 	for _, row := range rows {
 		submission := ProduceSubmission{
-			ID:           int(row.ID),
-			UserID:       row.UserID,
-			StoryID:      int(row.StoryID),
-			SegmentID:    int(row.SegmentID),
-			SegmentOrder: int(row.SegmentOrder),
-			StudentText:  row.StudentText,
-			AiFeedback:   row.AiFeedback.String,
+			ID:               int(row.ID),
+			UserID:           row.UserID,
+			StoryID:          int(row.StoryID),
+			SegmentID:        int(row.SegmentID),
+			SegmentOrder:     int(row.SegmentOrder),
+			StudentText:      row.StudentText,
+			HebrewText:       row.HebrewText,
+			ReferenceEnglish: row.ReferenceEnglish,
+			AiFeedback:       row.AiFeedback.String,
 		}
 		if row.AiScore.Valid {
 			score := int(row.AiScore.Int32)

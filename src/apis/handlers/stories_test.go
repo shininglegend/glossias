@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func TestGetCourseStories(t *testing.T) {
@@ -116,4 +117,108 @@ func TestGetCourseStories(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetStories(t *testing.T) {
+	logger := slog.New(slog.DiscardHandler)
+	h := NewHandler(logger, nil)
+
+	storyRows := [][]any{
+		{int32(1), int32(1), "A", "Story 1", pgtype.Int4{}},
+		{int32(2), int32(1), "B", "Story 2", pgtype.Int4{}},
+		{int32(3), int32(2), "A", "Story 3", pgtype.Int4{}},
+	}
+
+	t.Run("student skips readiness", func(t *testing.T) {
+		mockDB := database.NewMockDBTX()
+		mockDB.StubQuery("GetAllStoriesForUser", storyRows, nil)
+		mockDB.StubQuery("name: GetUser :one", [][]any{{
+			"user-1", "u@example.com", "User", pgtype.Bool{Bool: false, Valid: true}, pgtype.Timestamp{}, pgtype.Timestamp{},
+		}}, nil)
+		mockDB.StubQuery("IsUserAdminOfAnyCourse", [][]any{{false}}, nil)
+		models.SetDB(mockDB)
+		t.Cleanup(func() { models.SetDB(struct{}{}) })
+
+		req := httptest.NewRequest("GET", "/api/stories", nil)
+		req = req.WithContext(context.WithValue(req.Context(), auth.UserIDKey, "user-1"))
+
+		// List + GetUser + course-admin check; no per-story readiness.
+		rr := assertQueryBudget(t, 3, h.GetStories, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status %d", rr.Code)
+		}
+		stories := decodeStories(t, rr)
+		if len(stories) != 3 {
+			t.Fatalf("got %d stories, want 3", len(stories))
+		}
+		for _, story := range stories {
+			if len(story.MissingPhases) != 0 {
+				t.Errorf("student saw missing_phases on story %d: %v", story.ID, story.MissingPhases)
+			}
+		}
+	})
+
+	t.Run("admin readiness is batched", func(t *testing.T) {
+		mockDB := database.NewMockDBTX()
+		mockDB.StubQuery("GetAllStoriesForUser", storyRows, nil)
+		mockDB.StubQuery("name: GetUser :one", [][]any{{
+			"admin-1", "a@example.com", "Admin", pgtype.Bool{Bool: true, Valid: true}, pgtype.Timestamp{}, pgtype.Timestamp{},
+		}}, nil)
+		stubStoryReadinessQueries(mockDB, []int32{1, 2, 3})
+		models.SetDB(mockDB)
+		t.Cleanup(func() { models.SetDB(struct{}{}) })
+
+		req := httptest.NewRequest("GET", "/api/stories", nil)
+		req = req.WithContext(context.WithValue(req.Context(), auth.UserIDKey, "admin-1"))
+
+		// List + super-admin GetUser + 8 batched readiness queries, independent of story count.
+		rr := assertQueryBudget(t, 10, h.GetStories, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status %d", rr.Code)
+		}
+		stories := decodeStories(t, rr)
+		if len(stories) != 3 {
+			t.Fatalf("got %d stories, want 3", len(stories))
+		}
+		for _, story := range stories {
+			if len(story.MissingPhases) == 0 {
+				t.Errorf("admin expected missing_phases on incomplete story %d", story.ID)
+			}
+		}
+	})
+}
+
+func stubStoryReadinessQueries(mockDB *database.MockDBTX, storyIDs []int32) {
+	videoRows := make([][]any, len(storyIDs))
+	for i, id := range storyIDs {
+		videoRows[i] = []any{id, pgtype.Text{}}
+	}
+	mockDB.StubQuery("name: GetStoriesVideoURLs", videoRows, nil)
+	mockDB.StubQuery("name: GetStoriesTargetVocabulary", nil, nil)
+	mockDB.StubQuery("name: GetStoriesLexicalFormCounts", nil, nil)
+	mockDB.StubQuery("name: GetStoriesProduceSegments", nil, nil)
+	mockDB.StubQuery("name: GetStoriesProduceExplanations", nil, nil)
+	mockDB.StubQuery("name: GetStoriesRecallSentences", nil, nil)
+	mockDB.StubQuery("name: GetStoriesLines", nil, nil)
+	mockDB.StubQuery("name: GetStoriesAudioFilesByLabel", nil, nil)
+}
+
+func decodeStories(t *testing.T, rr *httptest.ResponseRecorder) []types.Story {
+	t.Helper()
+	var resp types.APIResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if !resp.Success {
+		t.Fatalf("expected success, got %#v", resp)
+	}
+	raw, err := json.Marshal(resp.Data)
+	if err != nil {
+		t.Fatalf("marshal data: %v", err)
+	}
+	var payload types.StoriesResponse
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("unmarshal stories: %v", err)
+	}
+	return payload.Stories
 }

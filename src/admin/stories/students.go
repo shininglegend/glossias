@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"strconv"
 
 	"glossias/src/apis/types"
 	"glossias/src/auth"
@@ -57,7 +58,17 @@ func (h *Handler) storyStudentDrilldownHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	drilldown, err := models.GetStudentStoryDrilldown(r.Context(), int32(storyID), studentID)
+	attemptNumber := 1
+	if raw := r.URL.Query().Get("attempt"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 {
+			writeJSONError(w, "Invalid attempt parameter", http.StatusBadRequest)
+			return
+		}
+		attemptNumber = n
+	}
+
+	drilldown, err := models.GetStudentStoryDrilldown(r.Context(), int32(storyID), studentID, attemptNumber)
 	if err != nil {
 		if errors.Is(err, models.ErrNotFound) {
 			writeJSONError(w, "Student not found", http.StatusNotFound)

@@ -17,7 +17,7 @@ interface AssetSlotProps {
 /**
  * One upload slot for a phase asset: pick a file to replace what is there, or
  * clear it. Used for a target word's pronunciation and picture and for a recall
- * sentence's picture, all of which are stored as a path on the owning row.
+ * sentence's picture or audio, all of which are stored as a path on the owning row.
  */
 export default function AssetSlot({
   label,

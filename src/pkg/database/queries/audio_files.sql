@@ -22,6 +22,12 @@ FROM line_audio_files laf
 WHERE laf.story_id = $1 AND laf.label = $2
 ORDER BY laf.line_number;
 
+-- name: GetStoriesAudioFilesByLabel :many
+SELECT laf.audio_file_id, laf.story_id, laf.line_number, laf.file_path, laf.file_bucket, laf.label, laf.created_at
+FROM line_audio_files laf
+WHERE laf.story_id = ANY(sqlc.arg(story_ids)::int[]) AND laf.label = sqlc.arg(label)
+ORDER BY laf.story_id, laf.line_number;
+
 -- name: GetAllStoryAudioFiles :many
 SELECT audio_file_id, story_id, line_number, file_path, file_bucket, label, created_at
 FROM line_audio_files

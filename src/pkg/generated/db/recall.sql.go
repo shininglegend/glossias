@@ -95,7 +95,7 @@ func (q *Queries) GetAllUsersStoryRecallSummary(ctx context.Context, storyID int
 }
 
 const getRecallSentence = `-- name: GetRecallSentence :one
-SELECT id, story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket
+SELECT id, story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket, audio_path, audio_bucket
 FROM recall_sentences
 WHERE id = $1
 `
@@ -108,6 +108,8 @@ type GetRecallSentenceRow struct {
 	TargetVocabID pgtype.Int4 `json:"target_vocab_id"`
 	ImagePath     pgtype.Text `json:"image_path"`
 	ImageBucket   pgtype.Text `json:"image_bucket"`
+	AudioPath     pgtype.Text `json:"audio_path"`
+	AudioBucket   pgtype.Text `json:"audio_bucket"`
 }
 
 func (q *Queries) GetRecallSentence(ctx context.Context, id int32) (GetRecallSentenceRow, error) {
@@ -121,13 +123,64 @@ func (q *Queries) GetRecallSentence(ctx context.Context, id int32) (GetRecallSen
 		&i.TargetVocabID,
 		&i.ImagePath,
 		&i.ImageBucket,
+		&i.AudioPath,
+		&i.AudioBucket,
 	)
 	return i, err
 }
 
+const getStoriesRecallSentences = `-- name: GetStoriesRecallSentences :many
+SELECT id, story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket, audio_path, audio_bucket
+FROM recall_sentences
+WHERE story_id = ANY($1::int[])
+ORDER BY story_id, sequence_order
+`
+
+type GetStoriesRecallSentencesRow struct {
+	ID            int32       `json:"id"`
+	StoryID       int32       `json:"story_id"`
+	SequenceOrder int32       `json:"sequence_order"`
+	HebrewText    string      `json:"hebrew_text"`
+	TargetVocabID pgtype.Int4 `json:"target_vocab_id"`
+	ImagePath     pgtype.Text `json:"image_path"`
+	ImageBucket   pgtype.Text `json:"image_bucket"`
+	AudioPath     pgtype.Text `json:"audio_path"`
+	AudioBucket   pgtype.Text `json:"audio_bucket"`
+}
+
+func (q *Queries) GetStoriesRecallSentences(ctx context.Context, storyIds []int32) ([]GetStoriesRecallSentencesRow, error) {
+	rows, err := q.db.Query(ctx, getStoriesRecallSentences, storyIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetStoriesRecallSentencesRow{}
+	for rows.Next() {
+		var i GetStoriesRecallSentencesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.StoryID,
+			&i.SequenceOrder,
+			&i.HebrewText,
+			&i.TargetVocabID,
+			&i.ImagePath,
+			&i.ImageBucket,
+			&i.AudioPath,
+			&i.AudioBucket,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStoryRecallSentences = `-- name: GetStoryRecallSentences :many
 
-SELECT id, story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket
+SELECT id, story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket, audio_path, audio_bucket
 FROM recall_sentences
 WHERE story_id = $1
 ORDER BY sequence_order
@@ -141,6 +194,8 @@ type GetStoryRecallSentencesRow struct {
 	TargetVocabID pgtype.Int4 `json:"target_vocab_id"`
 	ImagePath     pgtype.Text `json:"image_path"`
 	ImageBucket   pgtype.Text `json:"image_bucket"`
+	AudioPath     pgtype.Text `json:"audio_path"`
+	AudioBucket   pgtype.Text `json:"audio_bucket"`
 }
 
 // Recall phase queries: sentences and answer logs
@@ -161,6 +216,8 @@ func (q *Queries) GetStoryRecallSentences(ctx context.Context, storyID int32) ([
 			&i.TargetVocabID,
 			&i.ImagePath,
 			&i.ImageBucket,
+			&i.AudioPath,
+			&i.AudioBucket,
 		); err != nil {
 			return nil, err
 		}
@@ -279,14 +336,16 @@ func (q *Queries) SaveRecallIncorrectAnswer(ctx context.Context, arg SaveRecallI
 }
 
 const upsertRecallSentence = `-- name: UpsertRecallSentence :one
-INSERT INTO recall_sentences (story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO recall_sentences (story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket, audio_path, audio_bucket)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (story_id, sequence_order) DO UPDATE
 SET hebrew_text = EXCLUDED.hebrew_text,
     target_vocab_id = EXCLUDED.target_vocab_id,
     image_path = EXCLUDED.image_path,
-    image_bucket = EXCLUDED.image_bucket
-RETURNING id, story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket
+    image_bucket = EXCLUDED.image_bucket,
+    audio_path = EXCLUDED.audio_path,
+    audio_bucket = EXCLUDED.audio_bucket
+RETURNING id, story_id, sequence_order, hebrew_text, target_vocab_id, image_path, image_bucket, audio_path, audio_bucket
 `
 
 type UpsertRecallSentenceParams struct {
@@ -296,6 +355,8 @@ type UpsertRecallSentenceParams struct {
 	TargetVocabID pgtype.Int4 `json:"target_vocab_id"`
 	ImagePath     pgtype.Text `json:"image_path"`
 	ImageBucket   pgtype.Text `json:"image_bucket"`
+	AudioPath     pgtype.Text `json:"audio_path"`
+	AudioBucket   pgtype.Text `json:"audio_bucket"`
 }
 
 type UpsertRecallSentenceRow struct {
@@ -306,6 +367,8 @@ type UpsertRecallSentenceRow struct {
 	TargetVocabID pgtype.Int4 `json:"target_vocab_id"`
 	ImagePath     pgtype.Text `json:"image_path"`
 	ImageBucket   pgtype.Text `json:"image_bucket"`
+	AudioPath     pgtype.Text `json:"audio_path"`
+	AudioBucket   pgtype.Text `json:"audio_bucket"`
 }
 
 func (q *Queries) UpsertRecallSentence(ctx context.Context, arg UpsertRecallSentenceParams) (UpsertRecallSentenceRow, error) {
@@ -316,6 +379,8 @@ func (q *Queries) UpsertRecallSentence(ctx context.Context, arg UpsertRecallSent
 		arg.TargetVocabID,
 		arg.ImagePath,
 		arg.ImageBucket,
+		arg.AudioPath,
+		arg.AudioBucket,
 	)
 	var i UpsertRecallSentenceRow
 	err := row.Scan(
@@ -326,6 +391,8 @@ func (q *Queries) UpsertRecallSentence(ctx context.Context, arg UpsertRecallSent
 		&i.TargetVocabID,
 		&i.ImagePath,
 		&i.ImageBucket,
+		&i.AudioPath,
+		&i.AudioBucket,
 	)
 	return i, err
 }

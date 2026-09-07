@@ -45,17 +45,32 @@ class FakeAudio extends EventTarget {
     if (!a) throw new Error(`no audio for line ${lineNumber}`);
     return a;
   }
+
+  static bySentence(id: number): FakeAudio {
+    const a = FakeAudio.instances.find((i) => i.src === `sent-${id}`);
+    if (!a) throw new Error(`no sentence audio ${id}`);
+    return a;
+  }
 }
 
 // ---- Fixtures -------------------------------------------------------------
 
 /** Correct story order is 1,2,3,4,5; the server hands them out shuffled. */
 const SENTENCES = [
-  { id: 3, hebrew_text: "שלוש", image_url: "img-3" },
-  { id: 1, hebrew_text: "אחת", image_url: "img-1" },
-  { id: 5, hebrew_text: "חמש" },
-  { id: 2, hebrew_text: "שתיים", image_url: "img-2" },
-  { id: 4, hebrew_text: "ארבע", image_url: "img-4" },
+  {
+    id: 3,
+    hebrew_text: "שלוש",
+    image_url: "img-3",
+    audio_urls: ["sent-3"],
+    text: [
+      { type: "text" as const, text: "ש" },
+      { type: "target" as const, text: "לוש", target_vocab_id: 3 },
+    ],
+  },
+  { id: 1, hebrew_text: "אחת", image_url: "img-1", audio_urls: ["sent-1"] },
+  { id: 5, hebrew_text: "חמש", audio_urls: ["sent-5"] },
+  { id: 2, hebrew_text: "שתיים", image_url: "img-2", audio_urls: ["sent-2"] },
+  { id: 4, hebrew_text: "ארבע", image_url: "img-4", audio_urls: ["sent-4"] },
 ];
 
 const makePageData = (overrides: Partial<RecallData> = {}): RecallData => ({
@@ -70,23 +85,22 @@ const makePageData = (overrides: Partial<RecallData> = {}): RecallData => ({
   ...overrides,
 });
 
-/** Grades against the true order 1..5. */
+/** Grades against the true order 1..5 (sentence id === position). */
 const gradeLocally = () =>
-  vi.fn(async (ids: number[]) => {
-    const results = ids.map((id, i) => id === i + 1);
-    return { results, all_correct: results.every(Boolean) };
-  });
+  vi.fn(async (sentenceId: number, position: number) => ({
+    correct: sentenceId === position,
+  }));
 
 const setup = async (
   pageOverrides: Partial<RecallData> = {},
-  onCheckOrder = gradeLocally(),
+  onCheckPick = gradeLocally(),
 ) => {
   const onContinue = vi.fn();
   const utils = render(
     <RecallSession
       pageData={makePageData(pageOverrides)}
       nextStepName="Score"
-      onCheckOrder={onCheckOrder}
+      onCheckPick={onCheckPick}
       onContinue={onContinue}
     />,
   );
@@ -94,7 +108,7 @@ const setup = async (
     FakeAudio.instances.forEach((a) => a.ready());
     await Promise.resolve();
   });
-  return { ...utils, onCheckOrder, onContinue };
+  return { ...utils, onCheckPick, onContinue };
 };
 
 const endLine = async (lineNumber: number) => {
@@ -115,20 +129,11 @@ const listenThrough = async () => {
 const cardOrder = () =>
   within(screen.getByTestId("recall-cards"))
     .getAllByRole("listitem")
-    .map((li) => Number(li.dataset.testid?.replace("recall-card-", "")));
+    .map((el) => Number(el.dataset.testid?.replace("recall-card-", "")));
 
-const moveUp = (position: number) =>
-  fireEvent.click(
-    screen.getByRole("button", { name: `Move sentence ${position} up` }),
-  );
-const moveDown = (position: number) =>
-  fireEvent.click(
-    screen.getByRole("button", { name: `Move sentence ${position} down` }),
-  );
-
-const submit = async () => {
+const pickCard = async (id: number) => {
   await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: /check order/i }));
+    fireEvent.click(screen.getByTestId(`recall-card-${id}`));
   });
 };
 
@@ -307,70 +312,67 @@ describe("RecallSession", () => {
     expect(FakeAudio.byLine(1).playCalls).toBe(1);
   });
 
-  it("shows the cards in server order and lets the student reorder them", async () => {
+  it("shows the cards in server order as 3:4 boxes and does not move them", async () => {
     await setup();
     await listenThrough();
 
     expect(cardOrder()).toEqual([3, 1, 5, 2, 4]);
-    // Four of the five cards have a picture (decorative, so not role="img").
+    expect(screen.getByTestId("recall-prompt")).toHaveTextContent(
+      "Select the box that occurs first in the story.",
+    );
     expect(
       screen.getByTestId("recall-cards").querySelectorAll("img"),
     ).toHaveLength(4);
+    expect(screen.getByTestId("recall-card-3")).toHaveClass("aspect-[3/4]");
+    expect(screen.getByText("לוש")).toHaveClass("target-word");
+    expect(screen.getByText("לוש")).not.toHaveClass("underline");
 
-    moveUp(2); // 1 to the top
-    expect(cardOrder()).toEqual([1, 3, 5, 2, 4]);
-    moveDown(2); // 3 down one
-    expect(cardOrder()).toEqual([1, 5, 3, 2, 4]);
-
-    // Bounds are enforced.
-    expect(
-      screen.getByRole("button", { name: "Move sentence 1 up" }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Move sentence 5 down" }),
-    ).toBeDisabled();
+    await pickCard(3);
+    expect(cardOrder()).toEqual([3, 1, 5, 2, 4]);
   });
 
-  it("marks wrong positions, counts the attempt, and completes on a correct order", async () => {
-    const { onCheckOrder, onContinue } = await setup();
+  it("marks wrong picks red, then clears them on a correct pick and plays audio", async () => {
+    const { onCheckPick, onContinue } = await setup();
     await listenThrough();
 
-    // First attempt: server order, only nothing is right.
-    await submit();
-    expect(onCheckOrder).toHaveBeenCalledWith([3, 1, 5, 2, 4]);
-    expect(screen.getByTestId("recall-feedback")).toHaveTextContent(
-      "0 of 5 in the right place",
-    );
-    expect(screen.getByTestId("recall-attempts")).toHaveTextContent("1");
+    await pickCard(3);
+    expect(onCheckPick).toHaveBeenCalledWith(3, 1);
     expect(screen.getByTestId("recall-card-3")).toHaveAttribute(
       "data-result",
       "wrong",
     );
-    expect(screen.queryByText(/great job/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId("recall-card-3")).toHaveClass("border-red-400");
+    expect(screen.getByTestId("recall-attempts")).toHaveTextContent("1");
+    expect(screen.getByTestId("recall-prompt")).toHaveTextContent("first");
 
-    // Fix it: 3,1,5,2,4 → 1,2,3,4,5
-    moveUp(2); // 1,3,5,2,4
-    moveUp(4); // 1,3,2,5,4
-    moveUp(3); // 1,2,3,5,4
-    moveUp(5); // 1,2,3,4,5
-    expect(cardOrder()).toEqual([1, 2, 3, 4, 5]);
-    // Moving a card clears the stale markers.
-    expect(screen.queryByTestId("recall-feedback")).not.toBeInTheDocument();
-
-    await submit();
-    expect(onCheckOrder).toHaveBeenLastCalledWith([1, 2, 3, 4, 5]);
-    expect(screen.getByText(/great job/i)).toBeInTheDocument();
+    await pickCard(1);
+    expect(onCheckPick).toHaveBeenLastCalledWith(1, 1);
+    expect(screen.getByTestId("recall-card-3")).toHaveAttribute(
+      "data-result",
+      "pending",
+    );
     expect(screen.getByTestId("recall-card-1")).toHaveAttribute(
       "data-result",
       "correct",
     );
-    // Locked: no more reordering or checking.
-    expect(
-      screen.queryByRole("button", { name: /check order/i }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /move sentence/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("recall-card-1")).toHaveClass("border-green-500");
+    expect(screen.getByTestId("recall-card-1")).toBeDisabled();
+    expect(FakeAudio.bySentence(1).playCalls).toBe(1);
+    expect(screen.getByTestId("recall-prompt")).toHaveTextContent(
+      "Select the box that occurs second in the story.",
+    );
+
+    await pickCard(2);
+    await pickCard(3);
+    await pickCard(4);
+    await pickCard(5);
+    expect(screen.getByText(/great job/i)).toBeInTheDocument();
+    expect(screen.getByTestId("recall-card-5")).toHaveAttribute(
+      "data-result",
+      "correct",
+    );
+    expect(FakeAudio.bySentence(5).playCalls).toBe(1);
+    expect(cardOrder()).toEqual([3, 1, 5, 2, 4]);
 
     fireEvent.click(screen.getByRole("button", { name: /continue to score/i }));
     expect(onContinue).toHaveBeenCalled();
@@ -381,10 +383,10 @@ describe("RecallSession", () => {
     await setup({}, failing);
     await listenThrough();
 
-    await submit();
+    await pickCard(1);
     expect(screen.getByRole("alert")).toHaveTextContent(/couldn't check/i);
     expect(screen.queryByTestId("recall-attempts")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /check order/i })).toBeEnabled();
+    expect(screen.getByTestId("recall-card-1")).toBeEnabled();
   });
 
   it("opens finished when the server says the phase is complete", async () => {
@@ -392,15 +394,39 @@ describe("RecallSession", () => {
     expect(screen.queryByTestId("recall-listening")).not.toBeInTheDocument();
     expect(screen.getByTestId("recall-already-complete")).toBeInTheDocument();
     expect(screen.getByText(/great job/i)).toBeInTheDocument();
+    expect(screen.getByTestId("recall-card-1")).toHaveAttribute(
+      "data-result",
+      "correct",
+    );
+    expect(screen.getByTestId("recall-card-1")).toBeDisabled();
+  });
+
+  it("plays chained sentence clips in order after a correct pick", async () => {
+    const sentences = SENTENCES.map((s) =>
+      s.id === 1 ? { ...s, audio_urls: ["sent-1a", "sent-1b"] } : s,
+    );
+    await setup({ audio_urls: {}, line_count: 0, sentences });
+
+    await pickCard(1);
+    expect(FakeAudio.instances.map((a) => a.src)).toContain("sent-1a");
+    expect(FakeAudio.instances.map((a) => a.src)).not.toContain("sent-1b");
+
+    await act(async () => {
+      const first = FakeAudio.instances.find((a) => a.src === "sent-1a");
+      first?.end();
+      await Promise.resolve();
+    });
+    expect(FakeAudio.instances.map((a) => a.src)).toContain("sent-1b");
     expect(
-      screen.queryByRole("button", { name: /check order/i }),
-    ).not.toBeInTheDocument();
+      FakeAudio.instances.find((a) => a.src === "sent-1b")?.playCalls,
+    ).toBe(1);
   });
 
   it("skips listening when there is no narration", async () => {
     await setup({ audio_urls: {}, line_count: 0 });
     expect(screen.queryByTestId("recall-listening")).not.toBeInTheDocument();
     expect(screen.getByTestId("recall-cards")).toBeInTheDocument();
+    expect(screen.getByTestId("recall-prompt")).toHaveTextContent("first");
   });
 
   it("finishes after listening when the story has no recall sentences", async () => {

@@ -352,6 +352,40 @@ func (q *Queries) GetStoriesForUserCourses(ctx context.Context, userID string) (
 	return items, nil
 }
 
+const getStoriesVideoURLs = `-- name: GetStoriesVideoURLs :many
+SELECT story_id, video_url
+FROM stories
+WHERE story_id = ANY($1::int[])
+ORDER BY story_id
+`
+
+type GetStoriesVideoURLsRow struct {
+	StoryID  int32       `json:"story_id"`
+	VideoUrl pgtype.Text `json:"video_url"`
+}
+
+// GetStoriesVideoURLs is the video half of content readiness for many stories
+// at once (admin GET /api/stories).
+func (q *Queries) GetStoriesVideoURLs(ctx context.Context, storyIds []int32) ([]GetStoriesVideoURLsRow, error) {
+	rows, err := q.db.Query(ctx, getStoriesVideoURLs, storyIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetStoriesVideoURLsRow{}
+	for rows.Next() {
+		var i GetStoriesVideoURLsRow
+		if err := rows.Scan(&i.StoryID, &i.VideoUrl); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStory = `-- name: GetStory :one
 
 SELECT s.story_id, s.week_number, s.day_letter, s.video_url, s.last_revision, s.author_id, s.author_name, s.course_id

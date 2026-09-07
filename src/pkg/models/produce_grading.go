@@ -66,11 +66,14 @@ func NewProduceGradingService(grader ProduceGrader, logger *slog.Logger) *Produc
 // (grading disabled) is safe to call.
 func (s *ProduceGradingService) Enqueue(userID string, submission ProduceSubmission, segment ProduceSegment) {
 	if s == nil {
+		// Grading disabled: stamp it so the student is not left waiting.
+		_ = MarkProduceGradingFailed(context.Background(), submission.ID)
 		return
 	}
 	if !s.quota.allow(userID, s.now()) {
 		s.log.Warn("Produce grading quota exceeded; leaving submission ungraded",
 			"userID", userID, "submissionID", submission.ID)
+		s.markFailed(submission.ID)
 		return
 	}
 
@@ -81,11 +84,20 @@ func (s *ProduceGradingService) Enqueue(userID string, submission ProduceSubmiss
 		ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 		defer cancel()
 		if err := s.grade(ctx, submission, segment); err != nil {
-			// Fail open: log and leave ai_score NULL.
+			// Fail open: log, leave ai_score NULL, stamp graded_at as failed.
 			s.log.Error("Produce grading failed; submission left ungraded",
 				"error", err, "userID", userID, "submissionID", submission.ID, "segmentID", segment.ID)
+			s.markFailed(submission.ID)
 		}
 	})
+}
+
+func (s *ProduceGradingService) markFailed(submissionID int) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := MarkProduceGradingFailed(ctx, submissionID); err != nil {
+		s.log.Error("Failed to mark produce grading as failed", "error", err, "submissionID", submissionID)
+	}
 }
 
 // Close waits for in-flight grading to finish.

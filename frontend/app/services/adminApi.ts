@@ -479,6 +479,7 @@ export function useAdminApi() {
           hebrewText: string;
           targetVocabId?: number;
           imagePath?: string;
+          audioPath?: string;
         },
         baseUrl?: string,
       ): Json<RecallSentence> => {

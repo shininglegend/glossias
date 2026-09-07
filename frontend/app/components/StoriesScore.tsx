@@ -2,6 +2,9 @@ import { useState, useEffect, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useApiService } from "../services/api";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
+import { useRedoStory } from "../hooks/useRedoStory";
+import { RedoStoryButton } from "./story-components/RedoStoryButton";
+import { ProduceMoreDetailsButton } from "./story-components/ProduceFeedbackModal";
 import confetti from "canvas-confetti";
 
 interface ScoreData {
@@ -18,6 +21,14 @@ interface ScoreData {
   produce_segments_submitted: number;
   produce_segments_graded: number;
   produce_total: number;
+  produce_segments?: {
+    segment_order: number;
+    hebrew_text?: string;
+    reference_english?: string;
+    student_text: string;
+    ai_score?: number | null;
+    ai_feedback?: string;
+  }[];
 
   recall_accuracy: number;
   recall_correct_count: number;
@@ -25,13 +36,10 @@ interface ScoreData {
   recall_attempts: number;
   recall_total: number;
 
-  // Legacy phases (stories authored before the five-phase flow).
+  // Legacy Vocabulary (stories authored before the five-phase flow).
   vocab_accuracy: number;
   vocab_correct_count: number;
   vocab_incorrect_count: number;
-  grammar_accuracy: number;
-  grammar_correct_count: number;
-  grammar_incorrect_count: number;
 
   video_time_seconds: number;
   identify_time_seconds: number;
@@ -39,7 +47,6 @@ interface ScoreData {
   produce_time_seconds: number;
   recall_time_seconds: number;
   vocab_time_seconds: number;
-  grammar_time_seconds: number;
 }
 
 interface MissingActivity {
@@ -62,7 +69,6 @@ const ACTIVITY_ICONS: Record<string, string> = {
   produce: "edit_note",
   recall: "low_priority",
   vocab: "quiz",
-  grammar: "school",
 };
 
 function fireConfetti() {
@@ -112,9 +118,16 @@ function scoreTextClass(score: number): string {
 }
 
 function scoreBarClass(score: number): string {
-  if (score >= 80) return "bg-green-500";
+  if (score >= 80) return "bg-green-600";
   if (score >= 60) return "bg-secondary-500";
   return "bg-red-500";
+}
+
+function scoreBorderClass(score: number | null): string {
+  if (score === null) return "border-gray-300";
+  if (score >= 80) return "border-green-500";
+  if (score >= 60) return "border-secondary-400";
+  return "border-red-400";
 }
 
 interface PhaseCardProps {
@@ -128,32 +141,13 @@ interface PhaseCardProps {
   children?: ReactNode;
 }
 
+// Phase colour is only for the name and icon; the border and bar follow the score.
 const COLOURS = {
-  primary: {
-    border: "border-primary-200",
-    icon: "text-primary-600",
-    title: "text-primary-900",
-  },
-  purple: {
-    border: "border-purple-200",
-    icon: "text-purple-600",
-    title: "text-purple-900",
-  },
-  teal: {
-    border: "border-teal-200",
-    icon: "text-teal-600",
-    title: "text-teal-900",
-  },
-  orange: {
-    border: "border-orange-200",
-    icon: "text-orange-600",
-    title: "text-orange-900",
-  },
-  gray: {
-    border: "border-gray-300",
-    icon: "text-gray-600",
-    title: "text-gray-800",
-  },
+  primary: { icon: "text-primary-600", title: "text-primary-900" },
+  purple: { icon: "text-purple-600", title: "text-purple-900" },
+  teal: { icon: "text-teal-600", title: "text-teal-900" },
+  orange: { icon: "text-orange-600", title: "text-orange-900" },
+  gray: { icon: "text-gray-600", title: "text-gray-800" },
 } as const;
 
 function PhaseCard({
@@ -167,7 +161,9 @@ function PhaseCard({
 }: PhaseCardProps) {
   const c = COLOURS[colour];
   return (
-    <div className={`bg-white border-2 ${c.border} rounded-lg p-6`}>
+    <div
+      className={`bg-white border-2 ${scoreBorderClass(score)} rounded-lg p-6`}
+    >
       <div className="flex items-center mb-4">
         <span className={`material-icons ${c.icon} mr-3 text-2xl`}>{icon}</span>
         <h3 className={`text-xl font-bold ${c.title}`}>{title}</h3>
@@ -191,10 +187,11 @@ function PhaseCard({
           <span className="text-lg font-medium">{formatTime(timeSeconds)}</span>
         </div>
         {score !== null && (
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="w-full bg-red-100 rounded-full h-2">
             <div
               className={`h-2 rounded-full ${scoreBarClass(score)}`}
-              style={{ width: `${Math.min(100, Math.max(0, score))}%` }}
+              // Floor at 3% so a 0% bar still reads as "empty", not blank.
+              style={{ width: `${Math.min(100, Math.max(3, score))}%` }}
             />
           </div>
         )}
@@ -220,13 +217,16 @@ function TimeCell({
   label,
   seconds,
   colourClass,
+  span = false,
 }: {
   label: string;
   seconds: number;
   colourClass: string;
+  /** Spans both columns so an odd trailing cell sits centred. */
+  span?: boolean;
 }) {
   return (
-    <div className="text-center">
+    <div className={`text-center ${span ? "col-span-2" : ""}`}>
       <div className={`text-2xl font-bold ${colourClass}`}>
         {formatTime(seconds)}
       </div>
@@ -247,6 +247,7 @@ export function StoriesScore() {
   const [error, setError] = useState<string | null>(null);
   const [confettiFired, setConfettiFired] = useState(false);
   const [, setNextStepName] = useState<string>("Back to Stories");
+  const { redo, redoing, error: redoError } = useRedoStory(id);
 
   useEffect(() => {
     const fetchScoreData = async () => {
@@ -410,8 +411,6 @@ export function StoriesScore() {
   const hasRecall = scoreData.recall_total > 0;
   const hasLegacyVocab =
     scoreData.vocab_correct_count + scoreData.vocab_incorrect_count > 0;
-  const hasLegacyGrammar =
-    scoreData.grammar_correct_count + scoreData.grammar_incorrect_count > 0;
   const producePending = hasProduce && scoreData.produce_segments_graded === 0;
 
   return (
@@ -439,7 +438,7 @@ export function StoriesScore() {
           </div>
         </div>
 
-        <div className="text-center">
+        <div className="text-center flex flex-col sm:flex-row items-center justify-center gap-4">
           <button
             onClick={() => navigate("/")}
             className="inline-flex items-center px-8 py-4 bg-primary-500 text-white rounded-lg hover:bg-primary-600 text-lg font-semibold transition-all duration-200 shadow-lg"
@@ -447,6 +446,7 @@ export function StoriesScore() {
             <span>Back to Stories</span>
             <span className="material-icons ml-2">home</span>
           </button>
+          <RedoStoryButton onRedo={redo} redoing={redoing} error={redoError} />
         </div>
       </header>
 
@@ -502,6 +502,31 @@ export function StoriesScore() {
                     Score so far covers the graded segments only.
                   </div>
                 )}
+              {(scoreData.produce_segments ?? []).length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {scoreData.produce_segments!.map((seg) => (
+                    <li
+                      key={seg.segment_order}
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <span className="text-sm text-gray-700">
+                        Passage {seg.segment_order}
+                        {seg.ai_score != null ? ` · ${seg.ai_score}%` : ""}
+                      </span>
+                      <ProduceMoreDetailsButton
+                        detail={{
+                          segmentOrder: seg.segment_order,
+                          hebrewText: seg.hebrew_text ?? "",
+                          studentText: seg.student_text,
+                          referenceEnglish: seg.reference_english ?? "",
+                          aiScore: seg.ai_score,
+                          aiFeedback: seg.ai_feedback,
+                        }}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
             </PhaseCard>
           )}
 
@@ -535,6 +560,52 @@ export function StoriesScore() {
             </PhaseCard>
           )}
 
+          <div className="bg-gray-50 border border-gray-300 rounded-lg p-6">
+            <div className="flex items-center mb-4">
+              <span className="material-icons text-gray-600 mr-3 text-2xl">
+                schedule
+              </span>
+              <h3 className="text-xl font-bold text-gray-800">
+                Time Breakdown
+              </h3>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <TimeCell
+                label="Watch"
+                seconds={scoreData.video_time_seconds}
+                colourClass="text-red-600"
+              />
+              <TimeCell
+                label="Identify"
+                seconds={scoreData.identify_time_seconds}
+                colourClass="text-primary-600"
+              />
+              <TimeCell
+                label="Translate"
+                seconds={scoreData.translation_time_seconds}
+                colourClass="text-secondary-500"
+              />
+              <TimeCell
+                label="Produce"
+                seconds={scoreData.produce_time_seconds}
+                colourClass="text-teal-600"
+              />
+              <TimeCell
+                label="Recall"
+                seconds={scoreData.recall_time_seconds}
+                colourClass="text-orange-600"
+                span={scoreData.vocab_time_seconds <= 0}
+              />
+              {scoreData.vocab_time_seconds > 0 && (
+                <TimeCell
+                  label="Vocabulary"
+                  seconds={scoreData.vocab_time_seconds}
+                  colourClass="text-gray-600"
+                />
+              )}
+            </div>
+          </div>
+
           {hasLegacyVocab && (
             <PhaseCard
               title="Vocabulary"
@@ -549,72 +620,6 @@ export function StoriesScore() {
               />
             </PhaseCard>
           )}
-
-          {hasLegacyGrammar && (
-            <PhaseCard
-              title="Grammar"
-              icon={ACTIVITY_ICONS.grammar}
-              colour="purple"
-              score={scoreData.grammar_accuracy}
-              timeSeconds={scoreData.grammar_time_seconds}
-            >
-              <Attempts
-                correct={scoreData.grammar_correct_count}
-                wrong={scoreData.grammar_incorrect_count}
-              />
-            </PhaseCard>
-          )}
-        </div>
-
-        {/* Time Breakdown */}
-        <div className="bg-gray-50 border border-gray-300 rounded-lg p-6 mb-8">
-          <div className="flex items-center mb-4">
-            <span className="material-icons text-gray-600 mr-3 text-2xl">
-              schedule
-            </span>
-            <h3 className="text-xl font-bold text-gray-800">Time Breakdown</h3>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <TimeCell
-              label="Watch"
-              seconds={scoreData.video_time_seconds}
-              colourClass="text-red-600"
-            />
-            <TimeCell
-              label="Identify"
-              seconds={scoreData.identify_time_seconds}
-              colourClass="text-primary-600"
-            />
-            <TimeCell
-              label="Translate"
-              seconds={scoreData.translation_time_seconds}
-              colourClass="text-secondary-500"
-            />
-            <TimeCell
-              label="Produce"
-              seconds={scoreData.produce_time_seconds}
-              colourClass="text-teal-600"
-            />
-            <TimeCell
-              label="Recall"
-              seconds={scoreData.recall_time_seconds}
-              colourClass="text-orange-600"
-            />
-            {scoreData.vocab_time_seconds > 0 && (
-              <TimeCell
-                label="Vocabulary"
-                seconds={scoreData.vocab_time_seconds}
-                colourClass="text-gray-600"
-              />
-            )}
-            {scoreData.grammar_time_seconds > 0 && (
-              <TimeCell
-                label="Grammar"
-                seconds={scoreData.grammar_time_seconds}
-                colourClass="text-purple-600"
-              />
-            )}
-          </div>
         </div>
 
         {/* Encouragement Message */}

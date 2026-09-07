@@ -156,8 +156,8 @@ func TestProduceCompleted(t *testing.T) {
 
 func TestProduceSubmissionViews(t *testing.T) {
 	segments := []models.ProduceSegment{
-		{ID: 1, SegmentOrder: 1, HebrewText: "א"},
-		{ID: 2, SegmentOrder: 2, HebrewText: "ב"},
+		{ID: 1, SegmentOrder: 1, HebrewText: "א", ReferenceEnglish: "A"},
+		{ID: 2, SegmentOrder: 2, HebrewText: "ב", ReferenceEnglish: "B"},
 	}
 	subs := []models.ProduceSubmission{
 		{SegmentID: 2, StudentText: "two"},
@@ -166,8 +166,8 @@ func TestProduceSubmissionViews(t *testing.T) {
 	}
 	got := produceSubmissionViews(segments, subs)
 	want := []types.ProduceSubmissionView{
-		{SegmentID: 1, StudentText: "one", HebrewText: "א"},
-		{SegmentID: 2, StudentText: "two", HebrewText: "ב"},
+		{SegmentID: 1, StudentText: "one", ReferenceEnglish: "A"},
+		{SegmentID: 2, StudentText: "two", ReferenceEnglish: "B"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("views = %+v, want %+v", got, want)

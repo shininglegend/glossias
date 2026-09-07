@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"glossias/src/pkg/generated/db"
 
@@ -23,9 +24,11 @@ var ErrInvalidRecallOrder = errors.New("submitted ordering does not match the st
 // RecallSentence is one card in the Recall sequencing exercise. SequenceOrder
 // is the correct position and must be withheld from student responses.
 //
-// ImagePath/ImageBucket are the source of truth for the card's picture; ImageURL
-// is a signed read URL filled in on demand by SignRecallSentenceURLs and is
-// never persisted.
+// ImagePath/ImageBucket and AudioPath/AudioBucket are the source of truth for
+// the card's picture and optional audio override; ImageURL/AudioURL are signed
+// read URLs filled in on demand by SignRecallSentenceURLs and are never
+// persisted. An empty audio path means the student hears the story-line
+// narration that makes up HebrewText.
 type RecallSentence struct {
 	ID            int    `json:"id"`
 	StoryID       int    `json:"storyId"`
@@ -35,6 +38,35 @@ type RecallSentence struct {
 	ImagePath     string `json:"imagePath,omitempty"`
 	ImageBucket   string `json:"imageBucket,omitempty"`
 	ImageURL      string `json:"imageUrl,omitempty"`
+	AudioPath     string `json:"audioPath,omitempty"`
+	AudioBucket   string `json:"audioBucket,omitempty"`
+	AudioURL      string `json:"audioUrl,omitempty"`
+	// StoryAudioURLs are signed story-line clips for this sentence when no
+	// override is uploaded. Filled on demand, never persisted.
+	StoryAudioURLs []string `json:"storyAudioUrls,omitempty"`
+}
+
+func recallSentenceFromRow(
+	id, storyID, sequenceOrder int32,
+	hebrewText string,
+	targetVocabID pgtype.Int4,
+	imagePath, imageBucket, audioPath, audioBucket pgtype.Text,
+) RecallSentence {
+	sentence := RecallSentence{
+		ID:            int(id),
+		StoryID:       int(storyID),
+		SequenceOrder: int(sequenceOrder),
+		HebrewText:    hebrewText,
+		ImagePath:     imagePath.String,
+		ImageBucket:   imageBucket.String,
+		AudioPath:     audioPath.String,
+		AudioBucket:   audioBucket.String,
+	}
+	if targetVocabID.Valid {
+		targetID := int(targetVocabID.Int32)
+		sentence.TargetVocabID = &targetID
+	}
+	return sentence
 }
 
 // GetStoryRecallSentences returns a story's sentences in correct order.
@@ -50,19 +82,10 @@ func GetStoryRecallSentences(ctx context.Context, storyID int) ([]RecallSentence
 
 	sentences := make([]RecallSentence, 0, len(rows))
 	for _, row := range rows {
-		sentence := RecallSentence{
-			ID:            int(row.ID),
-			StoryID:       int(row.StoryID),
-			SequenceOrder: int(row.SequenceOrder),
-			HebrewText:    row.HebrewText,
-			ImagePath:     row.ImagePath.String,
-			ImageBucket:   row.ImageBucket.String,
-		}
-		if row.TargetVocabID.Valid {
-			targetID := int(row.TargetVocabID.Int32)
-			sentence.TargetVocabID = &targetID
-		}
-		sentences = append(sentences, sentence)
+		sentences = append(sentences, recallSentenceFromRow(
+			row.ID, row.StoryID, row.SequenceOrder, row.HebrewText,
+			row.TargetVocabID, row.ImagePath, row.ImageBucket, row.AudioPath, row.AudioBucket,
+		))
 	}
 
 	return sentences, nil
@@ -82,20 +105,11 @@ func GetRecallSentence(ctx context.Context, id int) (*RecallSentence, error) {
 		return nil, err
 	}
 
-	sentence := &RecallSentence{
-		ID:            int(row.ID),
-		StoryID:       int(row.StoryID),
-		SequenceOrder: int(row.SequenceOrder),
-		HebrewText:    row.HebrewText,
-		ImagePath:     row.ImagePath.String,
-		ImageBucket:   row.ImageBucket.String,
-	}
-	if row.TargetVocabID.Valid {
-		targetID := int(row.TargetVocabID.Int32)
-		sentence.TargetVocabID = &targetID
-	}
-
-	return sentence, nil
+	sentence := recallSentenceFromRow(
+		row.ID, row.StoryID, row.SequenceOrder, row.HebrewText,
+		row.TargetVocabID, row.ImagePath, row.ImageBucket, row.AudioPath, row.AudioBucket,
+	)
+	return &sentence, nil
 }
 
 // UpsertRecallSentence creates or replaces the sentence at a story's given
@@ -117,26 +131,20 @@ func UpsertRecallSentence(ctx context.Context, sentence RecallSentence) (*Recall
 		TargetVocabID: targetVocabID,
 		ImagePath:     optionalText(sentence.ImagePath),
 		ImageBucket:   optionalText(sentence.ImageBucket),
+		AudioPath:     optionalText(sentence.AudioPath),
+		AudioBucket:   optionalText(sentence.AudioBucket),
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	saved := &RecallSentence{
-		ID:            int(row.ID),
-		StoryID:       int(row.StoryID),
-		SequenceOrder: int(row.SequenceOrder),
-		HebrewText:    row.HebrewText,
-		ImagePath:     row.ImagePath.String,
-		ImageBucket:   row.ImageBucket.String,
-	}
-	if row.TargetVocabID.Valid {
-		targetID := int(row.TargetVocabID.Int32)
-		saved.TargetVocabID = &targetID
-	}
+	saved := recallSentenceFromRow(
+		row.ID, row.StoryID, row.SequenceOrder, row.HebrewText,
+		row.TargetVocabID, row.ImagePath, row.ImageBucket, row.AudioPath, row.AudioBucket,
+	)
 
 	InvalidateStoryContentReadiness(saved.StoryID)
-	return saved, nil
+	return &saved, nil
 }
 
 // DeleteRecallSentence removes a single sentence.
@@ -174,6 +182,57 @@ func CountStoryRecallSentences(ctx context.Context, storyID int) (int, error) {
 		return 0, err
 	}
 	return int(count), nil
+}
+
+// SaveRecallPick scores one sequential pick: the student claims sentenceID
+// occurs at 1-based position in the story. It logs a single correct or
+// incorrect answer row and returns whether the pick was right.
+func SaveRecallPick(ctx context.Context, userID string, storyID, sentenceID, position int) (bool, error) {
+	if queries == nil {
+		return false, errors.New("database not initialized")
+	}
+
+	sentences, err := GetStoryRecallSentences(ctx, storyID)
+	if err != nil {
+		return false, err
+	}
+	if len(sentences) == 0 {
+		return false, ErrNotFound
+	}
+
+	var found *RecallSentence
+	for i := range sentences {
+		if sentences[i].ID == sentenceID {
+			found = &sentences[i]
+			break
+		}
+	}
+	if found == nil {
+		return false, fmt.Errorf("%w: sentence %d does not belong to story %d", ErrInvalidRecallOrder, sentenceID, storyID)
+	}
+	if position < 1 || position > len(sentences) {
+		return false, fmt.Errorf("%w: position %d is out of range", ErrInvalidRecallOrder, position)
+	}
+
+	correct := found.SequenceOrder == position
+	if correct {
+		err = queries.SaveRecallCorrectAnswer(ctx, db.SaveRecallCorrectAnswerParams{
+			UserID:           userID,
+			StoryID:          int32(storyID),
+			RecallSentenceID: int32(sentenceID),
+		})
+	} else {
+		err = queries.SaveRecallIncorrectAnswer(ctx, db.SaveRecallIncorrectAnswerParams{
+			UserID:           userID,
+			StoryID:          int32(storyID),
+			RecallSentenceID: int32(sentenceID),
+			SelectedPosition: int32(position),
+		})
+	}
+	if err != nil {
+		return false, err
+	}
+	return correct, nil
 }
 
 // SaveRecallAttempt scores one ordering attempt: orderedSentenceIDs[i] is the
@@ -285,4 +344,82 @@ func GetUserStoryRecallSummary(ctx context.Context, userID string, storyID int) 
 		CorrectCount:   row.CorrectCount,
 		IncorrectCount: row.IncorrectCount,
 	}, nil
+}
+
+// RecallSentenceCoveredLines is the story lines whose narration makes up
+// hebrew, in story order. A sentence contained in a line uses that line; a
+// join of several lines uses every line whose text appears in the sentence.
+func RecallSentenceCoveredLines(hebrew string, lines []StoryLine) []int {
+	text := strings.TrimSpace(hebrew)
+	if text == "" {
+		return nil
+	}
+
+	var contained []int
+	for _, line := range lines {
+		if strings.Contains(line.Text, text) {
+			contained = append(contained, line.LineNumber)
+		}
+	}
+	if len(contained) > 0 {
+		return contained
+	}
+
+	var parts []int
+	for _, line := range lines {
+		lineText := strings.TrimSpace(line.Text)
+		if lineText != "" && strings.Contains(text, lineText) {
+			parts = append(parts, line.LineNumber)
+		}
+	}
+	return parts
+}
+
+// RecallSentenceHasAudio is true when the sentence has an uploaded override or
+// every covered story line has narration.
+func RecallSentenceHasAudio(s RecallSentence, lines []StoryLine, linesWithAudio map[int]bool) bool {
+	if s.AudioPath != "" && s.AudioBucket != "" {
+		return true
+	}
+	covered := RecallSentenceCoveredLines(s.HebrewText, lines)
+	if len(covered) == 0 {
+		return false
+	}
+	for _, n := range covered {
+		if !linesWithAudio[n] {
+			return false
+		}
+	}
+	return true
+}
+
+// SignCompleteLineAudioURLs signs each "complete" narration file for a story,
+// keyed by 1-based line number.
+func SignCompleteLineAudioURLs(ctx context.Context, storyID, expiresInSeconds int) (map[int]string, error) {
+	files, err := GetStoryAudioFilesByLabel(ctx, storyID, "complete")
+	if err != nil {
+		return nil, err
+	}
+	urls := make(map[int]string, len(files))
+	for _, file := range files {
+		url, err := GetSignedURLForPath(ctx, file.FileBucket, file.FilePath, expiresInSeconds)
+		if err != nil {
+			return nil, err
+		}
+		urls[file.LineNumber] = url
+	}
+	return urls, nil
+}
+
+// AttachRecallStoryAudioURLs fills StoryAudioURLs from signed line clips.
+func AttachRecallStoryAudioURLs(sentences []RecallSentence, lines []StoryLine, audioURLs map[int]string) {
+	for i := range sentences {
+		var urls []string
+		for _, lineNumber := range RecallSentenceCoveredLines(sentences[i].HebrewText, lines) {
+			if url, ok := audioURLs[lineNumber]; ok {
+				urls = append(urls, url)
+			}
+		}
+		sentences[i].StoryAudioURLs = urls
+	}
 }

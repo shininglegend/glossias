@@ -148,16 +148,18 @@ func (h *Handler) determineNextPage(currentPage string, completionStatus map[Pag
 		return PageTypeVideo
 	}
 
-	// Starting from next page, find first incomplete page
+	// Resume from Video jumps to the first incomplete phase. Continue from an
+	// exercise page (Identify, Translate, …) advances to the next page in
+	// order so a completed Translate is not skipped after Identify.
+	skipCompleted := currentPage == PageTypeVideo.Path
+
 	for i := currentIndex + 1; i < len(defaultPageOrder); i++ {
 		page := defaultPageOrder[i]
 
-		// Video is always visited, others check completion status
-		if page.Path == "video" || !completionStatus[page] {
+		if page.Path == "video" || !skipCompleted || !completionStatus[page] {
 			return page
 		}
 	}
 
-	// All pages after current are complete, return score
 	return PageTypeScore
 }

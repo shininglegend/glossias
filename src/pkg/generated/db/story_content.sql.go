@@ -67,6 +67,33 @@ func (q *Queries) GetLineText(ctx context.Context, arg GetLineTextParams) (strin
 	return text, err
 }
 
+const getStoriesLines = `-- name: GetStoriesLines :many
+SELECT story_id, line_number, text
+FROM story_lines
+WHERE story_id = ANY($1::int[])
+ORDER BY story_id, line_number
+`
+
+func (q *Queries) GetStoriesLines(ctx context.Context, storyIds []int32) ([]StoryLine, error) {
+	rows, err := q.db.Query(ctx, getStoriesLines, storyIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []StoryLine{}
+	for rows.Next() {
+		var i StoryLine
+		if err := rows.Scan(&i.StoryID, &i.LineNumber, &i.Text); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStoryDescription = `-- name: GetStoryDescription :one
 SELECT description_text
 FROM story_descriptions

@@ -111,6 +111,8 @@ export interface RecallCard {
   id: number;
   hebrew_text: string;
   image_url?: string;
+  audio_urls?: string[];
+  text?: TextSegment[];
 }
 
 export interface RecallData {
@@ -133,6 +135,10 @@ export interface CheckRecallResult {
   /** Correctness per submitted position. */
   results: boolean[];
   all_correct: boolean;
+}
+
+export interface CheckRecallPickResult {
+  correct: boolean;
 }
 
 export interface ProduceSlot {
@@ -168,6 +174,9 @@ export interface ProduceSubmissionView {
   segment_id: number;
   student_text: string;
   reference_english: string;
+  ai_score?: number | null;
+  ai_feedback?: string;
+  grading_failed?: boolean;
 }
 
 export interface ProduceData {
@@ -359,6 +368,20 @@ export function useApiService() {
         });
       },
 
+      checkRecallPick: (
+        id: string,
+        sentenceId: number,
+        position: number,
+      ): Promise<APIResponse<CheckRecallPickResult>> => {
+        return fetchAPI(`/stories/${id}/check-recall-pick`, {
+          method: "POST",
+          body: JSON.stringify({
+            sentence_id: sentenceId,
+            position,
+          }),
+        });
+      },
+
       getStoryProduce: (id: string): Promise<APIResponse<ProduceData>> => {
         return fetchAPI<ProduceData>(`/stories/${id}/produce`);
       },
@@ -492,10 +515,20 @@ export function useApiService() {
       getStudentStoryDrilldown: (
         storyId: string,
         userId: string,
+        attempt?: number,
       ): Promise<APIResponse<unknown>> => {
+        const query = attempt && attempt > 1 ? `?attempt=${attempt}` : "";
         return fetchAPI(
-          `/admin/stories/${storyId}/students/${encodeURIComponent(userId)}`,
+          `/admin/stories/${storyId}/students/${encodeURIComponent(userId)}${query}`,
         );
+      },
+
+      resetOwnStoryProgress: (
+        storyId: string,
+      ): Promise<APIResponse<ResetProgressResult>> => {
+        return fetchAPI<ResetProgressResult>(`/stories/${storyId}/progress`, {
+          method: "DELETE",
+        });
       },
 
       resetStudentProgress: (

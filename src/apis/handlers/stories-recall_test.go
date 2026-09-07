@@ -7,29 +7,77 @@ import (
 )
 
 func TestShuffledRecallCards(t *testing.T) {
+	targetID := 7
 	sentences := []models.RecallSentence{
-		{ID: 1, SequenceOrder: 1, HebrewText: "א", ImageURL: "img-1"},
+		{ID: 1, SequenceOrder: 1, HebrewText: "הכלב רץ", ImageURL: "img-1", TargetVocabID: &targetID},
 		{ID: 2, SequenceOrder: 2, HebrewText: "ב", ImageURL: "img-2"},
 		{ID: 3, SequenceOrder: 3, HebrewText: "ג"},
 	}
+	lines := []models.StoryLine{
+		{
+			LineNumber: 1,
+			Text:       "אתמול הכלב רץ הביתה",
+			Vocabulary: []models.VocabularyItem{{LexicalForm: "כלב", Position: [2]int{6, 10}}},
+		},
+	}
+	words := []models.TargetVocabulary{{ID: 7, LexicalForm: "כלב"}}
+	audio := map[int]string{1: "line-1-audio"}
 	reverse := func(n int, swap func(i, j int)) {
 		for i, j := 0, n-1; i < j; i, j = i+1, j-1 {
 			swap(i, j)
 		}
 	}
 
-	cards := shuffledRecallCards(sentences, reverse)
+	cards := shuffledRecallCards(sentences, lines, words, audio, reverse)
 
 	if got := []int{cards[0].ID, cards[1].ID, cards[2].ID}; !reflect.DeepEqual(got, []int{3, 2, 1}) {
 		t.Errorf("order = %v, want reversed", got)
 	}
-	if cards[2].ImageURL != "img-1" || cards[2].HebrewText != "א" {
+	if cards[2].ImageURL != "img-1" || cards[2].HebrewText != "הכלב רץ" {
 		t.Errorf("card fields not carried over: %+v", cards[2])
+	}
+	if !reflect.DeepEqual(cards[2].AudioURLs, []string{"line-1-audio"}) {
+		t.Errorf("audio URLs = %v, want [line-1-audio]", cards[2].AudioURLs)
+	}
+	if len(cards[2].Text) != 2 || cards[2].Text[0].Type != "target" || cards[2].Text[0].Text != "הכלב" {
+		t.Errorf("highlighted text = %+v, want target הכלב then remainder", cards[2].Text)
 	}
 	// The payload type has no position field, so SequenceOrder cannot leak;
 	// this guards against someone adding one later.
 	if _, has := reflect.TypeOf(cards[0]).FieldByName("SequenceOrder"); has {
 		t.Error("RecallCard must not expose SequenceOrder")
+	}
+}
+
+func TestRecallSentenceAudio(t *testing.T) {
+	lines := []models.StoryLine{
+		{LineNumber: 1, Text: "שורה אחת"},
+		{LineNumber: 2, Text: "שורה שתיים"},
+	}
+	audio := map[int]string{1: "a1", 2: "a2"}
+
+	if got := recallSentenceAudio(models.RecallSentence{HebrewText: "שורה שתיים"}, lines, audio); !reflect.DeepEqual(got, []string{"a2"}) {
+		t.Errorf("exact line match = %v, want [a2]", got)
+	}
+	if got := recallSentenceAudio(models.RecallSentence{HebrewText: "שורה אחת שורה שתיים"}, lines, audio); !reflect.DeepEqual(got, []string{"a1", "a2"}) {
+		t.Errorf("joined-sentence chain = %v, want [a1 a2]", got)
+	}
+	if got := recallSentenceAudio(models.RecallSentence{HebrewText: "אין"}, lines, audio); len(got) != 0 {
+		t.Errorf("unknown sentence = %v, want empty", got)
+	}
+	if got := recallSentenceAudio(models.RecallSentence{HebrewText: "שורה אחת", AudioURL: "override"}, lines, audio); !reflect.DeepEqual(got, []string{"override"}) {
+		t.Errorf("override = %v, want [override]", got)
+	}
+}
+
+func TestHighlightRecallTextFallbackLexicalForm(t *testing.T) {
+	targetID := 3
+	s := models.RecallSentence{HebrewText: "ראיתי כלב גדול", TargetVocabID: &targetID}
+	words := []models.TargetVocabulary{{ID: 3, LexicalForm: "כלב"}}
+
+	got := highlightRecallText(s, nil, words)
+	if len(got) != 3 || got[1].Type != "target" || got[1].Text != "כלב" || got[1].TargetVocabID != 3 {
+		t.Errorf("fallback highlight = %+v, want text/target/text around כלב", got)
 	}
 }
 

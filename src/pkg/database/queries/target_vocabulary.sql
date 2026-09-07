@@ -6,6 +6,12 @@ FROM target_vocabulary
 WHERE story_id = $1
 ORDER BY id;
 
+-- name: GetStoriesTargetVocabulary :many
+SELECT id, story_id, lexical_form, audio_path, audio_bucket, correct_image_path, image_bucket
+FROM target_vocabulary
+WHERE story_id = ANY(sqlc.arg(story_ids)::int[])
+ORDER BY story_id, id;
+
 -- name: GetTargetVocabulary :one
 SELECT id, story_id, lexical_form, audio_path, audio_bucket, correct_image_path, image_bucket
 FROM target_vocabulary
@@ -66,3 +72,10 @@ FROM vocabulary_items
 WHERE story_id = $1
 GROUP BY lexical_form
 ORDER BY lexical_form;
+
+-- name: GetStoriesLexicalFormCounts :many
+SELECT story_id, lexical_form, COUNT(*) AS occurrences
+FROM vocabulary_items
+WHERE story_id = ANY(sqlc.arg(story_ids)::int[])
+GROUP BY story_id, lexical_form
+ORDER BY story_id, lexical_form;

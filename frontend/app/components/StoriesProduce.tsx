@@ -35,6 +35,9 @@ import {
 const RTL_LANGUAGES = ["he", "ar", "fa", "ur"];
 /** Countdown turns urgent (red) at or below this many seconds. */
 const URGENT_SECONDS = 15;
+/** Grading feedback poll: the server gives up on a job after 30s, so ~2 min covers it. */
+const GRADING_POLL_INTERVAL_MS = 2500;
+const GRADING_POLL_LIMIT = 48;
 
 /**
  * Loads the Produce payload and hands it to `ProduceSession`, which owns the
@@ -112,6 +115,9 @@ export function StoriesProduce() {
         segmentId: submission.segment_id,
         studentText: submission.student_text,
         referenceEnglish: submission.reference_english,
+        aiScore: submission.ai_score,
+        aiFeedback: submission.ai_feedback,
+        gradingFailed: submission.grading_failed,
       };
     },
     [id, api],
@@ -187,6 +193,7 @@ export function ProduceSession({
   onSubmit,
   onContinue,
 }: ProduceSessionProps) {
+  const api = useApiService();
   const [state, dispatch] = useReducer(produceReducer, pageData, (data) =>
     createProduceState(
       data.segments.map((s) => s.id),
@@ -196,6 +203,9 @@ export function ProduceSession({
           segmentId: s.segment_id,
           studentText: s.student_text,
           referenceEnglish: s.reference_english,
+          aiScore: s.ai_score,
+          aiFeedback: s.ai_feedback,
+          gradingFailed: s.grading_failed,
         })),
         starts: (data.starts ?? []).map((s) => ({
           segmentId: s.segment_id,
@@ -301,6 +311,54 @@ export function ProduceSession({
   const isRTL = RTL_LANGUAGES.includes(pageData.language);
   const isComplete = phase.kind === "complete";
   const hasSegments = pageData.segments.length > 0;
+  const allSubmitted =
+    hasSegments && pageData.segments.every((s) => attempts[s.id]);
+  // Keep polling while any submitted passage has neither a score nor a failure.
+  const gradingPending =
+    allSubmitted &&
+    pageData.segments.some((s) => {
+      const a = attempts[s.id];
+      return a && a.aiScore == null && !a.gradingFailed;
+    });
+
+  useEffect(() => {
+    if (!gradingPending) return;
+    let cancelled = false;
+    let remaining = GRADING_POLL_LIMIT;
+    const poll = async () => {
+      // A submission stuck ungraded (e.g. server restart mid-grade) would
+      // otherwise keep this tab polling forever.
+      if (remaining-- <= 0) {
+        clearInterval(id);
+        return;
+      }
+      try {
+        const response = await api.getStoryProduce(pageData.story_id);
+        if (!response.success || !response.data || cancelled) return;
+        for (const s of response.data.submissions) {
+          dispatch({
+            type: "FEEDBACK",
+            attempt: {
+              segmentId: s.segment_id,
+              studentText: s.student_text,
+              referenceEnglish: s.reference_english,
+              aiScore: s.ai_score,
+              aiFeedback: s.ai_feedback,
+              gradingFailed: s.grading_failed,
+            },
+          });
+        }
+      } catch (err) {
+        console.error("Failed to refresh produce grading:", err);
+      }
+    };
+    const id = setInterval(() => void poll(), GRADING_POLL_INTERVAL_MS);
+    void poll();
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [gradingPending, api, pageData.story_id]);
   const totalSegments = pageData.segments.length;
   const answered = Object.keys(attempts).length;
   const resumedMidway =
@@ -627,7 +685,7 @@ function SegmentAnswer({
               Time's up — here's what you had so far.
             </p>
           )}
-          <AttemptComparison attempt={attempt} />
+          <AttemptComparison attempt={attempt} showGrading={isLastSegment} />
           <div className="mt-4 flex justify-end">
             <Button
               size="lg"
@@ -673,7 +731,7 @@ function ReviewCard({
           {segment.hebrew_text}
         </p>
       )}
-      {attempt && <AttemptComparison attempt={attempt} />}
+      {attempt && <AttemptComparison attempt={attempt} showGrading />}
     </section>
   );
 }
@@ -701,7 +759,13 @@ function Countdown({ seconds }: { seconds: number }) {
 }
 
 /** The student's English beside the story's English. */
-function AttemptComparison({ attempt }: { attempt: ProduceAttempt }) {
+function AttemptComparison({
+  attempt,
+  showGrading = false,
+}: {
+  attempt: ProduceAttempt;
+  showGrading?: boolean;
+}) {
   return (
     <div className="grid gap-3 sm:grid-cols-2" dir="ltr" lang="en">
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -730,7 +794,47 @@ function AttemptComparison({ attempt }: { attempt: ProduceAttempt }) {
           {attempt.referenceEnglish}
         </p>
       </div>
+      {showGrading && <AiGrading attempt={attempt} />}
     </div>
+  );
+}
+
+/** Inline AI verdict under the comparison: score + notes, waiting, or failed. */
+function AiGrading({ attempt }: { attempt: ProduceAttempt }) {
+  if (attempt.aiScore != null) {
+    return (
+      <div
+        className="sm:col-span-2 rounded-xl border border-teal-200 bg-teal-50 p-4"
+        data-testid="produce-ai-feedback"
+      >
+        <p className="text-xs font-semibold uppercase tracking-wider text-teal-700 mb-1">
+          AI feedback | Score: {attempt.aiScore}%
+        </p>
+        <p className="text-gray-800 whitespace-pre-wrap">
+          {attempt.aiFeedback}
+        </p>
+      </div>
+    );
+  }
+  if (attempt.gradingFailed) {
+    return (
+      <p
+        className="sm:col-span-2 text-sm text-red-700"
+        role="status"
+        data-testid="produce-ai-failed"
+      >
+        AI grading failed.
+      </p>
+    );
+  }
+  return (
+    <p
+      className="sm:col-span-2 text-sm italic text-gray-500"
+      role="status"
+      data-testid="produce-ai-pending"
+    >
+      Waiting for AI response. You may continue with the story.
+    </p>
   );
 }
 

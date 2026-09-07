@@ -126,6 +126,88 @@ func (q *Queries) GetProduceSegment(ctx context.Context, id int32) (GetProduceSe
 	return i, err
 }
 
+const getStoriesProduceExplanations = `-- name: GetStoriesProduceExplanations :many
+SELECT story_id, explanation_text
+FROM story_produce_explanations
+WHERE story_id = ANY($1::int[])
+`
+
+type GetStoriesProduceExplanationsRow struct {
+	StoryID         int32  `json:"story_id"`
+	ExplanationText string `json:"explanation_text"`
+}
+
+func (q *Queries) GetStoriesProduceExplanations(ctx context.Context, storyIds []int32) ([]GetStoriesProduceExplanationsRow, error) {
+	rows, err := q.db.Query(ctx, getStoriesProduceExplanations, storyIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetStoriesProduceExplanationsRow{}
+	for rows.Next() {
+		var i GetStoriesProduceExplanationsRow
+		if err := rows.Scan(&i.StoryID, &i.ExplanationText); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getStoriesProduceSegments = `-- name: GetStoriesProduceSegments :many
+SELECT ps.id, ps.story_id, ps.segment_order, ps.hebrew_text, ps.reference_english,
+       ps.grammar_point_id, ps.line_start, ps.line_end, gp.name AS grammar_point_name
+FROM produce_segments ps
+LEFT JOIN grammar_points gp ON gp.grammar_point_id = ps.grammar_point_id
+WHERE ps.story_id = ANY($1::int[])
+ORDER BY ps.story_id, ps.segment_order
+`
+
+type GetStoriesProduceSegmentsRow struct {
+	ID               int32       `json:"id"`
+	StoryID          int32       `json:"story_id"`
+	SegmentOrder     int32       `json:"segment_order"`
+	HebrewText       string      `json:"hebrew_text"`
+	ReferenceEnglish string      `json:"reference_english"`
+	GrammarPointID   pgtype.Int4 `json:"grammar_point_id"`
+	LineStart        pgtype.Int4 `json:"line_start"`
+	LineEnd          pgtype.Int4 `json:"line_end"`
+	GrammarPointName pgtype.Text `json:"grammar_point_name"`
+}
+
+func (q *Queries) GetStoriesProduceSegments(ctx context.Context, storyIds []int32) ([]GetStoriesProduceSegmentsRow, error) {
+	rows, err := q.db.Query(ctx, getStoriesProduceSegments, storyIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetStoriesProduceSegmentsRow{}
+	for rows.Next() {
+		var i GetStoriesProduceSegmentsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.StoryID,
+			&i.SegmentOrder,
+			&i.HebrewText,
+			&i.ReferenceEnglish,
+			&i.GrammarPointID,
+			&i.LineStart,
+			&i.LineEnd,
+			&i.GrammarPointName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getStoryProduceExplanation = `-- name: GetStoryProduceExplanation :one
 SELECT story_id, explanation_text
 FROM story_produce_explanations
@@ -241,7 +323,7 @@ const getUserStoryProduceSubmissions = `-- name: GetUserStoryProduceSubmissions 
 SELECT DISTINCT ON (psub.segment_id)
     psub.id, psub.user_id, psub.story_id, psub.segment_id, psub.student_text,
     psub.ai_score, psub.ai_feedback, psub.graded_at, psub.created_at,
-    ps.segment_order
+    ps.segment_order, ps.hebrew_text, ps.reference_english
 FROM produce_submissions psub
 JOIN produce_segments ps ON ps.id = psub.segment_id
 WHERE psub.user_id = $1 AND psub.story_id = $2
@@ -254,16 +336,18 @@ type GetUserStoryProduceSubmissionsParams struct {
 }
 
 type GetUserStoryProduceSubmissionsRow struct {
-	ID           int32            `json:"id"`
-	UserID       string           `json:"user_id"`
-	StoryID      int32            `json:"story_id"`
-	SegmentID    int32            `json:"segment_id"`
-	StudentText  string           `json:"student_text"`
-	AiScore      pgtype.Int4      `json:"ai_score"`
-	AiFeedback   pgtype.Text      `json:"ai_feedback"`
-	GradedAt     pgtype.Timestamp `json:"graded_at"`
-	CreatedAt    pgtype.Timestamp `json:"created_at"`
-	SegmentOrder int32            `json:"segment_order"`
+	ID               int32            `json:"id"`
+	UserID           string           `json:"user_id"`
+	StoryID          int32            `json:"story_id"`
+	SegmentID        int32            `json:"segment_id"`
+	StudentText      string           `json:"student_text"`
+	AiScore          pgtype.Int4      `json:"ai_score"`
+	AiFeedback       pgtype.Text      `json:"ai_feedback"`
+	GradedAt         pgtype.Timestamp `json:"graded_at"`
+	CreatedAt        pgtype.Timestamp `json:"created_at"`
+	SegmentOrder     int32            `json:"segment_order"`
+	HebrewText       string           `json:"hebrew_text"`
+	ReferenceEnglish string           `json:"reference_english"`
 }
 
 // GetUserStoryProduceSubmissions returns the latest submission per segment,
@@ -288,6 +372,8 @@ func (q *Queries) GetUserStoryProduceSubmissions(ctx context.Context, arg GetUse
 			&i.GradedAt,
 			&i.CreatedAt,
 			&i.SegmentOrder,
+			&i.HebrewText,
+			&i.ReferenceEnglish,
 		); err != nil {
 			return nil, err
 		}
@@ -412,6 +498,19 @@ func (q *Queries) InsertProduceGradingLog(ctx context.Context, arg InsertProduce
 		arg.Feedback,
 		arg.Error,
 	)
+	return err
+}
+
+const markProduceGradingFailed = `-- name: MarkProduceGradingFailed :exec
+UPDATE produce_submissions
+SET graded_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND ai_score IS NULL
+`
+
+// MarkProduceGradingFailed stamps graded_at with no score so the student page
+// can tell "grading failed" from "still waiting".
+func (q *Queries) MarkProduceGradingFailed(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, markProduceGradingFailed, id)
 	return err
 }
 

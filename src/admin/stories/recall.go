@@ -19,15 +19,17 @@ type recallResponse struct {
 	TargetVocabulary []models.TargetVocabulary `json:"targetVocabulary"`
 	Readiness        models.PhaseReadiness     `json:"readiness"`
 	Required         int                       `json:"required"`
+	LineAudioURLs    map[int]string            `json:"lineAudioUrls,omitempty"`
 }
 
 type recallSentenceRequest struct {
 	HebrewText    string `json:"hebrewText"`
 	TargetVocabID *int   `json:"targetVocabId,omitempty"`
-	// ImagePath is a path returned by the phase-asset upload endpoint. Omitting
-	// it leaves the stored image alone; sending an empty string clears it and
-	// deletes the stored file.
+	// ImagePath and AudioPath are paths from the phase-asset upload endpoint.
+	// Omitting a field leaves that stored asset alone; sending an empty string
+	// clears it and deletes the stored file.
 	ImagePath *string `json:"imagePath,omitempty"`
+	AudioPath *string `json:"audioPath,omitempty"`
 }
 
 func (h *Handler) recallHandler(w http.ResponseWriter, r *http.Request) {
@@ -68,12 +70,27 @@ func (h *Handler) recallHandler(w http.ResponseWriter, r *http.Request) {
 		targetVocabIDs[word.ID] = true
 	}
 
+	lines, linesWithAudio, err := models.RecallAudioContext(ctx, storyID)
+	if err != nil {
+		h.log.Error("Failed to fetch recall audio context", "error", err, "storyID", storyID)
+		writeJSONError(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	lineAudioURLs, err := models.SignCompleteLineAudioURLs(ctx, storyID, signedURLExpiry)
+	if err != nil {
+		h.log.Warn("Failed to sign story-line audio for recall editor", "error", err, "storyID", storyID)
+		lineAudioURLs = map[int]string{}
+	}
+	models.AttachRecallStoryAudioURLs(sentences, lines, lineAudioURLs)
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(recallResponse{
 		Sentences:        sentences,
 		TargetVocabulary: words,
-		Readiness:        models.ValidateRecallSentences(sentences, targetVocabIDs),
+		Readiness:        models.ValidateRecallSentences(sentences, targetVocabIDs, lines, linesWithAudio),
 		Required:         models.RecallSentencesPerStory,
+		LineAudioURLs:    lineAudioURLs,
 	})
 }
 
@@ -145,6 +162,8 @@ func (h *Handler) saveRecallSentence(w http.ResponseWriter, r *http.Request, sto
 	if existing != nil {
 		sentence.ImagePath = existing.ImagePath
 		sentence.ImageBucket = existing.ImageBucket
+		sentence.AudioPath = existing.AudioPath
+		sentence.AudioBucket = existing.AudioBucket
 	}
 
 	if req.ImagePath != nil {
@@ -165,6 +184,24 @@ func (h *Handler) saveRecallSentence(w http.ResponseWriter, r *http.Request, sto
 		sentence.ImageBucket = imageBucket
 	}
 
+	if req.AudioPath != nil {
+		if existing == nil && *req.AudioPath != "" {
+			writeJSONError(w, "Save the sentence before uploading its audio", http.StatusBadRequest)
+			return
+		}
+		ownerID := 0
+		if existing != nil {
+			ownerID = existing.ID
+		}
+		audioBucket, ok := validateAssetPath(assetRecallAudio, storyID, ownerID, *req.AudioPath)
+		if !ok {
+			writeJSONError(w, "audioPath was not issued for this recall sentence", http.StatusBadRequest)
+			return
+		}
+		sentence.AudioPath = *req.AudioPath
+		sentence.AudioBucket = audioBucket
+	}
+
 	saved, err := models.UpsertRecallSentence(ctx, sentence)
 	if err != nil {
 		h.log.Error("Failed to save recall sentence", "error", err, "storyID", storyID, "order", order)
@@ -174,10 +211,20 @@ func (h *Handler) saveRecallSentence(w http.ResponseWriter, r *http.Request, sto
 
 	if existing != nil {
 		h.removeSupersededAsset(r, existing.ImageBucket, existing.ImagePath, saved.ImagePath)
+		h.removeSupersededAsset(r, existing.AudioBucket, existing.AudioPath, saved.AudioPath)
 	}
 
 	if err := models.SignRecallSentenceURLs(ctx, []models.RecallSentence{*saved}, signedURLExpiry); err != nil {
 		h.log.Warn("Failed to sign recall sentence image", "error", err, "sentenceID", saved.ID)
+	}
+
+	lines, _, err := models.RecallAudioContext(ctx, storyID)
+	if err == nil {
+		if urls, signErr := models.SignCompleteLineAudioURLs(ctx, storyID, signedURLExpiry); signErr == nil {
+			batch := []models.RecallSentence{*saved}
+			models.AttachRecallStoryAudioURLs(batch, lines, urls)
+			saved = &batch[0]
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -198,6 +245,7 @@ func (h *Handler) deleteRecallSentence(w http.ResponseWriter, r *http.Request, s
 	}
 
 	h.removeSupersededAsset(r, existing.ImageBucket, existing.ImagePath, "")
+	h.removeSupersededAsset(r, existing.AudioBucket, existing.AudioPath, "")
 
 	w.WriteHeader(http.StatusNoContent)
 }

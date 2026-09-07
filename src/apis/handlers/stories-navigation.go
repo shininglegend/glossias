@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"glossias/src/apis/types"
 	"glossias/src/auth"
@@ -45,10 +44,14 @@ type NavigationGuidanceRequest struct {
 	CurrentPage string `json:"currentPage"`
 }
 
-// NavigationGuidanceResponse represents the response structure
+// NavigationGuidanceResponse represents the response structure.
+// CompletedAttempts lets the Video page offer the Score page to a student who
+// has already finished the story, since finishing wipes the live rows that
+// NextPage is computed from.
 type NavigationGuidanceResponse struct {
-	NextPage    string `json:"nextPage"`
-	DisplayName string `json:"displayName"`
+	NextPage          string `json:"nextPage"`
+	DisplayName       string `json:"displayName"`
+	CompletedAttempts int    `json:"completedAttempts"`
 }
 
 // Navigate determines the next page a user should visit
@@ -87,22 +90,21 @@ func (h *Handler) Navigate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get completion status for all pages
-	completionStatus, err := h.getPageCompletionStatus(r.Context(), userID, storyID)
+	completion, err := models.GetUserStoryPageCompletion(r.Context(), userID, storyID)
 	if err != nil {
 		h.log.Error("Failed to get completion status", "error", err, "storyID", storyID, "userID", userID)
 		h.sendError(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	// Determine next page
-	nextPage := h.determineNextPage(req.CurrentPage, completionStatus)
+	nextPage := h.determineNextPage(req.CurrentPage, pageCompletionStatus(completion))
 
 	response := types.APIResponse{
 		Success: true,
 		Data: NavigationGuidanceResponse{
-			NextPage:    nextPage.Path,
-			DisplayName: nextPage.DisplayName,
+			NextPage:          nextPage.Path,
+			DisplayName:       nextPage.DisplayName,
+			CompletedAttempts: completion.CompletedAttempts,
 		},
 	}
 
@@ -112,14 +114,10 @@ func (h *Handler) Navigate(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// getPageCompletionStatus returns completion status for every page type,
-// from a single query. Video and Score are never "complete": video is always
-// visited and score is the terminal page.
-func (h *Handler) getPageCompletionStatus(ctx context.Context, userID string, storyID int) (map[PageType]bool, error) {
-	c, err := models.GetUserStoryPageCompletion(ctx, userID, storyID)
-	if err != nil {
-		return nil, err
-	}
+// pageCompletionStatus maps one completion row onto every page type. Video
+// and Score are never "complete": video is always visited and score is the
+// terminal page.
+func pageCompletionStatus(c *models.PageCompletion) map[PageType]bool {
 	return map[PageType]bool{
 		PageTypeVideo:     false,
 		PageTypeVocab:     false, // not in the S26 flow; never skipped-to
@@ -129,7 +127,7 @@ func (h *Handler) getPageCompletionStatus(ctx context.Context, userID string, st
 		PageTypeProduce:   c.ProduceComplete(),
 		PageTypeRecall:    c.RecallComplete(),
 		PageTypeScore:     false,
-	}, nil
+	}
 }
 
 // determineNextPage finds the next page to visit based on current page and completion status

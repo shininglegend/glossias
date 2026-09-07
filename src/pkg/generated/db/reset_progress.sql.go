@@ -164,20 +164,22 @@ func (q *Queries) DeleteUserStoryTimeTracking(ctx context.Context, arg DeleteUse
 	return result.RowsAffected(), nil
 }
 
-const deleteUserStoryTimeTrackingByPhase = `-- name: DeleteUserStoryTimeTrackingByPhase :execrows
-DELETE FROM user_time_tracking WHERE user_id = $1 AND story_id = $2 AND phase = $3
+const deleteUserStoryTimeTrackingByPhases = `-- name: DeleteUserStoryTimeTrackingByPhases :execrows
+DELETE FROM user_time_tracking
+WHERE user_id = $1 AND story_id = $2::INT AND phase = ANY($3::TEXT[])
 `
 
-type DeleteUserStoryTimeTrackingByPhaseParams struct {
-	UserID  string      `json:"user_id"`
-	StoryID pgtype.Int4 `json:"story_id"`
-	Phase   pgtype.Text `json:"phase"`
+type DeleteUserStoryTimeTrackingByPhasesParams struct {
+	UserID  string   `json:"user_id"`
+	StoryID int32    `json:"story_id"`
+	Phases  []string `json:"phases"`
 }
 
-// phase is the same value GetStoryStudentPerformance (scores.sql) buckets time
-// under, so what the admin sees zeroed matches what was deleted.
-func (q *Queries) DeleteUserStoryTimeTrackingByPhase(ctx context.Context, arg DeleteUserStoryTimeTrackingByPhaseParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteUserStoryTimeTrackingByPhase, arg.UserID, arg.StoryID, arg.Phase)
+// phases are the same values GetStoryStudentPerformance (scores.sql) buckets
+// time under, so what the admin sees zeroed matches what was deleted. One
+// statement covers a single-phase reset and the multi-phase exercise reset.
+func (q *Queries) DeleteUserStoryTimeTrackingByPhases(ctx context.Context, arg DeleteUserStoryTimeTrackingByPhasesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUserStoryTimeTrackingByPhases, arg.UserID, arg.StoryID, arg.Phases)
 	if err != nil {
 		return 0, err
 	}

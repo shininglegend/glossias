@@ -39,6 +39,8 @@ func GetStoryPhaseTotals(ctx context.Context, storyID int) (*PhaseTotals, error)
 // every phase, legacy (vocab/grammar) and current (identify/produce/recall).
 // Produce reflects the latest submission per segment; ProduceAverageScore is
 // over graded segments only, so ProduceGraded tells "pending" from "scored 0".
+// ProducePending is how many of those are still waiting on the background
+// grader; the score page holds off archiving an attempt while it is non-zero.
 type UserStoryScoreSummary struct {
 	VocabCorrect        int
 	VocabIncorrect      int
@@ -51,6 +53,7 @@ type UserStoryScoreSummary struct {
 	ProduceSubmitted    int
 	ProduceGraded       int
 	ProduceAverageScore float64
+	ProducePending      int
 }
 
 // GetUserStoryScoreSummary loads every answer count the score page needs in one
@@ -78,6 +81,7 @@ func GetUserStoryScoreSummary(ctx context.Context, userID string, storyID int) (
 		ProduceSubmitted:    int(row.ProduceSubmitted),
 		ProduceGraded:       int(row.ProduceGraded),
 		ProduceAverageScore: row.ProduceAverageScore,
+		ProducePending:      int(row.ProducePending),
 	}, nil
 }
 

@@ -37,8 +37,9 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/{id}/produce", h.GetProducePage).Methods("GET", "OPTIONS")
 	router.HandleFunc("/{id}/produce", h.SubmitProduce).Methods("POST")
 	router.HandleFunc("/{id}/produce/start", h.StartProduce).Methods("POST", "OPTIONS")
+	// Finishing a story archives the attempt from inside GetScoresData; there
+	// is no student-facing reset endpoint.
 	router.HandleFunc("/{id}/scores", h.GetScoresData).Methods("GET", "OPTIONS")
-	router.HandleFunc("/{id}/progress", h.ResetOwnProgress).Methods("DELETE", "OPTIONS")
 
 	// Audio endpoints
 	router.HandleFunc("/{id}/audio/signed", h.GetSignedAudioURLs).Methods("GET", "OPTIONS")

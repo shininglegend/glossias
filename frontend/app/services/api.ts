@@ -7,6 +7,7 @@ import type {
   ResetPhase,
   ResetProgressResult,
   Story as CourseStory,
+  StudentAttemptSummary,
   TextSegment,
 } from "../types/api";
 
@@ -478,8 +479,13 @@ export function useApiService() {
         );
       },
 
-      getStoryScore: (id: string): Promise<APIResponse<unknown>> => {
-        return fetchAPI(`/stories/${id}/scores`);
+      /** attempt selects an archived attempt; omitted means the newest. */
+      getStoryScore: (
+        id: string,
+        attempt?: number,
+      ): Promise<APIResponse<unknown>> => {
+        const query = attempt ? `?attempt=${attempt}` : "";
+        return fetchAPI(`/stories/${id}/scores${query}`);
       },
 
       getNavigationGuidance: (
@@ -523,14 +529,6 @@ export function useApiService() {
         );
       },
 
-      resetOwnStoryProgress: (
-        storyId: string,
-      ): Promise<APIResponse<ResetProgressResult>> => {
-        return fetchAPI<ResetProgressResult>(`/stories/${storyId}/progress`, {
-          method: "DELETE",
-        });
-      },
-
       resetStudentProgress: (
         storyId: string,
         userId: string,
@@ -538,6 +536,26 @@ export function useApiService() {
       ): Promise<APIResponse<ResetProgressResult>> => {
         return fetchAPI<ResetProgressResult>(
           `/admin/stories/${storyId}/students/${encodeURIComponent(userId)}/progress?phase=${phase}`,
+          { method: "DELETE" },
+        );
+      },
+
+      getStudentAttempts: (
+        storyId: string,
+        userId: string,
+      ): Promise<APIResponse<StudentAttemptSummary[]>> => {
+        return fetchAPI<StudentAttemptSummary[]>(
+          `/admin/stories/${storyId}/students/${encodeURIComponent(userId)}/attempts`,
+        );
+      },
+
+      deleteStudentAttempt: (
+        storyId: string,
+        userId: string,
+        attempt: number,
+      ): Promise<APIResponse<{ attempt: number }>> => {
+        return fetchAPI<{ attempt: number }>(
+          `/admin/stories/${storyId}/students/${encodeURIComponent(userId)}/attempts/${attempt}`,
           { method: "DELETE" },
         );
       },

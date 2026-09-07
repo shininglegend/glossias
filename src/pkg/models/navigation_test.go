@@ -14,6 +14,7 @@ func TestGetUserStoryPageCompletion(t *testing.T) {
 		true,               // translation completed
 		int32(5), int32(3), // recall total / correct
 		int32(0), int32(0), // produce total / submitted
+		int32(2), // completed attempts
 	}}, nil)
 	SetDB(mockDB)
 	t.Cleanup(func() { SetDB(struct{}{}) })
@@ -21,6 +22,9 @@ func TestGetUserStoryPageCompletion(t *testing.T) {
 	c, err := GetUserStoryPageCompletion(context.Background(), "user-1", 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if c.CompletedAttempts != 2 {
+		t.Errorf("completed attempts = %d, want 2", c.CompletedAttempts)
 	}
 
 	checks := []struct {

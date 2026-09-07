@@ -98,6 +98,22 @@ type PhaseTimeBreakdown struct {
 	GrammarSeconds   int `json:"grammar_seconds"`
 }
 
+// GetStudentStoryHeader resolves one student + story pair (name, email,
+// title) or ErrNotFound when either side is missing.
+func GetStudentStoryHeader(ctx context.Context, storyID int32, userID string) (*db.GetStudentStoryHeaderRow, error) {
+	if queries == nil {
+		return nil, errors.New("database not initialized")
+	}
+	header, err := queries.GetStudentStoryHeader(ctx, db.GetStudentStoryHeaderParams{StoryID: storyID, UserID: userID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &header, nil
+}
+
 // GetStudentStoryDrilldown assembles the per-phase answer detail for one
 // student on one story. attemptNumber <= 0 defaults to 1 (official).
 // Frozen past attempts return score + Produce notes only; the current
@@ -107,11 +123,8 @@ func GetStudentStoryDrilldown(ctx context.Context, storyID int32, userID string,
 		attemptNumber = 1
 	}
 
-	header, err := queries.GetStudentStoryHeader(ctx, db.GetStudentStoryHeaderParams{StoryID: int32(storyID), UserID: userID})
+	header, err := GetStudentStoryHeader(ctx, storyID, userID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrNotFound
-		}
 		return nil, err
 	}
 
@@ -146,7 +159,7 @@ func GetStudentStoryDrilldown(ctx context.Context, storyID int32, userID string,
 		RecallAttempts:  []RecallAttemptDetail{},
 	}
 
-	if selected.HasSnapshot && !selected.IsCurrent {
+	if !selected.IsCurrent {
 		return fillDrilldownFromSnapshot(ctx, result, userID, int(storyID), attemptNumber)
 	}
 

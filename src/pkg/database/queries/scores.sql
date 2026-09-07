@@ -144,6 +144,9 @@ SELECT
 -- GetUserStoryScoreSummary: every per-user answer count the score page needs in
 -- one round trip. Produce aggregates the latest submission per segment, like
 -- GetUserStoryProduceSummary; ungraded segments are excluded from the average.
+-- produce_pending counts latest submissions the background grader has not
+-- stamped yet; anything older than five minutes is treated as settled so a
+-- grader that died mid-job cannot hold the attempt open forever.
 -- name: GetUserStoryScoreSummary :one
 SELECT
     (SELECT COUNT(*) FROM vocab_correct_answers t WHERE t.user_id = @user_id AND t.story_id = @story_id::INT)::INT AS vocab_correct,
@@ -156,12 +159,14 @@ SELECT
     (SELECT COUNT(*) FROM recall_incorrect_answers t WHERE t.user_id = @user_id AND t.story_id = @story_id)::INT AS recall_incorrect,
     COALESCE(latest.submitted, 0)::INT AS produce_submitted,
     COALESCE(latest.graded, 0)::INT AS produce_graded,
-    COALESCE(latest.average_score, 0)::FLOAT8 AS produce_average_score
+    COALESCE(latest.average_score, 0)::FLOAT8 AS produce_average_score,
+    COALESCE(latest.pending, 0)::INT AS produce_pending
 FROM (SELECT 1) AS one
 LEFT JOIN (
-    SELECT COUNT(*) AS submitted, COUNT(ai_score) AS graded, AVG(ai_score) AS average_score
+    SELECT COUNT(*) AS submitted, COUNT(ai_score) AS graded, AVG(ai_score) AS average_score,
+           COUNT(*) FILTER (WHERE graded_at IS NULL AND created_at > LOCALTIMESTAMP - INTERVAL '5 minutes') AS pending
     FROM (
-        SELECT DISTINCT ON (segment_id) segment_id, ai_score
+        SELECT DISTINCT ON (segment_id) segment_id, ai_score, graded_at, created_at
         FROM produce_submissions
         WHERE user_id = @user_id AND story_id = @story_id
         ORDER BY segment_id, created_at DESC

@@ -15,10 +15,15 @@ import (
 // ResetPhase names what part of a student's progress on one story to wipe.
 // Phase completion is derived from the answer/submission rows (see
 // SUMMER_2026.md), so deleting them reopens the phase for the student.
+//
+// Live rows are always the student's current attempt, so every phase except
+// ResetAll acts on that attempt alone and leaves archived attempts (and the
+// official first-attempt score) untouched. ResetAll also drops the archive.
 type ResetPhase string
 
 const (
 	ResetAll       ResetPhase = "all"
+	ResetExercises ResetPhase = "exercises" // current attempt: Identify → Recall, video kept
 	ResetVideo     ResetPhase = "video"
 	ResetIdentify  ResetPhase = "identify"
 	ResetTranslate ResetPhase = "translate"
@@ -30,7 +35,7 @@ const (
 
 // ResetPhases lists every accepted value, in flow order.
 var ResetPhases = []ResetPhase{
-	ResetAll, ResetVideo, ResetIdentify, ResetTranslate, ResetProduce, ResetRecall, ResetVocab, ResetGrammar,
+	ResetAll, ResetExercises, ResetVideo, ResetIdentify, ResetTranslate, ResetProduce, ResetRecall, ResetVocab, ResetGrammar,
 }
 
 var ErrInvalidResetPhase = errors.New("invalid reset phase")
@@ -119,10 +124,11 @@ var phaseSpecs = map[ResetPhase]phaseSpec{
 	},
 }
 
-// ResetUserStoryProgress deletes one student's progress on one story: either
-// everything (ResetAll) or a single phase, including that phase's time rows.
-// It runs in a transaction; deleting zero rows is not an error. A whole-story
-// reset is two statements regardless of table count.
+// ResetUserStoryProgress deletes one student's progress on one story:
+// everything including archived attempts (ResetAll), the current attempt's
+// exercises (ResetExercises), or a single phase of the current attempt with
+// its time rows. It runs in a transaction; deleting zero rows is not an
+// error. A whole-story reset is three statements regardless of table count.
 //
 // No cache work is needed: per-user scores are never cached, and the
 // time-tracking session cache holds only session IDs, not DB row references.
@@ -134,8 +140,11 @@ func ResetUserStoryProgress(ctx context.Context, userID string, storyID int32, p
 	result := ResetResult{Phase: phase, Deleted: map[string]int64{}}
 
 	err := withTransaction(ctx, func(txCtx context.Context) error {
-		if phase == ResetAll {
+		switch phase {
+		case ResetAll:
 			return resetAll(txCtx, userID, storyID, result.Deleted)
+		case ResetExercises:
+			return resetExercises(txCtx, userID, storyID, result.Deleted)
 		}
 
 		spec := phaseSpecs[phase]
@@ -146,13 +155,9 @@ func ResetUserStoryProgress(ctx context.Context, userID string, storyID int32, p
 			}
 			result.Deleted[table] = n
 		}
-		n, err := queries.DeleteUserStoryTimeTrackingByPhase(txCtx, db.DeleteUserStoryTimeTrackingByPhaseParams{
-			UserID:  userID,
-			StoryID: pgtype.Int4{Int32: storyID, Valid: true},
-			Phase:   pgtype.Text{String: spec.timePhase, Valid: true},
-		})
+		n, err := deleteTimeTrackingPhases(txCtx, userID, storyID, []string{spec.timePhase})
 		if err != nil {
-			return fmt.Errorf("delete time tracking: %w", err)
+			return err
 		}
 		result.Deleted["time_tracking"] = n
 		return nil
@@ -182,48 +187,36 @@ func resetAll(ctx context.Context, userID string, storyID int32, deleted map[str
 	return nil
 }
 
-// exerciseTimePhases are the phases a student redo wipes. Video is omitted so
-// watch time and the video page stay intact.
+// exerciseTimePhases are the phases an exercise reset wipes. Video is omitted
+// so watch time and the video page stay intact.
 var exerciseTimePhases = []string{"identify", "translate", "produce", "recall", "vocab", "grammar"}
 
-// ResetUserStoryExercises clears Identify/Translate/Produce/Recall (and leftover
-// vocab/grammar) answers so the student can redo the sequence. Video time is
-// not deleted.
-func ResetUserStoryExercises(ctx context.Context, userID string, storyID int32) (ResetResult, error) {
-	result := newExerciseResetResult()
-	err := withTransaction(ctx, func(txCtx context.Context) error {
-		return resetExercises(txCtx, userID, storyID, result.Deleted)
-	})
-	if err != nil {
-		return ResetResult{}, err
-	}
-	return result, nil
-}
-
-func newExerciseResetResult() ResetResult {
-	return ResetResult{Phase: ResetPhase("exercises"), Deleted: map[string]int64{}}
-}
-
-// resetExercises is the transaction body of ResetUserStoryExercises, split out
-// so a student redo can run it in the same transaction as the score snapshot.
+// resetExercises clears Identify/Translate/Produce/Recall (and leftover
+// vocab/grammar) answers and their time rows in two statements. It is the
+// body of an admin ResetExercises and of the automatic archive that runs when
+// a student finishes a story, which needs it inside the snapshot transaction.
 func resetExercises(ctx context.Context, userID string, storyID int32, deleted map[string]int64) error {
 	if err := resetAnswers(ctx, userID, storyID, deleted); err != nil {
 		return err
 	}
-	var n int64
-	for _, phase := range exerciseTimePhases {
-		c, err := queries.DeleteUserStoryTimeTrackingByPhase(ctx, db.DeleteUserStoryTimeTrackingByPhaseParams{
-			UserID:  userID,
-			StoryID: pgtype.Int4{Int32: storyID, Valid: true},
-			Phase:   pgtype.Text{String: phase, Valid: true},
-		})
-		if err != nil {
-			return fmt.Errorf("delete time tracking %s: %w", phase, err)
-		}
-		n += c
+	n, err := deleteTimeTrackingPhases(ctx, userID, storyID, exerciseTimePhases)
+	if err != nil {
+		return err
 	}
 	deleted["time_tracking"] = n
 	return nil
+}
+
+func deleteTimeTrackingPhases(ctx context.Context, userID string, storyID int32, phases []string) (int64, error) {
+	n, err := queries.DeleteUserStoryTimeTrackingByPhases(ctx, db.DeleteUserStoryTimeTrackingByPhasesParams{
+		UserID:  userID,
+		StoryID: storyID,
+		Phases:  phases,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("delete time tracking %v: %w", phases, err)
+	}
+	return n, nil
 }
 
 func resetAnswers(ctx context.Context, userID string, storyID int32, deleted map[string]int64) error {

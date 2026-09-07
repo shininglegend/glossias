@@ -36,7 +36,9 @@ SELECT
       WHERE ps.story_id = $1
         AND EXISTS (SELECT 1 FROM produce_submissions psub
                      WHERE psub.user_id = $2 AND psub.story_id = ps.story_id
-                       AND psub.segment_id = ps.id))::INT AS produce_submitted
+                       AND psub.segment_id = ps.id))::INT AS produce_submitted,
+    (SELECT COUNT(*) FROM story_attempts sa
+      WHERE sa.user_id = $2 AND sa.story_id = $1)::INT AS completed_attempts
 `
 
 type GetUserStoryPageCompletionParams struct {
@@ -52,13 +54,15 @@ type GetUserStoryPageCompletionRow struct {
 	RecallCorrect        int32 `json:"recall_correct"`
 	ProduceTotal         int32 `json:"produce_total"`
 	ProduceSubmitted     int32 `json:"produce_submitted"`
+	CompletedAttempts    int32 `json:"completed_attempts"`
 }
 
 // Navigation queries: everything the "next page" decision needs in one round trip.
 // GetUserStoryPageCompletion returns, for one user and story, the authored total
 // and the user's progress for every skippable phase of the Summer 2026 flow:
-// Identify, Translate, Produce, Recall. Completion rules (e.g. "no segments
-// means produce is done") live in models.PageCompletion.
+// Identify, Translate, Produce, Recall, plus how many completed attempts are
+// archived (the live rows are always the current attempt). Completion rules
+// (e.g. "no segments means produce is done") live in models.PageCompletion.
 func (q *Queries) GetUserStoryPageCompletion(ctx context.Context, arg GetUserStoryPageCompletionParams) (GetUserStoryPageCompletionRow, error) {
 	row := q.db.QueryRow(ctx, getUserStoryPageCompletion, arg.StoryID, arg.UserID)
 	var i GetUserStoryPageCompletionRow
@@ -70,6 +74,7 @@ func (q *Queries) GetUserStoryPageCompletion(ctx context.Context, arg GetUserSto
 		&i.RecallCorrect,
 		&i.ProduceTotal,
 		&i.ProduceSubmitted,
+		&i.CompletedAttempts,
 	)
 	return i, err
 }

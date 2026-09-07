@@ -62,7 +62,8 @@ type CourseStudentPerformance struct {
 	GrammarTimeSeconds     int32 `json:"grammar_time_seconds"`
 	TotalTimeSeconds       int32 `json:"total_time_seconds"`
 
-	// AttemptCount is how many times the student has done the story.
+	// AttemptCount is how many times the student has done the story:
+	// archived attempts plus one if there is live work on the current run.
 	// Scores on this row are always attempt 1 (official).
 	AttemptCount int `json:"attempt_count"`
 }
@@ -178,8 +179,8 @@ func GetStoryStudentPerformance(ctx context.Context, storyID int32, status strin
 		}
 
 		attemptCount := int(row.AttemptCount)
-		if attemptCount == 0 && hasLiveExerciseWork(row) {
-			attemptCount = 1
+		if hasLiveExerciseWork(row) {
+			attemptCount++
 		}
 		results[i].AttemptCount = attemptCount
 		applyOfficialSnapshot(&results[i], row.FirstAttemptSnapshot)

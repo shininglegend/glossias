@@ -2,8 +2,9 @@
 
 -- GetUserStoryPageCompletion returns, for one user and story, the authored total
 -- and the user's progress for every skippable phase of the Summer 2026 flow:
--- Identify, Translate, Produce, Recall. Completion rules (e.g. "no segments
--- means produce is done") live in models.PageCompletion.
+-- Identify, Translate, Produce, Recall, plus how many completed attempts are
+-- archived (the live rows are always the current attempt). Completion rules
+-- (e.g. "no segments means produce is done") live in models.PageCompletion.
 -- name: GetUserStoryPageCompletion :one
 SELECT
     (SELECT COUNT(*) FROM target_vocabulary tv
@@ -30,4 +31,6 @@ SELECT
       WHERE ps.story_id = @story_id
         AND EXISTS (SELECT 1 FROM produce_submissions psub
                      WHERE psub.user_id = @user_id AND psub.story_id = ps.story_id
-                       AND psub.segment_id = ps.id))::INT AS produce_submitted;
+                       AND psub.segment_id = ps.id))::INT AS produce_submitted,
+    (SELECT COUNT(*) FROM story_attempts sa
+      WHERE sa.user_id = @user_id AND sa.story_id = @story_id)::INT AS completed_attempts;

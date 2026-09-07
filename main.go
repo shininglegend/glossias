@@ -23,18 +23,20 @@ import (
 )
 
 func main() {
-	// The level is a LevelVar so it can be set after .env is loaded: the
-	// handler reads it on every record, so the logger can exist before we
-	// know the configured level.
+	// Load .env first so LOG_FORMAT / LOG_LEVEL are available when the
+	// handler is constructed (JSON in production, pretty on a local TTY).
+	dotenvErr := godotenv.Load()
+
+	// The level is a LevelVar so it can be set after the logger exists: the
+	// handler reads it on every record.
 	var level slog.LevelVar
 	level.Set(slog.LevelDebug) // default until LOG_LEVEL is read
-	logger := slog.New(logging.New(os.Stdout, &logging.Options{
+	logger := slog.New(logging.NewHandler(os.Stdout, &logging.Options{
 		Level:     &level,
 		UseColors: true,
 	}))
 
-	// Load environment variables from .env file if present
-	if err := godotenv.Load(); err != nil {
+	if dotenvErr != nil {
 		logger.Warn("No .env file found, relying on environment variables")
 	}
 	// LOG_LEVEL: DEBUG (default), INFO, WARN, ERROR.
@@ -188,7 +190,8 @@ func loggingMiddleware(logger *slog.Logger) mux.MiddlewareFunc {
 			next.ServeHTTP(ww, r)
 			if r.URL.Path != "/api/health" {
 				dbQueries := database.QueryCount(r.Context())
-				logger.Info("request completed",
+				level, msg := logging.HTTPRequestLog(ww.status)
+				logger.Log(r.Context(), level, msg,
 					"method", r.Method,
 					"path", r.URL.Path,
 					"status", ww.status,

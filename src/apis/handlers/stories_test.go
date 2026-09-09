@@ -124,9 +124,9 @@ func TestGetStories(t *testing.T) {
 	h := NewHandler(logger, nil)
 
 	storyRows := [][]any{
-		{int32(1), int32(1), "A", "Story 1", pgtype.Int4{}},
-		{int32(2), int32(1), "B", "Story 2", pgtype.Int4{}},
-		{int32(3), int32(2), "A", "Story 3", pgtype.Int4{}},
+		{int32(1), int32(1), "A", "Story 1", pgtype.Int4{}, []int32{}},
+		{int32(2), int32(1), "B", "Story 2", pgtype.Int4{}, []int32{}},
+		{int32(3), int32(2), "A", "Story 3", pgtype.Int4{}, []int32{}},
 	}
 
 	t.Run("student skips readiness", func(t *testing.T) {

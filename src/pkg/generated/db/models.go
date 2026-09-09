@@ -34,6 +34,16 @@ type CourseAdmin struct {
 	AssignedAt pgtype.Timestamp `json:"assigned_at"`
 }
 
+type CourseSection struct {
+	ParentCourseID  int32 `json:"parent_course_id"`
+	SectionCourseID int32 `json:"section_course_id"`
+}
+
+type CourseStory struct {
+	CourseID int32 `json:"course_id"`
+	StoryID  int32 `json:"story_id"`
+}
+
 type CourseUser struct {
 	CourseID   int32            `json:"course_id"`
 	UserID     string           `json:"user_id"`

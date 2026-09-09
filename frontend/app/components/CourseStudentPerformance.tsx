@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router";
 import { useApiService } from "../services/api";
+import { useCoursesApi, type CourseSection } from "../services/coursesApi";
 import type { Story } from "../types/api";
 import Button from "./ui/Button";
+import Badge from "./ui/Badge";
 import { ManageAttemptsModal } from "./ManageAttemptsModal";
 
 /** Mirrors models.CourseStudentPerformance; rows arrive best overall first. */
@@ -48,6 +50,7 @@ interface StudentPerformanceData {
   grammar_time_seconds: number;
   total_time_seconds: number;
   attempt_count: number;
+  sections?: CourseSection[];
 }
 
 function producePending(s: StudentPerformanceData): boolean {
@@ -206,6 +209,7 @@ const TH = "border border-gray-300 p-3 text-center";
 export function CourseStudentPerformance() {
   const { id } = useParams<{ id: string }>();
   const api = useApiService();
+  const coursesApi = useCoursesApi();
   const [performanceData, setPerformanceData] = useState<
     StudentPerformanceData[]
   >([]);
@@ -215,6 +219,8 @@ export function CourseStudentPerformance() {
   const [loadingPerformance, setLoadingPerformance] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("active");
+  const [sections, setSections] = useState<CourseSection[]>([]);
+  const [sectionFilter, setSectionFilter] = useState<string>("all");
   const [refreshKey, setRefreshKey] = useState(0);
   // Student whose attempts are open in the Manage dialog.
   const [managing, setManaging] = useState<{
@@ -231,12 +237,18 @@ export function CourseStudentPerformance() {
       }
 
       try {
-        const response = await api.getCourseStories(id);
+        const [response, sectionRes] = await Promise.all([
+          api.getCourseStories(id),
+          coursesApi.getCourseSections(Number(id)).catch(() => ({
+            sections: [] as CourseSection[],
+          })),
+        ]);
         if (response.success && response.data) {
           setStories(response.data);
         } else {
           setError(response.error || "Failed to fetch course stories");
         }
+        setSections(sectionRes.sections || []);
       } catch {
         setError("Failed to fetch course stories");
       } finally {
@@ -262,6 +274,8 @@ export function CourseStudentPerformance() {
         const response = await api.getStoryStudentPerformance(
           selectedStoryId.toString(),
           statusFilter,
+          id,
+          sectionFilter,
         );
         if (response.success && response.data) {
           setPerformanceData(response.data as StudentPerformanceData[]);
@@ -311,7 +325,7 @@ export function CourseStudentPerformance() {
 
     fetchPerformance();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedStoryId, statusFilter, refreshKey]);
+  }, [selectedStoryId, statusFilter, sectionFilter, refreshKey]);
 
   // The server orders rows best overall score first (ties: least time, then
   // email), so the table and the CSV share one ordering.
@@ -388,6 +402,33 @@ export function CourseStudentPerformance() {
                     <option value="past">Past Students</option>
                   </select>
                 </div>
+                {sections.length > 0 && (
+                  <div>
+                    <label
+                      htmlFor="section-filter"
+                      className="block font-semibold mb-2"
+                    >
+                      Section:
+                    </label>
+                    <select
+                      id="section-filter"
+                      value={sectionFilter}
+                      onChange={(e) => setSectionFilter(e.target.value)}
+                      className="border border-gray-300 rounded px-3 py-2"
+                    >
+                      <option value="all">All Sections</option>
+                      <option value="unassigned">Unassigned</option>
+                      {sections.map((section) => (
+                        <option
+                          key={section.course_id}
+                          value={section.course_id}
+                        >
+                          {section.course_number} — {section.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="block font-semibold mb-2">&nbsp;</label>
                   <button
@@ -453,6 +494,15 @@ export function CourseStudentPerformance() {
                           <div className="text-sm text-gray-600">
                             {student.email}
                           </div>
+                          {student.sections?.length ? (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {student.sections.map((section) => (
+                                <Badge key={section.course_id} variant="muted">
+                                  {section.course_number}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : null}
                         </div>
                       </td>
                       <td className="border border-gray-300 p-3 text-center">

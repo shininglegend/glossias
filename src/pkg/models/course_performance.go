@@ -2,9 +2,10 @@ package models
 
 import (
 	"context"
-	"glossias/src/pkg/generated/db"
 	"slices"
 	"strings"
+
+	"glossias/src/pkg/generated/db"
 )
 
 // GetStoryCourseID retrieves the course ID for a given story
@@ -66,6 +67,8 @@ type CourseStudentPerformance struct {
 	// archived attempts plus one if there is live work on the current run.
 	// Scores on this row are always attempt 1 (official).
 	AttemptCount int `json:"attempt_count"`
+
+	Sections []CourseSection `json:"sections,omitempty"`
 }
 
 // CalculateScoreWithRetriesAllowed calculates a score for vocab/grammar exercises where students must retry until correct.
@@ -101,15 +104,20 @@ func CalculateScoreWithRetriesAllowed(correctCount, incorrectCount, totalPossibl
 // specific story, best overall score first. Two round trips: the story's phase
 // totals, then one aggregated row per student.
 // status filters by course status: "active", "future", "past", or "" for all.
-func GetStoryStudentPerformance(ctx context.Context, storyID int32, status string) ([]CourseStudentPerformance, error) {
+func GetStoryStudentPerformance(ctx context.Context, storyID int32, courseIDs []int32, status string) ([]CourseStudentPerformance, error) {
+	if len(courseIDs) == 0 {
+		return nil, nil
+	}
+
 	totals, err := GetStoryPhaseTotals(ctx, int(storyID))
 	if err != nil {
 		return nil, err
 	}
 
 	rows, err := queries.GetStoryStudentPerformance(ctx, db.GetStoryStudentPerformanceParams{
-		StoryID: storyID,
-		Status:  status,
+		StoryID:   storyID,
+		CourseIds: courseIDs,
+		Status:    status,
 	})
 	if err != nil {
 		return nil, err
@@ -201,5 +209,48 @@ func GetStoryStudentPerformance(ctx context.Context, storyID int32, status strin
 		return strings.Compare(a.Email, b.Email)
 	})
 
+	return results, nil
+}
+
+// GetStoryStudentPerformanceForCourse is the instructor roster: courseID plus
+// optional section=all|unassigned|<sectionCourseId> when that course has children.
+func GetStoryStudentPerformanceForCourse(ctx context.Context, storyID, courseID int32, status, section string) ([]CourseStudentPerformance, error) {
+	scope, err := ResolveStoryRosterScope(ctx, courseID, section)
+	if err != nil {
+		return nil, err
+	}
+	results, err := GetStoryStudentPerformance(ctx, storyID, scope.CourseIDs, status)
+	if err != nil {
+		return nil, err
+	}
+	if scope.UnassignedOnly && len(scope.SectionIDs) > 0 {
+		assigned, err := ListUserIDsForCourses(ctx, scope.SectionIDs)
+		if err != nil {
+			return nil, err
+		}
+		inSection := make(map[string]struct{}, len(assigned))
+		for _, id := range assigned {
+			inSection[id] = struct{}{}
+		}
+		filtered := results[:0]
+		for _, row := range results {
+			if _, ok := inSection[row.UserID]; !ok {
+				filtered = append(filtered, row)
+			}
+		}
+		results = filtered
+	}
+	if len(scope.SectionIDs) == 0 {
+		return results, nil
+	}
+	byUser, err := ListUserSectionsForParent(ctx, courseID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range results {
+		if secs := byUser[results[i].UserID]; len(secs) > 0 {
+			results[i].Sections = secs
+		}
+	}
 	return results, nil
 }

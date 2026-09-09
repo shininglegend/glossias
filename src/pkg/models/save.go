@@ -31,6 +31,9 @@ func SaveNewStory(ctx context.Context, story *Story) error {
 		}
 
 		story.Metadata.StoryID = int(result.StoryID)
+		if err := ensureOwnerLinked(txCtx, result.StoryID, story.Metadata.CourseID); err != nil {
+			return err
+		}
 		return saveStoryComponents(txCtx, story)
 	})
 
@@ -68,6 +71,9 @@ func SaveStoryData(ctx context.Context, storyID int, story *Story) error {
 			CourseID:   courseID,
 		})
 		if err != nil {
+			return err
+		}
+		if err := ensureOwnerLinked(txCtx, int32(storyID), story.Metadata.CourseID); err != nil {
 			return err
 		}
 

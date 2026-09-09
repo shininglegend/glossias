@@ -18,9 +18,10 @@ type Course struct {
 
 // CreateCourseRequest represents the request body for creating a course
 type CreateCourseRequest struct {
-	CourseNumber string `json:"course_number"`
-	Name         string `json:"name"`
-	Description  string `json:"description"`
+	CourseNumber   string `json:"course_number"`
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	ParentCourseID *int32 `json:"parent_course_id"`
 }
 
 // UpdateCourseRequest represents the request body for updating a course
@@ -91,6 +92,14 @@ func (h *Handler) handleCourseCreate(w http.ResponseWriter, r *http.Request) {
 		h.log.Error("failed to create course", "error", err, "course_number", req.CourseNumber)
 		http.Error(w, "Failed to create course", http.StatusInternalServerError)
 		return
+	}
+
+	if req.ParentCourseID != nil && *req.ParentCourseID != 0 {
+		if err := models.AttachCourseSection(r.Context(), *req.ParentCourseID, course.CourseID); err != nil {
+			h.writeSectionError(w, err)
+			return
+		}
+		course.ParentCourseID = req.ParentCourseID
 	}
 
 	w.Header().Set("Content-Type", "application/json")

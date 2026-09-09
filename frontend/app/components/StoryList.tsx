@@ -144,9 +144,24 @@ export function StoryList() {
     const future: Story[] = [];
 
     stories.forEach((story) => {
-      const status = story.course_id
-        ? courseStatusMap.get(story.course_id)
-        : "active";
+      const ids =
+        story.course_ids && story.course_ids.length > 0
+          ? story.course_ids
+          : story.course_id != null
+            ? [story.course_id]
+            : [];
+      const statuses = ids
+        .map((id) => courseStatusMap.get(id))
+        .filter((s): s is string => !!s);
+      const status = statuses.includes("active")
+        ? "active"
+        : statuses.includes("future")
+          ? "future"
+          : statuses.includes("past")
+            ? "past"
+            : ids.length === 0
+              ? "active"
+              : undefined;
       if (status === "past") {
         past.push(story);
       } else if (status === "future") {

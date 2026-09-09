@@ -279,7 +279,7 @@ WITH vocab_c AS (
     JOIN story_attempt_score_snapshots snap ON snap.attempt_id = sa.attempt_id
     WHERE sa.story_id = $1 AND sa.attempt_number = 1
 )
-SELECT
+SELECT DISTINCT ON (u.user_id)
     u.user_id,
     u.name AS user_name,
     u.email,
@@ -309,8 +309,8 @@ SELECT
     first_snap.snapshot AS first_attempt_snapshot
 FROM users u
 JOIN course_users cu ON u.user_id = cu.user_id
-JOIN stories s ON cu.course_id = s.course_id
-LEFT JOIN story_titles st ON s.story_id = st.story_id AND st.language_code = 'en'
+JOIN course_stories cs ON cs.course_id = cu.course_id AND cs.story_id = $1
+LEFT JOIN story_titles st ON cs.story_id = st.story_id AND st.language_code = 'en'
 LEFT JOIN vocab_c ON vocab_c.user_id = u.user_id
 LEFT JOIN vocab_i ON vocab_i.user_id = u.user_id
 LEFT JOIN grammar_c ON grammar_c.user_id = u.user_id
@@ -324,14 +324,15 @@ LEFT JOIN tr ON tr.user_id = u.user_id
 LEFT JOIN time_stats ON time_stats.user_id = u.user_id
 LEFT JOIN attempt_stats ON attempt_stats.user_id = u.user_id
 LEFT JOIN first_snap ON first_snap.user_id = u.user_id
-WHERE s.story_id = $1
-  AND ($2::TEXT = '' OR cu.status = $2)
-ORDER BY u.name
+WHERE cu.course_id = ANY($2::int[])
+  AND ($3::TEXT = '' OR cu.status = $3)
+ORDER BY u.user_id, u.name
 `
 
 type GetStoryStudentPerformanceParams struct {
-	StoryID int32  `json:"story_id"`
-	Status  string `json:"status"`
+	StoryID   int32   `json:"story_id"`
+	CourseIds []int32 `json:"course_ids"`
+	Status    string  `json:"status"`
 }
 
 type GetStoryStudentPerformanceRow struct {
@@ -369,7 +370,7 @@ type GetStoryStudentPerformanceRow struct {
 // table is aggregated once with GROUP BY user_id and joined, instead of a
 // correlated scalar subquery per student per table.
 func (q *Queries) GetStoryStudentPerformance(ctx context.Context, arg GetStoryStudentPerformanceParams) ([]GetStoryStudentPerformanceRow, error) {
-	rows, err := q.db.Query(ctx, getStoryStudentPerformance, arg.StoryID, arg.Status)
+	rows, err := q.db.Query(ctx, getStoryStudentPerformance, arg.StoryID, arg.CourseIds, arg.Status)
 	if err != nil {
 		return nil, err
 	}

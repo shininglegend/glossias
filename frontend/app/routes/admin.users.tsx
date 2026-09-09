@@ -7,6 +7,7 @@ import { useAuthenticatedFetch } from "../lib/authFetch";
 import {
   useCoursesApi,
   type Course as CourseType,
+  type CourseSection,
 } from "../services/coursesApi";
 import { pageMeta } from "~/lib/pageTitle";
 
@@ -21,6 +22,7 @@ type User = {
   role: "student" | "course_admin" | "super_admin";
   status: "active" | "past" | "future";
   enrolled_at: string;
+  sections?: CourseSection[];
 };
 
 export default function AdminUsers() {
@@ -41,6 +43,10 @@ export default function AdminUsers() {
     null,
   );
   const [showBulkStatusModal, setShowBulkStatusModal] = React.useState(false);
+  const [showBulkSectionModal, setShowBulkSectionModal] = React.useState(false);
+  const [sections, setSections] = React.useState<CourseSection[]>([]);
+  const [sectionFilter, setSectionFilter] = React.useState<string>("all");
+  const [assigningSection, setAssigningSection] = React.useState(false);
   const authenticatedFetch = useAuthenticatedFetch();
   const coursesApi = useCoursesApi();
 
@@ -64,11 +70,12 @@ export default function AdminUsers() {
 
   React.useEffect(() => {
     if (selectedCourse === null) return;
+    const courseId = selectedCourse;
 
     async function fetchUsers() {
       try {
         const res = await authenticatedFetch(
-          `/api/admin/course-users/${selectedCourse}`,
+          `/api/admin/course-users/${courseId}`,
           {
             headers: { Accept: "application/json" },
           },
@@ -80,7 +87,21 @@ export default function AdminUsers() {
         console.error("Failed to fetch users:", error);
       }
     }
+
+    async function fetchSections() {
+      try {
+        const response = await coursesApi.getCourseSections(courseId);
+        setSections(response.sections || []);
+        setSectionFilter("all");
+      } catch (error) {
+        console.error("Failed to fetch sections:", error);
+        setSections([]);
+      }
+    }
+
     fetchUsers();
+    fetchSections();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCourse, authenticatedFetch]);
 
   const handleAddUser = async (emails: string[], courseId: number) => {
@@ -260,6 +281,42 @@ export default function AdminUsers() {
     }
   };
 
+  const refreshUsers = async (courseId: number) => {
+    const usersRes = await authenticatedFetch(
+      `/api/admin/course-users/${courseId}`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (usersRes.ok) {
+      const json = await usersRes.json();
+      setUsers(json.users);
+    }
+  };
+
+  const handleAssignSelectedToSection = async (
+    sectionCourseId: number | null,
+  ) => {
+    if (selectedUsers.size === 0 || !selectedCourse) return;
+
+    setAssigningSection(true);
+    try {
+      await coursesApi.assignUsersToSection(
+        selectedCourse,
+        Array.from(selectedUsers),
+        sectionCourseId,
+      );
+      await refreshUsers(selectedCourse);
+      setSelectedUsers(new Set());
+      setShowBulkSectionModal(false);
+    } catch (error) {
+      console.error("Failed to assign section:", error);
+      const message =
+        error instanceof Error ? error.message : "Failed to assign section";
+      alert(message);
+    } finally {
+      setAssigningSection(false);
+    }
+  };
+
   const handleBulkStatusChange = async (
     newStatus: "active" | "past" | "future",
   ) => {
@@ -303,6 +360,13 @@ export default function AdminUsers() {
     .filter((user) => {
       if (statusFilter !== "all" && user.status !== statusFilter) {
         return false;
+      }
+      if (sectionFilter === "unassigned") {
+        return !user.sections?.length;
+      }
+      if (sectionFilter !== "all") {
+        const sectionId = Number(sectionFilter);
+        return user.sections?.some((s) => s.course_id === sectionId) ?? false;
       }
       return true;
     })
@@ -398,6 +462,27 @@ export default function AdminUsers() {
             </select>
           </div>
 
+          {sections.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-slate-700">
+                Section:
+              </label>
+              <select
+                value={sectionFilter}
+                onChange={(e) => setSectionFilter(e.target.value)}
+                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="all">All Sections</option>
+                <option value="unassigned">Unassigned</option>
+                {sections.map((section) => (
+                  <option key={section.course_id} value={section.course_id}>
+                    {section.course_number} — {section.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {filteredUsers.length > 0 && (
             <div className="flex items-center gap-2 ml-auto">
               {selectedUsers.size > 0 && (
@@ -411,6 +496,21 @@ export default function AdminUsers() {
                   >
                     Change Status ({selectedUsers.size})
                   </Button>
+                  {sections.length > 0 && (
+                    <Button
+                      onClick={() => setShowBulkSectionModal(true)}
+                      variant="outline"
+                      size="sm"
+                      icon={
+                        <span className="material-icons text-sm">
+                          group_work
+                        </span>
+                      }
+                      disabled={assigningSection}
+                    >
+                      Assign Section ({selectedUsers.size})
+                    </Button>
+                  )}
                   <Button
                     onClick={handleRemoveSelected}
                     variant="outline"
@@ -470,6 +570,11 @@ export default function AdminUsers() {
                           Enrolled:{" "}
                           {new Date(user.enrolled_at).toLocaleDateString()}
                         </p>
+                        {user.sections?.map((section) => (
+                          <Badge key={section.course_id} variant="muted">
+                            {section.course_number}
+                          </Badge>
+                        ))}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -651,6 +756,49 @@ export default function AdminUsers() {
             onClick={() => setShowBulkStatusModal(false)}
             className="w-full"
             disabled={updatingStatus !== null}
+          >
+            Cancel
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showBulkSectionModal}
+        onClose={() => setShowBulkSectionModal(false)}
+        title={`Assign ${selectedUsers.size} user${
+          selectedUsers.size !== 1 ? "s" : ""
+        } to a section`}
+        closeDisabled={assigningSection}
+      >
+        <div className="mt-4 space-y-3">
+          <p className="text-sm text-slate-600">
+            Students stay enrolled in this course. Assigning moves them to one
+            section.
+          </p>
+          {sections.map((section) => (
+            <Button
+              key={section.course_id}
+              onClick={() => handleAssignSelectedToSection(section.course_id)}
+              className="w-full"
+              disabled={assigningSection}
+            >
+              {section.course_number} — {section.name}
+            </Button>
+          ))}
+          <Button
+            variant="outline"
+            onClick={() => handleAssignSelectedToSection(null)}
+            className="w-full"
+            disabled={assigningSection}
+          >
+            Unassigned
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setShowBulkSectionModal(false)}
+            className="w-full"
+            disabled={assigningSection}
           >
             Cancel
           </Button>

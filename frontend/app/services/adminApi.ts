@@ -146,6 +146,60 @@ export function useAdminApi() {
       [request],
     ),
 
+    listStoryCourses: useCallback(
+      async (
+        id: number,
+        baseUrl?: string,
+      ): Json<{
+        success: boolean;
+        courses: {
+          course_id: number;
+          course_number: string;
+          name: string;
+        }[];
+      }> => {
+        return request(
+          `/stories/${id}/courses`,
+          { headers: { Accept: "application/json" } },
+          baseUrl,
+        );
+      },
+      [request],
+    ),
+
+    linkStoryCourse: useCallback(
+      async (
+        id: number,
+        courseId: number,
+        baseUrl?: string,
+      ): Json<{ success: boolean }> => {
+        return request<{ success: boolean }>(
+          `/stories/${id}/courses`,
+          {
+            method: "POST",
+            body: JSON.stringify({ courseId }),
+          },
+          baseUrl,
+        );
+      },
+      [request],
+    ),
+
+    unlinkStoryCourse: useCallback(
+      async (
+        id: number,
+        courseId: number,
+        baseUrl?: string,
+      ): Json<{ success: boolean }> => {
+        return request<{ success: boolean }>(
+          `/stories/${id}/courses/${courseId}`,
+          { method: "DELETE" },
+          baseUrl,
+        );
+      },
+      [request],
+    ),
+
     // PUT stories/:id/metadata expects StoryMetadata
     updateMetadata: useCallback(
       async (

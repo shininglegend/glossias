@@ -6,6 +6,7 @@ import { Card } from "~/components/ui/Card";
 import Badge from "~/components/ui/Badge";
 import Textarea from "~/components/ui/Textarea";
 
+import CourseSelector from "~/components/ui/CourseSelector";
 import {
   useCoursesApi,
   type Course,
@@ -39,6 +40,7 @@ export default function AdminCourses() {
     course_number: "",
     name: "",
     description: "",
+    parent_course_id: undefined as number | undefined,
   });
   const [adminEmail, setAdminEmail] = React.useState("");
 
@@ -65,7 +67,12 @@ export default function AdminCourses() {
   }, []);
 
   const resetForm = () => {
-    setFormData({ course_number: "", name: "", description: "" });
+    setFormData({
+      course_number: "",
+      name: "",
+      description: "",
+      parent_course_id: undefined,
+    });
     setShowCreateForm(false);
     setEditingCourse(null);
   };
@@ -77,17 +84,25 @@ export default function AdminCourses() {
     setProcessing(true);
     try {
       if (editingCourse) {
-        const updated = await coursesApi.updateCourse(
-          editingCourse.course_id,
-          formData,
-        );
+        const updated = await coursesApi.updateCourse(editingCourse.course_id, {
+          course_number: formData.course_number,
+          name: formData.name,
+          description: formData.description,
+        });
         setCourses((prev) =>
           prev.map((c) =>
             c.course_id === editingCourse.course_id ? updated : c,
           ),
         );
       } else {
-        const created = await coursesApi.createCourse(formData);
+        const created = await coursesApi.createCourse({
+          course_number: formData.course_number,
+          name: formData.name,
+          description: formData.description,
+          ...(formData.parent_course_id
+            ? { parent_course_id: formData.parent_course_id }
+            : {}),
+        });
         setCourses((prev) => [...prev, created]);
       }
       resetForm();
@@ -103,6 +118,7 @@ export default function AdminCourses() {
       course_number: course.course_number,
       name: course.name,
       description: course.description || "",
+      parent_course_id: course.parent_course_id,
     });
     setEditingCourse(course);
     setShowCreateForm(true);
@@ -295,6 +311,22 @@ export default function AdminCourses() {
                   rows={3}
                 />
               </div>
+              {!editingCourse && (
+                <CourseSelector
+                  label="Section of"
+                  placeholder="None — standalone course"
+                  value={formData.parent_course_id}
+                  onChange={(parentId) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      parent_course_id: parentId,
+                    }))
+                  }
+                  parentsOnly
+                  disabled={processing}
+                  id="parentCourse"
+                />
+              )}
               <div className="flex gap-2 pt-2">
                 <Button type="submit" disabled={processing}>
                   {processing
@@ -423,6 +455,14 @@ export default function AdminCourses() {
                       <div className="flex items-center gap-2 mb-2">
                         <h3 className="font-semibold text-lg">{course.name}</h3>
                         <Badge>{course.course_number}</Badge>
+                        {course.parent_course_id && (
+                          <Badge variant="muted">
+                            Section of{" "}
+                            {courses.find(
+                              (c) => c.course_id === course.parent_course_id,
+                            )?.course_number ?? `#${course.parent_course_id}`}
+                          </Badge>
+                        )}
                       </div>
                       {course.description && (
                         <p className="text-slate-600 text-sm mb-2">

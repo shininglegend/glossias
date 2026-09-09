@@ -10,6 +10,9 @@ interface CourseSelectorProps {
   disabled?: boolean;
   placeholder?: string;
   className?: string;
+  id?: string;
+  excludeIds?: number[];
+  parentsOnly?: boolean;
 }
 
 export default function CourseSelector({
@@ -20,6 +23,9 @@ export default function CourseSelector({
   disabled = false,
   placeholder = "Select a course",
   className = "",
+  id = "courseSelector",
+  excludeIds,
+  parentsOnly = false,
 }: CourseSelectorProps) {
   const coursesApi = useCoursesApi();
   const [courses, setCourses] = React.useState<Course[]>([]);
@@ -65,13 +71,13 @@ export default function CourseSelector({
   return (
     <div className={className}>
       {label && (
-        <Label htmlFor="courseSelector" className="mb-2">
+        <Label htmlFor={id} className="mb-2">
           {label}
           {required && <span className="text-red-500 ml-1">*</span>}
         </Label>
       )}
       <select
-        id="courseSelector"
+        id={id}
         value={value || ""}
         onChange={handleChange}
         disabled={disabled || loading}
@@ -79,11 +85,17 @@ export default function CourseSelector({
         className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
       >
         <option value="">{loading ? "Loading courses..." : placeholder}</option>
-        {courses.map((course) => (
-          <option key={course.course_id} value={course.course_id}>
-            {course.course_number} - {course.name}
-          </option>
-        ))}
+        {courses
+          .filter((course) => {
+            if (excludeIds?.includes(course.course_id)) return false;
+            if (parentsOnly && course.parent_course_id) return false;
+            return true;
+          })
+          .map((course) => (
+            <option key={course.course_id} value={course.course_id}>
+              {course.course_number} - {course.name}
+            </option>
+          ))}
       </select>
       {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
     </div>

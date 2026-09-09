@@ -240,17 +240,8 @@ func GetSignedImageURL(ctx context.Context, imageID int, userID string, expiresI
 		return "", err
 	}
 
-	// Check user can access this story's course
-	story, err := queries.GetStory(ctx, int32(img.StoryID))
-	if err != nil {
-		return "", err
-	}
-
-	if story.CourseID.Valid {
-		canAccess := CanUserAccessCourse(ctx, userID, story.CourseID.Int32)
-		if !canAccess {
-			return "", errors.New("access denied")
-		}
+	if !CanUserAccessStory(ctx, userID, int32(img.StoryID)) {
+		return "", errors.New("access denied")
 	}
 
 	// Generate signed URL from Supabase with retry
@@ -275,24 +266,13 @@ func GetSignedImageURLsForStory(ctx context.Context, storyID int, userID string,
 		return nil, errors.New("storage client not initialized")
 	}
 
-	// Check user can access this story's course
-	story, err := queries.GetStory(ctx, int32(storyID))
-	if err != nil {
-		if err == sql.ErrNoRows || err == pgx.ErrNoRows {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-
-	if story.CourseID.Valid {
-		canAccess := CanUserAccessCourse(ctx, userID, story.CourseID.Int32)
-		if !canAccess {
-			return nil, errors.New("access denied")
-		}
+	if !CanUserAccessStory(ctx, userID, int32(storyID)) {
+		return nil, errors.New("access denied")
 	}
 
 	// Get images
 	var images []StoryImage
+	var err error
 	if label != "" {
 		images, err = GetStoryImagesByLabel(ctx, storyID, label)
 	} else {

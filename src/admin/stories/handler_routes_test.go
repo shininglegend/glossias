@@ -37,6 +37,9 @@ func TestPhaseAuthoringRoutesResolve(t *testing.T) {
 
 		// Routes that existed before must keep resolving to themselves.
 		{http.MethodGet, "/stories/12", "/stories/{id:[0-9]+}"},
+		{http.MethodGet, "/stories/12/courses", "/stories/{id:[0-9]+}/courses"},
+		{http.MethodPost, "/stories/12/courses", "/stories/{id:[0-9]+}/courses"},
+		{http.MethodDelete, "/stories/12/courses/3", "/stories/{id:[0-9]+}/courses/{courseId:[0-9]+}"},
 		{http.MethodPost, "/stories/audio/upload", "/stories/audio/upload"},
 		{http.MethodPost, "/stories/image/upload", "/stories/image/upload"},
 	}

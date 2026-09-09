@@ -23,6 +23,7 @@ func stubNavigationDB(t *testing.T, completion []any) {
 	t.Helper()
 	mockDB := database.NewMockDBTX()
 	// "GetStory" alone would also match GetStoryTitles/GetStoryLines/...
+	mockDB.StubQuery("CanUserAccessStory", [][]any{{true}}, nil)
 	mockDB.StubQuery("name: GetStory :one", [][]any{{
 		int32(2), int32(1), "A", pgtype.Text{}, pgtype.Timestamp{}, "author", "Author", pgtype.Int4{},
 	}}, nil)
@@ -74,7 +75,7 @@ func TestNavigate(t *testing.T) {
 
 			// Budget: 10 for the uncached GetStoryData access/content load
 			// (cached in production) + exactly 1 page-completion query.
-			rr := assertQueryBudget(t, 11, h.Navigate, req)
+			rr := assertQueryBudget(t, 12, h.Navigate, req)
 			if rr.Code != http.StatusOK {
 				t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
 			}

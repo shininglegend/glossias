@@ -18,6 +18,7 @@ type Story struct {
 	WeekNumber int    `json:"week_number"`
 	DayLetter  string `json:"day_letter"`
 	CourseID   *int   `json:"course_id,omitempty"`
+	CourseIDs  []int  `json:"course_ids,omitempty"`
 	// MissingPhases lists the Summer 2026 phases ("identify", "produce",
 	// "recall") whose content is not fully authored. Populated only for admin
 	// callers; omitted when the story is complete.
@@ -399,6 +400,7 @@ func ConvertStoryToAPI(dbStory models.Story) Story {
 		WeekNumber: dbStory.Metadata.WeekNumber,
 		DayLetter:  dbStory.Metadata.DayLetter,
 		CourseID:   dbStory.Metadata.CourseID,
+		CourseIDs:  dbStory.Metadata.LinkedCourseIDs,
 	}
 }
 

@@ -19,6 +19,7 @@ export interface Story {
   week_number: number;
   day_letter: string;
   course_id?: number;
+  course_ids?: number[];
   status?: "not_started" | "in_progress" | "complete";
   next_page?: string;
   next_page_name?: string;
@@ -514,11 +515,17 @@ export function useApiService() {
       getStoryStudentPerformance: (
         storyId: string,
         status?: string,
+        courseId?: string,
+        section?: string,
       ): Promise<APIResponse<unknown>> => {
-        const queryParams = status
-          ? `?status=${encodeURIComponent(status)}`
-          : "";
-        return fetchAPI(`/admin/stories/${storyId}/students${queryParams}`);
+        const params = new URLSearchParams();
+        if (status) params.set("status", status);
+        if (courseId) params.set("course_id", courseId);
+        if (section) params.set("section", section);
+        const query = params.toString();
+        return fetchAPI(
+          `/admin/stories/${storyId}/students${query ? `?${query}` : ""}`,
+        );
       },
 
       getStudentStoryDrilldown: (

@@ -88,6 +88,9 @@ func EditStoryMetadata(ctx context.Context, storyID int, metadata StoryMetadata)
 		if err != nil {
 			return err
 		}
+		if err := ensureOwnerLinked(txCtx, int32(storyID), metadata.CourseID); err != nil {
+			return err
+		}
 
 		// Update titles using SQLC
 		if err := queries.DeleteStoryTitles(txCtx, int32(storyID)); err != nil {

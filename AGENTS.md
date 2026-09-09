@@ -20,6 +20,8 @@ go run main.go
 
 Frontend (port 5173) is documented in `frontend/AGENTS.md`. Both must run concurrently for the app to work. The Vite dev server proxies `/api` to `:8080` — no CORS config needed in dev.
 
+If you start the backend, Vite, or another server **to test your changes**, stop it when you are done. A leftover `go run` or `npm run dev` occupies the port and the developer cannot start theirs. Prefer servers that are already up; never kill a process you did not start.
+
 ## Building
 
 ```bash

@@ -6,7 +6,7 @@ Repo-wide backend, DB, and auth conventions live in the root [`AGENTS.md`](../AG
 
 ## Running locally
 
-Port 5173. Proxies `/api` to the Go backend on `:8080`. Both must run concurrently — no CORS config needed in dev.
+Port 5173. Proxies `/api` to the Go backend on `:8080`. Both must run concurrently — no CORS config needed in dev. If you start Vite or the backend to test, stop it when finished — see the root `AGENTS.md`.
 
 ```bash
 cd frontend

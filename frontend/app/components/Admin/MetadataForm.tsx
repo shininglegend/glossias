@@ -206,6 +206,14 @@ export default function MetadataForm({
         />
       </div>
       <div>
+        <Label>Video URL</Label>
+        <Input
+          value={meta.videoUrl || ""}
+          onChange={(e) => update("videoUrl", e.target.value)}
+          placeholder="https://..."
+        />
+      </div>
+      <div>
         <CourseSelector
           value={meta.courseId}
           onChange={(courseId) => update("courseId", courseId)}
@@ -264,14 +272,6 @@ export default function MetadataForm({
             Add
           </Button>
         </div>
-      </div>
-      <div>
-        <Label>Video URL</Label>
-        <Input
-          value={meta.videoUrl || ""}
-          onChange={(e) => update("videoUrl", e.target.value)}
-          placeholder="https://..."
-        />
       </div>
       <div className="md:col-span-2">
         <Label>Description Language</Label>

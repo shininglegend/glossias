@@ -201,7 +201,7 @@ export default function AdminCourses() {
 
   if (!isSuperAdmin) {
     return (
-      <main className="mx-auto max-w-6xl px-4 py-6">
+      <main className="mx-auto w-full max-w-6xl px-4 py-6">
         <div className="text-center py-8">
           <h1 className="text-2xl font-semibold text-red-600 mb-2">
             Access Denied
@@ -221,7 +221,7 @@ export default function AdminCourses() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-6">
+    <main className="mx-auto w-full max-w-6xl px-4 py-6">
       <div className="flex flex-col gap-6">
         <div className="flex items-end justify-between gap-4">
           <div>
@@ -445,78 +445,88 @@ export default function AdminCourses() {
                 No courses found. Create your first course to get started.
               </div>
             ) : (
-              courses.map((course, index) => (
-                <Card
-                  key={course.course_id || `course-${index}`}
-                  className="p-4"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold text-lg">{course.name}</h3>
-                        <Badge>{course.course_number}</Badge>
-                        {course.parent_course_id && (
-                          <Badge variant="muted">
-                            Section of{" "}
-                            {courses.find(
-                              (c) => c.course_id === course.parent_course_id,
-                            )?.course_number ?? `#${course.parent_course_id}`}
-                          </Badge>
+              courses
+                .filter(
+                  (course) => course.course_id !== editingCourse?.course_id,
+                )
+                .map((course, index) => (
+                  <Card
+                    key={course.course_id || `course-${index}`}
+                    className="p-4"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="font-semibold text-lg">
+                            {course.name}
+                          </h3>
+                          <Badge>{course.course_number}</Badge>
+                          {course.parent_course_id && (
+                            <Badge variant="muted">
+                              Section of{" "}
+                              {courses.find(
+                                (c) => c.course_id === course.parent_course_id,
+                              )?.course_number ?? `#${course.parent_course_id}`}
+                            </Badge>
+                          )}
+                        </div>
+                        {course.description && (
+                          <p className="text-slate-600 text-sm mb-2">
+                            {course.description}
+                          </p>
                         )}
+                        <div className="text-xs text-slate-500">
+                          Created:{" "}
+                          {new Date(course.created_at).toLocaleDateString()}
+                          {course.updated_at !== course.created_at && (
+                            <>
+                              {" "}
+                              • Updated:{" "}
+                              {new Date(course.updated_at).toLocaleDateString()}
+                            </>
+                          )}
+                        </div>
                       </div>
-                      {course.description && (
-                        <p className="text-slate-600 text-sm mb-2">
-                          {course.description}
-                        </p>
-                      )}
-                      <div className="text-xs text-slate-500">
-                        Created:{" "}
-                        {new Date(course.created_at).toLocaleDateString()}
-                        {course.updated_at !== course.created_at && (
-                          <>
-                            {" "}
-                            • Updated:{" "}
-                            {new Date(course.updated_at).toLocaleDateString()}
-                          </>
-                        )}
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          onClick={() => fetchCourseAdmins(course)}
+                          variant="outline"
+                          size="sm"
+                          icon={
+                            <span className="material-icons text-sm">
+                              group
+                            </span>
+                          }
+                        >
+                          Admins
+                        </Button>
+                        <Button
+                          onClick={() => handleEdit(course)}
+                          variant="outline"
+                          size="sm"
+                          icon={
+                            <span className="material-icons text-sm">edit</span>
+                          }
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          onClick={() => handleDelete(course)}
+                          variant="danger"
+                          size="sm"
+                          disabled={processing}
+                          icon={
+                            <span className="material-icons text-sm">
+                              delete
+                            </span>
+                          }
+                        >
+                          Delete
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        onClick={() => fetchCourseAdmins(course)}
-                        variant="outline"
-                        size="sm"
-                        icon={
-                          <span className="material-icons text-sm">group</span>
-                        }
-                      >
-                        Admins
-                      </Button>
-                      <Button
-                        onClick={() => handleEdit(course)}
-                        variant="outline"
-                        size="sm"
-                        icon={
-                          <span className="material-icons text-sm">edit</span>
-                        }
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        onClick={() => handleDelete(course)}
-                        variant="danger"
-                        size="sm"
-                        disabled={processing}
-                        icon={
-                          <span className="material-icons text-sm">delete</span>
-                        }
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              ))
+                  </Card>
+                ))
             )}
           </div>
         )}

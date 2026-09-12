@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"glossias/src/apis/types"
 	"glossias/src/pkg/models"
 	"reflect"
 	"testing"
@@ -79,6 +80,92 @@ func TestHighlightRecallTextFallbackLexicalForm(t *testing.T) {
 	if len(got) != 3 || got[1].Type != "target" || got[1].Text != "כלב" || got[1].TargetVocabID != 3 {
 		t.Errorf("fallback highlight = %+v, want text/target/text around כלב", got)
 	}
+}
+
+func TestHighlightRecallTextInflectedSurfaceForm(t *testing.T) {
+	targetID := 4
+	// הלך is not a substring of הולך; the annotation's Word is.
+	s := models.RecallSentence{HebrewText: "עכשיו הוא הולך", TargetVocabID: &targetID}
+	words := []models.TargetVocabulary{{ID: 4, LexicalForm: "הלך"}}
+	lines := []models.StoryLine{{
+		LineNumber: 1,
+		Text:       "מי הולך שם",
+		Vocabulary: []models.VocabularyItem{{Word: "הולך", LexicalForm: "הלך", Position: [2]int{3, 7}}},
+	}}
+
+	got := highlightRecallText(s, lines, words)
+	if texts := targetTexts(got); !reflect.DeepEqual(texts, []string{"הולך"}) {
+		t.Errorf("inflected highlight = %+v, want target הולך", got)
+	}
+}
+
+func TestHighlightRecallTextJoinedLines(t *testing.T) {
+	targetID := 4
+	s := models.RecallSentence{HebrewText: "בוקר טוב הוא הולך הביתה", TargetVocabID: &targetID}
+	words := []models.TargetVocabulary{{ID: 4, LexicalForm: "הלך"}}
+	lines := []models.StoryLine{
+		{LineNumber: 1, Text: "בוקר טוב"},
+		{
+			LineNumber: 2,
+			Text:       "הוא הולך הביתה",
+			Vocabulary: []models.VocabularyItem{{Word: "הולך", LexicalForm: "הלך", Position: [2]int{4, 8}}},
+		},
+	}
+
+	got := highlightRecallText(s, lines, words)
+	if texts := targetTexts(got); !reflect.DeepEqual(texts, []string{"הולך"}) {
+		t.Errorf("joined-line highlight = %+v, want target הולך", got)
+	}
+}
+
+func TestHighlightRecallTextVocalizedLemma(t *testing.T) {
+	targetID := 1
+	// Joined lines; איש is unvocalized but the sentence and other-line
+	// annotation use אִישׁ. The lemma is not a substring of the vocalized word.
+	s := models.RecallSentence{
+		HebrewText:    "וַיְהִי בַבֹּקֶר וַיָּבֹא אִישׁ אֶל־הָעִיר הַגְּדֹלָה",
+		TargetVocabID: &targetID,
+	}
+	words := []models.TargetVocabulary{{ID: 1, LexicalForm: "איש"}}
+	lines := []models.StoryLine{
+		{LineNumber: 1, Text: "וַיְהִי בַבֹּקֶר"},
+		{LineNumber: 2, Text: "וַיָּבֹא אִישׁ אֶל־הָעִיר הַגְּדֹלָה"},
+		{
+			LineNumber: 8,
+			Text:       "        וְגַם נָפַל מִן־הָעָם כְּאַלְפַּיִם אִישׁ",
+			Vocabulary: []models.VocabularyItem{{Word: "אִישׁ", LexicalForm: "איש", Position: [2]int{37, 42}}},
+		},
+	}
+
+	got := highlightRecallText(s, lines, words)
+	if texts := targetTexts(got); !reflect.DeepEqual(texts, []string{"אִישׁ"}) {
+		t.Errorf("vocalized surface highlight = %+v, want target אִישׁ", got)
+	}
+}
+
+func TestHighlightRecallTextUnvocalizedCard(t *testing.T) {
+	targetID := 4
+	s := models.RecallSentence{HebrewText: "עכשיו הוא הולך", TargetVocabID: &targetID}
+	words := []models.TargetVocabulary{{ID: 4, LexicalForm: "הלך"}}
+	lines := []models.StoryLine{{
+		Text:       "מי הוֹלֵךְ שם",
+		Vocabulary: []models.VocabularyItem{{Word: "הוֹלֵךְ", LexicalForm: "הלך"}},
+	}}
+
+	got := highlightRecallText(s, lines, words)
+	if texts := targetTexts(got); !reflect.DeepEqual(texts, []string{"הולך"}) {
+		t.Errorf("stripped surface highlight = %+v, want target הולך", got)
+	}
+}
+
+func targetTexts(segs []types.TextSegment) []string {
+	var out []string
+	for _, s := range segs {
+		if s.Type == "target" {
+			out = append(out, s.Text)
+		}
+	}
+	return out
 }
 
 func TestRecallAttempts(t *testing.T) {

@@ -39,14 +39,28 @@ WHERE st.language_code = $1 OR $1 = ''
 ORDER BY s.week_number, s.day_letter;
 
 -- name: GetAllStoriesForUser :many
-SELECT DISTINCT s.story_id, s.week_number, s.day_letter, st.title, s.course_id
+SELECT s.story_id, s.week_number, s.day_letter, st.title, s.course_id,
+       COALESCE((
+           SELECT ARRAY_AGG(cs.course_id ORDER BY cs.course_id)
+           FROM course_stories cs
+           WHERE cs.story_id = s.story_id
+       ), ARRAY[]::INTEGER[])::INTEGER[] AS course_ids
 FROM stories s
 JOIN story_titles st ON s.story_id = st.story_id
-LEFT JOIN course_users cu ON s.course_id = cu.course_id AND cu.user_id = $2
-LEFT JOIN course_admins ca ON s.course_id = ca.course_id AND ca.user_id = $2
 WHERE (st.language_code = $1 OR $1 = '')
-  AND (s.course_id IS NULL OR cu.user_id IS NOT NULL OR ca.user_id IS NOT NULL)
-  AND (cu.status = 'active' OR cu.status IS NULL OR ca.user_id IS NOT NULL)
+  AND (
+      NOT EXISTS (SELECT 1 FROM course_stories cs WHERE cs.story_id = s.story_id)
+      OR EXISTS (
+          SELECT 1 FROM course_stories cs
+          JOIN course_users cu ON cu.course_id = cs.course_id
+          WHERE cs.story_id = s.story_id AND cu.user_id = $2 AND cu.status = 'active'
+      )
+      OR EXISTS (
+          SELECT 1 FROM course_stories cs
+          JOIN course_admins ca ON ca.course_id = cs.course_id
+          WHERE cs.story_id = s.story_id AND ca.user_id = $2
+      )
+  )
 ORDER BY s.week_number, s.day_letter;
 
 -- name: GetAllStoriesWithTitles :many
@@ -65,22 +79,25 @@ WHERE s.story_id = $1;
 -- name: GetStoriesByCourse :many
 SELECT s.story_id, s.week_number, s.day_letter, s.video_url, s.last_revision, s.author_id, s.author_name, s.course_id
 FROM stories s
-WHERE s.course_id = $1
+JOIN course_stories cs ON cs.story_id = s.story_id
+WHERE cs.course_id = $1
 ORDER BY s.week_number, s.day_letter;
 
 -- name: GetCourseIdForStory :one
 SELECT course_id FROM stories WHERE story_id = $1;
 
 -- name: GetStoriesForUserCourses :many
-SELECT s.story_id, s.week_number, s.day_letter, s.video_url, s.last_revision, s.author_id, s.author_name, s.course_id
+SELECT DISTINCT s.story_id, s.week_number, s.day_letter, s.video_url, s.last_revision, s.author_id, s.author_name, s.course_id
 FROM stories s
-JOIN course_admins ca ON s.course_id = ca.course_id
+JOIN course_stories cs ON cs.story_id = s.story_id
+JOIN course_admins ca ON cs.course_id = ca.course_id
 WHERE ca.user_id = $1
 ORDER BY s.week_number, s.day_letter;
 
 -- name: GetCourseStoriesWithTitles :many
 SELECT s.story_id, s.week_number, s.day_letter, st.title
 FROM stories s
+JOIN course_stories cs ON cs.story_id = s.story_id
 JOIN story_titles st ON s.story_id = st.story_id AND st.language_code = $2
-WHERE s.course_id = $1
+WHERE cs.course_id = $1
 ORDER BY s.week_number, s.day_letter;

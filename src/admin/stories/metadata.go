@@ -46,6 +46,14 @@ func (h *Handler) handleGetMetadata(w http.ResponseWriter, r *http.Request, stor
 		return
 	}
 
+	linkedIDs, err := models.ListStoryCourseIDs(r.Context(), int32(storyID))
+	if err != nil {
+		h.log.Error("Failed to list linked courses", "error", err, "storyID", storyID)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	story.Metadata.LinkedCourseIDs = linkedIDs
+
 	json.NewEncoder(w).Encode(MetadataResponse{
 		Story:   story,
 		Success: true,

@@ -100,7 +100,8 @@ DeleteAllUsersFromCourse(courseID int) error // Uses DeleteAllUsersFromCourse
 GetCoursesForUser(userID string) ([]UserCourse, error) // Uses GetCoursesForUser (includes status field)
 GetCoursesForUserByStatus(userID string, status string) ([]UserCourse, error) // Gets courses filtered by status
 GetUsersForCourse(courseID int) ([]CourseUser, error) // Uses GetUsersForCourse
-GetStoryStudentPerformance(ctx context.Context, storyID int32, status string) ([]CourseStudentPerformance, error) // Gets performance data for students filtered by course status
+GetStoryStudentPerformance(ctx context.Context, storyID int32, courseIDs []int32, status string) ([]CourseStudentPerformance, error) // Gets performance data for students in the given courses, filtered by enrollment status
+GetStoryStudentPerformanceForCourse(ctx context.Context, storyID, courseID int32, status, section string) ([]CourseStudentPerformance, error) // Parent roster plus optional section=all|unassigned|<id> filter
 
 Time Tracking Types:
 - TimeTrackingSession: {SessionID, UserID, Route, StoryID}

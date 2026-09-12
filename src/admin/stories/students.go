@@ -17,10 +17,35 @@ import (
 
 // storyStudentsHandler serves GET /api/admin/stories/{id}/students: one row per
 // enrolled student with their performance on this story.
+// ?course_id= is required and scopes the roster to that linked course.
 // ?status=active|future|past filters by enrollment status; empty means all.
 func (h *Handler) storyStudentsHandler(w http.ResponseWriter, r *http.Request) {
-	storyID, ok := h.authorizeStoryEdit(w, r)
-	if !ok {
+	storyID, err := strconv.Atoi(mux.Vars(r)["id"])
+	if err != nil {
+		writeJSONError(w, "Invalid story ID", http.StatusBadRequest)
+		return
+	}
+
+	courseID, err := strconv.Atoi(r.URL.Query().Get("course_id"))
+	if err != nil || courseID == 0 {
+		writeJSONError(w, "course_id is required", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := auth.GetUserIDWithOk(r)
+	if !ok || !auth.IsCourseOrSuperAdmin(r.Context(), userID, int32(courseID)) {
+		writeJSONError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	linked, err := models.StoryLinkedToCourse(r.Context(), int32(storyID), int32(courseID))
+	if err != nil {
+		h.log.Error("Failed to check story course link", "error", err, "storyID", storyID, "courseID", courseID)
+		writeJSONError(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	if !linked {
+		writeJSONError(w, "Story is not linked to this course", http.StatusBadRequest)
 		return
 	}
 
@@ -30,8 +55,12 @@ func (h *Handler) storyStudentsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	performanceData, err := models.GetStoryStudentPerformance(r.Context(), int32(storyID), status)
+	performanceData, err := models.GetStoryStudentPerformanceForCourse(r.Context(), int32(storyID), int32(courseID), status, r.URL.Query().Get("section"))
 	if err != nil {
+		if errors.Is(err, models.ErrInvalidSectionFilter) {
+			writeJSONError(w, "Invalid section parameter", http.StatusBadRequest)
+			return
+		}
 		h.log.Error("Failed to fetch story student performance", "error", err, "storyID", storyID)
 		writeJSONError(w, "Internal server error", http.StatusInternalServerError)
 		return

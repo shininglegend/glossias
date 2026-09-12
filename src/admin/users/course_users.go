@@ -32,12 +32,13 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 }
 
 type UserResponse struct {
-	ID         string `json:"id"`
-	Email      string `json:"email"`
-	Name       string `json:"name"`
-	Role       string `json:"role"`
-	EnrolledAt string `json:"enrolled_at"`
-	Status     string `json:"status,omitempty"`
+	ID         string                 `json:"id"`
+	Email      string                 `json:"email"`
+	Name       string                 `json:"name"`
+	Role       string                 `json:"role"`
+	EnrolledAt string                 `json:"enrolled_at"`
+	Status     string                 `json:"status,omitempty"`
+	Sections   []models.CourseSection `json:"sections,omitempty"`
 }
 
 type AddUsersRequest struct {
@@ -87,6 +88,13 @@ func (h *Handler) GetUsersForCourse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	byUser, err := models.ListUserSectionsForParent(ctx, int32(courseID))
+	if err != nil {
+		h.log.Error("failed to list user sections", "error", err, "course_id", courseID)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
 	// Convert to response format
 	users := make([]UserResponse, len(courseUsers))
 	for i, user := range courseUsers {
@@ -104,6 +112,7 @@ func (h *Handler) GetUsersForCourse(w http.ResponseWriter, r *http.Request) {
 			Role:       role,
 			EnrolledAt: user.EnrolledAt.Format("2006-01-02T15:04:05Z07:00"),
 			Status:     user.Status,
+			Sections:   byUser[user.UserID],
 		}
 	}
 

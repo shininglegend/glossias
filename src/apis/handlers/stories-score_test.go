@@ -24,6 +24,7 @@ import (
 func stubScoreDB(t *testing.T, completion, summary []any) *database.MockDBTX {
 	t.Helper()
 	mockDB := database.NewMockDBTX()
+	mockDB.StubQuery("CanUserAccessStory", [][]any{{true}}, nil)
 	mockDB.StubQuery("name: GetStory :one", [][]any{{
 		int32(2), int32(1), "A", pgtype.Text{}, pgtype.Timestamp{}, "author", "Author", pgtype.Int4{},
 	}}, nil)
@@ -93,7 +94,7 @@ var (
 // in production) + completion + summary + the five live-score loads (time,
 // totals, authored segments, submissions, translation) + the archive insert +
 // the two-statement exercise wipe + the attempt list.
-const archiveBudget = 22
+const archiveBudget = 23
 
 func TestGetScoresDataArchivesOnCompletion(t *testing.T) {
 	h := NewHandler(slog.New(slog.DiscardHandler), nil)
@@ -172,7 +173,7 @@ func TestGetScoresDataHoldsLiveWhileProduceGradingPends(t *testing.T) {
 	mockDB := stubScoreDB(t, fullStoryDone, pending)
 	stubCompletedAttempts(mockDB, 1)
 
-	d := decodeScore(t, assertQueryBudget(t, 19, h.GetScoresData, scoreRequest("")))
+	d := decodeScore(t, assertQueryBudget(t, 20, h.GetScoresData, scoreRequest("")))
 
 	if d.Archived {
 		t.Error("an attempt awaiting grades must not be frozen yet")
@@ -205,7 +206,7 @@ func TestGetScoresDataServesArchivedAttempts(t *testing.T) {
 
 	// Budget: story load + completion + summary + attempt list + one snapshot.
 	t.Run("defaults to the newest attempt", func(t *testing.T) {
-		d := decodeScore(t, assertQueryBudget(t, 14, h.GetScoresData, scoreRequest("")))
+		d := decodeScore(t, assertQueryBudget(t, 15, h.GetScoresData, scoreRequest("")))
 		if d.AttemptNumber != 2 || !d.Archived || d.OverallAccuracy != 77 {
 			t.Errorf("got attempt %d archived %v overall %v", d.AttemptNumber, d.Archived, d.OverallAccuracy)
 		}
@@ -214,17 +215,17 @@ func TestGetScoresDataServesArchivedAttempts(t *testing.T) {
 		}
 	})
 	t.Run("attempt query selects an earlier one", func(t *testing.T) {
-		d := decodeScore(t, assertQueryBudget(t, 14, h.GetScoresData, scoreRequest("?attempt=1")))
+		d := decodeScore(t, assertQueryBudget(t, 15, h.GetScoresData, scoreRequest("?attempt=1")))
 		if d.AttemptNumber != 1 || !d.Archived {
 			t.Errorf("got attempt %d archived %v", d.AttemptNumber, d.Archived)
 		}
 	})
 	t.Run("archived section scores are omitted", func(t *testing.T) {
-		rr := assertQueryBudget(t, 14, h.GetScoresData, scoreRequest(""))
+		rr := assertQueryBudget(t, 15, h.GetScoresData, scoreRequest(""))
 		assertNoArchivedSectionScores(t, rr.Body.Bytes())
 	})
 	t.Run("the in-progress attempt has no score yet", func(t *testing.T) {
-		rr := assertQueryBudget(t, 14, h.GetScoresData, scoreRequest("?attempt=3"))
+		rr := assertQueryBudget(t, 15, h.GetScoresData, scoreRequest("?attempt=3"))
 		if rr.Code != http.StatusNotFound {
 			t.Errorf("status = %d, want 404", rr.Code)
 		}
@@ -273,7 +274,7 @@ func TestGetScoresDataIncomplete(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			stubScoreDB(t, tt.completion, tt.summary)
-			rr := assertQueryBudget(t, 13, h.GetScoresData, scoreRequest(""))
+			rr := assertQueryBudget(t, 14, h.GetScoresData, scoreRequest(""))
 			if rr.Code != http.StatusOK {
 				t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
 			}

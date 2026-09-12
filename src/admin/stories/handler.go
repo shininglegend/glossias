@@ -68,6 +68,8 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	stories.HandleFunc("", h.addStoryHandler).Methods("POST", "OPTIONS")
 	stories.HandleFunc("/{id:[0-9]+}", h.validateStoryID(h.editStoryHandler)).Methods("GET", "PUT", "DELETE", "OPTIONS")
 	stories.HandleFunc("/{id:[0-9]+}/metadata", h.validateStoryID(h.metadataHandler)).Methods("GET", "PUT", "OPTIONS")
+	stories.HandleFunc("/{id:[0-9]+}/courses", h.validateStoryID(h.storyCoursesHandler)).Methods("GET", "POST", "OPTIONS")
+	stories.HandleFunc("/{id:[0-9]+}/courses/{courseId:[0-9]+}", h.validateStoryID(h.unlinkStoryCourse)).Methods("DELETE", "OPTIONS")
 	stories.HandleFunc("/{id:[0-9]+}/annotations", h.validateStoryID(h.annotationsHandler)).
 		Methods("GET", "POST", "PUT", "DELETE", "OPTIONS")
 

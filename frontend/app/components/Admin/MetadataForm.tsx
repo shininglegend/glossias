@@ -7,6 +7,7 @@ import Textarea from "~/components/ui/Textarea";
 import Label from "~/components/ui/Label";
 import Button from "~/components/ui/Button";
 import CourseSelector from "~/components/ui/CourseSelector";
+import { useAdminApi } from "~/services/adminApi";
 type Props = {
   value: StoryMetadata;
   onSubmit: (metadata: StoryMetadata) => void;
@@ -20,10 +21,15 @@ export default function MetadataForm({
   onHasChanges,
   onResetSaveStatus,
 }: Props) {
+  const adminApi = useAdminApi();
   const [meta, setMeta] = React.useState<StoryMetadata>({
     ...value,
     grammarPoints: value.grammarPoints || [],
   });
+  const [linkedCourses, setLinkedCourses] = React.useState<
+    { course_id: number; course_number: string; name: string }[]
+  >([]);
+  const [addCourseId, setAddCourseId] = React.useState<number | undefined>();
 
   useReportPhase(
     "video",
@@ -32,6 +38,17 @@ export default function MetadataForm({
 
   const nameInputRef = React.useRef<HTMLInputElement>(null);
   const descInputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    adminApi.listStoryCourses(value.storyId).then((res) => {
+      if (!cancelled) setLinkedCourses(res.courses ?? []);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.storyId]);
 
   const update = <K extends keyof StoryMetadata>(
     key: K,
@@ -189,18 +206,72 @@ export default function MetadataForm({
         />
       </div>
       <div>
-        <CourseSelector
-          value={meta.courseId}
-          onChange={(courseId) => update("courseId", courseId)}
-        />
-      </div>
-      <div>
         <Label>Video URL</Label>
         <Input
           value={meta.videoUrl || ""}
           onChange={(e) => update("videoUrl", e.target.value)}
           placeholder="https://..."
         />
+      </div>
+      <div>
+        <CourseSelector
+          value={meta.courseId}
+          onChange={(courseId) => update("courseId", courseId)}
+        />
+      </div>
+      <div>
+        <Label>Also in</Label>
+        <ul className="mt-2 space-y-2">
+          {linkedCourses
+            .filter((c) => c.course_id !== meta.courseId)
+            .map((c) => (
+              <li
+                key={c.course_id}
+                className="flex items-center justify-between gap-2"
+              >
+                <span className="text-sm">
+                  {c.course_number} - {c.name}
+                </span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={async () => {
+                    await adminApi.unlinkStoryCourse(
+                      value.storyId,
+                      c.course_id,
+                    );
+                    setLinkedCourses((prev) =>
+                      prev.filter((x) => x.course_id !== c.course_id),
+                    );
+                  }}
+                >
+                  Remove
+                </Button>
+              </li>
+            ))}
+        </ul>
+        <div className="mt-3 flex items-end gap-2">
+          <CourseSelector
+            id="linkedCourseSelector"
+            label=""
+            value={addCourseId}
+            onChange={setAddCourseId}
+            className="flex-1"
+          />
+          <Button
+            type="button"
+            onClick={async () => {
+              if (!addCourseId) return;
+              await adminApi.linkStoryCourse(value.storyId, addCourseId);
+              const res = await adminApi.listStoryCourses(value.storyId);
+              setLinkedCourses(res.courses ?? []);
+              setAddCourseId(undefined);
+            }}
+          >
+            Add
+          </Button>
+        </div>
       </div>
       <div className="md:col-span-2">
         <Label>Description Language</Label>

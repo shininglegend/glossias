@@ -8,8 +8,15 @@ export interface Course {
   course_number: string;
   name: string;
   description?: string;
+  parent_course_id?: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface CourseSection {
+  course_id: number;
+  course_number: string;
+  name: string;
 }
 
 export interface CourseAdmin {
@@ -23,6 +30,7 @@ export interface CreateCourseRequest {
   course_number: string;
   name: string;
   description?: string;
+  parent_course_id?: number;
 }
 
 export interface UpdateCourseRequest {
@@ -159,6 +167,30 @@ export function useCoursesApi() {
       async (courseId: number, userId: string): Json<{ success: boolean }> => {
         return request<{ success: boolean }>(`/${courseId}/admins/${userId}`, {
           method: "DELETE",
+        });
+      },
+      [request],
+    ),
+
+    getCourseSections: useCallback(
+      async (id: number): Json<{ sections: CourseSection[] }> => {
+        return request<{ sections: CourseSection[] }>(`/${id}/sections`);
+      },
+      [request],
+    ),
+
+    assignUsersToSection: useCallback(
+      async (
+        parentId: number,
+        userIds: string[],
+        sectionCourseId: number | null,
+      ): Json<void> => {
+        return request<void>(`/${parentId}/sections/assignments`, {
+          method: "POST",
+          body: JSON.stringify({
+            user_ids: userIds,
+            section_course_id: sectionCourseId,
+          }),
         });
       },
       [request],

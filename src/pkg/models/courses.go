@@ -13,12 +13,13 @@ import (
 
 // Course represents a course in the system
 type Course struct {
-	CourseID     int32     `json:"course_id"`
-	CourseNumber string    `json:"course_number"`
-	Name         string    `json:"name"`
-	Description  string    `json:"description"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	CourseID       int32     `json:"course_id"`
+	CourseNumber   string    `json:"course_number"`
+	Name           string    `json:"name"`
+	Description    string    `json:"description"`
+	ParentCourseID *int32    `json:"parent_course_id,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 // CourseAdmin represents a course admin assignment
@@ -41,13 +42,17 @@ func CreateCourse(ctx context.Context, courseNumber, name, description string) (
 		return nil, err
 	}
 
+	return courseFromRow(ctx, result.CourseID, result.CourseNumber, result.Name, result.Description.String, result.CreatedAt.Time, result.UpdatedAt.Time)
+}
+
+func courseFromRow(_ context.Context, id int32, number, name, description string, created, updated time.Time) (*Course, error) {
 	return &Course{
-		CourseID:     result.CourseID,
-		CourseNumber: result.CourseNumber,
-		Name:         result.Name,
-		Description:  result.Description.String,
-		CreatedAt:    result.CreatedAt.Time,
-		UpdatedAt:    result.UpdatedAt.Time,
+		CourseID:     id,
+		CourseNumber: number,
+		Name:         name,
+		Description:  description,
+		CreatedAt:    created,
+		UpdatedAt:    updated,
 	}, nil
 }
 
@@ -61,14 +66,7 @@ func GetCourse(ctx context.Context, courseID int32) (*Course, error) {
 		return nil, err
 	}
 
-	return &Course{
-		CourseID:     result.CourseID,
-		CourseNumber: result.CourseNumber,
-		Name:         result.Name,
-		Description:  result.Description.String,
-		CreatedAt:    result.CreatedAt.Time,
-		UpdatedAt:    result.UpdatedAt.Time,
-	}, nil
+	return courseFromRow(ctx, result.CourseID, result.CourseNumber, result.Name, result.Description.String, result.CreatedAt.Time, result.UpdatedAt.Time)
 }
 
 // GetCourseByNumber retrieves a course by course number
@@ -81,14 +79,7 @@ func GetCourseByNumber(ctx context.Context, courseNumber string) (*Course, error
 		return nil, err
 	}
 
-	return &Course{
-		CourseID:     result.CourseID,
-		CourseNumber: result.CourseNumber,
-		Name:         result.Name,
-		Description:  result.Description.String,
-		CreatedAt:    result.CreatedAt.Time,
-		UpdatedAt:    result.UpdatedAt.Time,
-	}, nil
+	return courseFromRow(ctx, result.CourseID, result.CourseNumber, result.Name, result.Description.String, result.CreatedAt.Time, result.UpdatedAt.Time)
 }
 
 // ListAllCourses returns all courses
@@ -110,6 +101,11 @@ func ListAllCourses(ctx context.Context) ([]Course, error) {
 		})
 	}
 
+	parents, err := parentIDsBySection(ctx)
+	if err != nil {
+		return nil, err
+	}
+	applyParentIDs(courses, parents)
 	return courses, nil
 }
 
@@ -128,14 +124,7 @@ func UpdateCourse(ctx context.Context, courseID int32, courseNumber, name, descr
 		return nil, err
 	}
 
-	return &Course{
-		CourseID:     result.CourseID,
-		CourseNumber: result.CourseNumber,
-		Name:         result.Name,
-		Description:  result.Description.String,
-		CreatedAt:    result.CreatedAt.Time,
-		UpdatedAt:    result.UpdatedAt.Time,
-	}, nil
+	return courseFromRow(ctx, result.CourseID, result.CourseNumber, result.Name, result.Description.String, result.CreatedAt.Time, result.UpdatedAt.Time)
 }
 
 // DeleteCourse deletes a course
@@ -226,5 +215,10 @@ func GetAdminCoursesForUser(ctx context.Context, userID string) ([]Course, error
 		})
 	}
 
+	parents, err := parentIDsBySection(ctx)
+	if err != nil {
+		return nil, err
+	}
+	applyParentIDs(courses, parents)
 	return courses, nil
 }

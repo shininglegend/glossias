@@ -24,6 +24,8 @@ type Querier interface {
 	// the simple protocol, under which pgx sends []byte as a bytea literal that
 	// jsonb rejects (SQLSTATE 22P02).
 	ArchiveStoryAttempt(ctx context.Context, arg ArchiveStoryAttemptParams) (int32, error)
+	// Sections are child courses that share the parent's stories.
+	AttachCourseSection(ctx context.Context, arg AttachCourseSectionParams) error
 	BulkCreateAudioFiles(ctx context.Context, arg []BulkCreateAudioFilesParams) (int64, error)
 	BulkCreateGrammarItems(ctx context.Context, arg []BulkCreateGrammarItemsParams) (int64, error)
 	BulkCreateLineTranslations(ctx context.Context, arg []BulkCreateLineTranslationsParams) (int64, error)
@@ -31,6 +33,9 @@ type Querier interface {
 	BulkCreateVocabularyItems(ctx context.Context, arg []BulkCreateVocabularyItemsParams) (int64, error)
 	BulkUpdateCourseUserStatus(ctx context.Context, arg BulkUpdateCourseUserStatusParams) error
 	CanUserAccessCourse(ctx context.Context, arg CanUserAccessCourseParams) (bool, error)
+	// CanUserAccessStory: super admin, orphan (no links), or member/admin of any linked course.
+	// Enrollment status is not filtered here — listing applies the active-only rule separately.
+	CanUserAccessStory(ctx context.Context, arg CanUserAccessStoryParams) (bool, error)
 	// Vocabulary-related queries
 	CheckAllVocabCompleteForLineForUser(ctx context.Context, arg CheckAllVocabCompleteForLineForUserParams) (bool, error)
 	CheckFootnoteExists(ctx context.Context, arg CheckFootnoteExistsParams) (int32, error)
@@ -39,12 +44,15 @@ type Querier interface {
 	ClearStoryGrammarPoints(ctx context.Context, storyID int32) error
 	CloseAnonymousTimeEntry(ctx context.Context, arg CloseAnonymousTimeEntryParams) error
 	CloseTimeEntry(ctx context.Context, arg CloseTimeEntryParams) error
+	CopyCourseStoryLinks(ctx context.Context, arg CopyCourseStoryLinksParams) error
 	CountProduceGradingPrompts(ctx context.Context) (int64, error)
 	CountStoryGrammarItems(ctx context.Context, storyID pgtype.Int4) (int64, error)
 	CountStoryProduceSegments(ctx context.Context, storyID int32) (int64, error)
 	CountStoryRecallSentences(ctx context.Context, storyID int32) (int64, error)
 	CountStoryTargetVocabulary(ctx context.Context, storyID int32) (int64, error)
 	CountStoryVocabItems(ctx context.Context, storyID pgtype.Int4) (int64, error)
+	CourseHasSections(ctx context.Context, parentCourseID int32) (bool, error)
+	CourseIsSection(ctx context.Context, sectionCourseID int32) (bool, error)
 	// Anonymous time tracking queries
 	CreateAnonymousTimeEntry(ctx context.Context, arg CreateAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
 	// Audio files management queries
@@ -135,6 +143,7 @@ type Querier interface {
 	DeleteUserStoryVocabIncorrect(ctx context.Context, arg DeleteUserStoryVocabIncorrectParams) (int64, error)
 	DeleteVocabularyItem(ctx context.Context, id int32) error
 	DeleteVocabularyItems(ctx context.Context, arg DeleteVocabularyItemsParams) error
+	DetachCourseSection(ctx context.Context, arg DetachCourseSectionParams) error
 	FindRecentSimilarTimeEntry(ctx context.Context, arg FindRecentSimilarTimeEntryParams) (FindRecentSimilarTimeEntryRow, error)
 	GetActiveAnonymousTimeEntry(ctx context.Context, arg GetActiveAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
 	// Versioned system prompt for the Produce AI grader. Versions are append-only;
@@ -185,8 +194,9 @@ type Querier interface {
 	GetProduceSegment(ctx context.Context, id int32) (GetProduceSegmentRow, error)
 	GetRecallSentence(ctx context.Context, id int32) (GetRecallSentenceRow, error)
 	GetRecentTimeEntriesForUser(ctx context.Context, arg GetRecentTimeEntriesForUserParams) ([]UserTimeTracking, error)
+	GetSectionParent(ctx context.Context, sectionCourseID int32) (int32, error)
 	GetStoriesAudioFilesByLabel(ctx context.Context, arg GetStoriesAudioFilesByLabelParams) ([]LineAudioFile, error)
-	GetStoriesByCourse(ctx context.Context, courseID pgtype.Int4) ([]Story, error)
+	GetStoriesByCourse(ctx context.Context, courseID int32) ([]Story, error)
 	GetStoriesForUserCourses(ctx context.Context, userID string) ([]Story, error)
 	GetStoriesLexicalFormCounts(ctx context.Context, storyIds []int32) ([]GetStoriesLexicalFormCountsRow, error)
 	GetStoriesLines(ctx context.Context, storyIds []int32) ([]StoryLine, error)
@@ -320,12 +330,22 @@ type Querier interface {
 	InsertProduceGradingLog(ctx context.Context, arg InsertProduceGradingLogParams) error
 	InsertProduceGradingPrompt(ctx context.Context, arg InsertProduceGradingPromptParams) (ProduceGradingPrompt, error)
 	IsUserAdminOfAnyCourse(ctx context.Context, userID string) (bool, error)
+	IsUserAdminOfLinkedStory(ctx context.Context, arg IsUserAdminOfLinkedStoryParams) (bool, error)
 	IsUserCourseAdmin(ctx context.Context, arg IsUserCourseAdminParams) (bool, error)
 	LineExists(ctx context.Context, arg LineExistsParams) (bool, error)
+	// Story-to-course membership (symlink). stories.course_id remains the owner.
+	LinkStoryToCourse(ctx context.Context, arg LinkStoryToCourseParams) error
+	ListAllCourseSections(ctx context.Context) ([]CourseSection, error)
+	ListCourseIDsForStories(ctx context.Context, storyIds []int32) ([]ListCourseIDsForStoriesRow, error)
+	ListCourseSections(ctx context.Context, parentCourseID int32) ([]ListCourseSectionsRow, error)
 	ListCourses(ctx context.Context) ([]Course, error)
+	ListCoursesForStory(ctx context.Context, storyID int32) ([]ListCoursesForStoryRow, error)
 	ListGrammarPoints(ctx context.Context) ([]GrammarPoint, error)
 	ListProduceGradingPrompts(ctx context.Context) ([]ProduceGradingPrompt, error)
+	ListStoryCourseIDs(ctx context.Context, storyID int32) ([]int32, error)
 	ListSuperAdmins(ctx context.Context) ([]User, error)
+	ListUserIDsForCourses(ctx context.Context, courseIds []int32) ([]string, error)
+	ListUserSectionsForParent(ctx context.Context, parentCourseID int32) ([]ListUserSectionsForParentRow, error)
 	ListUserStoryAttemptSnapshots(ctx context.Context, arg ListUserStoryAttemptSnapshotsParams) ([]ListUserStoryAttemptSnapshotsRow, error)
 	// Renumbering after a delete happens one row at a time in ascending order
 	// (see models.DeleteArchivedAttempt): the unique (user, story, number) key is
@@ -340,6 +360,7 @@ type Querier interface {
 	MarkTranslationRequestComplete(ctx context.Context, arg MarkTranslationRequestCompleteParams) error
 	RemoveCourseAdmin(ctx context.Context, arg RemoveCourseAdminParams) error
 	RemoveUserFromCourse(ctx context.Context, arg RemoveUserFromCourseParams) error
+	RemoveUsersFromSiblingSections(ctx context.Context, arg RemoveUsersFromSiblingSectionsParams) error
 	// Whole-story reset in one round trip: clears every answer/submission table.
 	// Time rows are deleted separately by DeleteUserStoryTimeTracking.
 	ResetUserStoryAnswers(ctx context.Context, arg ResetUserStoryAnswersParams) (ResetUserStoryAnswersRow, error)
@@ -360,7 +381,9 @@ type Querier interface {
 	// the countdown cannot be reset by reloading.
 	StartProduceAttempt(ctx context.Context, arg StartProduceAttemptParams) (StartProduceAttemptRow, error)
 	StoryExists(ctx context.Context, storyID int32) (bool, error)
+	StoryLinkedToCourse(ctx context.Context, arg StoryLinkedToCourseParams) (bool, error)
 	TranslationRequestCompleted(ctx context.Context, arg TranslationRequestCompletedParams) (bool, error)
+	UnlinkStoryFromCourse(ctx context.Context, arg UnlinkStoryFromCourseParams) error
 	UpdateAnonymousTimeEntry(ctx context.Context, arg UpdateAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
 	UpdateAudioFile(ctx context.Context, arg UpdateAudioFileParams) (LineAudioFile, error)
 	UpdateCourse(ctx context.Context, arg UpdateCourseParams) (Course, error)

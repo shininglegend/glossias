@@ -311,17 +311,8 @@ func GetSignedAudioURL(ctx context.Context, audioFileID int, userID string, expi
 		return "", err
 	}
 
-	// Check user can access this story's course
-	story, err := queries.GetStory(ctx, int32(audioFile.StoryID))
-	if err != nil {
-		return "", err
-	}
-
-	if story.CourseID.Valid {
-		canAccess := CanUserAccessCourse(ctx, userID, story.CourseID.Int32)
-		if !canAccess {
-			return "", errors.New("access denied")
-		}
+	if !CanUserAccessStory(ctx, userID, int32(audioFile.StoryID)) {
+		return "", errors.New("access denied")
 	}
 
 	// Generate signed URL from Supabase with retry
@@ -346,24 +337,13 @@ func GetSignedAudioURLsForStory(ctx context.Context, storyID int, userID string,
 		return nil, errors.New("storage client not initialized")
 	}
 
-	// Check user can access this story's course
-	story, err := queries.GetStory(ctx, int32(storyID))
-	if err != nil {
-		if err == sql.ErrNoRows || err == pgx.ErrNoRows {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-
-	if story.CourseID.Valid {
-		canAccess := CanUserAccessCourse(ctx, userID, story.CourseID.Int32)
-		if !canAccess {
-			return nil, errors.New("access denied")
-		}
+	if !CanUserAccessStory(ctx, userID, int32(storyID)) {
+		return nil, errors.New("access denied")
 	}
 
 	// Get audio files
 	var audioFiles []AudioFile
+	var err error
 	if label != "" {
 		audioFiles, err = GetStoryAudioFilesByLabel(ctx, storyID, label)
 	} else {
@@ -399,17 +379,8 @@ func GetSignedAudioURLsForLine(ctx context.Context, storyID, lineNumber int, use
 		return nil, errors.New("storage client not initialized")
 	}
 
-	// Check user can access this story's course
-	story, err := queries.GetStory(ctx, int32(storyID))
-	if err != nil {
-		return nil, err
-	}
-
-	if story.CourseID.Valid {
-		canAccess := CanUserAccessCourse(ctx, userID, story.CourseID.Int32)
-		if !canAccess {
-			return nil, errors.New("access denied")
-		}
+	if !CanUserAccessStory(ctx, userID, int32(storyID)) {
+		return nil, errors.New("access denied")
 	}
 
 	// Get audio files for the line

@@ -29,18 +29,15 @@ func checkUserAccessWithCache(userID string, storyID int, checkFunc func() (bool
 		return string(data) == "true", nil
 	}
 
-	// Cache miss - check access and cache result
+	// Cache miss - check access and cache only positives. A cached deny
+	// would 404 after a new course link until the BigCache life window.
 	hasAccess, err := checkFunc()
 	if err != nil {
 		return false, err
 	}
-
-	// Cache the result (ignore cache errors)
-	accessStr := "false"
 	if hasAccess {
-		accessStr = "true"
+		_ = cacheInstance.Set(cacheKey, []byte("true"))
 	}
-	_ = cacheInstance.Set(cacheKey, []byte(accessStr))
 
 	return hasAccess, nil
 }
@@ -49,21 +46,7 @@ func GetStoryData(ctx context.Context, id int, userID string) (*Story, error) {
 	// Check user access first (with caching)
 	if cacheInstance != nil && keyBuilder != nil {
 		hasAccess, err := checkUserAccessWithCache(userID, id, func() (bool, error) {
-			// Check if user has access to this story
-			dbStory, err := queries.GetStory(ctx, int32(id))
-			if err != nil {
-				if err == sql.ErrNoRows || err == pgx.ErrNoRows {
-					return false, ErrNotFound
-				}
-				return false, err
-			}
-
-			// Check course access if story has course
-			if dbStory.CourseID.Valid {
-				courseID := int32(dbStory.CourseID.Int32)
-				return CanUserAccessCourse(ctx, userID, courseID), nil
-			}
-			return true, nil // No course restriction
+			return CanUserAccessStory(ctx, userID, int32(id)), nil
 		})
 		if err != nil {
 			return nil, err
@@ -72,21 +55,8 @@ func GetStoryData(ctx context.Context, id int, userID string) (*Story, error) {
 			return nil, ErrNotFound
 		}
 	} else {
-		// Fallback to direct access check
-		dbStory, err := queries.GetStory(ctx, int32(id))
-		if err != nil {
-			if err == sql.ErrNoRows || err == pgx.ErrNoRows {
-				return nil, ErrNotFound
-			}
-			return nil, err
-		}
-
-		// Check if user has access to this story
-		if dbStory.CourseID.Valid {
-			courseID := int32(dbStory.CourseID.Int32)
-			if !CanUserAccessCourse(ctx, userID, courseID) {
-				return nil, ErrNotFound
-			}
+		if !CanUserAccessStory(ctx, userID, int32(id)) {
+			return nil, ErrNotFound
 		}
 	}
 
@@ -118,14 +88,6 @@ func getStoryDataFromDB(ctx context.Context, id int, userID string) (*Story, err
 			return nil, ErrNotFound
 		}
 		return nil, err
-	}
-
-	// Check if user has access to this story
-	if dbStory.CourseID.Valid {
-		courseID := int32(dbStory.CourseID.Int32)
-		if !CanUserAccessCourse(ctx, userID, courseID) {
-			return nil, ErrNotFound
-		}
 	}
 
 	// Convert DB story to model story
@@ -625,6 +587,9 @@ func getAllStoriesFromDB(ctx context.Context, language string, userID string) ([
 			courseID := int(basicStory.CourseID.Int32)
 			story.Metadata.CourseID = &courseID
 		}
+		if len(basicStory.CourseIds) > 0 {
+			story.Metadata.LinkedCourseIDs = int32sToInts(basicStory.CourseIds)
+		}
 		stories = append(stories, story)
 	}
 	return stories, nil
@@ -634,7 +599,7 @@ func getAllStoriesFromDB(ctx context.Context, language string, userID string) ([
 // It returns just basic information
 func GetStoriesForCourse(ctx context.Context, courseID int) ([]Story, error) {
 	stories, err := queries.GetCourseStoriesWithTitles(ctx, db.GetCourseStoriesWithTitlesParams{
-		CourseID:     pgtype.Int4{Int32: int32(courseID), Valid: true},
+		CourseID:     int32(courseID),
 		LanguageCode: "en",
 	})
 	if err != nil {

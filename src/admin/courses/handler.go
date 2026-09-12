@@ -35,6 +35,11 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	courses.HandleFunc("/{id:[0-9]+}/admins", h.addCourseAdminHandler).Methods("POST", "OPTIONS")
 	courses.HandleFunc("/{id:[0-9]+}/admins/{user_id}", h.removeCourseAdminHandler).Methods("DELETE", "OPTIONS")
 
+	courses.HandleFunc("/{id:[0-9]+}/sections", h.listCourseSectionsHandler).Methods("GET", "OPTIONS")
+	courses.HandleFunc("/{id:[0-9]+}/sections", h.attachCourseSectionHandler).Methods("POST", "OPTIONS")
+	courses.HandleFunc("/{id:[0-9]+}/sections/assignments", h.assignSectionStudentsHandler).Methods("POST", "OPTIONS")
+	courses.HandleFunc("/{id:[0-9]+}/sections/{sectionId:[0-9]+}", h.detachCourseSectionHandler).Methods("DELETE", "OPTIONS")
+
 	// Per-story student performance lives under /api/admin/stories/{id}/students
 	// (src/admin/stories/students.go); it was previously misfiled here.
 }

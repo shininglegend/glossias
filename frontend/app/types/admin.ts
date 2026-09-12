@@ -15,6 +15,7 @@ export interface StoryMetadata {
   description: Description;
   languageCode?: string;
   courseId?: number;
+  linkedCourseIds?: number[];
   videoUrl?: string;
   lastRevision?: string; // RFC3339 string required by backend on update
 }

@@ -75,8 +75,7 @@ func (h *Handler) adminAuthMiddleware(next http.Handler) http.Handler {
 				return
 			}
 
-			// Check if user has access to this specific course
-			if !auth.IsCourseAdmin(r.Context(), userID, int32(courseID)) {
+			if !auth.IsCourseOrSuperAdmin(r.Context(), userID, int32(courseID)) {
 				h.log.Warn("course access denied", "user_id", userID, "course_id", courseID, "path", r.URL.Path)
 				http.Error(w, "Course access forbidden", http.StatusForbidden)
 				return

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"unicode"
 
 	"github.com/gorilla/mux"
 )
@@ -148,8 +149,9 @@ func recallSentenceAudio(s models.RecallSentence, lines []models.StoryLine, audi
 }
 
 // highlightRecallText marks the card's target word the same way Identify
-// does (type "target"), using story-line vocabulary positions when the
-// sentence is a substring of a line, otherwise the lexical form itself.
+// does (type "target"). Inflected / vocalized forms are resolved through
+// story-line vocabulary (same lexical form → surface Word), because the
+// dropdown stores the lemma and the sentence usually does not.
 func highlightRecallText(s models.RecallSentence, lines []models.StoryLine, words []models.TargetVocabulary) []types.TextSegment {
 	if s.HebrewText == "" {
 		return []types.TextSegment{{Text: "", Type: "text"}}
@@ -165,33 +167,169 @@ func highlightRecallText(s models.RecallSentence, lines []models.StoryLine, word
 			break
 		}
 	}
+	if form == "" {
+		return []types.TextSegment{{Text: s.HebrewText, Type: "text"}}
+	}
 
 	hebRunes := []rune(s.HebrewText)
-	if form != "" {
-		for _, line := range lines {
-			start := indexRunes([]rune(line.Text), hebRunes)
-			if start < 0 {
-				continue
-			}
-			end := start + len(hebRunes)
-			hits := make([][2]int, 0, 1)
-			for _, v := range line.Vocabulary {
-				if v.LexicalForm != form {
-					continue
-				}
-				if v.Position[0] >= start && v.Position[1] <= end && v.Position[0] < v.Position[1] {
-					hits = append(hits, [2]int{v.Position[0] - start, v.Position[1] - start})
-				}
-			}
-			if len(hits) > 0 {
-				return segmentByRanges(hebRunes, hits, targetID)
-			}
-		}
-		if idx := indexRunes(hebRunes, []rune(form)); idx >= 0 {
-			return segmentByRanges(hebRunes, [][2]int{{idx, idx + len([]rune(form))}}, targetID)
-		}
+	if hits := recallTargetRanges(hebRunes, form, lines); len(hits) > 0 {
+		return segmentByRanges(hebRunes, hits, targetID)
 	}
 	return []types.TextSegment{{Text: s.HebrewText, Type: "text"}}
+}
+
+// recallTargetRanges finds the target's span(s) in the card text: story-line
+// annotation positions when the sentence sits on those lines (including
+// joined-line cards), then annotated surface forms, then the lemma itself.
+func recallTargetRanges(hebRunes []rune, form string, lines []models.StoryLine) [][2]int {
+	if hits := recallRangesFromLinePositions(hebRunes, form, lines); len(hits) > 0 {
+		return hits
+	}
+	surfaces := recallSurfaceForms(form, lines)
+	if hits := recallRangesForForms(hebRunes, surfaces); len(hits) > 0 {
+		return hits
+	}
+	if idx := indexRunes(hebRunes, []rune(form)); idx >= 0 {
+		return [][2]int{{idx, idx + len([]rune(form))}}
+	}
+	return recallRangesStripped(hebRunes, surfaces)
+}
+
+func recallRangesFromLinePositions(hebRunes []rune, form string, lines []models.StoryLine) [][2]int {
+	var contained [][2]int
+	for _, line := range lines {
+		lineRunes := []rune(line.Text)
+		start := indexRunes(lineRunes, hebRunes)
+		if start < 0 {
+			continue
+		}
+		contained = append(contained, vocabRangesIn(line, form, start, start+len(hebRunes), -start)...)
+	}
+	if len(contained) > 0 {
+		return contained
+	}
+
+	var joined [][2]int
+	for _, line := range lines {
+		lineRunes := []rune(line.Text)
+		trim0, trim1 := trimRuneBounds(lineRunes)
+		if trim0 == trim1 {
+			continue
+		}
+		start := indexRunes(hebRunes, lineRunes[trim0:trim1])
+		if start < 0 {
+			continue
+		}
+		joined = append(joined, vocabRangesIn(line, form, trim0, trim1, start-trim0)...)
+	}
+	return joined
+}
+
+func vocabRangesIn(line models.StoryLine, form string, lineStart, lineEnd, shift int) [][2]int {
+	var hits [][2]int
+	for _, v := range line.Vocabulary {
+		if v.LexicalForm != form || v.Position[0] < lineStart || v.Position[1] > lineEnd || v.Position[0] >= v.Position[1] {
+			continue
+		}
+		hits = append(hits, [2]int{v.Position[0] + shift, v.Position[1] + shift})
+	}
+	return hits
+}
+
+func recallSurfaceForms(form string, lines []models.StoryLine) []string {
+	seen := map[string]bool{}
+	var forms []string
+	for _, line := range lines {
+		for _, v := range line.Vocabulary {
+			if v.LexicalForm != form || v.Word == "" || seen[v.Word] {
+				continue
+			}
+			seen[v.Word] = true
+			forms = append(forms, v.Word)
+		}
+	}
+	slices.SortFunc(forms, func(a, b string) int {
+		return len([]rune(b)) - len([]rune(a))
+	})
+	return forms
+}
+
+func recallRangesForForms(hebRunes []rune, forms []string) [][2]int {
+	for _, form := range forms {
+		needle := []rune(form)
+		if idx := indexRunes(hebRunes, needle); idx >= 0 {
+			return indexAllRunes(hebRunes, needle)
+		}
+	}
+	return nil
+}
+
+// recallRangesStripped matches annotated surface forms after stripping Hebrew
+// points, so an unvocalized card still highlights a vocalized annotation.
+// Letter boundaries avoid treating מן as a hit inside מפנינו.
+func recallRangesStripped(hebRunes []rune, forms []string) [][2]int {
+	stripped, orig := stripMarks(hebRunes)
+	for _, form := range forms {
+		needle, _ := stripMarks([]rune(form))
+		if len(needle) == 0 {
+			continue
+		}
+		var hits [][2]int
+		for i := 0; i <= len(stripped)-len(needle); i++ {
+			if !slices.Equal(stripped[i:i+len(needle)], needle) {
+				continue
+			}
+			if i > 0 && unicode.IsLetter(stripped[i-1]) {
+				continue
+			}
+			if i+len(needle) < len(stripped) && unicode.IsLetter(stripped[i+len(needle)]) {
+				continue
+			}
+			hits = append(hits, [2]int{orig[i], orig[i+len(needle)-1] + 1})
+			i += len(needle) - 1
+		}
+		if len(hits) > 0 {
+			return hits
+		}
+	}
+	return nil
+}
+
+func stripMarks(runes []rune) (stripped []rune, orig []int) {
+	for i, r := range runes {
+		if unicode.Is(unicode.Mn, r) {
+			continue
+		}
+		stripped = append(stripped, r)
+		orig = append(orig, i)
+	}
+	return stripped, orig
+}
+
+func trimRuneBounds(runes []rune) (start, end int) {
+	for start < len(runes) && unicode.IsSpace(runes[start]) {
+		start++
+	}
+	end = len(runes)
+	for end > start && unicode.IsSpace(runes[end-1]) {
+		end--
+	}
+	return start, end
+}
+
+func indexAllRunes(haystack, needle []rune) [][2]int {
+	n := len(needle)
+	if n == 0 || n > len(haystack) {
+		return nil
+	}
+	var hits [][2]int
+	for i := 0; i <= len(haystack)-n; i++ {
+		if slices.Equal(haystack[i:i+n], needle) {
+			hits = append(hits, [2]int{i, i + n})
+			i += n - 1
+		}
+	}
+	return hits
 }
 
 func segmentByRanges(runes []rune, ranges [][2]int, targetID int) []types.TextSegment {

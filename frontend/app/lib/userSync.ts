@@ -20,6 +20,9 @@ export interface UserInfo {
     description?: string;
     enrolled_at: string;
     status: string;
+    is_trial: boolean;
+    has_access: boolean;
+    expires_at?: string;
   }[];
 }
 

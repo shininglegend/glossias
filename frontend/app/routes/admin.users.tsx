@@ -9,6 +9,7 @@ import {
   type Course as CourseType,
   type CourseSection,
 } from "../services/coursesApi";
+import { useUserContext } from "../contexts/UserContext";
 import { pageMeta } from "~/lib/pageTitle";
 
 export function meta() {
@@ -23,6 +24,8 @@ type User = {
   status: "active" | "past" | "future";
   enrolled_at: string;
   sections?: CourseSection[];
+  access_expires_at?: string | null;
+  has_access?: boolean;
 };
 
 export default function AdminUsers() {
@@ -49,6 +52,9 @@ export default function AdminUsers() {
   const [assigningSection, setAssigningSection] = React.useState(false);
   const authenticatedFetch = useAuthenticatedFetch();
   const coursesApi = useCoursesApi();
+  const { userInfo } = useUserContext();
+  const isSuperAdmin = userInfo?.is_super_admin || false;
+  const [granting, setGranting] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     async function fetchCourses() {
@@ -191,6 +197,48 @@ export default function AdminUsers() {
     }
   };
 
+  const refreshUsers = async (courseId: number) => {
+    const usersRes = await authenticatedFetch(
+      `/api/admin/course-users/${courseId}`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (usersRes.ok) {
+      const json = await usersRes.json();
+      setUsers(json.users);
+    }
+  };
+
+  const handleGrantAccess = async (userId: string) => {
+    if (!selectedCourse || !isSuperAdmin) return;
+    if (
+      !confirm(
+        "Grant a complimentary year of access for this course? This extends from any current expiry.",
+      )
+    ) {
+      return;
+    }
+    setGranting(userId);
+    try {
+      const res = await authenticatedFetch(
+        `/api/admin/users/${userId}/access`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ course_id: selectedCourse }),
+        },
+      );
+      if (!res.ok) {
+        throw new Error("Failed to grant access");
+      }
+      await refreshUsers(selectedCourse);
+    } catch (error) {
+      console.error("Failed to grant access:", error);
+      alert(error instanceof Error ? error.message : "Failed to grant access");
+    } finally {
+      setGranting(null);
+    }
+  };
+
   const handleRemoveSelected = async () => {
     if (selectedUsers.size === 0 || !selectedCourse) return;
 
@@ -278,17 +326,6 @@ export default function AdminUsers() {
       alert(message);
     } finally {
       setUpdatingStatus(null);
-    }
-  };
-
-  const refreshUsers = async (courseId: number) => {
-    const usersRes = await authenticatedFetch(
-      `/api/admin/course-users/${courseId}`,
-      { headers: { Accept: "application/json" } },
-    );
-    if (usersRes.ok) {
-      const json = await usersRes.json();
-      setUsers(json.users);
     }
   };
 
@@ -569,6 +606,9 @@ export default function AdminUsers() {
                         <p className="text-xs text-slate-400">
                           Enrolled:{" "}
                           {new Date(user.enrolled_at).toLocaleDateString()}
+                          {user.access_expires_at
+                            ? ` • Access expires ${new Date(user.access_expires_at).toLocaleDateString()}`
+                            : ""}
                         </p>
                         {user.sections?.map((section) => (
                           <Badge key={section.course_id} variant="muted">
@@ -604,6 +644,16 @@ export default function AdminUsers() {
                       >
                         {user.role.replace("_", " ")}
                       </Badge>
+                      {isSuperAdmin && selectedCourse && (
+                        <Button
+                          onClick={() => void handleGrantAccess(user.id)}
+                          variant="outline"
+                          size="sm"
+                          disabled={granting === user.id}
+                        >
+                          {granting === user.id ? "Granting..." : "Grant year"}
+                        </Button>
+                      )}
                       {selectedCourse && (
                         <Button
                           onClick={() =>

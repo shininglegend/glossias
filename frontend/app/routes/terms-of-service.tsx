@@ -68,6 +68,14 @@ export default function TermsOfService() {
         and administrators of that course may view your progress, answers, and
         scores as described in our Privacy Policy.
       </p>
+      <h3>1.4 Payment</h3>
+      <p>
+        Some courses require paid access. Payment is processed by Stripe; we do
+        not collect or store card numbers. Purchasing access for a course
+        unlocks the stories linked to that course for one year. Instructors
+        enroll students separately from payment. If payment presents a hardship,
+        contact us at the email address listed on the Site.
+      </p>
 
       <h2>2. Access to the Site</h2>
       <h3>2.1 License</h3>

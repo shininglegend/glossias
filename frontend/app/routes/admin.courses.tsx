@@ -41,6 +41,7 @@ export default function AdminCourses() {
     name: "",
     description: "",
     parent_course_id: undefined as number | undefined,
+    is_trial: false,
   });
   const [adminEmail, setAdminEmail] = React.useState("");
 
@@ -72,6 +73,7 @@ export default function AdminCourses() {
       name: "",
       description: "",
       parent_course_id: undefined,
+      is_trial: false,
     });
     setShowCreateForm(false);
     setEditingCourse(null);
@@ -88,6 +90,7 @@ export default function AdminCourses() {
           course_number: formData.course_number,
           name: formData.name,
           description: formData.description,
+          is_trial: formData.is_trial,
         });
         setCourses((prev) =>
           prev.map((c) =>
@@ -99,6 +102,7 @@ export default function AdminCourses() {
           course_number: formData.course_number,
           name: formData.name,
           description: formData.description,
+          is_trial: formData.is_trial,
           ...(formData.parent_course_id
             ? { parent_course_id: formData.parent_course_id }
             : {}),
@@ -119,6 +123,7 @@ export default function AdminCourses() {
       name: course.name,
       description: course.description || "",
       parent_course_id: course.parent_course_id,
+      is_trial: !!course.is_trial,
     });
     setEditingCourse(course);
     setShowCreateForm(true);
@@ -327,6 +332,20 @@ export default function AdminCourses() {
                   id="parentCourse"
                 />
               )}
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={formData.is_trial}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      is_trial: e.target.checked,
+                    }))
+                  }
+                  disabled={processing}
+                />
+                Trial course (no payment)
+              </label>
               <div className="flex gap-2 pt-2">
                 <Button type="submit" disabled={processing}>
                   {processing
@@ -468,6 +487,9 @@ export default function AdminCourses() {
                                 (c) => c.course_id === course.parent_course_id,
                               )?.course_number ?? `#${course.parent_course_id}`}
                             </Badge>
+                          )}
+                          {course.is_trial && (
+                            <Badge variant="muted">Trial</Badge>
                           )}
                         </div>
                         {course.description && (

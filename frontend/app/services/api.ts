@@ -20,6 +20,8 @@ export interface Story {
   day_letter: string;
   course_id?: number;
   course_ids?: number[];
+  locked?: boolean;
+  payable_course_ids?: number[];
   status?: "not_started" | "in_progress" | "complete";
   next_page?: string;
   next_page_name?: string;

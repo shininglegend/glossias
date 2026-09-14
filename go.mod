@@ -15,6 +15,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
 	github.com/pressly/goose/v3 v3.27.3
+	github.com/stripe/stripe-go/v86 v86.2.0
 	github.com/supabase-community/storage-go v0.7.0
 	golang.org/x/time v0.13.0
 )

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -29,16 +30,19 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	courseUsers.HandleFunc("/{courseId:[0-9]+}", h.AddUsersToCourse).Methods("POST")
 	courseUsers.HandleFunc("/{courseId:[0-9]+}/status", h.SetUserStatusInCourse).Methods("PUT")
 	courseUsers.HandleFunc("/{courseId:[0-9]+}/users/{userId}", h.RemoveUserFromCourse).Methods("DELETE")
+	r.HandleFunc("/users/{userId}/access", h.GrantUserAccess).Methods("POST")
 }
 
 type UserResponse struct {
-	ID         string                 `json:"id"`
-	Email      string                 `json:"email"`
-	Name       string                 `json:"name"`
-	Role       string                 `json:"role"`
-	EnrolledAt string                 `json:"enrolled_at"`
-	Status     string                 `json:"status,omitempty"`
-	Sections   []models.CourseSection `json:"sections,omitempty"`
+	ID              string                 `json:"id"`
+	Email           string                 `json:"email"`
+	Name            string                 `json:"name"`
+	Role            string                 `json:"role"`
+	EnrolledAt      string                 `json:"enrolled_at"`
+	Status          string                 `json:"status,omitempty"`
+	Sections        []models.CourseSection `json:"sections,omitempty"`
+	AccessExpiresAt *string                `json:"access_expires_at,omitempty"`
+	HasAccess       bool                   `json:"has_access"`
 }
 
 type AddUsersRequest struct {
@@ -113,6 +117,11 @@ func (h *Handler) GetUsersForCourse(w http.ResponseWriter, r *http.Request) {
 			EnrolledAt: user.EnrolledAt.Format("2006-01-02T15:04:05Z07:00"),
 			Status:     user.Status,
 			Sections:   byUser[user.UserID],
+			HasAccess:  user.HasAccess,
+		}
+		if user.AccessExpiresAt != nil {
+			s := user.AccessExpiresAt.UTC().Format("2006-01-02T15:04:05Z07:00")
+			users[i].AccessExpiresAt = &s
 		}
 	}
 
@@ -301,4 +310,47 @@ func (h *Handler) RemoveUserFromCourse(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "User removed from course successfully",
 	})
+}
+
+type grantAccessRequest struct {
+	CourseID int32 `json:"course_id"`
+}
+
+func (h *Handler) GrantUserAccess(w http.ResponseWriter, r *http.Request) {
+	adminID := auth.GetUserID(r)
+	if adminID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if !models.IsUserSuperAdmin(r.Context(), adminID) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+	targetID := mux.Vars(r)["userId"]
+	if targetID == "" {
+		http.Error(w, "User ID is required", http.StatusBadRequest)
+		return
+	}
+	var req grantAccessRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.CourseID == 0 {
+		http.Error(w, "course_id is required", http.StatusBadRequest)
+		return
+	}
+	exp, err := models.GrantCourseAccess(r.Context(), models.GrantAccessParams{
+		UserID:    targetID,
+		CourseID:  req.CourseID,
+		Source:    "comp",
+		GrantedBy: adminID,
+	})
+	if err != nil {
+		h.log.Error("failed to grant access", "error", err, "user_id", targetID, "course_id", req.CourseID)
+		http.Error(w, "Failed to grant access", http.StatusInternalServerError)
+		return
+	}
+	out := map[string]any{"ok": true}
+	if exp != nil {
+		out["expires_at"] = exp.UTC().Format(time.RFC3339)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
 }

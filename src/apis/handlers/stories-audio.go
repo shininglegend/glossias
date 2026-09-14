@@ -21,8 +21,7 @@ func (h *Handler) GetAudioPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	story, err := models.GetStoryData(r.Context(), id, auth.GetUserID(r))
-	if err == models.ErrNotFound {
-		h.sendError(w, "Story not found", http.StatusNotFound)
+	if h.writeStoryErr(w, err, "Story not found") {
 		return
 	}
 	if err != nil {
@@ -89,8 +88,7 @@ func (h *Handler) GetSignedAudioURLs(w http.ResponseWriter, r *http.Request) {
 
 	// Generate signed URLs (expires in 4 hours)
 	signedURLs, err := models.GetSignedAudioURLsForStory(r.Context(), id, auth.GetUserID(r), label, expiresInSeconds)
-	if err == models.ErrNotFound {
-		h.sendError(w, "Story or audio files not found.", http.StatusNotFound)
+	if h.writeStoryErr(w, err, "Story or audio files not found.") {
 		return
 	}
 	if err != nil {

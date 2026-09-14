@@ -239,3 +239,33 @@ func decodeStories(t *testing.T, rr *httptest.ResponseRecorder) []types.Story {
 	}
 	return payload.Stories
 }
+
+func TestGetStoryMetadata_PaymentRequired(t *testing.T) {
+	t.Setenv("PAYWALL_ENABLED", "true")
+	mockDB := database.NewMockDBTX()
+	mockDB.StubQuery("CanUserAccessStory", [][]any{{true}}, nil)
+	mockDB.StubQuery("IsUserAdminOfLinkedStory", [][]any{{false}}, nil)
+	mockDB.StubQuery("ListStoryCourseIDs", [][]any{{int32(3)}}, nil)
+	mockDB.StubQuery("ListCoursesTrialFlags", [][]any{{int32(3), false}}, nil)
+	mockDB.StubQuery("ListActiveEntitlementsForUser", nil, nil)
+	mockDB.StubQuery("IsUserEnrolledInCourse", [][]any{{true}}, nil)
+	models.SetDB(mockDB)
+	t.Cleanup(func() { models.SetDB(struct{}{}) })
+
+	h := NewHandler(slog.New(slog.DiscardHandler), nil)
+	req := httptest.NewRequest("GET", "/api/stories/10/metadata", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "10"})
+	req = req.WithContext(context.WithValue(req.Context(), auth.UserIDKey, "user-1"))
+
+	rr := assertQueryBudget(t, 6, h.GetStoryMetadata, req)
+	if rr.Code != http.StatusPaymentRequired {
+		t.Fatalf("status %d, want 402: %s", rr.Code, rr.Body.String())
+	}
+	var resp types.APIResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Error != "payment_required" {
+		t.Fatalf("error %q", resp.Error)
+	}
+}

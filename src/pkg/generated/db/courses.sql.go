@@ -13,26 +13,43 @@ import (
 
 const createCourse = `-- name: CreateCourse :one
 
-INSERT INTO courses (course_number, name, description)
-VALUES ($1, $2, $3)
-RETURNING course_id, course_number, name, description, created_at, updated_at
+INSERT INTO courses (course_number, name, description, is_trial)
+VALUES ($1, $2, $3, $4)
+RETURNING course_id, course_number, name, description, is_trial, created_at, updated_at
 `
 
 type CreateCourseParams struct {
 	CourseNumber string      `json:"course_number"`
 	Name         string      `json:"name"`
 	Description  pgtype.Text `json:"description"`
+	IsTrial      bool        `json:"is_trial"`
+}
+
+type CreateCourseRow struct {
+	CourseID     int32            `json:"course_id"`
+	CourseNumber string           `json:"course_number"`
+	Name         string           `json:"name"`
+	Description  pgtype.Text      `json:"description"`
+	IsTrial      bool             `json:"is_trial"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
 }
 
 // Course management queries
-func (q *Queries) CreateCourse(ctx context.Context, arg CreateCourseParams) (Course, error) {
-	row := q.db.QueryRow(ctx, createCourse, arg.CourseNumber, arg.Name, arg.Description)
-	var i Course
+func (q *Queries) CreateCourse(ctx context.Context, arg CreateCourseParams) (CreateCourseRow, error) {
+	row := q.db.QueryRow(ctx, createCourse,
+		arg.CourseNumber,
+		arg.Name,
+		arg.Description,
+		arg.IsTrial,
+	)
+	var i CreateCourseRow
 	err := row.Scan(
 		&i.CourseID,
 		&i.CourseNumber,
 		&i.Name,
 		&i.Description,
+		&i.IsTrial,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -49,27 +66,38 @@ func (q *Queries) DeleteCourse(ctx context.Context, courseID int32) error {
 }
 
 const getAdminCoursesForUser = `-- name: GetAdminCoursesForUser :many
-SELECT c.course_id, c.course_number, c.name, c.description, c.created_at, c.updated_at
+SELECT c.course_id, c.course_number, c.name, c.description, c.is_trial, c.created_at, c.updated_at
 FROM courses c
 JOIN course_admins ca ON c.course_id = ca.course_id
 WHERE ca.user_id = $1
 ORDER BY c.course_number
 `
 
-func (q *Queries) GetAdminCoursesForUser(ctx context.Context, userID string) ([]Course, error) {
+type GetAdminCoursesForUserRow struct {
+	CourseID     int32            `json:"course_id"`
+	CourseNumber string           `json:"course_number"`
+	Name         string           `json:"name"`
+	Description  pgtype.Text      `json:"description"`
+	IsTrial      bool             `json:"is_trial"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetAdminCoursesForUser(ctx context.Context, userID string) ([]GetAdminCoursesForUserRow, error) {
 	rows, err := q.db.Query(ctx, getAdminCoursesForUser, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Course{}
+	items := []GetAdminCoursesForUserRow{}
 	for rows.Next() {
-		var i Course
+		var i GetAdminCoursesForUserRow
 		if err := rows.Scan(
 			&i.CourseID,
 			&i.CourseNumber,
 			&i.Name,
 			&i.Description,
+			&i.IsTrial,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -84,19 +112,30 @@ func (q *Queries) GetAdminCoursesForUser(ctx context.Context, userID string) ([]
 }
 
 const getCourse = `-- name: GetCourse :one
-SELECT course_id, course_number, name, description, created_at, updated_at
+SELECT course_id, course_number, name, description, is_trial, created_at, updated_at
 FROM courses
 WHERE course_id = $1
 `
 
-func (q *Queries) GetCourse(ctx context.Context, courseID int32) (Course, error) {
+type GetCourseRow struct {
+	CourseID     int32            `json:"course_id"`
+	CourseNumber string           `json:"course_number"`
+	Name         string           `json:"name"`
+	Description  pgtype.Text      `json:"description"`
+	IsTrial      bool             `json:"is_trial"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetCourse(ctx context.Context, courseID int32) (GetCourseRow, error) {
 	row := q.db.QueryRow(ctx, getCourse, courseID)
-	var i Course
+	var i GetCourseRow
 	err := row.Scan(
 		&i.CourseID,
 		&i.CourseNumber,
 		&i.Name,
 		&i.Description,
+		&i.IsTrial,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -104,19 +143,30 @@ func (q *Queries) GetCourse(ctx context.Context, courseID int32) (Course, error)
 }
 
 const getCourseByNumber = `-- name: GetCourseByNumber :one
-SELECT course_id, course_number, name, description, created_at, updated_at
+SELECT course_id, course_number, name, description, is_trial, created_at, updated_at
 FROM courses
 WHERE course_number = $1
 `
 
-func (q *Queries) GetCourseByNumber(ctx context.Context, courseNumber string) (Course, error) {
+type GetCourseByNumberRow struct {
+	CourseID     int32            `json:"course_id"`
+	CourseNumber string           `json:"course_number"`
+	Name         string           `json:"name"`
+	Description  pgtype.Text      `json:"description"`
+	IsTrial      bool             `json:"is_trial"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetCourseByNumber(ctx context.Context, courseNumber string) (GetCourseByNumberRow, error) {
 	row := q.db.QueryRow(ctx, getCourseByNumber, courseNumber)
-	var i Course
+	var i GetCourseByNumberRow
 	err := row.Scan(
 		&i.CourseID,
 		&i.CourseNumber,
 		&i.Name,
 		&i.Description,
+		&i.IsTrial,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -124,25 +174,36 @@ func (q *Queries) GetCourseByNumber(ctx context.Context, courseNumber string) (C
 }
 
 const listCourses = `-- name: ListCourses :many
-SELECT course_id, course_number, name, description, created_at, updated_at
+SELECT course_id, course_number, name, description, is_trial, created_at, updated_at
 FROM courses
 ORDER BY course_number
 `
 
-func (q *Queries) ListCourses(ctx context.Context) ([]Course, error) {
+type ListCoursesRow struct {
+	CourseID     int32            `json:"course_id"`
+	CourseNumber string           `json:"course_number"`
+	Name         string           `json:"name"`
+	Description  pgtype.Text      `json:"description"`
+	IsTrial      bool             `json:"is_trial"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) ListCourses(ctx context.Context) ([]ListCoursesRow, error) {
 	rows, err := q.db.Query(ctx, listCourses)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Course{}
+	items := []ListCoursesRow{}
 	for rows.Next() {
-		var i Course
+		var i ListCoursesRow
 		if err := rows.Scan(
 			&i.CourseID,
 			&i.CourseNumber,
 			&i.Name,
 			&i.Description,
+			&i.IsTrial,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -158,9 +219,9 @@ func (q *Queries) ListCourses(ctx context.Context) ([]Course, error) {
 
 const updateCourse = `-- name: UpdateCourse :one
 UPDATE courses
-SET course_number = $2, name = $3, description = $4, updated_at = CURRENT_TIMESTAMP
+SET course_number = $2, name = $3, description = $4, is_trial = $5, updated_at = CURRENT_TIMESTAMP
 WHERE course_id = $1
-RETURNING course_id, course_number, name, description, created_at, updated_at
+RETURNING course_id, course_number, name, description, is_trial, created_at, updated_at
 `
 
 type UpdateCourseParams struct {
@@ -168,21 +229,34 @@ type UpdateCourseParams struct {
 	CourseNumber string      `json:"course_number"`
 	Name         string      `json:"name"`
 	Description  pgtype.Text `json:"description"`
+	IsTrial      bool        `json:"is_trial"`
 }
 
-func (q *Queries) UpdateCourse(ctx context.Context, arg UpdateCourseParams) (Course, error) {
+type UpdateCourseRow struct {
+	CourseID     int32            `json:"course_id"`
+	CourseNumber string           `json:"course_number"`
+	Name         string           `json:"name"`
+	Description  pgtype.Text      `json:"description"`
+	IsTrial      bool             `json:"is_trial"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) UpdateCourse(ctx context.Context, arg UpdateCourseParams) (UpdateCourseRow, error) {
 	row := q.db.QueryRow(ctx, updateCourse,
 		arg.CourseID,
 		arg.CourseNumber,
 		arg.Name,
 		arg.Description,
+		arg.IsTrial,
 	)
-	var i Course
+	var i UpdateCourseRow
 	err := row.Scan(
 		&i.CourseID,
 		&i.CourseNumber,
 		&i.Name,
 		&i.Description,
+		&i.IsTrial,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

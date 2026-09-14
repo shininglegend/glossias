@@ -80,8 +80,7 @@ func (h *Handler) Navigate(w http.ResponseWriter, r *http.Request) {
 
 	// Validate story exists
 	_, err = models.GetStoryData(r.Context(), storyID, userID)
-	if err == models.ErrNotFound {
-		h.sendError(w, "Story not found", http.StatusNotFound)
+	if h.writeStoryErr(w, err, "Story not found") {
 		return
 	}
 	if err != nil {

@@ -34,8 +34,9 @@ SELECT EXISTS(
     WHERE course_id = $1 AND story_id = $2
 ) AS linked;
 
--- CanUserAccessStory: super admin, orphan (no links), or member/admin of any linked course.
+-- CanUserAccessStory: super admin, orphan (no links), trial-linked, or member/admin of any linked course.
 -- Enrollment status is not filtered here — listing applies the active-only rule separately.
+-- Payment is a separate predicate (see access_entitlements), not folded into this query.
 -- name: CanUserAccessStory :one
 SELECT EXISTS(
     SELECT 1 FROM users u
@@ -44,6 +45,11 @@ SELECT EXISTS(
           u.is_super_admin = true
           OR NOT EXISTS (
               SELECT 1 FROM course_stories cs WHERE cs.story_id = $2
+          )
+          OR EXISTS (
+              SELECT 1 FROM course_stories cs
+              JOIN courses c ON c.course_id = cs.course_id
+              WHERE cs.story_id = $2 AND c.is_trial = true
           )
           OR EXISTS (
               SELECT 1 FROM course_stories cs

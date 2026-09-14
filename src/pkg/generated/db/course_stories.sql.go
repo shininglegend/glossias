@@ -20,6 +20,11 @@ SELECT EXISTS(
           )
           OR EXISTS (
               SELECT 1 FROM course_stories cs
+              JOIN courses c ON c.course_id = cs.course_id
+              WHERE cs.story_id = $2 AND c.is_trial = true
+          )
+          OR EXISTS (
+              SELECT 1 FROM course_stories cs
               JOIN course_admins ca ON ca.course_id = cs.course_id AND ca.user_id = $1
               WHERE cs.story_id = $2
           )
@@ -37,8 +42,9 @@ type CanUserAccessStoryParams struct {
 	StoryID int32  `json:"story_id"`
 }
 
-// CanUserAccessStory: super admin, orphan (no links), or member/admin of any linked course.
+// CanUserAccessStory: super admin, orphan (no links), trial-linked, or member/admin of any linked course.
 // Enrollment status is not filtered here — listing applies the active-only rule separately.
+// Payment is a separate predicate (see access_entitlements), not folded into this query.
 func (q *Queries) CanUserAccessStory(ctx context.Context, arg CanUserAccessStoryParams) (bool, error) {
 	row := q.db.QueryRow(ctx, canUserAccessStory, arg.UserID, arg.StoryID)
 	var can_access bool

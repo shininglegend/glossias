@@ -13,12 +13,14 @@ type APIResponse struct {
 
 // Story represents a story in API responses
 type Story struct {
-	ID         int    `json:"id"`
-	Title      string `json:"title"`
-	WeekNumber int    `json:"week_number"`
-	DayLetter  string `json:"day_letter"`
-	CourseID   *int   `json:"course_id,omitempty"`
-	CourseIDs  []int  `json:"course_ids,omitempty"`
+	ID               int    `json:"id"`
+	Title            string `json:"title"`
+	WeekNumber       int    `json:"week_number"`
+	DayLetter        string `json:"day_letter"`
+	CourseID         *int   `json:"course_id,omitempty"`
+	CourseIDs        []int  `json:"course_ids,omitempty"`
+	Locked           bool   `json:"locked,omitempty"`
+	PayableCourseIDs []int  `json:"payable_course_ids,omitempty"`
 	// MissingPhases lists the Summer 2026 phases ("identify", "produce",
 	// "recall") whose content is not fully authored. Populated only for admin
 	// callers; omitted when the story is complete.
@@ -395,12 +397,14 @@ func ConvertStoryToAPI(dbStory models.Story) Story {
 		dbStory.Metadata.Title["en"] = dbStory.Metadata.Title[""] // "" might hold default title
 	}
 	return Story{
-		ID:         dbStory.Metadata.StoryID,
-		Title:      dbStory.Metadata.Title["en"], // Using English title if possible
-		WeekNumber: dbStory.Metadata.WeekNumber,
-		DayLetter:  dbStory.Metadata.DayLetter,
-		CourseID:   dbStory.Metadata.CourseID,
-		CourseIDs:  dbStory.Metadata.LinkedCourseIDs,
+		ID:               dbStory.Metadata.StoryID,
+		Title:            dbStory.Metadata.Title["en"], // Using English title if possible
+		WeekNumber:       dbStory.Metadata.WeekNumber,
+		DayLetter:        dbStory.Metadata.DayLetter,
+		CourseID:         dbStory.Metadata.CourseID,
+		CourseIDs:        dbStory.Metadata.LinkedCourseIDs,
+		Locked:           dbStory.Metadata.Locked,
+		PayableCourseIDs: dbStory.Metadata.PayableCourseIDs,
 	}
 }
 

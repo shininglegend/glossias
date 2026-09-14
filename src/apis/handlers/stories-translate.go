@@ -46,8 +46,7 @@ func (h *Handler) GetTranslateData(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) getTranslationRequest(w http.ResponseWriter, r *http.Request, userID string, storyID int) {
 	ctx := r.Context()
 	story, err := models.GetStoryData(ctx, storyID, userID)
-	if err == models.ErrNotFound {
-		h.sendError(w, "Story not found", http.StatusNotFound)
+	if h.writeStoryErr(w, err, "Story not found") {
 		return
 	}
 	if err != nil {

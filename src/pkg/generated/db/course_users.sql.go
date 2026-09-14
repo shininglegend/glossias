@@ -93,7 +93,7 @@ func (q *Queries) DeleteAllUsersFromCourse(ctx context.Context, courseID int32) 
 }
 
 const getCoursesForUser = `-- name: GetCoursesForUser :many
-SELECT c.course_id, c.course_number, c.name, c.description, cu.enrolled_at, cu.status
+SELECT c.course_id, c.course_number, c.name, c.description, c.is_trial, cu.enrolled_at, cu.status
 FROM courses c
 JOIN course_users cu ON c.course_id = cu.course_id
 WHERE cu.user_id = $1
@@ -105,6 +105,7 @@ type GetCoursesForUserRow struct {
 	CourseNumber string           `json:"course_number"`
 	Name         string           `json:"name"`
 	Description  pgtype.Text      `json:"description"`
+	IsTrial      bool             `json:"is_trial"`
 	EnrolledAt   pgtype.Timestamp `json:"enrolled_at"`
 	Status       pgtype.Text      `json:"status"`
 }
@@ -123,6 +124,7 @@ func (q *Queries) GetCoursesForUser(ctx context.Context, userID string) ([]GetCo
 			&i.CourseNumber,
 			&i.Name,
 			&i.Description,
+			&i.IsTrial,
 			&i.EnrolledAt,
 			&i.Status,
 		); err != nil {
@@ -137,7 +139,7 @@ func (q *Queries) GetCoursesForUser(ctx context.Context, userID string) ([]GetCo
 }
 
 const getCoursesForUserByStatus = `-- name: GetCoursesForUserByStatus :many
-SELECT c.course_id, c.course_number, c.name, c.description, cu.enrolled_at, cu.status
+SELECT c.course_id, c.course_number, c.name, c.description, c.is_trial, cu.enrolled_at, cu.status
 FROM courses c
 JOIN course_users cu ON c.course_id = cu.course_id
 WHERE cu.user_id = $1 AND cu.status = $2
@@ -154,6 +156,7 @@ type GetCoursesForUserByStatusRow struct {
 	CourseNumber string           `json:"course_number"`
 	Name         string           `json:"name"`
 	Description  pgtype.Text      `json:"description"`
+	IsTrial      bool             `json:"is_trial"`
 	EnrolledAt   pgtype.Timestamp `json:"enrolled_at"`
 	Status       pgtype.Text      `json:"status"`
 }
@@ -172,6 +175,7 @@ func (q *Queries) GetCoursesForUserByStatus(ctx context.Context, arg GetCoursesF
 			&i.CourseNumber,
 			&i.Name,
 			&i.Description,
+			&i.IsTrial,
 			&i.EnrolledAt,
 			&i.Status,
 		); err != nil {

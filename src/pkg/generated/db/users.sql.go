@@ -25,15 +25,24 @@ type CreateUserParams struct {
 	IsSuperAdmin pgtype.Bool `json:"is_super_admin"`
 }
 
+type CreateUserRow struct {
+	UserID       string           `json:"user_id"`
+	Email        string           `json:"email"`
+	Name         string           `json:"name"`
+	IsSuperAdmin pgtype.Bool      `json:"is_super_admin"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
 // User management queries
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
 	row := q.db.QueryRow(ctx, createUser,
 		arg.UserID,
 		arg.Email,
 		arg.Name,
 		arg.IsSuperAdmin,
 	)
-	var i User
+	var i CreateUserRow
 	err := row.Scan(
 		&i.UserID,
 		&i.Email,
@@ -60,9 +69,18 @@ FROM users
 WHERE user_id = $1
 `
 
-func (q *Queries) GetUser(ctx context.Context, userID string) (User, error) {
+type GetUserRow struct {
+	UserID       string           `json:"user_id"`
+	Email        string           `json:"email"`
+	Name         string           `json:"name"`
+	IsSuperAdmin pgtype.Bool      `json:"is_super_admin"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetUser(ctx context.Context, userID string) (GetUserRow, error) {
 	row := q.db.QueryRow(ctx, getUser, userID)
-	var i User
+	var i GetUserRow
 	err := row.Scan(
 		&i.UserID,
 		&i.Email,
@@ -80,9 +98,18 @@ FROM users
 WHERE LOWER(email) = LOWER($1)
 `
 
-func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (User, error) {
+type GetUserByEmailRow struct {
+	UserID       string           `json:"user_id"`
+	Email        string           `json:"email"`
+	Name         string           `json:"name"`
+	IsSuperAdmin pgtype.Bool      `json:"is_super_admin"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (GetUserByEmailRow, error) {
 	row := q.db.QueryRow(ctx, getUserByEmail, lower)
-	var i User
+	var i GetUserByEmailRow
 	err := row.Scan(
 		&i.UserID,
 		&i.Email,
@@ -100,15 +127,24 @@ FROM users
 WHERE email = ANY($1::text[])
 `
 
-func (q *Queries) GetUsersByEmails(ctx context.Context, dollar_1 []string) ([]User, error) {
+type GetUsersByEmailsRow struct {
+	UserID       string           `json:"user_id"`
+	Email        string           `json:"email"`
+	Name         string           `json:"name"`
+	IsSuperAdmin pgtype.Bool      `json:"is_super_admin"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) GetUsersByEmails(ctx context.Context, dollar_1 []string) ([]GetUsersByEmailsRow, error) {
 	rows, err := q.db.Query(ctx, getUsersByEmails, dollar_1)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []User{}
+	items := []GetUsersByEmailsRow{}
 	for rows.Next() {
-		var i User
+		var i GetUsersByEmailsRow
 		if err := rows.Scan(
 			&i.UserID,
 			&i.Email,
@@ -134,15 +170,24 @@ WHERE is_super_admin = true
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListSuperAdmins(ctx context.Context) ([]User, error) {
+type ListSuperAdminsRow struct {
+	UserID       string           `json:"user_id"`
+	Email        string           `json:"email"`
+	Name         string           `json:"name"`
+	IsSuperAdmin pgtype.Bool      `json:"is_super_admin"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) ListSuperAdmins(ctx context.Context) ([]ListSuperAdminsRow, error) {
 	rows, err := q.db.Query(ctx, listSuperAdmins)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []User{}
+	items := []ListSuperAdminsRow{}
 	for rows.Next() {
-		var i User
+		var i ListSuperAdminsRow
 		if err := rows.Scan(
 			&i.UserID,
 			&i.Email,
@@ -167,15 +212,24 @@ FROM users
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
+type ListUsersRow struct {
+	UserID       string           `json:"user_id"`
+	Email        string           `json:"email"`
+	Name         string           `json:"name"`
+	IsSuperAdmin pgtype.Bool      `json:"is_super_admin"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) ListUsers(ctx context.Context) ([]ListUsersRow, error) {
 	rows, err := q.db.Query(ctx, listUsers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []User{}
+	items := []ListUsersRow{}
 	for rows.Next() {
-		var i User
+		var i ListUsersRow
 		if err := rows.Scan(
 			&i.UserID,
 			&i.Email,
@@ -208,14 +262,23 @@ type UpdateUserParams struct {
 	IsSuperAdmin pgtype.Bool `json:"is_super_admin"`
 }
 
-func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
+type UpdateUserRow struct {
+	UserID       string           `json:"user_id"`
+	Email        string           `json:"email"`
+	Name         string           `json:"name"`
+	IsSuperAdmin pgtype.Bool      `json:"is_super_admin"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (UpdateUserRow, error) {
 	row := q.db.QueryRow(ctx, updateUser,
 		arg.UserID,
 		arg.Email,
 		arg.Name,
 		arg.IsSuperAdmin,
 	)
-	var i User
+	var i UpdateUserRow
 	err := row.Scan(
 		&i.UserID,
 		&i.Email,
@@ -245,14 +308,23 @@ type UpsertUserParams struct {
 	IsSuperAdmin pgtype.Bool `json:"is_super_admin"`
 }
 
-func (q *Queries) UpsertUser(ctx context.Context, arg UpsertUserParams) (User, error) {
+type UpsertUserRow struct {
+	UserID       string           `json:"user_id"`
+	Email        string           `json:"email"`
+	Name         string           `json:"name"`
+	IsSuperAdmin pgtype.Bool      `json:"is_super_admin"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) UpsertUser(ctx context.Context, arg UpsertUserParams) (UpsertUserRow, error) {
 	row := q.db.QueryRow(ctx, upsertUser,
 		arg.UserID,
 		arg.Email,
 		arg.Name,
 		arg.IsSuperAdmin,
 	)
-	var i User
+	var i UpsertUserRow
 	err := row.Scan(
 		&i.UserID,
 		&i.Email,

@@ -44,8 +44,7 @@ func (h *Handler) GetProducePage(w http.ResponseWriter, r *http.Request) {
 
 	// GetStoryData enforces course access.
 	story, err := models.GetStoryData(ctx, id, userID)
-	if err == models.ErrNotFound {
-		h.sendError(w, "Story not found", http.StatusNotFound)
+	if h.writeStoryErr(w, err, "Story not found") {
 		return
 	}
 	if err != nil {
@@ -246,8 +245,7 @@ func (h *Handler) produceRequestContext(w http.ResponseWriter, r *http.Request, 
 
 	// Access check (course membership) — the returned story is otherwise unused.
 	if _, err := models.GetStoryData(ctx, id, userID); err != nil {
-		if err == models.ErrNotFound {
-			h.sendError(w, "Story not found", http.StatusNotFound)
+		if h.writeStoryErr(w, err, "Story not found") {
 			return 0, "", nil, false
 		}
 		h.log.Error("Failed to fetch story in "+op, "error", err, "storyID", id)

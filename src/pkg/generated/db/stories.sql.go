@@ -153,6 +153,11 @@ WHERE (st.language_code = $1 OR $1 = '')
           JOIN course_admins ca ON ca.course_id = cs.course_id
           WHERE cs.story_id = s.story_id AND ca.user_id = $2
       )
+      OR EXISTS (
+          SELECT 1 FROM course_stories cs
+          JOIN courses c ON c.course_id = cs.course_id
+          WHERE cs.story_id = s.story_id AND c.is_trial = true
+      )
   )
 ORDER BY s.week_number, s.day_letter
 `

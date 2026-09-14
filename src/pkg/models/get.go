@@ -4,6 +4,7 @@ package models
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"glossias/src/pkg/database"
 	"glossias/src/pkg/generated/db"
@@ -46,7 +47,18 @@ func GetStoryData(ctx context.Context, id int, userID string) (*Story, error) {
 	// Check user access first (with caching)
 	if cacheInstance != nil && keyBuilder != nil {
 		hasAccess, err := checkUserAccessWithCache(userID, id, func() (bool, error) {
-			return CanUserAccessStory(ctx, userID, int32(id)), nil
+			err := CheckStoryContentAccess(ctx, userID, int32(id))
+			if err == nil {
+				return true, nil
+			}
+			var pay *PaymentRequiredError
+			if errors.As(err, &pay) {
+				return false, err
+			}
+			if errors.Is(err, ErrNotFound) {
+				return false, nil
+			}
+			return false, err
 		})
 		if err != nil {
 			return nil, err
@@ -55,8 +67,8 @@ func GetStoryData(ctx context.Context, id int, userID string) (*Story, error) {
 			return nil, ErrNotFound
 		}
 	} else {
-		if !CanUserAccessStory(ctx, userID, int32(id)) {
-			return nil, ErrNotFound
+		if err := CheckStoryContentAccess(ctx, userID, int32(id)); err != nil {
+			return nil, err
 		}
 	}
 
@@ -591,6 +603,9 @@ func getAllStoriesFromDB(ctx context.Context, language string, userID string) ([
 			story.Metadata.LinkedCourseIDs = int32sToInts(basicStory.CourseIds)
 		}
 		stories = append(stories, story)
+	}
+	if err := AnnotateStoryLocks(ctx, userID, stories); err != nil {
+		return nil, err
 	}
 	return stories, nil
 }

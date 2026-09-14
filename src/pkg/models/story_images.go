@@ -240,8 +240,8 @@ func GetSignedImageURL(ctx context.Context, imageID int, userID string, expiresI
 		return "", err
 	}
 
-	if !CanUserAccessStory(ctx, userID, int32(img.StoryID)) {
-		return "", errors.New("access denied")
+	if err := CheckStoryContentAccess(ctx, userID, int32(img.StoryID)); err != nil {
+		return "", err
 	}
 
 	// Generate signed URL from Supabase with retry
@@ -266,8 +266,8 @@ func GetSignedImageURLsForStory(ctx context.Context, storyID int, userID string,
 		return nil, errors.New("storage client not initialized")
 	}
 
-	if !CanUserAccessStory(ctx, userID, int32(storyID)) {
-		return nil, errors.New("access denied")
+	if err := CheckStoryContentAccess(ctx, userID, int32(storyID)); err != nil {
+		return nil, err
 	}
 
 	// Get images

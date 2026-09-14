@@ -25,8 +25,7 @@ func (h *Handler) GetSignedImageURLs(w http.ResponseWriter, r *http.Request) {
 
 	// Generate signed URLs (expires in 1 hour)
 	signedURLs, err := models.GetSignedImageURLsForStory(r.Context(), id, auth.GetUserID(r), label, expiresInSeconds)
-	if err == models.ErrNotFound {
-		h.sendError(w, "Story or image files not found.", http.StatusNotFound)
+	if h.writeStoryErr(w, err, "Story or image files not found.") {
 		return
 	}
 	if err != nil {

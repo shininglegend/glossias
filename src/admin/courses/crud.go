@@ -22,6 +22,7 @@ type CreateCourseRequest struct {
 	Name           string `json:"name"`
 	Description    string `json:"description"`
 	ParentCourseID *int32 `json:"parent_course_id"`
+	IsTrial        bool   `json:"is_trial"`
 }
 
 // UpdateCourseRequest represents the request body for updating a course
@@ -29,6 +30,7 @@ type UpdateCourseRequest struct {
 	CourseNumber string `json:"course_number"`
 	Name         string `json:"name"`
 	Description  string `json:"description"`
+	IsTrial      bool   `json:"is_trial"`
 }
 
 // handleCoursesList returns all courses for super admins, or courses user is admin of for regular admins
@@ -87,7 +89,7 @@ func (h *Handler) handleCourseCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	course, err := models.CreateCourse(r.Context(), req.CourseNumber, req.Name, req.Description)
+	course, err := models.CreateCourse(r.Context(), req.CourseNumber, req.Name, req.Description, req.IsTrial)
 	if err != nil {
 		h.log.Error("failed to create course", "error", err, "course_number", req.CourseNumber)
 		http.Error(w, "Failed to create course", http.StatusInternalServerError)
@@ -161,7 +163,7 @@ func (h *Handler) handleCourseUpdate(w http.ResponseWriter, r *http.Request, cou
 		return
 	}
 
-	course, err := models.UpdateCourse(r.Context(), courseID, req.CourseNumber, req.Name, req.Description)
+	course, err := models.UpdateCourse(r.Context(), courseID, req.CourseNumber, req.Name, req.Description, req.IsTrial)
 	if err != nil {
 		if err == models.ErrNotFound {
 			http.Error(w, "Course not found", http.StatusNotFound)

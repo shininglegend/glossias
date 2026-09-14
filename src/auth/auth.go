@@ -26,6 +26,7 @@ var byPassURLS = []string{
 	"/api/health",
 	"/api/db-health",
 	"/api/time-tracking/record",
+	"/api/webhooks/stripe",
 }
 
 // Middleware combines CORS and Clerk authentication

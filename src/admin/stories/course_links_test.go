@@ -27,7 +27,7 @@ func TestLinkStoryCourse(t *testing.T) {
 	mockDB.StubQuery("IsUserCourseAdmin", [][]any{{true}}, nil)
 	mockDB.StubQuery("IsUserAdminOfLinkedStory", [][]any{{true}}, nil)
 	mockDB.StubQuery("name: GetCourse :one", [][]any{{
-		int32(5), "LATN-102", "Latin 102", pgtype.Text{}, pgtype.Timestamp{}, pgtype.Timestamp{},
+		int32(5), "LATN-102", "Latin 102", pgtype.Text{}, false, pgtype.Timestamp{}, pgtype.Timestamp{},
 	}}, nil)
 	models.SetDB(mockDB)
 	t.Cleanup(func() { models.SetDB(struct{}{}) })

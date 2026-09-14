@@ -326,6 +326,9 @@ describe("RecallSession", () => {
     expect(
       screen.getByTestId("recall-card-3").querySelector("img"),
     ).toHaveClass("object-contain");
+    expect(
+      screen.getByTestId("recall-card-3").querySelector("img")?.parentElement,
+    ).toHaveClass("w-2/3");
     expect(screen.getByText("לוש")).toHaveClass("target-word");
     expect(screen.getByText("לוש")).not.toHaveClass("underline");
 

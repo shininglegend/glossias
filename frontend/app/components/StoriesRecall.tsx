@@ -625,7 +625,7 @@ function RecallSelectCard({
             : "cursor-not-allowed"
       }`}
     >
-      <div className="aspect-square w-full bg-slate-50">
+      <div className="aspect-square w-2/3 mx-auto bg-slate-50">
         {card.image_url ? (
           <img
             src={card.image_url}

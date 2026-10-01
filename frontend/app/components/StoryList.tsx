@@ -1,13 +1,21 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router";
 import { useApiService } from "../services/api";
 import { useNavigationGuidance } from "../hooks/useNavigationGuidance";
 import { useUserContext } from "../contexts/UserContext";
 import type { Story } from "../services/api";
+import { useNavigate } from "react-router";
 import Button from "./ui/Button";
 import { Card, CardContent } from "./ui/Card";
+import { LEGAL_CONTACT_EMAIL } from "./LegalPage";
+
+function pricingPath(story: Story): string {
+  const ids = story.payable_course_ids ?? [];
+  if (ids.length === 1) return `/pricing?course=${ids[0]}`;
+  return "/pricing";
+}
 
 function storyCta(story: Story): string {
+  if (story.locked) return "Get access";
   if (story.status === "complete") return "See score";
   if (story.status === "in_progress") {
     return story.next_page_name
@@ -130,6 +138,8 @@ export function StoryList() {
   const [loadingStory, setLoadingStory] = useState<number | null>(null);
 
   // Group stories by course status
+  const hasLocked = stories.some((s) => s.locked);
+
   const groupedStories = useMemo(() => {
     if (!userInfo?.enrolled_courses) {
       return { active: stories, past: [], future: [] };
@@ -195,6 +205,10 @@ export function StoryList() {
   }, []);
 
   const handleStoryClick = async (story: Story) => {
+    if (story.locked) {
+      navigate(pricingPath(story));
+      return;
+    }
     setLoadingStory(story.id);
     setOpenError(null);
     clearCache();
@@ -225,6 +239,16 @@ export function StoryList() {
         </h1>
         <p className="mt-1 text-slate-600">Select a story to begin reading</p>
       </div>
+
+      {hasLocked ? (
+        <p className="text-slate-600 mb-4">
+          Some stories need access. If this presents a hardship, email{" "}
+          <a className="underline" href={`mailto:${LEGAL_CONTACT_EMAIL}`}>
+            {LEGAL_CONTACT_EMAIL}
+          </a>
+          .
+        </p>
+      ) : null}
 
       {openError ? (
         <p className="text-rose-700 mb-4" role="alert">

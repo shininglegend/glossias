@@ -17,6 +17,7 @@ type Course struct {
 	CourseNumber   string    `json:"course_number"`
 	Name           string    `json:"name"`
 	Description    string    `json:"description"`
+	IsTrial        bool      `json:"is_trial"`
 	ParentCourseID *int32    `json:"parent_course_id,omitempty"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
@@ -32,28 +33,30 @@ type CourseAdmin struct {
 }
 
 // CreateCourse creates a new course
-func CreateCourse(ctx context.Context, courseNumber, name, description string) (*Course, error) {
+func CreateCourse(ctx context.Context, courseNumber, name, description string, isTrial bool) (*Course, error) {
 	result, err := queries.CreateCourse(ctx, db.CreateCourseParams{
 		CourseNumber: courseNumber,
 		Name:         name,
 		Description:  pgtype.Text{String: description, Valid: description != ""},
+		IsTrial:      isTrial,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return courseFromRow(ctx, result.CourseID, result.CourseNumber, result.Name, result.Description.String, result.CreatedAt.Time, result.UpdatedAt.Time)
+	return courseFromRow(result.CourseID, result.CourseNumber, result.Name, result.Description, result.IsTrial, result.CreatedAt, result.UpdatedAt), nil
 }
 
-func courseFromRow(_ context.Context, id int32, number, name, description string, created, updated time.Time) (*Course, error) {
+func courseFromRow(id int32, number, name string, desc pgtype.Text, isTrial bool, created, updated pgtype.Timestamp) *Course {
 	return &Course{
 		CourseID:     id,
 		CourseNumber: number,
 		Name:         name,
-		Description:  description,
-		CreatedAt:    created,
-		UpdatedAt:    updated,
-	}, nil
+		Description:  desc.String,
+		IsTrial:      isTrial,
+		CreatedAt:    created.Time,
+		UpdatedAt:    updated.Time,
+	}
 }
 
 // GetCourse retrieves a course by ID
@@ -66,7 +69,7 @@ func GetCourse(ctx context.Context, courseID int32) (*Course, error) {
 		return nil, err
 	}
 
-	return courseFromRow(ctx, result.CourseID, result.CourseNumber, result.Name, result.Description.String, result.CreatedAt.Time, result.UpdatedAt.Time)
+	return courseFromRow(result.CourseID, result.CourseNumber, result.Name, result.Description, result.IsTrial, result.CreatedAt, result.UpdatedAt), nil
 }
 
 // GetCourseByNumber retrieves a course by course number
@@ -79,7 +82,7 @@ func GetCourseByNumber(ctx context.Context, courseNumber string) (*Course, error
 		return nil, err
 	}
 
-	return courseFromRow(ctx, result.CourseID, result.CourseNumber, result.Name, result.Description.String, result.CreatedAt.Time, result.UpdatedAt.Time)
+	return courseFromRow(result.CourseID, result.CourseNumber, result.Name, result.Description, result.IsTrial, result.CreatedAt, result.UpdatedAt), nil
 }
 
 // ListAllCourses returns all courses
@@ -91,14 +94,7 @@ func ListAllCourses(ctx context.Context) ([]Course, error) {
 
 	courses := make([]Course, 0, len(results))
 	for _, result := range results {
-		courses = append(courses, Course{
-			CourseID:     result.CourseID,
-			CourseNumber: result.CourseNumber,
-			Name:         result.Name,
-			Description:  result.Description.String,
-			CreatedAt:    result.CreatedAt.Time,
-			UpdatedAt:    result.UpdatedAt.Time,
-		})
+		courses = append(courses, *courseFromRow(result.CourseID, result.CourseNumber, result.Name, result.Description, result.IsTrial, result.CreatedAt, result.UpdatedAt))
 	}
 
 	parents, err := parentIDsBySection(ctx)
@@ -110,12 +106,13 @@ func ListAllCourses(ctx context.Context) ([]Course, error) {
 }
 
 // UpdateCourse updates an existing course
-func UpdateCourse(ctx context.Context, courseID int32, courseNumber, name, description string) (*Course, error) {
+func UpdateCourse(ctx context.Context, courseID int32, courseNumber, name, description string, isTrial bool) (*Course, error) {
 	result, err := queries.UpdateCourse(ctx, db.UpdateCourseParams{
 		CourseID:     courseID,
 		CourseNumber: courseNumber,
 		Name:         name,
 		Description:  pgtype.Text{String: description, Valid: description != ""},
+		IsTrial:      isTrial,
 	})
 	if err == sql.ErrNoRows || err == pgx.ErrNoRows {
 		return nil, ErrNotFound
@@ -124,7 +121,7 @@ func UpdateCourse(ctx context.Context, courseID int32, courseNumber, name, descr
 		return nil, err
 	}
 
-	return courseFromRow(ctx, result.CourseID, result.CourseNumber, result.Name, result.Description.String, result.CreatedAt.Time, result.UpdatedAt.Time)
+	return courseFromRow(result.CourseID, result.CourseNumber, result.Name, result.Description, result.IsTrial, result.CreatedAt, result.UpdatedAt), nil
 }
 
 // DeleteCourse deletes a course
@@ -205,14 +202,7 @@ func GetAdminCoursesForUser(ctx context.Context, userID string) ([]Course, error
 
 	var courses []Course
 	for _, result := range results {
-		courses = append(courses, Course{
-			CourseID:     result.CourseID,
-			CourseNumber: result.CourseNumber,
-			Name:         result.Name,
-			Description:  result.Description.String,
-			CreatedAt:    result.CreatedAt.Time,
-			UpdatedAt:    result.UpdatedAt.Time,
-		})
+		courses = append(courses, *courseFromRow(result.CourseID, result.CourseNumber, result.Name, result.Description, result.IsTrial, result.CreatedAt, result.UpdatedAt))
 	}
 
 	parents, err := parentIDsBySection(ctx)

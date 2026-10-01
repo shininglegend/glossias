@@ -311,8 +311,8 @@ func GetSignedAudioURL(ctx context.Context, audioFileID int, userID string, expi
 		return "", err
 	}
 
-	if !CanUserAccessStory(ctx, userID, int32(audioFile.StoryID)) {
-		return "", errors.New("access denied")
+	if err := CheckStoryContentAccess(ctx, userID, int32(audioFile.StoryID)); err != nil {
+		return "", err
 	}
 
 	// Generate signed URL from Supabase with retry
@@ -337,8 +337,8 @@ func GetSignedAudioURLsForStory(ctx context.Context, storyID int, userID string,
 		return nil, errors.New("storage client not initialized")
 	}
 
-	if !CanUserAccessStory(ctx, userID, int32(storyID)) {
-		return nil, errors.New("access denied")
+	if err := CheckStoryContentAccess(ctx, userID, int32(storyID)); err != nil {
+		return nil, err
 	}
 
 	// Get audio files
@@ -379,8 +379,8 @@ func GetSignedAudioURLsForLine(ctx context.Context, storyID, lineNumber int, use
 		return nil, errors.New("storage client not initialized")
 	}
 
-	if !CanUserAccessStory(ctx, userID, int32(storyID)) {
-		return nil, errors.New("access denied")
+	if err := CheckStoryContentAccess(ctx, userID, int32(storyID)); err != nil {
+		return nil, err
 	}
 
 	// Get audio files for the line

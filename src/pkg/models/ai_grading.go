@@ -70,7 +70,7 @@ type ProduceGrader interface {
 
 // GradingModel is the model used for grading. Segments are 5–10 words, so a
 // small fast model is sufficient and keeps per-grade cost negligible.
-const GradingModel = anthropic.ModelClaudeSonnet5
+const GradingModel = anthropic.ModelClaudeSonnet5_5
 
 // gradingRequestTimeout bounds a single grading call. Grading runs off the
 // request path, so this only limits how long a stuck call holds a worker.
@@ -170,9 +170,13 @@ func (g *AnthropicGrader) GradeProduce(ctx context.Context, req ProduceGradeRequ
 		UserPrompt: buildGradingPrompt(req),
 	}
 	started := time.Now()
+	// Sonnet 5.x thinks before answering by default, and that thinking counts
+	// against MaxTokens. The verdict itself is tiny, but a tight cap was being
+	// spent entirely on thinking, leaving no text at all. Low effort keeps the
+	// thinking short for a 5–10 word grading task; the cap is a safety net.
 	resp, err := g.client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     g.model,
-		MaxTokens: 256,
+		MaxTokens: 4096,
 		System: []anthropic.TextBlockParam{{
 			Text:         systemPrompt,
 			CacheControl: anthropic.NewCacheControlEphemeralParam(),
@@ -181,12 +185,19 @@ func (g *AnthropicGrader) GradeProduce(ctx context.Context, req ProduceGradeRequ
 			anthropic.NewUserMessage(anthropic.NewTextBlock(trace.UserPrompt)),
 		},
 		OutputConfig: anthropic.OutputConfigParam{
+			Effort: anthropic.OutputConfigEffortLow,
 			Format: anthropic.JSONOutputFormatParam{Schema: gradingOutputSchema},
 		},
 	})
 	trace.Latency = time.Since(started)
 	if err != nil {
-		return ProduceGrade{}, trace, fmt.Errorf("grading request: %w", err)
+		// The SDK error already carries method, URL, status and body; add the
+		// request ID so a report can be matched to the Anthropic console.
+		var apiErr *anthropic.Error
+		if errors.As(err, &apiErr) && apiErr.RequestID != "" {
+			return ProduceGrade{}, trace, fmt.Errorf("claude api request %s: %w", apiErr.RequestID, err)
+		}
+		return ProduceGrade{}, trace, fmt.Errorf("claude api request: %w", err)
 	}
 
 	trace.StopReason = string(resp.StopReason)
@@ -203,6 +214,9 @@ func (g *AnthropicGrader) GradeProduce(ctx context.Context, req ProduceGradeRequ
 
 	if resp.StopReason == anthropic.StopReasonRefusal {
 		return ProduceGrade{}, trace, errors.New("grading request refused by the model")
+	}
+	if resp.StopReason == anthropic.StopReasonMaxTokens {
+		return ProduceGrade{}, trace, fmt.Errorf("grading response cut off at max_tokens after %d output tokens", resp.Usage.OutputTokens)
 	}
 	grade, err := parseProduceGrade(trace.RawResponse)
 	return grade, trace, err

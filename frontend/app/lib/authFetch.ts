@@ -44,6 +44,23 @@ export function useAuthenticatedFetch() {
         }
       }
 
+      if (response.status === 402) {
+        const body = (await response
+          .clone()
+          .json()
+          .catch(() => null)) as {
+          data?: { payable_course_ids?: number[] };
+          payable_course_ids?: number[];
+        } | null;
+        const ids =
+          body?.data?.payable_course_ids ?? body?.payable_course_ids ?? [];
+        if (ids.length === 1) {
+          navigate(`/pricing?course=${ids[0]}`);
+        } else {
+          navigate("/pricing");
+        }
+      }
+
       return response;
     },
     [getToken, isSignedIn, navigate],

@@ -18,7 +18,7 @@ WHERE LOWER(email) = LOWER($1);
 -- name: GetUsersByEmails :many
 SELECT user_id, email, name, is_super_admin, created_at, updated_at
 FROM users
-WHERE email = ANY($1::text[]);
+WHERE LOWER(email) = ANY(SELECT LOWER(unnest($1::text[])));
 
 -- name: UpdateUser :one
 UPDATE users

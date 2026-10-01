@@ -20,6 +20,9 @@ export interface UserInfo {
     description?: string;
     enrolled_at: string;
     status: string;
+    is_trial: boolean;
+    has_access: boolean;
+    expires_at?: string;
   }[];
 }
 
@@ -32,36 +35,39 @@ export function useUserSync() {
   const [error, setError] = useState<string | null>(null);
   const lastSyncAttempt = useRef<number>(0); // Track last sync attempt timestamp
 
-  const syncUser = useCallback(async () => {
-    if (!isSignedIn || !user) return;
+  const syncUser = useCallback(
+    async (opts?: { force?: boolean }) => {
+      if (!isSignedIn || !user) return;
 
-    // Rate limit: only allow one request per 5 seconds
-    const now = Date.now();
-    if (now - lastSyncAttempt.current < 5000) {
-      return;
-    }
-    lastSyncAttempt.current = now;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await authenticatedFetch("/api/me");
-      if (!response.ok) {
-        throw new Error(`Failed to sync user: ${response.status}`);
+      // Rate limit: only allow one request per 5 seconds
+      const now = Date.now();
+      if (!opts?.force && now - lastSyncAttempt.current < 5000) {
+        return;
       }
-      const resp = await response.json();
-      const userData = resp.data;
-      setUserInfo(userData);
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to sync user";
-      setError(errorMessage);
-      console.error("User sync error:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [isSignedIn, user, authenticatedFetch]);
+      lastSyncAttempt.current = now;
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await authenticatedFetch("/api/me");
+        if (!response.ok) {
+          throw new Error(`Failed to sync user: ${response.status}`);
+        }
+        const resp = await response.json();
+        const userData = resp.data;
+        setUserInfo(userData);
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to sync user";
+        setError(errorMessage);
+        console.error("User sync error:", err);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [isSignedIn, user, authenticatedFetch],
+  );
 
   // Auto-sync when user signs in
   useEffect(() => {

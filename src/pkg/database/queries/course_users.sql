@@ -27,14 +27,14 @@ DELETE FROM course_users
 WHERE course_id = $1;
 
 -- name: GetCoursesForUser :many
-SELECT c.course_id, c.course_number, c.name, c.description, cu.enrolled_at, cu.status
+SELECT c.course_id, c.course_number, c.name, c.description, c.is_trial, cu.enrolled_at, cu.status
 FROM courses c
 JOIN course_users cu ON c.course_id = cu.course_id
 WHERE cu.user_id = $1
 ORDER BY c.course_number;
 
 -- name: GetCoursesForUserByStatus :many
-SELECT c.course_id, c.course_number, c.name, c.description, cu.enrolled_at, cu.status
+SELECT c.course_id, c.course_number, c.name, c.description, c.is_trial, cu.enrolled_at, cu.status
 FROM courses c
 JOIN course_users cu ON c.course_id = cu.course_id
 WHERE cu.user_id = $1 AND cu.status = $2

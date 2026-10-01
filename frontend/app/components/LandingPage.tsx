@@ -98,7 +98,9 @@ export function LandingPage() {
             Glossias is designed to be used as part of a preexisting
             second-language course, not as a standalone project. If you are part
             of such a course, please create an account and your instructor will
-            enroll you, or reach out to{" "}
+            enroll you. Some courses require payment; cards are processed by
+            Stripe. De-identified activity may be used in academic publications.
+            Reach out to{" "}
             <a
               href="mailto:help@glossias.org"
               className="text-white underline underline-offset-2 hover:text-primary-200"

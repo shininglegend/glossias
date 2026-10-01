@@ -4,6 +4,7 @@ import (
 	"glossias/src/apis/types"
 	"glossias/src/pkg/models"
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -184,6 +185,24 @@ func TestRecallAttempts(t *testing.T) {
 		if got := recallAttempts(tc.summary, tc.count); got != tc.want {
 			t.Errorf("%s: got %d, want %d", tc.name, got, tc.want)
 		}
+	}
+}
+
+func TestRecallPlacedSentenceIDs(t *testing.T) {
+	sentences := []models.RecallSentence{{ID: 7, SequenceOrder: 1}, {ID: 8, SequenceOrder: 2}, {ID: 9, SequenceOrder: 3}}
+
+	if got := recallPlacedSentenceIDs(sentences, nil); len(got) != 0 || got == nil {
+		t.Errorf("no answers: got %v, want empty non-nil slice", got)
+	}
+	if got := recallPlacedSentenceIDs(sentences, []int{7, 8, 7}); !slices.Equal(got, []int{7, 8}) {
+		t.Errorf("first two placed: got %v, want [7 8]", got)
+	}
+	// A correct placement past a gap does not count: position 2 is still open.
+	if got := recallPlacedSentenceIDs(sentences, []int{7, 9, 99}); !slices.Equal(got, []int{7}) {
+		t.Errorf("gap: got %v, want [7]", got)
+	}
+	if got := recallPlacedSentenceIDs(sentences, []int{9, 8, 7}); !slices.Equal(got, []int{7, 8, 9}) {
+		t.Errorf("all placed: got %v, want [7 8 9]", got)
 	}
 }
 

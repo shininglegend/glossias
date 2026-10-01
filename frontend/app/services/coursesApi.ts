@@ -9,6 +9,7 @@ export interface Course {
   name: string;
   description?: string;
   parent_course_id?: number;
+  is_trial?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -31,12 +32,14 @@ export interface CreateCourseRequest {
   name: string;
   description?: string;
   parent_course_id?: number;
+  is_trial?: boolean;
 }
 
 export interface UpdateCourseRequest {
   course_number: string;
   name: string;
   description?: string;
+  is_trial?: boolean;
 }
 
 export interface AddCourseAdminRequest {

@@ -95,12 +95,6 @@ func main() {
 	// Database health check endpoint (no auth required, rate-limited to 1 request per 5 minutes)
 	r.HandleFunc("/api/db-health", apis.DBHealthHandler(logger)).Methods("GET", "OPTIONS")
 
-	// Time tracking API (no auth required)
-	timeTrackingHandler := apis.NewTimeTrackingHandler(logger)
-	timeTrackingRouter := r.PathPrefix("/api").Subrouter()
-	timeTrackingRouter.Use(jsonMiddleware())
-	timeTrackingHandler.RegisterRoutes(timeTrackingRouter)
-
 	// API handlers
 	// AI grading of Produce submissions runs in the background and is optional:
 	// without an API key submissions are stored ungraded.
@@ -117,6 +111,14 @@ func main() {
 		logger.Warn("ANTHROPIC_API_KEY not set; Produce submissions will not be AI-graded")
 	}
 	apiHandler := apis.NewHandler(logger, produceGrading)
+	r.HandleFunc("/api/webhooks/stripe", apiHandler.BillingWebhook()).Methods("POST")
+
+	// Time tracking API (no auth required)
+	timeTrackingHandler := apis.NewTimeTrackingHandler(logger)
+	timeTrackingRouter := r.PathPrefix("/api").Subrouter()
+	timeTrackingRouter.Use(jsonMiddleware())
+	timeTrackingHandler.RegisterRoutes(timeTrackingRouter)
+
 	apiRouter := r.PathPrefix("/api").Subrouter()
 
 	// Clerk: require Authorization: Bearer <token> on every request (unless dev auth bypass)

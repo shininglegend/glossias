@@ -33,8 +33,7 @@ func (h *Handler) GetGrammarPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	story, err := models.GetStoryData(r.Context(), id, auth.GetUserID(r))
-	if err == models.ErrNotFound {
-		h.sendError(w, "Story not found", http.StatusNotFound)
+	if h.writeStoryErr(w, err, "Story not found") {
 		return
 	}
 	if err != nil {
@@ -246,6 +245,9 @@ func (h *Handler) CheckGrammar(w http.ResponseWriter, r *http.Request) {
 
 	// Get story data - cached, fastest call
 	story, err := models.GetStoryData(ctx, id, userID)
+	if h.writeStoryErr(w, err, "Story not found") {
+		return
+	}
 	if err != nil {
 		h.log.Error("Failed to fetch story data", "error", err, "storyID", id)
 		h.sendError(w, "Failed to fetch story data", http.StatusInternalServerError)

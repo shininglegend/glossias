@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"glossias/src/apis/types"
 	"glossias/src/pkg/models"
 	"log/slog"
@@ -29,6 +30,35 @@ func NewHandler(logger *slog.Logger, produceGrading *models.ProduceGradingServic
 		log:            logger,
 		produceGrading: produceGrading,
 	}
+}
+
+func (h *Handler) sendPaymentRequired(w http.ResponseWriter, ids []int) {
+	w.WriteHeader(http.StatusPaymentRequired)
+	json.NewEncoder(w).Encode(types.APIResponse{
+		Success: false,
+		Error:   "payment_required",
+		Data:    map[string]any{"payable_course_ids": ids},
+	})
+}
+
+func (h *Handler) writeStoryErr(w http.ResponseWriter, err error, notFoundMsg string) bool {
+	if err == nil {
+		return false
+	}
+	var pay *models.PaymentRequiredError
+	if errors.As(err, &pay) {
+		h.sendPaymentRequired(w, pay.PayableCourseIDs)
+		return true
+	}
+	if errors.Is(err, models.ErrNotFound) || errors.Is(err, models.ErrPaymentRequired) {
+		if errors.Is(err, models.ErrPaymentRequired) {
+			h.sendPaymentRequired(w, nil)
+			return true
+		}
+		h.sendError(w, notFoundMsg, http.StatusNotFound)
+		return true
+	}
+	return false
 }
 
 // sendError sends a standard error response

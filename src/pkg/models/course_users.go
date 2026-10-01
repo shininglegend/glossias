@@ -20,22 +20,27 @@ var ErrInvalidStatus = errors.New("invalid status for course")
 
 // CourseUser represents a user enrolled in a course
 type CourseUser struct {
-	CourseID   int       `json:"course_id"`
-	UserID     string    `json:"user_id"`
-	Email      string    `json:"email"`
-	Name       string    `json:"name"`
-	EnrolledAt time.Time `json:"enrolled_at"`
-	Status     string    `json:"status,omitempty"`
+	CourseID        int        `json:"course_id"`
+	UserID          string     `json:"user_id"`
+	Email           string     `json:"email"`
+	Name            string     `json:"name"`
+	EnrolledAt      time.Time  `json:"enrolled_at"`
+	Status          string     `json:"status,omitempty"`
+	AccessExpiresAt *time.Time `json:"access_expires_at,omitempty"`
+	HasAccess       bool       `json:"has_access"`
 }
 
 // UserCourse represents a course a user is enrolled in
 type UserCourse struct {
-	CourseID     int       `json:"course_id"`
-	CourseNumber string    `json:"course_number"`
-	Name         string    `json:"name"`
-	Description  string    `json:"description,omitempty"`
-	EnrolledAt   time.Time `json:"enrolled_at"`
-	Status       string    `json:"status"`
+	CourseID     int        `json:"course_id"`
+	CourseNumber string     `json:"course_number"`
+	Name         string     `json:"name"`
+	Description  string     `json:"description,omitempty"`
+	EnrolledAt   time.Time  `json:"enrolled_at"`
+	Status       string     `json:"status"`
+	IsTrial      bool       `json:"is_trial"`
+	HasAccess    bool       `json:"has_access"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
 }
 
 // AddUserToCourseByEmail adds a user to a course by email address
@@ -118,6 +123,7 @@ func GetCoursesForUser(ctx context.Context, userID string) ([]UserCourse, error)
 			Name:         result.Name,
 			EnrolledAt:   result.EnrolledAt.Time,
 			Status:       result.Status.String,
+			IsTrial:      result.IsTrial,
 		}
 		if result.Description.Valid {
 			course.Description = result.Description.String
@@ -129,6 +135,9 @@ func GetCoursesForUser(ctx context.Context, userID string) ([]UserCourse, error)
 		courses = append(courses, course)
 	}
 
+	if err := AnnotateUserCourses(ctx, userID, courses); err != nil {
+		return nil, err
+	}
 	return courses, nil
 }
 
@@ -150,6 +159,7 @@ func GetCoursesForUserByStatus(ctx context.Context, userID string, status string
 			Name:         result.Name,
 			EnrolledAt:   result.EnrolledAt.Time,
 			Status:       result.Status.String,
+			IsTrial:      result.IsTrial,
 		}
 		if result.Description.Valid {
 			course.Description = result.Description.String
@@ -157,6 +167,9 @@ func GetCoursesForUserByStatus(ctx context.Context, userID string, status string
 		courses = append(courses, course)
 	}
 
+	if err := AnnotateUserCourses(ctx, userID, courses); err != nil {
+		return nil, err
+	}
 	return courses, nil
 }
 
@@ -180,6 +193,23 @@ func GetUsersForCourse(ctx context.Context, courseID int) ([]CourseUser, error) 
 		// Override status if present
 		if result.Status.Valid {
 			users[i].Status = result.Status.String
+		}
+	}
+
+	ids := make([]string, len(users))
+	for i, u := range users {
+		ids[i] = u.UserID
+	}
+	expiries, err := LatestEntitlementsForCourseUsers(ctx, int32(courseID), ids)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	for i := range users {
+		if exp, ok := expiries[users[i].UserID]; ok {
+			t := exp
+			users[i].AccessExpiresAt = &t
+			users[i].HasAccess = exp.After(now)
 		}
 	}
 

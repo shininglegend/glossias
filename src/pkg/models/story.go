@@ -32,6 +32,8 @@ var (
 	ErrNotFound             = errors.New("story not found")
 )
 
+// Locked / PayableCourseIDs are list-only paywall fields, filled by AnnotateStoryLocks.
+
 var queries *db.Queries
 var rawConn any
 var storageClient *storage_go.Client
@@ -204,18 +206,20 @@ type Story struct {
 }
 
 type StoryMetadata struct {
-	StoryID         int               `json:"storyId"`
-	WeekNumber      int               `json:"weekNumber"`
-	DayLetter       string            `json:"dayLetter"`
-	Title           map[string]string `json:"title"` // ISO 639-1 language codes
-	Author          Author            `json:"author"`
-	VideoURL        string            `json:"videoUrl,omitempty"`
-	Description     Description       `json:"description"`
-	CourseID        *int              `json:"courseId,omitempty"`
-	LinkedCourseIDs []int             `json:"linkedCourseIds,omitempty"`
-	LastRevision    *time.Time        `json:"lastRevision,omitempty"`
-	GrammarPoints   []GrammarPoint    `json:"grammarPoints"`
-	Language        string            `json:"languageCode,omitempty"`
+	StoryID          int               `json:"storyId"`
+	WeekNumber       int               `json:"weekNumber"`
+	DayLetter        string            `json:"dayLetter"`
+	Title            map[string]string `json:"title"` // ISO 639-1 language codes
+	Author           Author            `json:"author"`
+	VideoURL         string            `json:"videoUrl,omitempty"`
+	Description      Description       `json:"description"`
+	CourseID         *int              `json:"courseId,omitempty"`
+	LinkedCourseIDs  []int             `json:"linkedCourseIds,omitempty"`
+	Locked           bool              `json:"locked,omitempty"`
+	PayableCourseIDs []int             `json:"payableCourseIds,omitempty"`
+	LastRevision     *time.Time        `json:"lastRevision,omitempty"`
+	GrammarPoints    []GrammarPoint    `json:"grammarPoints"`
+	Language         string            `json:"languageCode,omitempty"`
 }
 
 type Author struct {

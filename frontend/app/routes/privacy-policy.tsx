@@ -117,8 +117,9 @@ export default function PrivacyPolicy() {
       </ul>
       <p>
         We do not ask you for payment card numbers, government-issued
-        identification numbers, or similar financial or identity documents. The
-        Service is not a paid storefront.
+        identification numbers, or similar financial or identity documents.
+        Course access payments are processed by Stripe; card details are entered
+        on Stripe&apos;s hosted checkout and are not stored by Glossias.
       </p>
 
       <h3>Third-party sources</h3>
@@ -307,7 +308,8 @@ export default function PrivacyPolicy() {
         identifiable to you, and we will not attempt to reidentify any such data
         except to test whether our de-identification process complies with
         applicable law. We may use this data to understand how the Service is
-        used and to improve it. We do not use it to train our own AI models.
+        used, to improve it, and in academic publications. We do not use it to
+        train our own AI models.
       </p>
 
       <h2 id="retention">Retention</h2>
@@ -350,6 +352,10 @@ export default function PrivacyPolicy() {
             <li>
               Clerk, for authentication (
               <a href="https://clerk.com/legal/privacy">privacy policy</a>);
+            </li>
+            <li>
+              Stripe, for checkout and payment processing (
+              <a href="https://stripe.com/privacy">privacy policy</a>);
             </li>
             <li>
               Supabase, for database hosting and file storage (

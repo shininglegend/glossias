@@ -109,8 +109,7 @@ func (h *Handler) GetScoresData(w http.ResponseWriter, r *http.Request) {
 
 	// Story data for the title and the access check.
 	story, err := models.GetStoryData(r.Context(), id, userID)
-	if err == models.ErrNotFound {
-		h.sendError(w, "Story not found", http.StatusNotFound)
+	if h.writeStoryErr(w, err, "Story not found") {
 		return
 	}
 	if err != nil {

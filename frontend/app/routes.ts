@@ -4,6 +4,8 @@ export default [
   index("routes/home.tsx"),
   route("privacy-policy", "routes/privacy-policy.tsx"),
   route("terms-of-service", "routes/terms-of-service.tsx"),
+  route("pricing", "routes/pricing.tsx"),
+  route("checkout/success", "routes/checkout-success.tsx"),
   route("stories/:id/video", "routes/stories-video.tsx"),
   // route("stories/:id/audio", "routes/stories-audio.tsx"),
   route("stories/:id/vocab", "routes/stories-vocab.tsx"),

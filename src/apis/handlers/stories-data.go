@@ -22,8 +22,7 @@ func (h *Handler) GetStoryMetadata(w http.ResponseWriter, r *http.Request) {
 
 	// Get story data from database
 	story, err := models.GetStoryData(r.Context(), id, auth.GetUserID(r))
-	if err == models.ErrNotFound {
-		h.sendError(w, "Story not found", http.StatusNotFound)
+	if h.writeStoryErr(w, err, "Story not found") {
 		return
 	}
 	if err != nil {

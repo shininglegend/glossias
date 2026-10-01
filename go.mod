@@ -8,13 +8,14 @@ require github.com/gorilla/mux v1.8.1
 
 require (
 	github.com/allegro/bigcache/v3 v3.1.0
-	github.com/anthropics/anthropic-sdk-go v1.68.0
+	github.com/anthropics/anthropic-sdk-go v1.78.0
 	github.com/clerk/clerk-sdk-go/v2 v2.3.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
 	github.com/pressly/goose/v3 v3.27.3
+	github.com/stripe/stripe-go/v86 v86.2.0
 	github.com/supabase-community/storage-go v0.7.0
 	golang.org/x/time v0.13.0
 )

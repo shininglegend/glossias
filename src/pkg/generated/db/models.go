@@ -8,6 +8,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AccessEntitlement struct {
+	EntitlementID           int64              `json:"entitlement_id"`
+	UserID                  string             `json:"user_id"`
+	CourseID                int32              `json:"course_id"`
+	Source                  string             `json:"source"`
+	StartsAt                pgtype.Timestamptz `json:"starts_at"`
+	ExpiresAt               pgtype.Timestamptz `json:"expires_at"`
+	AmountCents             pgtype.Int4        `json:"amount_cents"`
+	StripeCheckoutSessionID pgtype.Text        `json:"stripe_checkout_session_id"`
+	StripePaymentIntentID   pgtype.Text        `json:"stripe_payment_intent_id"`
+	GrantedBy               pgtype.Text        `json:"granted_by"`
+}
+
 type AnonymousTimeTracking struct {
 	TrackingID       int32            `json:"tracking_id"`
 	SessionID        string           `json:"session_id"`
@@ -26,6 +39,7 @@ type Course struct {
 	Description  pgtype.Text      `json:"description"`
 	CreatedAt    pgtype.Timestamp `json:"created_at"`
 	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+	IsTrial      bool             `json:"is_trial"`
 }
 
 type CourseAdmin struct {
@@ -318,12 +332,13 @@ type TranslationRequest struct {
 }
 
 type User struct {
-	UserID       string           `json:"user_id"`
-	Email        string           `json:"email"`
-	Name         string           `json:"name"`
-	IsSuperAdmin pgtype.Bool      `json:"is_super_admin"`
-	CreatedAt    pgtype.Timestamp `json:"created_at"`
-	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+	UserID           string           `json:"user_id"`
+	Email            string           `json:"email"`
+	Name             string           `json:"name"`
+	IsSuperAdmin     pgtype.Bool      `json:"is_super_admin"`
+	CreatedAt        pgtype.Timestamp `json:"created_at"`
+	UpdatedAt        pgtype.Timestamp `json:"updated_at"`
+	StripeCustomerID pgtype.Text      `json:"stripe_customer_id"`
 }
 
 type UserTimeTracking struct {

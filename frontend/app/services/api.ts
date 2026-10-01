@@ -20,6 +20,8 @@ export interface Story {
   day_letter: string;
   course_id?: number;
   course_ids?: number[];
+  locked?: boolean;
+  payable_course_ids?: number[];
   status?: "not_started" | "in_progress" | "complete";
   next_page?: string;
   next_page_name?: string;
@@ -132,6 +134,11 @@ export interface RecallData {
   sentences: RecallCard[];
   /** Orderings already submitted on earlier visits. */
   attempts: number;
+  /**
+   * Sentences already placed correctly, in story order, as an unbroken run
+   * from position 1. The put-in-order stage resumes at the next position.
+   */
+  placed_sentence_ids: number[];
   /** The student finished this phase on an earlier visit. */
   completed: boolean;
 }

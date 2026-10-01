@@ -26,6 +26,7 @@ var byPassURLS = []string{
 	"/api/health",
 	"/api/db-health",
 	"/api/time-tracking/record",
+	"/api/webhooks/stripe",
 }
 
 // Middleware combines CORS and Clerk authentication
@@ -78,22 +79,10 @@ func extractAndValidateUser(r *http.Request, logger *slog.Logger) (string, error
 		}
 
 		// Sync dev user data with database
-		email := ""
-		name := ""
-		if len(clerkUser.EmailAddresses) > 0 {
-			email = clerkUser.EmailAddresses[0].EmailAddress
-		}
-		if clerkUser.FirstName != nil && clerkUser.LastName != nil {
-			name = *clerkUser.FirstName + " " + *clerkUser.LastName
-		} else if clerkUser.FirstName != nil {
-			name = *clerkUser.FirstName
-		} else if clerkUser.LastName != nil {
-			name = *clerkUser.LastName
-		}
-
+		email, name := clerkProfile(clerkUser)
 		_, err = models.UpsertUser(ctx, devUser, email, name)
 		if err != nil {
-			logger.Warn("failed to sync dev user to database", "error", err, "dev_user", devUser)
+			logger.Error("failed to sync dev user to database", "error", err, "dev_user", devUser, "email", email)
 		}
 
 		logger.Debug("dev auth bypass used", "dev_user", devUser)
@@ -138,30 +127,43 @@ func extractAndValidateUser(r *http.Request, logger *slog.Logger) (string, error
 		return userID, nil
 	}
 
-	// Extract email and name from Clerk user data
-	email := ""
-	name := ""
-
-	if len(clerkUser.EmailAddresses) > 0 {
-		email = clerkUser.EmailAddresses[0].EmailAddress
-	}
-
-	if clerkUser.FirstName != nil && clerkUser.LastName != nil {
-		name = *clerkUser.FirstName + " " + *clerkUser.LastName
-	} else if clerkUser.FirstName != nil {
-		name = *clerkUser.FirstName
-	} else if clerkUser.LastName != nil {
-		name = *clerkUser.LastName
-	}
-
 	// Sync user data with database
+	email, name := clerkProfile(clerkUser)
 	_, err = models.UpsertUser(ctx, userID, email, name)
 	if err != nil {
-		logger.Warn("failed to sync user to database", "error", err, "user_id", userID, "email", email, "name", name)
-		// Don't fail the request if database sync fails
+		// Don't fail the request if database sync fails, but make it loud: a
+		// unique-email conflict here means the same address is on two users rows.
+		logger.Error("failed to sync user to database", "error", err, "user_id", userID, "email", email, "name", name)
 	}
 
 	return userID, nil
+}
+
+// clerkProfile extracts the email and display name to store for a Clerk user.
+// It prefers the primary email address; Clerk does not guarantee the order of
+// EmailAddresses, so index 0 may be a stale or secondary address.
+func clerkProfile(u *clerk.User) (email, name string) {
+	if u.PrimaryEmailAddressID != nil {
+		for _, ea := range u.EmailAddresses {
+			if ea.ID == *u.PrimaryEmailAddressID {
+				email = ea.EmailAddress
+				break
+			}
+		}
+	}
+	if email == "" && len(u.EmailAddresses) > 0 {
+		email = u.EmailAddresses[0].EmailAddress
+	}
+
+	switch {
+	case u.FirstName != nil && u.LastName != nil:
+		name = *u.FirstName + " " + *u.LastName
+	case u.FirstName != nil:
+		name = *u.FirstName
+	case u.LastName != nil:
+		name = *u.LastName
+	}
+	return email, name
 }
 
 // GetUserID extracts user ID from request context

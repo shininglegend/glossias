@@ -5,7 +5,7 @@ interface UserContextType {
   userInfo: UserInfo | null;
   loading: boolean;
   error: string | null;
-  syncUser: () => Promise<void>;
+  syncUser: (opts?: { force?: boolean }) => Promise<void>;
   isLoaded: boolean;
   isSignedIn: boolean | undefined;
 }

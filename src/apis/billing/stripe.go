@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/stripe/stripe-go/v86"
 	"github.com/stripe/stripe-go/v86/webhook"
@@ -39,10 +40,23 @@ type WebhookEvent struct {
 	Source          string
 }
 
+// CompletedCheckout is a paid Checkout Session, read back so the return URL
+// can grant access without waiting on the webhook.
+type CompletedCheckout struct {
+	SessionID       string
+	UserID          string
+	CourseID        int32
+	PaymentIntentID string
+	AmountCents     int32
+	Source          string
+	Paid            bool
+}
+
 type Gateway interface {
 	CreateCustomer(ctx context.Context, email, name, userID string) (string, error)
 	CreateCheckoutSession(ctx context.Context, p CheckoutParams) (*CheckoutResult, error)
 	GetPrice(ctx context.Context) (*PriceInfo, error)
+	RetrieveCheckout(ctx context.Context, sessionID string) (*CompletedCheckout, error)
 	ParseWebhook(payload []byte, sigHeader string) (*WebhookEvent, error)
 }
 
@@ -58,11 +72,51 @@ func NewStripeGatewayFromEnv() (Gateway, error) {
 	if key == "" || priceID == "" {
 		return nil, fmt.Errorf("STRIPE_SECRET_KEY and STRIPE_PRICE_ACCESS are required")
 	}
-	return &stripeGateway{
+	g := &stripeGateway{
 		client:        stripe.NewClient(key),
 		priceID:       priceID,
 		webhookSecret: os.Getenv("STRIPE_WEBHOOK_SECRET"),
-	}, nil
+	}
+	if err := g.verifyWebhookSecret(); err != nil {
+		return nil, err
+	}
+	return g, nil
+}
+
+// verifyWebhookSecret signs a checkout.session.completed event with the configured
+// secret and requires the parser to recover the payer and course. Checkout stays
+// disabled when this cannot succeed.
+func (g *stripeGateway) verifyWebhookSecret() error {
+	if g.webhookSecret == "" {
+		return fmt.Errorf("STRIPE_WEBHOOK_SECRET is required")
+	}
+	payload := []byte(`{
+		"id": "evt_selftest",
+		"object": "event",
+		"type": "checkout.session.completed",
+		"api_version": "2026-07-29.dahlia",
+		"data": {"object": {
+			"id": "cs_selftest",
+			"object": "checkout.session",
+			"client_reference_id": "user_selftest",
+			"amount_total": 1,
+			"payment_intent": "pi_selftest",
+			"metadata": {"clerk_user_id": "user_selftest", "course_id": "9"}
+		}}
+	}`)
+	signed := webhook.GenerateTestSignedPayload(&webhook.UnsignedPayload{
+		Payload:   payload,
+		Secret:    g.webhookSecret,
+		Timestamp: time.Now(),
+	})
+	ev, err := g.ParseWebhook(signed.Payload, signed.Header)
+	if err != nil {
+		return fmt.Errorf("webhook self-test: %w", err)
+	}
+	if ev.Type != "checkout.session.completed" || ev.UserID != "user_selftest" || ev.CourseID != 9 || ev.SessionID != "cs_selftest" {
+		return fmt.Errorf("webhook self-test did not recover the payer and course")
+	}
+	return nil
 }
 
 func (g *stripeGateway) CreateCustomer(ctx context.Context, email, name, userID string) (string, error) {
@@ -107,6 +161,40 @@ func (g *stripeGateway) CreateCheckoutSession(ctx context.Context, p CheckoutPar
 	return &CheckoutResult{URL: session.URL}, nil
 }
 
+func (g *stripeGateway) RetrieveCheckout(ctx context.Context, sessionID string) (*CompletedCheckout, error) {
+	session, err := g.client.V1CheckoutSessions.Retrieve(ctx, sessionID, nil)
+	if err != nil {
+		return nil, err
+	}
+	out := checkoutFromSession(session)
+	return &out, nil
+}
+
+func checkoutFromSession(session *stripe.CheckoutSession) CompletedCheckout {
+	out := CompletedCheckout{
+		SessionID: session.ID,
+		Paid:      session.PaymentStatus == stripe.CheckoutSessionPaymentStatusPaid || session.PaymentStatus == stripe.CheckoutSessionPaymentStatusNoPaymentRequired,
+		Source:    "purchase",
+	}
+	if session.AmountTotal == 0 {
+		out.Source = "promo"
+	}
+	out.AmountCents = int32(session.AmountTotal)
+	out.UserID = session.ClientReferenceID
+	if session.Metadata != nil {
+		if session.Metadata["clerk_user_id"] != "" {
+			out.UserID = session.Metadata["clerk_user_id"]
+		}
+		if id, err := strconv.Atoi(session.Metadata["course_id"]); err == nil {
+			out.CourseID = int32(id)
+		}
+	}
+	if session.PaymentIntent != nil {
+		out.PaymentIntentID = session.PaymentIntent.ID
+	}
+	return out
+}
+
 func (g *stripeGateway) GetPrice(ctx context.Context) (*PriceInfo, error) {
 	price, err := g.client.V1Prices.Retrieve(ctx, g.priceID, &stripe.PriceRetrieveParams{
 		Expand: []*string{stripe.String("product")},
@@ -129,7 +217,12 @@ func (g *stripeGateway) ParseWebhook(payload []byte, sigHeader string) (*Webhook
 	if g.webhookSecret == "" {
 		return nil, fmt.Errorf("STRIPE_WEBHOOK_SECRET is required")
 	}
-	event, err := webhook.ConstructEvent(payload, sigHeader, g.webhookSecret)
+	// The Dashboard endpoint uses the account's current API version, which can
+	// be a newer release train than stripe-go. We only read stable session
+	// fields, so a train mismatch must not reject the event.
+	event, err := webhook.ConstructEventWithOptions(payload, sigHeader, g.webhookSecret, webhook.ConstructEventOptions{
+		IgnoreAPIVersionMismatch: true,
+	})
 	if err != nil {
 		return nil, err
 	}

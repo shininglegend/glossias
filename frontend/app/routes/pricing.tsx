@@ -26,6 +26,7 @@ type PricingResponse = {
   name: string;
   course?: PricingCourse | null;
   payable_courses: PricingCourse[];
+  payments_enabled?: boolean;
 };
 
 function formatMoney(cents: number, currency: string) {
@@ -130,24 +131,32 @@ export default function PricingPage() {
                   {selected.name} ({selected.course_number}) —{" "}
                   {selected.story_count} stories
                 </p>
-                <Button
-                  onClick={() => void startCheckout(selected.course_id)}
-                  disabled={checkingOut}
-                >
-                  {checkingOut ? "Redirecting..." : "Continue to payment"}
-                </Button>
+                {data?.payments_enabled === false ? null : (
+                  <Button
+                    onClick={() => void startCheckout(selected.course_id)}
+                    disabled={checkingOut}
+                  >
+                    {checkingOut ? "Redirecting..." : "Continue to payment"}
+                  </Button>
+                )}
               </>
             ) : data && data.payable_courses.length > 1 ? (
               <ul className="flex flex-col gap-3">
                 {data.payable_courses.map((c) => (
                   <li key={c.course_id}>
-                    <Button
-                      variant="outline"
-                      onClick={() => void startCheckout(c.course_id)}
-                      disabled={checkingOut}
-                    >
-                      {c.name} ({c.course_number}) — {c.story_count} stories
-                    </Button>
+                    {data?.payments_enabled === false ? (
+                      <p className="text-slate-700">
+                        {c.name} ({c.course_number}) — {c.story_count} stories
+                      </p>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        onClick={() => void startCheckout(c.course_id)}
+                        disabled={checkingOut}
+                      >
+                        {c.name} ({c.course_number}) — {c.story_count} stories
+                      </Button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -159,12 +168,29 @@ export default function PricingPage() {
                 </Link>
               </p>
             )}
+            {data?.payments_enabled === false ? (
+              <p className="text-slate-600">
+                Payments are paused because the last payment could not be recorded. Email{" "}
+                <a className="underline" href={`mailto:${LEGAL_CONTACT_EMAIL}`}>
+                  {LEGAL_CONTACT_EMAIL}
+                </a>
+                .
+              </p>
+            ) : null}
             <p className="text-sm text-slate-500">
               If this presents a hardship, email{" "}
               <a className="underline" href={`mailto:${LEGAL_CONTACT_EMAIL}`}>
                 {LEGAL_CONTACT_EMAIL}
               </a>
               .
+            </p>
+            <p className="text-sm text-slate-500">
+              If you were not granted access despite making a payment, please do
+              not resubmit payment or you will be charged twice. Reach out to{" "}
+              <a className="underline" href={`mailto:${LEGAL_CONTACT_EMAIL}`}>
+                {LEGAL_CONTACT_EMAIL}
+              </a>{" "}
+              instead.
             </p>
           </CardContent>
         </Card>

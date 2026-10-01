@@ -19,10 +19,12 @@ import (
 )
 
 type mockGateway struct {
-	price    *PriceInfo
-	checkout *CheckoutResult
-	event    *WebhookEvent
-	parseErr error
+	price       *PriceInfo
+	checkout    *CheckoutResult
+	event       *WebhookEvent
+	parseErr    error
+	retrieved   *CompletedCheckout
+	retrieveErr error
 }
 
 func (m *mockGateway) CreateCustomer(context.Context, string, string, string) (string, error) {
@@ -40,11 +42,21 @@ func (m *mockGateway) GetPrice(context.Context) (*PriceInfo, error) {
 	}
 	return m.price, nil
 }
+func (m *mockGateway) RetrieveCheckout(context.Context, string) (*CompletedCheckout, error) {
+	if m.retrieveErr != nil {
+		return nil, m.retrieveErr
+	}
+	return m.retrieved, nil
+}
 func (m *mockGateway) ParseWebhook([]byte, string) (*WebhookEvent, error) {
 	if m.parseErr != nil {
 		return nil, m.parseErr
 	}
 	return m.event, nil
+}
+
+func openCheckout(g Gateway) *Handler {
+	return NewHandler(slog.New(slog.DiscardHandler), g)
 }
 
 func authReq(method, path, body string) *http.Request {
@@ -69,7 +81,7 @@ func TestCreateCheckout_RejectsTrial(t *testing.T) {
 	models.SetDB(mockDB)
 	t.Cleanup(func() { models.SetDB(struct{}{}) })
 
-	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{})
+	h := openCheckout(&mockGateway{})
 	rr := httptest.NewRecorder()
 	h.CreateCheckout(rr, authReq("POST", "/api/checkout", `{"course_id":4}`))
 	if rr.Code != http.StatusBadRequest {
@@ -87,7 +99,7 @@ func TestCreateCheckout_RejectsNotEnrolled(t *testing.T) {
 	models.SetDB(mockDB)
 	t.Cleanup(func() { models.SetDB(struct{}{}) })
 
-	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{})
+	h := openCheckout(&mockGateway{})
 	rr := httptest.NewRecorder()
 	h.CreateCheckout(rr, authReq("POST", "/api/checkout", `{"course_id":5}`))
 	if rr.Code != http.StatusBadRequest {
@@ -111,7 +123,7 @@ func TestCreateCheckout_AlreadyActive(t *testing.T) {
 	models.SetDB(mockDB)
 	t.Cleanup(func() { models.SetDB(struct{}{}) })
 
-	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{})
+	h := openCheckout(&mockGateway{})
 	rr := httptest.NewRecorder()
 	h.CreateCheckout(rr, authReq("POST", "/api/checkout", `{"course_id":6}`))
 	if rr.Code != http.StatusOK {
@@ -193,5 +205,88 @@ func TestHandleWebhook_IdempotentRepeat(t *testing.T) {
 	}
 	if n := len(mockDB.Calls("InsertAccessEntitlement")); n != 0 {
 		t.Fatalf("inserts = %d, want 0", n)
+	}
+}
+
+func TestHandleWebhook_GrantFailurePausesCheckout(t *testing.T) {
+	mockDB := database.NewMockDBTX()
+	models.SetDB(mockDB)
+	t.Cleanup(func() { models.SetDB(struct{}{}) })
+
+	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{
+		event: &WebhookEvent{
+			Type: "checkout.session.completed", SessionID: "cs_fail",
+			UserID: "user-1", CourseID: 7, Source: "purchase",
+		},
+	})
+	rr := httptest.NewRecorder()
+	h.HandleWebhook(rr, httptest.NewRequest("POST", "/api/webhooks/stripe", bytes.NewReader([]byte(`{}`))))
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status %d, want 500: %s", rr.Code, rr.Body.String())
+	}
+	if h.checkoutEnabled() {
+		t.Fatal("checkout should pause when a webhook cannot grant access")
+	}
+}
+
+func TestConfirmCheckout_GrantsPaidSession(t *testing.T) {
+	mockDB := database.NewMockDBTX()
+	mockDB.StubQuery("GetAccessEntitlementBySessionID", nil, nil)
+	mockDB.StubQuery("GetLatestEntitlementExpiryForUserCourse", nil, nil)
+	exp := time.Now().Add(time.Hour)
+	mockDB.StubQuery("InsertAccessEntitlement", [][]any{{
+		int64(1), "user-1", int32(7), "purchase",
+		pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		pgtype.Timestamptz{Time: exp, Valid: true},
+		pgtype.Int4{}, pgtype.Text{String: "cs_paid", Valid: true},
+		pgtype.Text{String: "pi_paid", Valid: true}, pgtype.Text{},
+	}}, nil)
+	mockDB.StubQuery("GetActiveEntitlementForUserCourse", [][]any{{
+		int64(1), "user-1", int32(7), "purchase",
+		pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		pgtype.Timestamptz{Time: exp, Valid: true},
+		pgtype.Int4{}, pgtype.Text{String: "cs_paid", Valid: true},
+		pgtype.Text{String: "pi_paid", Valid: true}, pgtype.Text{},
+	}}, nil)
+	models.SetDB(mockDB)
+	t.Cleanup(func() { models.SetDB(struct{}{}) })
+
+	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{
+		retrieved: &CompletedCheckout{
+			SessionID: "cs_paid", UserID: "user-1", CourseID: 7,
+			PaymentIntentID: "pi_paid", AmountCents: 1, Source: "purchase", Paid: true,
+		},
+	})
+	h.grantFailed.Store(true)
+	rr := httptest.NewRecorder()
+	h.ConfirmCheckout(rr, authReq("POST", "/api/checkout/confirm", `{"session_id":"cs_paid"}`))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rr.Code, rr.Body.String())
+	}
+	if !h.checkoutEnabled() {
+		t.Fatal("a successful confirm grant should re-enable checkout")
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["ok"] != true {
+		t.Fatalf("body %v", body)
+	}
+	if n := len(mockDB.Calls("InsertAccessEntitlement")); n != 1 {
+		t.Fatalf("inserts = %d, want 1", n)
+	}
+}
+
+func TestConfirmCheckout_RejectsOtherUser(t *testing.T) {
+	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{
+		retrieved: &CompletedCheckout{
+			SessionID: "cs_other", UserID: "someone-else", CourseID: 7, Paid: true, Source: "purchase",
+		},
+	})
+	rr := httptest.NewRecorder()
+	h.ConfirmCheckout(rr, authReq("POST", "/api/checkout/confirm", `{"session_id":"cs_other"}`))
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status %d, want 403: %s", rr.Code, rr.Body.String())
 	}
 }

@@ -26,8 +26,10 @@ func (h *Handler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	switch event.Type {
 	case "checkout.session.completed":
 		if event.UserID == "" || event.CourseID == 0 {
-			h.log.Error("checkout.session.completed missing metadata", "session", event.SessionID)
-			http.Error(w, "Missing metadata", http.StatusBadRequest)
+			// A Dashboard or CLI test event is signed but has no course to grant.
+			// Signature success is enough to allow checkout; it does not write access.
+			h.log.Info("stripe webhook verified; no course metadata to grant", "session", event.SessionID)
+			w.WriteHeader(http.StatusOK)
 			return
 		}
 		if err := models.GrantFromCheckoutSession(
@@ -39,10 +41,12 @@ func (h *Handler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 			event.AmountCents,
 			event.Source,
 		); err != nil {
+			h.grantFailed.Store(true)
 			h.log.Error("failed to grant access from webhook", "error", err, "session", event.SessionID)
 			http.Error(w, "Failed to grant access", http.StatusInternalServerError)
 			return
 		}
+		h.grantFailed.Store(false)
 	case "charge.refunded", "charge.dispute.created":
 		if event.PaymentIntentID == "" {
 			w.WriteHeader(http.StatusOK)

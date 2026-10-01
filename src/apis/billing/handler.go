@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"glossias/src/auth"
@@ -17,17 +18,23 @@ import (
 )
 
 type Handler struct {
-	log     *slog.Logger
-	gateway Gateway
+	log         *slog.Logger
+	gateway     Gateway
+	grantFailed atomic.Bool
 }
 
 func NewHandler(logger *slog.Logger, gateway Gateway) *Handler {
 	return &Handler{log: logger, gateway: gateway}
 }
 
+func (h *Handler) checkoutEnabled() bool {
+	return h.gateway != nil && !h.grantFailed.Load()
+}
+
 func (h *Handler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/pricing", h.GetPricing).Methods("GET", "OPTIONS")
 	router.HandleFunc("/checkout", h.CreateCheckout).Methods("POST", "OPTIONS")
+	router.HandleFunc("/checkout/confirm", h.ConfirmCheckout).Methods("POST", "OPTIONS")
 }
 
 type pricingCourse struct {
@@ -102,11 +109,12 @@ func (h *Handler) GetPricing(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"amount_cents":    price.AmountCents,
-		"currency":        price.Currency,
-		"name":            price.Name,
-		"course":          selected,
-		"payable_courses": payable,
+		"amount_cents":     price.AmountCents,
+		"currency":         price.Currency,
+		"name":             price.Name,
+		"course":           selected,
+		"payable_courses":  payable,
+		"payments_enabled": h.checkoutEnabled(),
 	})
 }
 
@@ -117,6 +125,10 @@ type checkoutRequest struct {
 func (h *Handler) CreateCheckout(w http.ResponseWriter, r *http.Request) {
 	if h.gateway == nil {
 		http.Error(w, "Payments are not configured", http.StatusServiceUnavailable)
+		return
+	}
+	if !h.checkoutEnabled() {
+		http.Error(w, "Payments are paused until the webhook is verified", http.StatusServiceUnavailable)
 		return
 	}
 	userID, ok := auth.GetUserIDWithOk(r)
@@ -209,6 +221,67 @@ func (h *Handler) CreateCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"url": session.URL})
+}
+
+type confirmRequest struct {
+	SessionID string `json:"session_id"`
+}
+
+func (h *Handler) ConfirmCheckout(w http.ResponseWriter, r *http.Request) {
+	if h.gateway == nil {
+		http.Error(w, "Payments are not configured", http.StatusServiceUnavailable)
+		return
+	}
+	userID, ok := auth.GetUserIDWithOk(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	var req confirmRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.SessionID == "" {
+		http.Error(w, "session_id is required", http.StatusBadRequest)
+		return
+	}
+	session, err := h.gateway.RetrieveCheckout(r.Context(), req.SessionID)
+	if err != nil {
+		h.log.Error("failed to retrieve checkout session", "error", err, "session", req.SessionID)
+		http.Error(w, "Failed to confirm payment", http.StatusBadGateway)
+		return
+	}
+	if session.UserID == "" || session.UserID != userID || session.CourseID == 0 {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+	if !session.Paid {
+		writeJSON(w, http.StatusOK, map[string]any{"pending": true})
+		return
+	}
+	if err := models.GrantFromCheckoutSession(
+		r.Context(),
+		session.UserID,
+		session.CourseID,
+		session.SessionID,
+		session.PaymentIntentID,
+		session.AmountCents,
+		session.Source,
+	); err != nil {
+		h.log.Error("failed to grant access from checkout", "error", err, "session", session.SessionID)
+		http.Error(w, "Failed to confirm payment", http.StatusInternalServerError)
+		return
+	}
+	// A grant that lands here proves the write path works again.
+	h.grantFailed.Store(false)
+	exp, err := models.ActiveAccessExpiresAt(r.Context(), session.UserID, session.CourseID)
+	if err != nil {
+		h.log.Error("failed to read entitlement", "error", err, "session", session.SessionID)
+		http.Error(w, "Failed to confirm payment", http.StatusInternalServerError)
+		return
+	}
+	body := map[string]any{"ok": true, "course_id": session.CourseID}
+	if exp != nil {
+		body["expires_at"] = exp.UTC().Format(time.RFC3339)
+	}
+	writeJSON(w, http.StatusOK, body)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

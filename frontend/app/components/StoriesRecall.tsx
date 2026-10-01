@@ -161,13 +161,15 @@ export function RecallSession({
     readListeningProgress(progressKey, pageData.line_count),
   );
 
-  // Sentences already placed on an earlier visit: the server's record wins,
-  // and a finished phase counts every card as placed.
-  const [placedIds] = useState<number[]>(() =>
-    pageData.completed
-      ? pageData.sentences.map((s) => s.id)
-      : (pageData.placed_sentence_ids ?? []),
-  );
+  // Sentences already placed, in story order. A finished phase uses the
+  // server's order when it sent one; otherwise every card counts as placed.
+  const [placedIds, setPlacedIds] = useState<number[]>(() => {
+    const placed = pageData.placed_sentence_ids ?? [];
+    if (pageData.completed && placed.length !== pageData.sentences.length) {
+      return pageData.sentences.map((s) => s.id);
+    }
+    return placed;
+  });
 
   const [nextPosition, setNextPosition] = useState(placedIds.length + 1);
   const [correctIds, setCorrectIds] = useState<Set<number>>(
@@ -334,6 +336,9 @@ export function RecallSession({
         const nextCorrect = new Set(correctIds);
         nextCorrect.add(sentenceId);
         setCorrectIds(nextCorrect);
+        setPlacedIds((ids) =>
+          ids.includes(sentenceId) ? ids : [...ids, sentenceId],
+        );
         setWrongIds(new Set());
         const card = pageData.sentences.find((s) => s.id === sentenceId);
         playSentenceAudio(card?.audio_urls);
@@ -528,11 +533,11 @@ export function RecallSession({
           )}
 
           <div
-            className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-5 w-full max-w-4xl mx-auto"
+            className="flex flex-wrap justify-center gap-3 sm:gap-5 w-full max-w-4xl mx-auto"
             data-testid="recall-cards"
             role="list"
           >
-            {pageData.sentences.map((card) => {
+            {orderedRecallCards(pageData.sentences, placedIds).map((card) => {
               const result = correctIds.has(card.id)
                 ? "correct"
                 : wrongIds.has(card.id)
@@ -642,6 +647,18 @@ function clearListeningProgress(key: string) {
   }
 }
 
+function orderedRecallCards(sentences: RecallCard[], placedIds: number[]) {
+  const byId = new Map(sentences.map((card) => [card.id, card]));
+  const placed = placedIds
+    .map((id) => byId.get(id))
+    .filter((card): card is RecallCard => card != null);
+  const placedSet = new Set(placed.map((card) => card.id));
+  return [
+    ...placed,
+    ...sentences.filter((card) => !placedSet.has(card.id)),
+  ];
+}
+
 type CardResult = "pending" | "correct" | "wrong";
 
 interface RecallSelectCardProps {
@@ -684,7 +701,7 @@ function RecallSelectCard({
             ? "Not this one"
             : "Sentence option"
       }
-      className={`flex flex-col min-w-0 rounded-xl border-4 bg-white shadow-sm overflow-hidden ${tone} ${
+      className={`flex flex-col min-w-0 w-[calc((100%-0.75rem)/2)] sm:w-[calc((100%-2.5rem)/3)] rounded-xl border-4 bg-white shadow-sm overflow-hidden ${tone} ${
         clickable
           ? "cursor-pointer hover:border-primary-400 hover:scale-[1.02] focus:outline-none focus-visible:ring-4 focus-visible:ring-primary-300"
           : result === "correct"
@@ -692,12 +709,12 @@ function RecallSelectCard({
             : "cursor-not-allowed"
       }`}
     >
-      <div className="aspect-square w-full bg-slate-50">
+      <div className="relative aspect-[2/1] w-full overflow-hidden bg-slate-50">
         {card.image_url ? (
           <img
             src={card.image_url}
             alt=""
-            className="h-full w-full object-contain"
+            className="absolute inset-0 h-full w-full object-contain"
             draggable={false}
           />
         ) : (

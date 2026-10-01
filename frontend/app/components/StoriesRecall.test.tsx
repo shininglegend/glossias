@@ -332,6 +332,7 @@ describe("RecallSession", () => {
     );
     expect(screen.getByTestId("recall-card-2")).toBeDisabled();
     expect(screen.getByTestId("recall-card-3")).toBeEnabled();
+    expect(cardOrder()).toEqual([1, 2, 3, 5, 4]);
 
     await pickCard(3);
     expect(onCheckPick).toHaveBeenCalledWith(3, 3);
@@ -400,7 +401,7 @@ describe("RecallSession", () => {
     expect(FakeAudio.byLine(1).playCalls).toBe(1);
   });
 
-  it("shows the cards in server order as square boxes and does not move them", async () => {
+  it("shows the cards in server order and moves a correct pick into place", async () => {
     await setup();
     await listenThrough();
 
@@ -419,6 +420,9 @@ describe("RecallSession", () => {
 
     await pickCard(3);
     expect(cardOrder()).toEqual([3, 1, 5, 2, 4]);
+
+    await pickCard(1);
+    expect(cardOrder()).toEqual([1, 3, 5, 2, 4]);
   });
 
   it("marks wrong picks red, then clears them on a correct pick and plays audio", async () => {
@@ -462,7 +466,7 @@ describe("RecallSession", () => {
       "correct",
     );
     expect(FakeAudio.bySentence(5).playCalls).toBe(1);
-    expect(cardOrder()).toEqual([3, 1, 5, 2, 4]);
+    expect(cardOrder()).toEqual([1, 2, 3, 4, 5]);
 
     fireEvent.click(screen.getByRole("button", { name: /continue to score/i }));
     expect(onContinue).toHaveBeenCalled();

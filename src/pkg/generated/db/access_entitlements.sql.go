@@ -57,31 +57,6 @@ func (q *Queries) ExpireEntitlementsByPaymentIntent(ctx context.Context, stripeP
 	return result.RowsAffected(), nil
 }
 
-const getAccessEntitlementBySessionID = `-- name: GetAccessEntitlementBySessionID :one
-SELECT entitlement_id, user_id, course_id, source, starts_at, expires_at,
-       amount_cents, stripe_checkout_session_id, stripe_payment_intent_id, granted_by
-FROM access_entitlements
-WHERE stripe_checkout_session_id = $1
-`
-
-func (q *Queries) GetAccessEntitlementBySessionID(ctx context.Context, stripeCheckoutSessionID pgtype.Text) (AccessEntitlement, error) {
-	row := q.db.QueryRow(ctx, getAccessEntitlementBySessionID, stripeCheckoutSessionID)
-	var i AccessEntitlement
-	err := row.Scan(
-		&i.EntitlementID,
-		&i.UserID,
-		&i.CourseID,
-		&i.Source,
-		&i.StartsAt,
-		&i.ExpiresAt,
-		&i.AmountCents,
-		&i.StripeCheckoutSessionID,
-		&i.StripePaymentIntentID,
-		&i.GrantedBy,
-	)
-	return i, err
-}
-
 const getActiveEntitlementForUserCourse = `-- name: GetActiveEntitlementForUserCourse :one
 SELECT entitlement_id, user_id, course_id, source, starts_at, expires_at,
        amount_cents, stripe_checkout_session_id, stripe_payment_intent_id, granted_by
@@ -147,15 +122,14 @@ func (q *Queries) GetUserStripeCustomerID(ctx context.Context, userID string) (p
 	return stripe_customer_id, err
 }
 
-const insertAccessEntitlement = `-- name: InsertAccessEntitlement :one
+const insertAccessEntitlement = `-- name: InsertAccessEntitlement :execrows
 INSERT INTO access_entitlements (
     user_id, course_id, source, starts_at, expires_at, amount_cents,
     stripe_checkout_session_id, stripe_payment_intent_id, granted_by
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9
 )
-RETURNING entitlement_id, user_id, course_id, source, starts_at, expires_at,
-          amount_cents, stripe_checkout_session_id, stripe_payment_intent_id, granted_by
+ON CONFLICT (stripe_checkout_session_id) DO NOTHING
 `
 
 type InsertAccessEntitlementParams struct {
@@ -170,8 +144,11 @@ type InsertAccessEntitlementParams struct {
 	GrantedBy               pgtype.Text        `json:"granted_by"`
 }
 
-func (q *Queries) InsertAccessEntitlement(ctx context.Context, arg InsertAccessEntitlementParams) (AccessEntitlement, error) {
-	row := q.db.QueryRow(ctx, insertAccessEntitlement,
+// InsertAccessEntitlement: 0 rows means this Stripe session was already granted
+// (the return-URL confirm and the webhook race each other). Comp grants carry a
+// NULL session id and never conflict.
+func (q *Queries) InsertAccessEntitlement(ctx context.Context, arg InsertAccessEntitlementParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertAccessEntitlement,
 		arg.UserID,
 		arg.CourseID,
 		arg.Source,
@@ -182,20 +159,10 @@ func (q *Queries) InsertAccessEntitlement(ctx context.Context, arg InsertAccessE
 		arg.StripePaymentIntentID,
 		arg.GrantedBy,
 	)
-	var i AccessEntitlement
-	err := row.Scan(
-		&i.EntitlementID,
-		&i.UserID,
-		&i.CourseID,
-		&i.Source,
-		&i.StartsAt,
-		&i.ExpiresAt,
-		&i.AmountCents,
-		&i.StripeCheckoutSessionID,
-		&i.StripePaymentIntentID,
-		&i.GrantedBy,
-	)
-	return i, err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const isUserEnrolledInCourse = `-- name: IsUserEnrolledInCourse :one

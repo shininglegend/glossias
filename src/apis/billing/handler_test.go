@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -140,15 +141,8 @@ func TestCreateCheckout_AlreadyActive(t *testing.T) {
 
 func TestHandleWebhook_GrantsOnce(t *testing.T) {
 	mockDB := database.NewMockDBTX()
-	mockDB.StubQuery("GetAccessEntitlementBySessionID", nil, nil)
 	mockDB.StubQuery("GetLatestEntitlementExpiryForUserCourse", nil, nil)
-	mockDB.StubQuery("InsertAccessEntitlement", [][]any{{
-		int64(1), "user-1", int32(7), "purchase",
-		pgtype.Timestamptz{Time: time.Now(), Valid: true},
-		pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true},
-		pgtype.Int4{}, pgtype.Text{String: "cs_new", Valid: true},
-		pgtype.Text{String: "pi_new", Valid: true}, pgtype.Text{},
-	}}, nil)
+	mockDB.StubExecRows("InsertAccessEntitlement", 1)
 	models.SetDB(mockDB)
 	t.Cleanup(func() { models.SetDB(struct{}{}) })
 
@@ -174,16 +168,12 @@ func TestHandleWebhook_GrantsOnce(t *testing.T) {
 	}
 }
 
+// A session the confirm endpoint already granted (or a Stripe retry) hits
+// ON CONFLICT DO NOTHING: no error, and checkout must stay enabled.
 func TestHandleWebhook_IdempotentRepeat(t *testing.T) {
 	mockDB := database.NewMockDBTX()
-	existing := []any{
-		int64(1), "user-1", int32(7), "purchase",
-		pgtype.Timestamptz{Time: time.Now(), Valid: true},
-		pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true},
-		pgtype.Int4{}, pgtype.Text{String: "cs_new", Valid: true},
-		pgtype.Text{String: "pi_new", Valid: true}, pgtype.Text{},
-	}
-	mockDB.StubQuery("GetAccessEntitlementBySessionID", [][]any{existing}, nil)
+	mockDB.StubQuery("GetLatestEntitlementExpiryForUserCourse", nil, nil)
+	mockDB.StubExecRows("InsertAccessEntitlement", 0)
 	models.SetDB(mockDB)
 	t.Cleanup(func() { models.SetDB(struct{}{}) })
 
@@ -203,13 +193,15 @@ func TestHandleWebhook_IdempotentRepeat(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rr.Code, rr.Body.String())
 	}
-	if n := len(mockDB.Calls("InsertAccessEntitlement")); n != 0 {
-		t.Fatalf("inserts = %d, want 0", n)
+	if !h.checkoutEnabled() {
+		t.Fatal("an already-granted session must not pause checkout")
 	}
 }
 
 func TestHandleWebhook_GrantFailurePausesCheckout(t *testing.T) {
 	mockDB := database.NewMockDBTX()
+	mockDB.StubQuery("GetLatestEntitlementExpiryForUserCourse", nil, nil)
+	mockDB.StubExec("InsertAccessEntitlement", errors.New("connection reset"))
 	models.SetDB(mockDB)
 	t.Cleanup(func() { models.SetDB(struct{}{}) })
 
@@ -231,16 +223,9 @@ func TestHandleWebhook_GrantFailurePausesCheckout(t *testing.T) {
 
 func TestConfirmCheckout_GrantsPaidSession(t *testing.T) {
 	mockDB := database.NewMockDBTX()
-	mockDB.StubQuery("GetAccessEntitlementBySessionID", nil, nil)
 	mockDB.StubQuery("GetLatestEntitlementExpiryForUserCourse", nil, nil)
 	exp := time.Now().Add(time.Hour)
-	mockDB.StubQuery("InsertAccessEntitlement", [][]any{{
-		int64(1), "user-1", int32(7), "purchase",
-		pgtype.Timestamptz{Time: time.Now(), Valid: true},
-		pgtype.Timestamptz{Time: exp, Valid: true},
-		pgtype.Int4{}, pgtype.Text{String: "cs_paid", Valid: true},
-		pgtype.Text{String: "pi_paid", Valid: true}, pgtype.Text{},
-	}}, nil)
+	mockDB.StubExecRows("InsertAccessEntitlement", 1)
 	mockDB.StubQuery("GetActiveEntitlementForUserCourse", [][]any{{
 		int64(1), "user-1", int32(7), "purchase",
 		pgtype.Timestamptz{Time: time.Now(), Valid: true},

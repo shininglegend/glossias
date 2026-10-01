@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -145,25 +146,22 @@ func TestCheckStoryContentAccess_PaywallOff(t *testing.T) {
 }
 
 func TestGrantFromCheckoutSession_Idempotent(t *testing.T) {
+	// The session is already on record: ON CONFLICT DO NOTHING affects 0 rows.
 	mockDB := database.NewMockDBTX()
-	existing := []any{
-		int64(1), "user-1", int32(3), "purchase",
-		pgtype.Timestamptz{Time: time.Now(), Valid: true},
-		pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true},
-		pgtype.Int4{},
-		pgtype.Text{String: "cs_1", Valid: true},
-		pgtype.Text{String: "pi_1", Valid: true},
-		pgtype.Text{},
-	}
-	mockDB.StubQuery("GetAccessEntitlementBySessionID", [][]any{existing}, nil)
+	mockDB.StubQuery("GetLatestEntitlementExpiryForUserCourse", nil, nil)
+	mockDB.StubExecRows("InsertAccessEntitlement", 0)
 	SetDB(mockDB)
 	t.Cleanup(func() { SetDB(struct{}{}) })
 
 	if err := GrantFromCheckoutSession(context.Background(), "user-1", 3, "cs_1", "pi_1", 0, "purchase"); err != nil {
 		t.Fatalf("repeat session should be a no-op: %v", err)
 	}
-	if n := len(mockDB.Calls("InsertAccessEntitlement")); n != 0 {
-		t.Fatalf("inserted %d rows, want 0", n)
+	calls := mockDB.Calls("InsertAccessEntitlement")
+	if len(calls) != 1 {
+		t.Fatalf("insert calls = %d, want 1", len(calls))
+	}
+	if !strings.Contains(calls[0].SQL, "ON CONFLICT (stripe_checkout_session_id) DO NOTHING") {
+		t.Fatalf("insert must be idempotent on session id: %s", calls[0].SQL)
 	}
 }
 

@@ -1,18 +1,14 @@
--- name: InsertAccessEntitlement :one
+-- InsertAccessEntitlement: 0 rows means this Stripe session was already granted
+-- (the return-URL confirm and the webhook race each other). Comp grants carry a
+-- NULL session id and never conflict.
+-- name: InsertAccessEntitlement :execrows
 INSERT INTO access_entitlements (
     user_id, course_id, source, starts_at, expires_at, amount_cents,
     stripe_checkout_session_id, stripe_payment_intent_id, granted_by
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9
 )
-RETURNING entitlement_id, user_id, course_id, source, starts_at, expires_at,
-          amount_cents, stripe_checkout_session_id, stripe_payment_intent_id, granted_by;
-
--- name: GetAccessEntitlementBySessionID :one
-SELECT entitlement_id, user_id, course_id, source, starts_at, expires_at,
-       amount_cents, stripe_checkout_session_id, stripe_payment_intent_id, granted_by
-FROM access_entitlements
-WHERE stripe_checkout_session_id = $1;
+ON CONFLICT (stripe_checkout_session_id) DO NOTHING;
 
 -- name: GetActiveEntitlementForUserCourse :one
 SELECT entitlement_id, user_id, course_id, source, starts_at, expires_at,

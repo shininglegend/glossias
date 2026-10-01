@@ -230,7 +230,7 @@ func GrantCourseAccess(ctx context.Context, p GrantAccessParams) (*time.Time, er
 	if err == nil && latest.Valid && latest.Time.After(now) {
 		exp = latest.Time.Add(accessYear)
 	}
-	_, err = queries.InsertAccessEntitlement(ctx, db.InsertAccessEntitlementParams{
+	rows, err := queries.InsertAccessEntitlement(ctx, db.InsertAccessEntitlementParams{
 		UserID:                  p.UserID,
 		CourseID:                p.CourseID,
 		Source:                  p.Source,
@@ -244,20 +244,18 @@ func GrantCourseAccess(ctx context.Context, p GrantAccessParams) (*time.Time, er
 	if err != nil {
 		return nil, err
 	}
+	if rows == 0 {
+		// The session was already granted by the other path (confirm vs.
+		// webhook). Nothing new was written, so there is no new expiry.
+		return nil, nil
+	}
 	return &exp, nil
 }
 
-// GrantFromCheckoutSession is idempotent on Stripe session id.
+// GrantFromCheckoutSession is idempotent on Stripe session id: a repeat of a
+// session that is already on record is a no-op, including when two callers
+// race.
 func GrantFromCheckoutSession(ctx context.Context, userID string, courseID int32, sessionID, paymentIntentID string, amountCents int32, source string) error {
-	if sessionID != "" {
-		_, err := queries.GetAccessEntitlementBySessionID(ctx, textOrNull(sessionID))
-		if err == nil {
-			return nil
-		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
-	}
 	_, err := GrantCourseAccess(ctx, GrantAccessParams{
 		UserID:          userID,
 		CourseID:        courseID,

@@ -23,6 +23,9 @@ export default function CheckoutSuccessPage() {
       return;
     }
     let stopped = false;
+    // One confirm at a time: a slow Stripe retrieve must not stack a second
+    // request on top of the first, which would race it at the grant.
+    let inFlight = false;
     let attempts = 0;
     let intervalId = 0;
     const stop = () => {
@@ -34,7 +37,8 @@ export default function CheckoutSuccessPage() {
       stop();
     };
     const tick = async () => {
-      if (stopped) return;
+      if (stopped || inFlight) return;
+      inFlight = true;
       attempts += 1;
       try {
         const res = await fetchAuth("/api/checkout/confirm", {
@@ -69,6 +73,8 @@ export default function CheckoutSuccessPage() {
         if (!stopped && attempts >= 8) {
           fail("Could not confirm access.");
         }
+      } finally {
+        inFlight = false;
       }
     };
     void tick();

@@ -148,7 +148,6 @@ type Querier interface {
 	DetachCourseSection(ctx context.Context, arg DetachCourseSectionParams) error
 	ExpireEntitlementsByPaymentIntent(ctx context.Context, stripePaymentIntentID pgtype.Text) (int64, error)
 	FindRecentSimilarTimeEntry(ctx context.Context, arg FindRecentSimilarTimeEntryParams) (FindRecentSimilarTimeEntryRow, error)
-	GetAccessEntitlementBySessionID(ctx context.Context, stripeCheckoutSessionID pgtype.Text) (AccessEntitlement, error)
 	GetActiveAnonymousTimeEntry(ctx context.Context, arg GetActiveAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
 	GetActiveEntitlementForUserCourse(ctx context.Context, arg GetActiveEntitlementForUserCourseParams) (AccessEntitlement, error)
 	// Versioned system prompt for the Produce AI grader. Versions are append-only;
@@ -332,7 +331,10 @@ type Querier interface {
 	GetUsersForCourse(ctx context.Context, courseID int32) ([]GetUsersForCourseRow, error)
 	GetVocabularyItems(ctx context.Context, arg GetVocabularyItemsParams) ([]VocabularyItem, error)
 	GradeProduceSubmission(ctx context.Context, arg GradeProduceSubmissionParams) error
-	InsertAccessEntitlement(ctx context.Context, arg InsertAccessEntitlementParams) (AccessEntitlement, error)
+	// InsertAccessEntitlement: 0 rows means this Stripe session was already granted
+	// (the return-URL confirm and the webhook race each other). Comp grants carry a
+	// NULL session id and never conflict.
+	InsertAccessEntitlement(ctx context.Context, arg InsertAccessEntitlementParams) (int64, error)
 	// InsertProduceGradingLog records one grading run — prompts, raw model
 	// output, parsed verdict or error — so grading can be inspected after the fact.
 	InsertProduceGradingLog(ctx context.Context, arg InsertProduceGradingLogParams) error

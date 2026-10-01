@@ -653,10 +653,7 @@ function orderedRecallCards(sentences: RecallCard[], placedIds: number[]) {
     .map((id) => byId.get(id))
     .filter((card): card is RecallCard => card != null);
   const placedSet = new Set(placed.map((card) => card.id));
-  return [
-    ...placed,
-    ...sentences.filter((card) => !placedSet.has(card.id)),
-  ];
+  return [...placed, ...sentences.filter((card) => !placedSet.has(card.id))];
 }
 
 type CardResult = "pending" | "correct" | "wrong";

@@ -170,7 +170,8 @@ export default function PricingPage() {
             )}
             {data?.payments_enabled === false ? (
               <p className="text-slate-600">
-                Payments are paused because the last payment could not be recorded. Email{" "}
+                Payments are paused because the last payment could not be
+                recorded. Email{" "}
                 <a className="underline" href={`mailto:${LEGAL_CONTACT_EMAIL}`}>
                   {LEGAL_CONTACT_EMAIL}
                 </a>

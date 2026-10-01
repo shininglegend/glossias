@@ -134,6 +134,11 @@ export interface RecallData {
   sentences: RecallCard[];
   /** Orderings already submitted on earlier visits. */
   attempts: number;
+  /**
+   * Sentences already placed correctly, in story order, as an unbroken run
+   * from position 1. The put-in-order stage resumes at the next position.
+   */
+  placed_sentence_ids: number[];
   /** The student finished this phase on an earlier visit. */
   completed: boolean;
 }

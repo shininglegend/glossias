@@ -151,18 +151,45 @@ export function RecallSession({
   const hasNarration = Object.keys(pageData.audio_urls).length > 0;
   const hasSentences = pageData.sentences.length > 0;
 
-  const [phase, setPhase] = useState<RecallPhase>(() => {
-    if (pageData.completed) return "complete";
-    if (!hasNarration) return hasSentences ? "selecting" : "complete";
-    return "idle";
-  });
-  const [nextPosition, setNextPosition] = useState(1);
+  // How many lines the student has heard so far, persisted per story in this
+  // browser so a reload can pick up where they left off rather than
+  // restarting a two-minute narration. Reaching the last line is kept too,
+  // so a reload after the narration goes straight to the cards. Cleared once
+  // the phase is complete.
+  const progressKey = listeningProgressKey(pageData.story_id);
+  const [furthestHeard, setFurthestHeard] = useState(() =>
+    readListeningProgress(progressKey, pageData.line_count),
+  );
+
+  // Sentences already placed on an earlier visit: the server's record wins,
+  // and a finished phase counts every card as placed.
+  const [placedIds] = useState<number[]>(() =>
+    pageData.completed
+      ? pageData.sentences.map((s) => s.id)
+      : (pageData.placed_sentence_ids ?? []),
+  );
+
+  const [nextPosition, setNextPosition] = useState(placedIds.length + 1);
   const [correctIds, setCorrectIds] = useState<Set<number>>(
-    () =>
-      new Set(pageData.completed ? pageData.sentences.map((s) => s.id) : []),
+    () => new Set(placedIds),
   );
   const [wrongIds, setWrongIds] = useState<Set<number>>(new Set());
   const [attempts, setAttempts] = useState(pageData.attempts);
+
+  // Any recorded pick means the narration was already heard; so does a saved
+  // listening position at the last line. Once true the student may move
+  // freely between the audio and the cards.
+  const heardAll =
+    !hasNarration ||
+    attempts > 0 ||
+    correctIds.size > 0 ||
+    (pageData.line_count > 0 && furthestHeard >= pageData.line_count);
+
+  const [phase, setPhase] = useState<RecallPhase>(() => {
+    if (pageData.completed) return "complete";
+    if (heardAll) return hasSentences ? "selecting" : "complete";
+    return "idle";
+  });
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
   const sentenceAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -188,35 +215,32 @@ export function RecallSession({
   const [isPlaying, setIsPlaying] = useState(false);
   const [playedLines, setPlayedLines] = useState<Set<number>>(new Set());
 
-  // How many lines the student has heard so far, persisted per story in this
-  // browser so a reload can pick up where they left off rather than
-  // restarting a two-minute narration. Cleared once the story finishes.
-  const progressKey = listeningProgressKey(pageData.story_id);
-  const [furthestHeard, setFurthestHeard] = useState(() =>
-    readListeningProgress(progressKey, pageData.line_count),
-  );
   const resumeLine = furthestHeard > 0 && furthestHeard < pageData.line_count;
   useEffect(() => {
     if (playedLines.size === 0) return;
     const heard = Math.max(...playedLines) + 1;
     setFurthestHeard((current) => {
       const next = Math.max(current, heard);
-      // Nothing to resume once every line is heard; onPlaybackEnd clears the
-      // key, and this effect can run after it for the final line.
-      if (next !== current && next < pageData.line_count) {
-        writeListeningProgress(progressKey, next);
-      }
+      if (next !== current) writeListeningProgress(progressKey, next);
       return next;
     });
-  }, [playedLines, progressKey, pageData.line_count]);
+  }, [playedLines, progressKey]);
 
   const onPlaybackEnd = useCallback(() => {
-    clearListeningProgress(progressKey);
+    // The played-lines effect may run after this for the final line; record
+    // the full narration here so a reload before it never replays the story.
+    writeListeningProgress(progressKey, pageData.line_count);
+    setFurthestHeard(pageData.line_count);
     setPhase((current) => {
       if (current !== "listening") return current;
       return hasSentences ? "selecting" : "complete";
     });
-  }, [hasSentences, progressKey]);
+  }, [hasSentences, progressKey, pageData.line_count]);
+
+  // Once the phase is done there is nothing left to resume.
+  useEffect(() => {
+    if (phase === "complete") clearListeningProgress(progressKey);
+  }, [phase, progressKey]);
 
   const audioPlayer = useAudioPlayer({
     audioURLs,
@@ -249,6 +273,18 @@ export function RecallSession({
       audioPlayer.pauseAudio();
       setPhase("paused");
     }
+  };
+
+  /** Listen to the story again; placed cards are kept. */
+  const backToAudio = () => {
+    setWrongIds(new Set());
+    setPhase("idle");
+  };
+
+  /** Skip the rest of a narration already heard in full and go to the cards. */
+  const skipToOrdering = () => {
+    audioPlayer.pauseAudio();
+    setPhase("selecting");
   };
 
   // Free movement within the part already heard: back to line 1, forward no
@@ -436,6 +472,20 @@ export function RecallSession({
               </button>
             )}
           </div>
+
+          {heardAll && hasSentences && (
+            <div className="flex justify-center mt-4">
+              <button
+                onClick={skipToOrdering}
+                className="inline-flex items-center gap-2 px-4 py-3 bg-blue-500 text-white border-none rounded-lg text-base transition-colors duration-200 cursor-pointer hover:bg-blue-600"
+                type="button"
+                data-testid="recall-skip-to-ordering"
+              >
+                <span className="material-icons">fast_forward</span>
+                Skip to ordering
+              </button>
+            </div>
+          )}
         </section>
       )}
 
@@ -513,6 +563,21 @@ export function RecallSession({
             </div>
           )}
 
+          {phase === "selecting" && hasNarration && (
+            <div className="flex justify-center mt-4">
+              <button
+                onClick={backToAudio}
+                disabled={checking}
+                className="inline-flex items-center gap-2 px-4 py-3 bg-gray-100 text-gray-800 border border-gray-300 rounded-lg text-base transition-colors duration-200 cursor-pointer hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-gray-100"
+                type="button"
+                data-testid="recall-back-to-audio"
+              >
+                <span className="material-icons">headphones</span>
+                Back to audio
+              </button>
+            </div>
+          )}
+
           {checkError && (
             <p className="text-red-600 text-center mt-3" role="alert">
               {checkError}
@@ -552,8 +617,10 @@ function readListeningProgress(key: string, lineCount: number): number {
   try {
     const raw = window.localStorage.getItem(key);
     const heard = raw === null ? 0 : Number.parseInt(raw, 10);
-    if (!Number.isInteger(heard) || heard < 0) return 0;
-    return Math.min(heard, lineCount);
+    // A value past the line count is stale (the story was re-cut); start over
+    // rather than treating it as fully heard.
+    if (!Number.isInteger(heard) || heard < 0 || heard > lineCount) return 0;
+    return heard;
   } catch {
     return 0;
   }

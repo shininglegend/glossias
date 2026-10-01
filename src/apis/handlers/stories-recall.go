@@ -95,11 +95,12 @@ func (h *Handler) GetRecallPage(w http.ResponseWriter, r *http.Request) {
 			StoryTitle: story.Metadata.Title["en"],
 			Language:   story.Metadata.Language,
 		},
-		LineCount: len(story.Content.Lines),
-		AudioURLs: audioURLs,
-		Sentences: shuffledRecallCards(sentences, story.Content.Lines, words, audioURLs, rand.Shuffle),
-		Attempts:  recallAttempts(summary, len(sentences)),
-		Completed: recallCompleted(sentences, correctIDs),
+		LineCount:         len(story.Content.Lines),
+		AudioURLs:         audioURLs,
+		Sentences:         shuffledRecallCards(sentences, story.Content.Lines, words, audioURLs, rand.Shuffle),
+		Attempts:          recallAttempts(summary, len(sentences)),
+		PlacedSentenceIDs: recallPlacedSentenceIDs(sentences, correctIDs),
+		Completed:         recallCompleted(sentences, correctIDs),
 	}
 
 	json.NewEncoder(w).Encode(types.APIResponse{Success: true, Data: data})
@@ -377,6 +378,27 @@ func recallAttempts(summary models.AnswerSummary, sentenceCount int) int {
 		return 0
 	}
 	return int(summary.CorrectCount+summary.IncorrectCount) / sentenceCount
+}
+
+// recallPlacedSentenceIDs is the run of sentences, from position 1 onward,
+// that the student has already placed correctly. Picks are sequential, so the
+// first unplaced position is where the student resumes; anything correct
+// beyond a gap (older full-ordering attempts, re-authored sentences) is left
+// out so the resumed stage asks for it again. `sentences` must be in story
+// order. Never nil, so the JSON is an array rather than null.
+func recallPlacedSentenceIDs(sentences []models.RecallSentence, correctIDs []int) []int {
+	correct := make(map[int]bool, len(correctIDs))
+	for _, id := range correctIDs {
+		correct[id] = true
+	}
+	placed := make([]int, 0, len(sentences))
+	for _, s := range sentences {
+		if !correct[s.ID] {
+			break
+		}
+		placed = append(placed, s.ID)
+	}
+	return placed
 }
 
 // recallCompleted reports whether the student has placed every one of the

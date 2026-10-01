@@ -81,6 +81,7 @@ const makePageData = (overrides: Partial<RecallData> = {}): RecallData => ({
   audio_urls: { "1": "url-1", "2": "url-2", "3": "url-3" },
   sentences: SENTENCES,
   attempts: 0,
+  placed_sentence_ids: [],
   completed: false,
   ...overrides,
 });
@@ -298,9 +299,96 @@ describe("RecallSession", () => {
     expect(FakeAudio.byLine(2).playCalls).toBe(0);
     expect(FakeAudio.byLine(3).playCalls).toBe(1);
 
-    // Finishing clears the saved position.
+    // Finishing records the whole narration as heard.
     await endLine(3);
     expect(screen.getByTestId("recall-cards")).toBeInTheDocument();
+    expect(window.localStorage.getItem("recall-listened:1")).toBe("3");
+  });
+
+  it("goes straight to the cards on reload once the narration was fully heard", async () => {
+    const { unmount } = await setup();
+    await listenThrough();
+    unmount();
+
+    FakeAudio.instances = [];
+    await setup();
+    expect(screen.queryByTestId("recall-listening")).not.toBeInTheDocument();
+    expect(screen.getByTestId("recall-cards")).toBeInTheDocument();
+    expect(screen.getByTestId("recall-prompt")).toHaveTextContent("first");
+    expect(FakeAudio.byLine(1).playCalls).toBe(0);
+  });
+
+  it("resumes the put-in-order stage from the server's placed sentences", async () => {
+    const { onCheckPick } = await setup({
+      attempts: 3,
+      placed_sentence_ids: [1, 2],
+    });
+    // Picks on record mean the narration was already heard.
+    expect(screen.queryByTestId("recall-listening")).not.toBeInTheDocument();
+    expect(screen.getByTestId("recall-prompt")).toHaveTextContent("third");
+    expect(screen.getByTestId("recall-card-1")).toHaveAttribute(
+      "data-result",
+      "correct",
+    );
+    expect(screen.getByTestId("recall-card-2")).toBeDisabled();
+    expect(screen.getByTestId("recall-card-3")).toBeEnabled();
+
+    await pickCard(3);
+    expect(onCheckPick).toHaveBeenCalledWith(3, 3);
+    expect(screen.getByTestId("recall-prompt")).toHaveTextContent("fourth");
+  });
+
+  it("can go back to the audio and skip forward again without losing picks", async () => {
+    await setup();
+    // Not offered until the narration has been heard in full.
+    expect(
+      screen.queryByTestId("recall-skip-to-ordering"),
+    ).not.toBeInTheDocument();
+    await listenThrough();
+    await pickCard(1);
+    expect(screen.getByTestId("recall-prompt")).toHaveTextContent("second");
+
+    fireEvent.click(screen.getByTestId("recall-back-to-audio"));
+    expect(screen.getByTestId("recall-listening")).toBeInTheDocument();
+    expect(screen.queryByTestId("recall-cards")).not.toBeInTheDocument();
+
+    // Listening again starts from the top and may be cut short.
+    const line1 = FakeAudio.byLine(1);
+    const playsBefore = line1.playCalls;
+    fireEvent.click(screen.getByRole("button", { name: /start/i }));
+    expect(line1.playCalls).toBe(playsBefore + 1);
+    fireEvent.click(screen.getByTestId("recall-skip-to-ordering"));
+    expect(line1.paused).toBe(true);
+    expect(screen.getByTestId("recall-prompt")).toHaveTextContent("second");
+    expect(screen.getByTestId("recall-card-1")).toHaveAttribute(
+      "data-result",
+      "correct",
+    );
+  });
+
+  it("offers a skip to ordering on reload when the narration was heard before", async () => {
+    window.localStorage.setItem("recall-listened:1", "3");
+    await setup({ attempts: 1 });
+    fireEvent.click(screen.getByTestId("recall-back-to-audio"));
+    expect(screen.getByTestId("recall-skip-to-ordering")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("recall-skip-to-ordering"));
+    expect(screen.getByTestId("recall-cards")).toBeInTheDocument();
+  });
+
+  it("does not offer a way back to audio when there is no narration", async () => {
+    await setup({ audio_urls: {}, line_count: 0 });
+    expect(screen.getByTestId("recall-cards")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("recall-back-to-audio"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("clears the saved listening position once the phase is complete", async () => {
+    await setup();
+    await listenThrough();
+    expect(window.localStorage.getItem("recall-listened:1")).toBe("3");
+    for (const id of [1, 2, 3, 4, 5]) await pickCard(id);
+    expect(screen.getByText(/great job/i)).toBeInTheDocument();
     expect(window.localStorage.getItem("recall-listened:1")).toBeNull();
   });
 

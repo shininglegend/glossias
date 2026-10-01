@@ -124,6 +124,10 @@ type RecallPageData struct {
 	Sentences []RecallCard `json:"sentences"`
 	// Attempts is how many orderings the student has already submitted.
 	Attempts int `json:"attempts"`
+	// PlacedSentenceIDs are the sentences already placed correctly, in story
+	// order, as an unbroken run from position 1. The page resumes the
+	// put-in-order stage at position len+1 instead of starting over.
+	PlacedSentenceIDs []int `json:"placed_sentence_ids"`
 	// Completed is true once the student has placed every sentence correctly;
 	// the page then shows the finished state instead of asking again.
 	Completed bool `json:"completed"`

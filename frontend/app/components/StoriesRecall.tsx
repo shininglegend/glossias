@@ -528,7 +528,7 @@ export function RecallSession({
           )}
 
           <div
-            className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 w-full"
+            className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-5 w-full max-w-4xl mx-auto"
             data-testid="recall-cards"
             role="list"
           >
@@ -707,7 +707,7 @@ function RecallSelectCard({
         )}
       </div>
       <p
-        className="shrink-0 px-1.5 py-1.5 text-center text-xs sm:text-sm md:text-base leading-snug text-gray-900"
+        className="shrink-0 px-3 py-3 text-center text-2xl sm:text-3xl leading-snug text-gray-900"
         dir={isRTL ? "rtl" : "ltr"}
         lang={isRTL ? "he" : undefined}
       >

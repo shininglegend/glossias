@@ -35,6 +35,43 @@ func TestPaywallEnabled(t *testing.T) {
 	}
 }
 
+func TestPaywallLiftedWhilePaymentsPaused(t *testing.T) {
+	t.Setenv("PAYWALL_ENABLED", "true")
+	SetPaymentsPaused(true)
+	t.Cleanup(func() { SetPaymentsPaused(false) })
+	if !PaymentsPaused() {
+		t.Fatal("payments should report paused")
+	}
+	if paywallActive() {
+		t.Fatal("paywall must lift while payments are paused")
+	}
+
+	// Only the visibility check runs; no lock-state queries are issued.
+	mockDB := database.NewMockDBTX()
+	mockDB.StubQuery("CanUserAccessStory", [][]any{{true}}, nil)
+	SetDB(mockDB)
+	t.Cleanup(func() { SetDB(struct{}{}) })
+	if err := CheckStoryContentAccess(context.Background(), "user-1", 10); err != nil {
+		t.Fatalf("paused payments should open paid content: %v", err)
+	}
+	if n := len(mockDB.Calls("ListActiveEntitlementsForUser")); n != 0 {
+		t.Fatalf("entitlement queries = %d, want 0", n)
+	}
+
+	stories := []Story{{Metadata: StoryMetadata{LinkedCourseIDs: []int{3}}}}
+	if err := AnnotateStoryLocks(context.Background(), "user-1", stories); err != nil {
+		t.Fatal(err)
+	}
+	if stories[0].Metadata.Locked {
+		t.Fatal("stories must not be locked while payments are paused")
+	}
+
+	SetPaymentsPaused(false)
+	if !paywallActive() {
+		t.Fatal("paywall should return once payments resume")
+	}
+}
+
 func stubStoryAccess(mock *database.MockDBTX, canAccess, admin bool, courseIDs []int32, trialFlags [][]any) {
 	mock.StubQuery("CanUserAccessStory", [][]any{{canAccess}}, nil)
 	mock.StubQuery("IsUserAdminOfLinkedStory", [][]any{{admin}}, nil)

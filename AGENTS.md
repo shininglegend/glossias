@@ -60,7 +60,7 @@ Backend (`.env`):
 - `ANTHROPIC_API_KEY` — enables AI grading of Produce submissions (`claude-haiku-4-5`, background, fail-open). Unset → submissions are stored ungraded and a warning is logged at startup.
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ACCESS` — Stripe checkout. Unset → checkout disabled; a warning is logged at startup.
 - `PUBLIC_APP_URL` — Checkout success/cancel base URL (defaults to `http://localhost:5173`).
-- `PAYWALL_ENABLED` — when `true`/`1`/`yes`, enrolled students need an unexpired course entitlement to open paid stories. Unset or false leaves content open.
+- `PAYWALL_ENABLED` — when `true`/`1`/`yes`, enrolled students need an unexpired course entitlement to open paid stories. Unset or false leaves content open. The paywall is also lifted automatically while payments are paused (a Stripe webhook grant failed) and returns once a grant succeeds again.
 
 ## Directory Layout
 

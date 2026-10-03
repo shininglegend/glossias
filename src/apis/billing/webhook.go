@@ -41,12 +41,12 @@ func (h *Handler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 			event.AmountCents,
 			event.Source,
 		); err != nil {
-			h.grantFailed.Store(true)
-			h.log.Error("failed to grant access from webhook", "error", err, "session", event.SessionID)
+			models.SetPaymentsPaused(true)
+			h.log.Error("failed to grant access from webhook; payments paused and paywall lifted", "error", err, "session", event.SessionID)
 			http.Error(w, "Failed to grant access", http.StatusInternalServerError)
 			return
 		}
-		h.grantFailed.Store(false)
+		models.SetPaymentsPaused(false)
 	case "charge.refunded", "charge.dispute.created":
 		if event.PaymentIntentID == "" {
 			w.WriteHeader(http.StatusOK)

@@ -3,8 +3,11 @@ package models
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
+	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"glossias/src/pkg/generated/db"
@@ -40,16 +43,54 @@ func PaywallEnabled() bool {
 	}
 }
 
+// paymentsPaused is set when a paid checkout could not be recorded. While it
+// is set, checkout is refused and the paywall is lifted: students who cannot
+// pay must not be locked out.
+var paymentsPaused atomic.Bool
+
+// PaymentsPaused reports whether payments are paused after a failed grant.
+func PaymentsPaused() bool { return paymentsPaused.Load() }
+
+// SetPaymentsPaused pauses or resumes payments.
+func SetPaymentsPaused(paused bool) { paymentsPaused.Store(paused) }
+
+// paywallActive is true when the paywall is configured on and payments are
+// not paused. It is the gate every content check uses.
+func paywallActive() bool { return PaywallEnabled() && !PaymentsPaused() }
+
+// paywallDebug logs one paywall decision at DEBUG (LOG_LEVEL=DEBUG).
+func paywallDebug(ctx context.Context, msg string, args ...any) {
+	slog.Default().DebugContext(ctx, "paywall: "+msg, args...)
+}
+
+// paywallOffReason names why the paywall is inactive, or "" when it is active.
+func paywallOffReason() string {
+	switch {
+	case !PaywallEnabled():
+		return "PAYWALL_ENABLED is off"
+	case PaymentsPaused():
+		return "payments paused"
+	default:
+		return ""
+	}
+}
+
 // CheckStoryContentAccess is nil when the user may open story content.
 // ErrNotFound hides the story; *PaymentRequiredError is a 402.
 func CheckStoryContentAccess(ctx context.Context, userID string, storyID int32) error {
 	if !CanUserAccessStory(ctx, userID, storyID) {
 		return ErrNotFound
 	}
-	if !PaywallEnabled() || userID == "" {
+	if reason := paywallOffReason(); reason != "" {
+		paywallDebug(ctx, "open, paywall inactive", "story", storyID, "user", userID, "reason", reason)
+		return nil
+	}
+	if userID == "" {
+		paywallDebug(ctx, "open, no user id", "story", storyID)
 		return nil
 	}
 	if CanUserAdminLinkedStory(ctx, userID, storyID) {
+		paywallDebug(ctx, "open, user admins a linked course", "story", storyID, "user", userID)
 		return nil
 	}
 	courseIDs, err := ListStoryCourseIDs(ctx, storyID)
@@ -57,6 +98,7 @@ func CheckStoryContentAccess(ctx context.Context, userID string, storyID int32) 
 		return err
 	}
 	if len(courseIDs) == 0 {
+		paywallDebug(ctx, "open, story linked to no course", "story", storyID, "user", userID)
 		return nil
 	}
 	locked, payable, err := storyLockState(ctx, userID, courseIDs)
@@ -64,52 +106,66 @@ func CheckStoryContentAccess(ctx context.Context, userID string, storyID int32) 
 		return err
 	}
 	if !locked {
+		paywallDebug(ctx, "open, trial or entitled", "story", storyID, "user", userID, "courses", courseIDs)
 		return nil
 	}
 	if len(payable) == 0 {
+		paywallDebug(ctx, "hidden, locked and not enrolled", "story", storyID, "user", userID, "courses", courseIDs)
 		return ErrNotFound
 	}
+	paywallDebug(ctx, "402, payment required", "story", storyID, "user", userID, "payable", payable)
 	return &PaymentRequiredError{PayableCourseIDs: payable}
 }
 
 // AnnotateStoryLocks sets Locked and PayableCourseIDs on listed stories.
 func AnnotateStoryLocks(ctx context.Context, userID string, stories []Story) error {
-	if !PaywallEnabled() || userID == "" || len(stories) == 0 {
+	if len(stories) == 0 {
+		return nil
+	}
+	if reason := paywallOffReason(); reason != "" {
+		paywallDebug(ctx, "list unlocked, paywall inactive", "user", userID, "reason", reason, "stories", len(stories))
+		return nil
+	}
+	if userID == "" {
+		paywallDebug(ctx, "list unlocked, no user id", "stories", len(stories))
 		return nil
 	}
 	super := IsUserSuperAdmin(ctx, userID)
-	adminIDs := map[int]bool{}
-	if !super {
-		rights, err := GetUserCourseAdminRights(ctx, userID)
-		if err != nil {
-			return err
-		}
-		for _, r := range rights {
-			adminIDs[int(r.CourseID)] = true
-		}
+	if super {
+		paywallDebug(ctx, "list unlocked, super admin", "user", userID, "stories", len(stories))
+		return nil
 	}
+	adminIDs := map[int]bool{}
+	rights, err := GetUserCourseAdminRights(ctx, userID)
+	if err != nil {
+		return err
+	}
+	for _, r := range rights {
+		adminIDs[int(r.CourseID)] = true
+	}
+	lockedCount, adminSkipped, unlinked := 0, 0, 0
 	for i := range stories {
 		ids := stories[i].Metadata.LinkedCourseIDs
-		if super {
+		if len(ids) == 0 {
+			unlinked++
 			continue
 		}
-		adminLinked := false
-		for _, id := range ids {
-			if adminIDs[id] {
-				adminLinked = true
-				break
-			}
-		}
-		if adminLinked || len(ids) == 0 {
+		if slices.ContainsFunc(ids, func(id int) bool { return adminIDs[id] }) {
+			adminSkipped++
 			continue
 		}
 		locked, payable, err := storyLockState(ctx, userID, ids)
 		if err != nil {
 			return err
 		}
+		if locked {
+			lockedCount++
+		}
 		stories[i].Metadata.Locked = locked
 		stories[i].Metadata.PayableCourseIDs = payable
 	}
+	paywallDebug(ctx, "list annotated", "user", userID, "stories", len(stories),
+		"locked", lockedCount, "admin_linked", adminSkipped, "unlinked", unlinked)
 	return nil
 }
 
@@ -190,14 +246,31 @@ func AnnotateUserCourses(ctx context.Context, userID string, courses []UserCours
 		}
 	}
 	for i := range courses {
-		if courses[i].IsTrial || super || adminIDs[courses[i].CourseID] || !PaywallEnabled() {
+		reason := ""
+		switch {
+		case courses[i].IsTrial:
+			reason = "trial course"
+		case super:
+			reason = "super admin"
+		case adminIDs[courses[i].CourseID]:
+			reason = "course admin"
+		case !paywallActive():
+			reason = paywallOffReason()
+		}
+		if reason != "" {
 			courses[i].HasAccess = true
 		}
 		if exp, ok := expByCourse[courses[i].CourseID]; ok {
 			courses[i].HasAccess = true
 			t := exp
 			courses[i].ExpiresAt = &t
+			reason = "active entitlement"
 		}
+		if reason == "" {
+			reason = "none"
+		}
+		paywallDebug(ctx, "course access", "user", userID, "course", courses[i].CourseID,
+			"has_access", courses[i].HasAccess, "reason", reason)
 	}
 	return nil
 }

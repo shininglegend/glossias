@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"sync/atomic"
 	"time"
 
 	"glossias/src/auth"
@@ -18,17 +17,18 @@ import (
 )
 
 type Handler struct {
-	log         *slog.Logger
-	gateway     Gateway
-	grantFailed atomic.Bool
+	log     *slog.Logger
+	gateway Gateway
 }
 
 func NewHandler(logger *slog.Logger, gateway Gateway) *Handler {
 	return &Handler{log: logger, gateway: gateway}
 }
 
+// checkoutEnabled is false without a gateway or while payments are paused
+// after a failed grant (models.PaymentsPaused), which also lifts the paywall.
 func (h *Handler) checkoutEnabled() bool {
-	return h.gateway != nil && !h.grantFailed.Load()
+	return h.gateway != nil && !models.PaymentsPaused()
 }
 
 func (h *Handler) RegisterRoutes(router *mux.Router) {
@@ -270,7 +270,7 @@ func (h *Handler) ConfirmCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// A grant that lands here proves the write path works again.
-	h.grantFailed.Store(false)
+	models.SetPaymentsPaused(false)
 	exp, err := models.ActiveAccessExpiresAt(r.Context(), session.UserID, session.CourseID)
 	if err != nil {
 		h.log.Error("failed to read entitlement", "error", err, "session", session.SessionID)

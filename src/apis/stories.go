@@ -3,6 +3,7 @@ package apis
 import (
 	"log/slog"
 	"net/http"
+	"os"
 
 	"glossias/src/apis/billing"
 	"glossias/src/apis/handlers"
@@ -30,7 +31,8 @@ func NewHandler(logger *slog.Logger, produceGrading *models.ProduceGradingServic
 		gateway = g
 		logger.Info("Stripe checkout enabled")
 	}
-	logger.Info("paywall", "enabled", models.PaywallEnabled())
+	logger.Info("paywall", "enabled", models.PaywallEnabled(), "payments_paused", models.PaymentsPaused(),
+		"PAYWALL_ENABLED", os.Getenv("PAYWALL_ENABLED"))
 	return &Handler{
 		Handler: handlers.NewHandler(logger, produceGrading),
 		users:   users.NewHandler(logger),

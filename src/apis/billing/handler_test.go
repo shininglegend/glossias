@@ -199,6 +199,7 @@ func TestHandleWebhook_IdempotentRepeat(t *testing.T) {
 }
 
 func TestHandleWebhook_GrantFailurePausesCheckout(t *testing.T) {
+	t.Cleanup(func() { models.SetPaymentsPaused(false) })
 	mockDB := database.NewMockDBTX()
 	mockDB.StubQuery("GetLatestEntitlementExpiryForUserCourse", nil, nil)
 	mockDB.StubExec("InsertAccessEntitlement", errors.New("connection reset"))
@@ -218,6 +219,9 @@ func TestHandleWebhook_GrantFailurePausesCheckout(t *testing.T) {
 	}
 	if h.checkoutEnabled() {
 		t.Fatal("checkout should pause when a webhook cannot grant access")
+	}
+	if !models.PaymentsPaused() {
+		t.Fatal("a failed grant should pause payments for the paywall too")
 	}
 }
 
@@ -242,7 +246,8 @@ func TestConfirmCheckout_GrantsPaidSession(t *testing.T) {
 			PaymentIntentID: "pi_paid", AmountCents: 1, Source: "purchase", Paid: true,
 		},
 	})
-	h.grantFailed.Store(true)
+	models.SetPaymentsPaused(true)
+	t.Cleanup(func() { models.SetPaymentsPaused(false) })
 	rr := httptest.NewRecorder()
 	h.ConfirmCheckout(rr, authReq("POST", "/api/checkout/confirm", `{"session_id":"cs_paid"}`))
 	if rr.Code != http.StatusOK {

@@ -36,6 +36,9 @@ func main() {
 		UseColors: true,
 	}))
 
+	// Packages without an injected logger (models) log through slog.Default.
+	slog.SetDefault(logger)
+
 	if dotenvErr != nil {
 		logger.Warn("No .env file found, relying on environment variables")
 	}

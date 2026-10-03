@@ -81,11 +81,16 @@ func (h *Handler) GetPricing(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			h.log.Error("failed to retrieve price", "error", err)
 			h.noteGatewayResult(r, "GetPrice", err)
-			http.Error(w, "Failed to load pricing", http.StatusBadGateway)
-			return
+			if !models.PaymentsPaused() {
+				http.Error(w, "Failed to load pricing", http.StatusBadGateway)
+				return
+			}
+			// Stripe is down and payments have paused: render the page with
+			// payments disabled so it can say so, rather than erroring.
+		} else {
+			h.noteGatewayResult(r, "GetPrice", nil)
+			price = p
 		}
-		h.noteGatewayResult(r, "GetPrice", nil)
-		price = p
 	}
 
 	courses, err := models.GetCoursesForUser(r.Context(), userID)
@@ -153,7 +158,7 @@ func (h *Handler) CreateCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.checkoutEnabled() {
-		http.Error(w, "Payments are paused until the webhook is verified", http.StatusServiceUnavailable)
+		http.Error(w, "Payments are temporarily paused; paid content is open in the meantime", http.StatusServiceUnavailable)
 		return
 	}
 	userID, ok := auth.GetUserIDWithOk(r)
@@ -224,9 +229,11 @@ func (h *Handler) CreateCheckout(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := models.SetUserStripeCustomerID(r.Context(), userID, customerID); err != nil {
-			h.log.Error("failed to store stripe customer", "error", err)
-			http.Error(w, "Failed to start checkout", http.StatusInternalServerError)
-			return
+			// Bookkeeping only: the Stripe customer exists and the session
+			// below carries the user id in metadata, so the payment still
+			// grants. Failing here would block a willing payer; a retry would
+			// only create another orphan customer.
+			h.log.Error("failed to store stripe customer; continuing to checkout", "error", err, "customer", customerID)
 		}
 	}
 

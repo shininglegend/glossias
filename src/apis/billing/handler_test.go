@@ -22,6 +22,7 @@ import (
 
 type mockGateway struct {
 	price       *PriceInfo
+	priceErr    error
 	checkout    *CheckoutResult
 	event       *WebhookEvent
 	parseErr    error
@@ -39,6 +40,9 @@ func (m *mockGateway) CreateCheckoutSession(context.Context, CheckoutParams) (*C
 	return m.checkout, nil
 }
 func (m *mockGateway) GetPrice(context.Context) (*PriceInfo, error) {
+	if m.priceErr != nil {
+		return nil, m.priceErr
+	}
 	if m.price == nil {
 		return &PriceInfo{AmountCents: 1, Currency: "usd", Name: "Access"}, nil
 	}
@@ -478,5 +482,37 @@ func TestGetPricing_NoGatewayStillLoadsWithPaymentsDisabled(t *testing.T) {
 	}
 	if body["currency"] != "usd" {
 		t.Fatalf("currency = %v; an empty currency breaks Intl.NumberFormat on the page", body["currency"])
+	}
+}
+
+func TestGetPricing_StripeDownWhilePausedStillLoads(t *testing.T) {
+	resetPauseState(t)
+	mockDB := database.NewMockDBTX()
+	models.SetDB(mockDB)
+	t.Cleanup(func() { models.SetDB(struct{}{}) })
+	models.PausePayments(context.Background(), models.PauseReasonGatewayDown, "stripe 503s")
+
+	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{priceErr: errors.New("dial tcp: i/o timeout")})
+	rr := httptest.NewRecorder()
+	h.GetPricing(rr, authReq("GET", "/api/pricing", ""))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d: %s; while paused the page must explain, not error", rr.Code, rr.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["payments_enabled"] != false {
+		t.Fatalf("payments_enabled = %v", body["payments_enabled"])
+	}
+}
+
+func TestGetPricing_StripeDownNotPausedIsStillAnError(t *testing.T) {
+	resetPauseState(t)
+	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{priceErr: errors.New("dial tcp: i/o timeout")})
+	rr := httptest.NewRecorder()
+	h.GetPricing(rr, authReq("GET", "/api/pricing", ""))
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status %d; one blip before the streak trips is a real error", rr.Code)
 	}
 }

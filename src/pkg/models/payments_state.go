@@ -85,6 +85,29 @@ func PaymentsPaused() bool {
 	return payState.paused
 }
 
+// PaymentsStatus is the operator's view of the pause state.
+type PaymentsStatus struct {
+	Paused bool        `json:"paused"`
+	Reason PauseReason `json:"reason,omitempty"`
+	Detail string      `json:"detail,omitempty"`
+	// Since is when the current pause began; zero when not paused.
+	Since          time.Time `json:"since,omitempty"`
+	PaywallEnabled bool      `json:"paywall_enabled"`
+}
+
+// GetPaymentsStatus returns the current pause state for the admin UI.
+func GetPaymentsStatus() PaymentsStatus {
+	payState.mu.Lock()
+	defer payState.mu.Unlock()
+	st := PaymentsStatus{Paused: payState.paused, PaywallEnabled: PaywallEnabled()}
+	if st.Paused {
+		st.Reason = payState.reason
+		st.Detail = payState.detail
+		st.Since = payState.since
+	}
+	return st
+}
+
 // PaymentsPauseReason returns why payments are paused, or "" when they are not.
 func PaymentsPauseReason() PauseReason {
 	payState.mu.Lock()

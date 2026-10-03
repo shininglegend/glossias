@@ -9,6 +9,7 @@ import (
 
 	"glossias/src/pkg/database"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -225,5 +226,29 @@ func TestGetStoryData_PaymentRequiredWithCache(t *testing.T) {
 	}
 	if len(pay.PayableCourseIDs) != 1 || pay.PayableCourseIDs[0] != 3 {
 		t.Fatalf("payable = %v, want [3]", pay.PayableCourseIDs)
+	}
+}
+
+func TestGrantCourseAccess_UnknownUserIsTyped(t *testing.T) {
+	mockDB := database.NewMockDBTX()
+	mockDB.StubQuery("GetLatestEntitlementExpiryForUserCourse", nil, nil)
+	mockDB.StubExec("InsertAccessEntitlement", &pgconn.PgError{
+		Code: "23503", ConstraintName: "access_entitlements_user_id_fkey",
+	})
+	SetDB(mockDB)
+	t.Cleanup(func() { SetDB(struct{}{}) })
+
+	_, err := GrantCourseAccess(context.Background(), GrantAccessParams{UserID: "ghost", CourseID: 1})
+	if !errors.Is(err, ErrUnknownUser) {
+		t.Fatalf("err = %v, want ErrUnknownUser", err)
+	}
+
+	// Any other constraint, or any other error, passes through untyped.
+	mockDB.StubExec("InsertAccessEntitlement", &pgconn.PgError{
+		Code: "23503", ConstraintName: "access_entitlements_course_id_fkey",
+	})
+	_, err = GrantCourseAccess(context.Background(), GrantAccessParams{UserID: "u", CourseID: 99})
+	if err == nil || errors.Is(err, ErrUnknownUser) {
+		t.Fatalf("err = %v, want a plain error", err)
 	}
 }

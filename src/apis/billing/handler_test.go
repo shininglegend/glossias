@@ -16,6 +16,7 @@ import (
 	"glossias/src/pkg/database"
 	"glossias/src/pkg/models"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stripe/stripe-go/v86"
 )
@@ -227,6 +228,98 @@ func TestHandleWebhook_GrantFailurePausesCheckout(t *testing.T) {
 	}
 	if !models.PaymentsPaused() {
 		t.Fatal("a failed grant should pause payments for the paywall too")
+	}
+}
+
+func fkUserError() error {
+	return &pgconn.PgError{
+		Code:           "23503",
+		Message:        `insert or update on table "access_entitlements" violates foreign key constraint "access_entitlements_user_id_fkey"`,
+		ConstraintName: "access_entitlements_user_id_fkey",
+	}
+}
+
+// A checkout created by another environment that shares the Stripe account
+// is acknowledged and skipped: no grant, no pause.
+func TestHandleWebhook_OtherEnvironmentIgnored(t *testing.T) {
+	resetPauseState(t)
+	t.Setenv("PUBLIC_APP_URL", "https://app.example.com")
+	mockDB := database.NewMockDBTX()
+	mockDB.StubExec("InsertAccessEntitlement", fkUserError())
+	models.SetDB(mockDB)
+	t.Cleanup(func() { models.SetDB(struct{}{}) })
+
+	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{
+		event: &WebhookEvent{
+			Type: "checkout.session.completed", SessionID: "cs_local",
+			UserID: "user_devonly", CourseID: 7, Source: "purchase",
+			AppURL: "http://localhost:5173",
+		},
+	})
+	rr := httptest.NewRecorder()
+	h.HandleWebhook(rr, signedWebhookReq())
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200 so Stripe stops retrying: %s", rr.Code, rr.Body.String())
+	}
+	if n := len(mockDB.Calls("InsertAccessEntitlement")); n != 0 {
+		t.Fatalf("inserts = %d, want 0", n)
+	}
+	if models.PaymentsPaused() {
+		t.Fatal("another environment's checkout must not pause payments")
+	}
+}
+
+// An untagged session (created before tagging) whose user is not in this
+// database is the same situation detected late, at the foreign key.
+func TestHandleWebhook_UnknownUserIgnored(t *testing.T) {
+	resetPauseState(t)
+	t.Setenv("PUBLIC_APP_URL", "https://app.example.com")
+	mockDB := database.NewMockDBTX()
+	mockDB.StubQuery("GetLatestEntitlementExpiryForUserCourse", nil, nil)
+	mockDB.StubExec("InsertAccessEntitlement", fkUserError())
+	models.SetDB(mockDB)
+	t.Cleanup(func() { models.SetDB(struct{}{}) })
+
+	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{
+		event: &WebhookEvent{
+			Type: "checkout.session.completed", SessionID: "cs_untagged",
+			UserID: "user_devonly", CourseID: 7, Source: "purchase",
+		},
+	})
+	rr := httptest.NewRecorder()
+	h.HandleWebhook(rr, signedWebhookReq())
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200: %s", rr.Code, rr.Body.String())
+	}
+	if models.PaymentsPaused() {
+		t.Fatal("an unknown user is not a write-path failure and must not pause payments")
+	}
+}
+
+// Our own tag (or none) still grants.
+func TestHandleWebhook_OwnEnvironmentGrants(t *testing.T) {
+	resetPauseState(t)
+	t.Setenv("PUBLIC_APP_URL", "https://app.example.com/")
+	mockDB := database.NewMockDBTX()
+	mockDB.StubQuery("GetLatestEntitlementExpiryForUserCourse", nil, nil)
+	mockDB.StubExecRows("InsertAccessEntitlement", 1)
+	models.SetDB(mockDB)
+	t.Cleanup(func() { models.SetDB(struct{}{}) })
+
+	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{
+		event: &WebhookEvent{
+			Type: "checkout.session.completed", SessionID: "cs_ours",
+			UserID: "user-1", CourseID: 7, Source: "purchase",
+			AppURL: "https://app.example.com",
+		},
+	})
+	rr := httptest.NewRecorder()
+	h.HandleWebhook(rr, signedWebhookReq())
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rr.Code, rr.Body.String())
+	}
+	if n := len(mockDB.Calls("InsertAccessEntitlement")); n != 1 {
+		t.Fatalf("inserts = %d, want 1", n)
 	}
 }
 

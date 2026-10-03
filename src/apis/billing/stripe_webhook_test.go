@@ -36,3 +36,20 @@ func TestParseWebhookRejectsOtherSecret(t *testing.T) {
 		t.Fatal("payload signed with a different secret should be rejected")
 	}
 }
+
+func TestParseWebhookReadsAppURLTag(t *testing.T) {
+	g := &stripeGateway{webhookSecret: "whsec_server"}
+	payload := []byte(`{"id":"evt_x","object":"event","type":"checkout.session.completed","data":{"object":{"id":"cs_x","metadata":{"clerk_user_id":"user_1","course_id":"3","app_url":"http://localhost:5173"}}}}`)
+	signed := webhook.GenerateTestSignedPayload(&webhook.UnsignedPayload{
+		Payload:   payload,
+		Secret:    "whsec_server",
+		Timestamp: time.Now(),
+	})
+	ev, err := g.ParseWebhook(signed.Payload, signed.Header)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ev.AppURL != "http://localhost:5173" {
+		t.Fatalf("AppURL = %q", ev.AppURL)
+	}
+}

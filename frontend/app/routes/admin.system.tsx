@@ -6,6 +6,7 @@ import { useUserContext } from "../contexts/UserContext";
 import { useAuthenticatedFetch } from "../lib/authFetch";
 import { pageMeta } from "~/lib/pageTitle";
 import GradingPromptEditor from "~/components/Admin/GradingPromptEditor";
+import PaymentsStatusCard from "~/components/Admin/PaymentsStatusCard";
 
 export function meta() {
   return pageMeta("System Management");
@@ -135,6 +136,9 @@ export default function AdminSystem() {
             </Button>
           </div>
         </Card>
+
+        {/* Payments fail-open state and manual resume */}
+        <PaymentsStatusCard />
 
         {/* Produce AI grading prompt (versioned) */}
         <GradingPromptEditor />

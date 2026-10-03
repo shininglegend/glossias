@@ -1,6 +1,7 @@
 package billing
 
 import (
+	"errors"
 	"io"
 	"net/http"
 
@@ -44,6 +45,16 @@ func (h *Handler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
+		// Several environments can share one Stripe account, and Stripe
+		// delivers every event to every endpoint. Another environment's
+		// checkout is not ours to grant and says nothing about our health:
+		// acknowledge it so Stripe stops retrying, and never pause.
+		if ours := PublicAppURL(); event.AppURL != "" && event.AppURL != ours {
+			h.log.Info("stripe webhook for another environment ignored",
+				"session", event.SessionID, "event_app_url", event.AppURL, "app_url", ours)
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		if err := models.GrantFromCheckoutSession(
 			r.Context(),
 			event.UserID,
@@ -53,6 +64,15 @@ func (h *Handler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 			event.AmountCents,
 			event.Source,
 		); err != nil {
+			if errors.Is(err, models.ErrUnknownUser) {
+				// Untagged session from another environment (checkout only
+				// creates sessions for users that exist here). Not a
+				// write-path failure, so do not fail open.
+				h.log.Warn("stripe webhook for a user not in this database ignored; likely another environment's checkout",
+					"session", event.SessionID, "user", event.UserID, "error", err)
+				w.WriteHeader(http.StatusOK)
+				return
+			}
 			models.PausePayments(r.Context(), models.PauseReasonGrantFailed,
 				"webhook grant failed for session "+event.SessionID+": "+err.Error())
 			http.Error(w, "Failed to grant access", http.StatusInternalServerError)

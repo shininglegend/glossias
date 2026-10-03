@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"glossias/src/auth"
@@ -43,6 +44,16 @@ func NoteGatewayStartup(ctx context.Context, gatewayErr error) {
 	}
 	models.PausePayments(ctx, models.PauseReasonNotConfigured,
 		"PAYWALL_ENABLED is on but Stripe could not be configured: "+gatewayErr.Error())
+}
+
+// PublicAppURL is this environment's PUBLIC_APP_URL (default local Vite).
+// It builds the checkout return URLs and tags each session so the webhook
+// can tell this environment's checkouts from another's.
+func PublicAppURL() string {
+	if v := strings.TrimRight(os.Getenv("PUBLIC_APP_URL"), "/"); v != "" {
+		return v
+	}
+	return "http://localhost:5173"
 }
 
 // checkoutEnabled is false without a gateway or while payments are paused
@@ -237,16 +248,14 @@ func (h *Handler) CreateCheckout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	appURL := os.Getenv("PUBLIC_APP_URL")
-	if appURL == "" {
-		appURL = "http://localhost:5173"
-	}
+	appURL := PublicAppURL()
 	session, err := h.gateway.CreateCheckoutSession(r.Context(), CheckoutParams{
 		CustomerID: customerID,
 		UserID:     userID,
 		CourseID:   req.CourseID,
 		SuccessURL: appURL + "/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 		CancelURL:  fmt.Sprintf("%s/pricing?course=%d", appURL, req.CourseID),
+		AppURL:     appURL,
 	})
 	if err != nil {
 		h.log.Error("failed to create checkout session", "error", err)

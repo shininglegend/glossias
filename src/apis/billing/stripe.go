@@ -24,6 +24,11 @@ type CheckoutParams struct {
 	CourseID   int32
 	SuccessURL string
 	CancelURL  string
+	// AppURL tags the session with the environment that created it
+	// (PUBLIC_APP_URL). Several deployments can share one Stripe account,
+	// and Stripe delivers every event to every endpoint, so the webhook
+	// uses this to ignore another environment's checkouts.
+	AppURL string
 }
 
 type CheckoutResult struct {
@@ -38,6 +43,9 @@ type WebhookEvent struct {
 	PaymentIntentID string
 	AmountCents     int32
 	Source          string
+	// AppURL is the creating environment's PUBLIC_APP_URL; "" on sessions
+	// created before tagging and on Dashboard test events.
+	AppURL string
 }
 
 // CompletedCheckout is a paid Checkout Session, read back so the return URL
@@ -50,6 +58,7 @@ type CompletedCheckout struct {
 	AmountCents     int32
 	Source          string
 	Paid            bool
+	AppURL          string
 }
 
 type Gateway interface {
@@ -151,6 +160,9 @@ func (g *stripeGateway) CreateCheckoutSession(ctx context.Context, p CheckoutPar
 			"course_id":     strconv.Itoa(int(p.CourseID)),
 		},
 	}
+	if p.AppURL != "" {
+		params.Metadata["app_url"] = p.AppURL
+	}
 	if p.CustomerID != "" {
 		params.Customer = stripe.String(p.CustomerID)
 	}
@@ -188,6 +200,7 @@ func checkoutFromSession(session *stripe.CheckoutSession) CompletedCheckout {
 		if id, err := strconv.Atoi(session.Metadata["course_id"]); err == nil {
 			out.CourseID = int32(id)
 		}
+		out.AppURL = session.Metadata["app_url"]
 	}
 	if session.PaymentIntent != nil {
 		out.PaymentIntentID = session.PaymentIntent.ID
@@ -251,6 +264,7 @@ func (g *stripeGateway) ParseWebhook(payload []byte, sigHeader string) (*Webhook
 			if id, err := strconv.Atoi(raw.Metadata["course_id"]); err == nil {
 				out.CourseID = int32(id)
 			}
+			out.AppURL = raw.Metadata["app_url"]
 		}
 		out.PaymentIntentID = jsonID(raw.PaymentIntent)
 		out.AmountCents = int32(raw.AmountTotal)

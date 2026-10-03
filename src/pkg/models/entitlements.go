@@ -7,7 +7,6 @@ import (
 	"os"
 	"slices"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"glossias/src/pkg/generated/db"
@@ -42,17 +41,6 @@ func PaywallEnabled() bool {
 		return false
 	}
 }
-
-// paymentsPaused is set when a paid checkout could not be recorded. While it
-// is set, checkout is refused and the paywall is lifted: students who cannot
-// pay must not be locked out.
-var paymentsPaused atomic.Bool
-
-// PaymentsPaused reports whether payments are paused after a failed grant.
-func PaymentsPaused() bool { return paymentsPaused.Load() }
-
-// SetPaymentsPaused pauses or resumes payments.
-func SetPaymentsPaused(paused bool) { paymentsPaused.Store(paused) }
 
 // paywallActive is true when the paywall is configured on and payments are
 // not paused. It is the gate every content check uses.

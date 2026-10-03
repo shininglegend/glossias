@@ -17,12 +17,24 @@ func (h *Handler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to read body", http.StatusBadRequest)
 		return
 	}
-	event, err := h.gateway.ParseWebhook(payload, r.Header.Get("Stripe-Signature"))
+	sig := r.Header.Get("Stripe-Signature")
+	event, err := h.gateway.ParseWebhook(payload, sig)
 	if err != nil {
-		h.log.Warn("stripe webhook rejected", "error", err)
+		if sig == "" {
+			// Not a Stripe delivery (no signature at all): a scanner or a
+			// misrouted request. Refuse it but never let it count toward the
+			// fail-open streak.
+			h.log.Warn("stripe webhook rejected: no Stripe-Signature header", "error", err, "ip", r.RemoteAddr)
+		} else {
+			// Signed but not by our secret: wrong STRIPE_WEBHOOK_SECRET, a
+			// second Dashboard endpoint, or clock skew. Repeated rejections
+			// pause payments (fail-open) and alert.
+			models.RecordWebhookRejected(r.Context(), err.Error())
+		}
 		http.Error(w, "Invalid signature", http.StatusBadRequest)
 		return
 	}
+	models.RecordWebhookVerified(r.Context())
 	switch event.Type {
 	case "checkout.session.completed":
 		if event.UserID == "" || event.CourseID == 0 {
@@ -41,12 +53,12 @@ func (h *Handler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 			event.AmountCents,
 			event.Source,
 		); err != nil {
-			models.SetPaymentsPaused(true)
-			h.log.Error("failed to grant access from webhook; payments paused and paywall lifted", "error", err, "session", event.SessionID)
+			models.PausePayments(r.Context(), models.PauseReasonGrantFailed,
+				"webhook grant failed for session "+event.SessionID+": "+err.Error())
 			http.Error(w, "Failed to grant access", http.StatusInternalServerError)
 			return
 		}
-		models.SetPaymentsPaused(false)
+		models.ResumePayments(r.Context(), "webhook grant recorded for session "+event.SessionID)
 	case "charge.refunded", "charge.dispute.created":
 		if event.PaymentIntentID == "" {
 			w.WriteHeader(http.StatusOK)

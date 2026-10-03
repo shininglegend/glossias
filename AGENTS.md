@@ -60,7 +60,10 @@ Backend (`.env`):
 - `ANTHROPIC_API_KEY` — enables AI grading of Produce submissions (`claude-haiku-4-5`, background, fail-open). Unset → submissions are stored ungraded and a warning is logged at startup.
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ACCESS` — Stripe checkout. Unset → checkout disabled; a warning is logged at startup.
 - `PUBLIC_APP_URL` — Checkout success/cancel base URL (defaults to `http://localhost:5173`).
-- `PAYWALL_ENABLED` — when `true`/`1`/`yes`, enrolled students need an unexpired course entitlement to open paid stories. Unset or false leaves content open. The paywall is also lifted automatically while payments are paused (a Stripe webhook grant failed) and returns once a grant succeeds again.
+- `PAYWALL_ENABLED` — when `true`/`1`/`yes`, enrolled students need an unexpired course entitlement to open paid stories. Unset or false leaves content open. The paywall is also lifted automatically while payments are paused (see below) and returns once the payment path proves itself again.
+- `BETTERSTACK_UPTIME_TOKEN` + `BETTERSTACK_REQUESTER_EMAIL` — Better Stack Uptime API token and the team member incidents are raised for. A payments pause opens an incident (call/SMS/email/push per your on-call policy) and a resume resolves it. `BETTERSTACK_WEBHOOK_URL` — alternative or addition: any URL (for example an Uptime "Incoming webhook") that gets a JSON POST on pause and resume. With none set, a warning is logged at startup and pauses are visible only in logs.
+
+**Payments fail-open** (`src/pkg/models/payments_state.go`): payments pause when a verified payment cannot be recorded (webhook or confirm grant fails), when `WebhookRejectStreakLimit` consecutive signed Stripe webhooks fail signature verification, or when `GatewayErrorStreakLimit` consecutive Stripe API calls fail with a transport error or 5xx/429. While paused, checkout is refused and the paywall is lifted so students are never locked out. Every pause goes through `models.PausePayments`, which logs at ERROR once, persists to the `payments_state` table (re-read on startup) and calls the alerter once. A successful grant resumes payments; a verified webhook or a successful Stripe call resumes only a pause of its own kind (`ResumePaymentsFrom`). Request paths must use these functions, never a bare flag.
 
 ## Directory Layout
 

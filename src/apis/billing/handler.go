@@ -27,6 +27,24 @@ func NewHandler(logger *slog.Logger, gateway Gateway) *Handler {
 	return &Handler{log: logger, gateway: gateway}
 }
 
+// NoteGatewayStartup records whether the Stripe gateway could be built. With
+// the paywall on and no gateway, students would be locked out with no way to
+// pay, so payments pause (fail-open) and the administrator is alerted. A
+// gateway that builds clears only that kind of pause: the persisted state is
+// loaded before this runs, so a pause from an earlier start is cleared here
+// once the configuration is fixed.
+func NoteGatewayStartup(ctx context.Context, gatewayErr error) {
+	if gatewayErr == nil {
+		models.ResumePaymentsFrom(ctx, models.PauseReasonNotConfigured, "Stripe gateway configured at startup")
+		return
+	}
+	if !models.PaywallEnabled() {
+		return
+	}
+	models.PausePayments(ctx, models.PauseReasonNotConfigured,
+		"PAYWALL_ENABLED is on but Stripe could not be configured: "+gatewayErr.Error())
+}
+
 // checkoutEnabled is false without a gateway or while payments are paused
 // after a failed grant (models.PaymentsPaused), which also lifts the paywall.
 func (h *Handler) checkoutEnabled() bool {
@@ -49,23 +67,26 @@ type pricingCourse struct {
 }
 
 func (h *Handler) GetPricing(w http.ResponseWriter, r *http.Request) {
-	if h.gateway == nil {
-		http.Error(w, "Payments are not configured", http.StatusServiceUnavailable)
-		return
-	}
 	userID, ok := auth.GetUserIDWithOk(r)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	price, err := h.gateway.GetPrice(r.Context())
-	if err != nil {
-		h.log.Error("failed to retrieve price", "error", err)
-		h.noteGatewayResult(r, "GetPrice", err)
-		http.Error(w, "Failed to load pricing", http.StatusBadGateway)
-		return
+	// Without a gateway there is no price to show, but the page must still
+	// load so it can explain that payments are paused (and the paywall is
+	// lifted) instead of erroring.
+	price := &PriceInfo{Currency: "usd"}
+	if h.gateway != nil {
+		p, err := h.gateway.GetPrice(r.Context())
+		if err != nil {
+			h.log.Error("failed to retrieve price", "error", err)
+			h.noteGatewayResult(r, "GetPrice", err)
+			http.Error(w, "Failed to load pricing", http.StatusBadGateway)
+			return
+		}
+		h.noteGatewayResult(r, "GetPrice", nil)
+		price = p
 	}
-	h.noteGatewayResult(r, "GetPrice", nil)
 
 	courses, err := models.GetCoursesForUser(r.Context(), userID)
 	if err != nil {

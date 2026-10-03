@@ -33,6 +33,10 @@ const (
 	// PauseReasonGatewayDown: Stripe's API keeps returning server errors or
 	// is unreachable.
 	PauseReasonGatewayDown PauseReason = "gateway_down"
+	// PauseReasonNotConfigured: the paywall is on but the Stripe gateway
+	// could not be built at startup (missing key/price, or the webhook
+	// secret failed its self-test), so nobody could pay.
+	PauseReasonNotConfigured PauseReason = "not_configured"
 	// PauseReasonManual: set by an operator or a test.
 	PauseReasonManual PauseReason = "manual"
 )

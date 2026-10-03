@@ -423,3 +423,60 @@ func TestIsGatewayOutage(t *testing.T) {
 		}
 	}
 }
+
+func TestNoteGatewayStartup_NoGatewayWithPaywallFailsOpen(t *testing.T) {
+	resetPauseState(t)
+	t.Setenv("PAYWALL_ENABLED", "true")
+	NoteGatewayStartup(context.Background(), errors.New("webhook self-test: no signatures found"))
+	if !models.PaymentsPaused() || models.PaymentsPauseReason() != models.PauseReasonNotConfigured {
+		t.Fatalf("paused=%v reason=%q; paywall on with no way to pay must fail open",
+			models.PaymentsPaused(), models.PaymentsPauseReason())
+	}
+	// Fixing the configuration and restarting clears that pause.
+	NoteGatewayStartup(context.Background(), nil)
+	if models.PaymentsPaused() {
+		t.Fatal("a working gateway should clear a not-configured pause")
+	}
+}
+
+func TestNoteGatewayStartup_PaywallOffStaysQuiet(t *testing.T) {
+	resetPauseState(t)
+	t.Setenv("PAYWALL_ENABLED", "")
+	NoteGatewayStartup(context.Background(), errors.New("STRIPE_SECRET_KEY and STRIPE_PRICE_ACCESS are required"))
+	if models.PaymentsPaused() {
+		t.Fatal("no paywall means nothing to fail open from; dev setups must not page anyone")
+	}
+}
+
+func TestNoteGatewayStartup_DoesNotClearOtherPauses(t *testing.T) {
+	resetPauseState(t)
+	models.PausePayments(context.Background(), models.PauseReasonGrantFailed, "db down")
+	NoteGatewayStartup(context.Background(), nil)
+	if !models.PaymentsPaused() {
+		t.Fatal("a configured gateway says nothing about a failed grant")
+	}
+}
+
+func TestGetPricing_NoGatewayStillLoadsWithPaymentsDisabled(t *testing.T) {
+	resetPauseState(t)
+	mockDB := database.NewMockDBTX()
+	models.SetDB(mockDB)
+	t.Cleanup(func() { models.SetDB(struct{}{}) })
+
+	h := NewHandler(slog.New(slog.DiscardHandler), nil)
+	rr := httptest.NewRecorder()
+	h.GetPricing(rr, authReq("GET", "/api/pricing", ""))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d: %s; the pricing page must load to explain the pause", rr.Code, rr.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["payments_enabled"] != false {
+		t.Fatalf("payments_enabled = %v, want false", body["payments_enabled"])
+	}
+	if body["currency"] != "usd" {
+		t.Fatalf("currency = %v; an empty currency breaks Intl.NumberFormat on the page", body["currency"])
+	}
+}

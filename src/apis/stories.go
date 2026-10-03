@@ -1,6 +1,7 @@
 package apis
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
@@ -25,12 +26,15 @@ type Handler struct {
 // without AI grading.
 func NewHandler(logger *slog.Logger, produceGrading *models.ProduceGradingService) *Handler {
 	var gateway billing.Gateway
-	if g, err := billing.NewStripeGatewayFromEnv(); err != nil {
-		logger.Warn("Stripe not configured; checkout disabled", "error", err)
+	g, gatewayErr := billing.NewStripeGatewayFromEnv()
+	if gatewayErr != nil {
+		logger.Warn("Stripe not configured; checkout disabled", "error", gatewayErr)
 	} else {
 		gateway = g
 		logger.Info("Stripe checkout enabled")
 	}
+	// With the paywall on, no gateway means nobody can pay: fail open and alert.
+	billing.NoteGatewayStartup(context.Background(), gatewayErr)
 	logger.Info("paywall", "enabled", models.PaywallEnabled(), "payments_paused", models.PaymentsPaused(),
 		"PAYWALL_ENABLED", os.Getenv("PAYWALL_ENABLED"))
 	return &Handler{

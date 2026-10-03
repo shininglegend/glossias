@@ -117,7 +117,7 @@ export default function PricingPage() {
                 {error}
               </p>
             ) : null}
-            {data ? (
+            {data && data.amount_cents > 0 ? (
               <p className="text-2xl font-semibold text-slate-900">
                 {formatMoney(data.amount_cents, data.currency)}
                 <span className="ml-2 text-base font-normal text-slate-500">
@@ -170,8 +170,9 @@ export default function PricingPage() {
             )}
             {data?.payments_enabled === false ? (
               <p className="text-slate-600">
-                Payments are paused because the last payment could not be
-                recorded. Email{" "}
+                Payments are temporarily paused while we fix a problem with our
+                payment system. Paid stories stay open in the meantime, so you
+                can keep working. Questions? Email{" "}
                 <a className="underline" href={`mailto:${LEGAL_CONTACT_EMAIL}`}>
                   {LEGAL_CONTACT_EMAIL}
                 </a>

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -68,6 +69,28 @@ type ProduceGrader interface {
 	GradeProduce(ctx context.Context, req ProduceGradeRequest) (ProduceGrade, ProduceGradeTrace, error)
 }
 
+// GradingAPIError marks a grading call that never produced a verdict: the
+// Claude API was unreachable, timed out, or answered with an error status. It
+// is distinct from a verdict that came back but could not be used (a refusal,
+// a cut-off, unparseable JSON), which says nothing about the API's health.
+// The grading service counts these to detect an outage (produce_grading.go).
+type GradingAPIError struct {
+	// StatusCode is the HTTP status the API answered with, or 0 when the
+	// request never completed (connection failure, timeout).
+	StatusCode int
+	Err        error
+}
+
+func (e *GradingAPIError) Error() string { return e.Err.Error() }
+func (e *GradingAPIError) Unwrap() error { return e.Err }
+
+// Permanent reports whether the failure cannot clear up on its own: the API
+// rejected the credentials, so every call will fail until ANTHROPIC_API_KEY
+// is fixed. A single such failure is worth an incident.
+func (e *GradingAPIError) Permanent() bool {
+	return e.StatusCode == http.StatusUnauthorized || e.StatusCode == http.StatusForbidden
+}
+
 // GradingModel is the model used for grading. Segments are 5–10 words, so a
 // small fast model is sufficient and keeps per-grade cost negligible.
 const GradingModel = anthropic.ModelClaudeSonnet5_5
@@ -84,13 +107,21 @@ type AnthropicGrader struct {
 
 // NewAnthropicGrader builds a grader from an API key.
 func NewAnthropicGrader(apiKey string) *AnthropicGrader {
+	return newAnthropicGrader(apiKey)
+}
+
+// newAnthropicGrader is NewAnthropicGrader with extra client options appended
+// (later options win), so tests can point the client at a stub server and
+// turn retries off.
+func newAnthropicGrader(apiKey string, extra ...option.RequestOption) *AnthropicGrader {
+	opts := append([]option.RequestOption{
+		option.WithAPIKey(apiKey),
+		option.WithRequestTimeout(gradingRequestTimeout),
+		option.WithMaxRetries(2),
+	}, extra...)
 	return &AnthropicGrader{
-		client: anthropic.NewClient(
-			option.WithAPIKey(apiKey),
-			option.WithRequestTimeout(gradingRequestTimeout),
-			option.WithMaxRetries(2),
-		),
-		model: GradingModel,
+		client: anthropic.NewClient(opts...),
+		model:  GradingModel,
 	}
 }
 
@@ -194,10 +225,15 @@ func (g *AnthropicGrader) GradeProduce(ctx context.Context, req ProduceGradeRequ
 		// The SDK error already carries method, URL, status and body; add the
 		// request ID so a report can be matched to the Anthropic console.
 		var apiErr *anthropic.Error
-		if errors.As(err, &apiErr) && apiErr.RequestID != "" {
-			return ProduceGrade{}, trace, fmt.Errorf("claude api request %s: %w", apiErr.RequestID, err)
+		if errors.As(err, &apiErr) {
+			if apiErr.RequestID != "" {
+				err = fmt.Errorf("claude api request %s: %w", apiErr.RequestID, err)
+			} else {
+				err = fmt.Errorf("claude api request: %w", err)
+			}
+			return ProduceGrade{}, trace, &GradingAPIError{StatusCode: apiErr.StatusCode, Err: err}
 		}
-		return ProduceGrade{}, trace, fmt.Errorf("claude api request: %w", err)
+		return ProduceGrade{}, trace, &GradingAPIError{Err: fmt.Errorf("claude api request: %w", err)}
 	}
 
 	trace.StopReason = string(resp.StopReason)

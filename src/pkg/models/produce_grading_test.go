@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	"errors"
+	"fmt"
 	"glossias/src/pkg/database"
 	"log/slog"
 	"sync"
@@ -213,5 +214,137 @@ func TestProduceGradingService_FallsBackToDefaultPrompt(t *testing.T) {
 	}
 	if got := grader.calls[0].SystemPrompt; got != DefaultGradingSystemPrompt {
 		t.Errorf("expected the built-in default prompt, got %q", got)
+	}
+}
+
+// sequenceGrader returns the next error in errs on each call (nil grades
+// succeed), then repeats the last one.
+type sequenceGrader struct {
+	mu    sync.Mutex
+	errs  []error
+	calls int
+}
+
+func (g *sequenceGrader) GradeProduce(_ context.Context, _ ProduceGradeRequest) (ProduceGrade, ProduceGradeTrace, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	i := min(g.calls, len(g.errs)-1)
+	g.calls++
+	if err := g.errs[i]; err != nil {
+		return ProduceGrade{}, fakeTrace, err
+	}
+	return ProduceGrade{Score: 80, Feedback: "Nice."}, fakeTrace, nil
+}
+
+// enqueueN enqueues n non-blank submissions, each from its own user so the
+// per-user quota never interferes, and waits for them to finish.
+func enqueueN(svc *ProduceGradingService, n int) {
+	for i := range n {
+		svc.Enqueue("outage-user-"+string(rune('a'+i)), ProduceSubmission{ID: 1000 + i, StudentText: "x"}, testSegment)
+	}
+	svc.Close()
+}
+
+func TestProduceGradingService_RaisesIncidentAfterStreakAndResolvesOnSuccess(t *testing.T) {
+	a := installAlerter(t)
+	down := &GradingAPIError{StatusCode: 503, Err: errors.New("claude api request: 503 overloaded")}
+	grader := &sequenceGrader{errs: []error{down}}
+	svc, _ := newTestGradingService(t, grader)
+
+	enqueueN(svc, GradingErrorStreakLimit-1)
+	if n := len(a.raisedFor(GradingIncidentKey)); n != 0 {
+		t.Fatalf("raised %d incidents before the limit", n)
+	}
+	enqueueN(svc, 1)
+	raised := a.raisedFor(GradingIncidentKey)
+	if len(raised) != 1 {
+		t.Fatalf("raised = %d, want 1 at the limit", len(raised))
+	}
+	if inc := raised[0]; inc.Key != GradingIncidentKey || !containsAll(inc.Summary, fmt.Sprintf("%d consecutive", GradingErrorStreakLimit), "HTTP 503", "ungraded") || !containsAll(inc.Detail, "503 overloaded") {
+		t.Fatalf("incident = %+v", inc)
+	}
+	// The outage goes on: no second incident, and a blank attempt (no API
+	// call) neither counts nor resolves.
+	enqueueN(svc, 3)
+	svc.Enqueue("blank", ProduceSubmission{ID: 5, StudentText: " "}, testSegment)
+	svc.Close()
+	if len(a.raisedFor(GradingIncidentKey)) != 1 || a.resolvedFor(GradingIncidentKey) != 0 {
+		t.Fatalf("raised=%d resolved=%d during the outage", len(a.raisedFor(GradingIncidentKey)), a.resolvedFor(GradingIncidentKey))
+	}
+
+	// The model answers again: resolve once, and only once.
+	grader.mu.Lock()
+	grader.errs = []error{nil}
+	grader.mu.Unlock()
+	enqueueN(svc, 2)
+	if a.resolvedFor(GradingIncidentKey) != 1 || a.proofs[0] == "" {
+		t.Fatalf("resolved = %d, want exactly 1", a.resolvedFor(GradingIncidentKey))
+	}
+	if svc.apiErrors.length() != 0 {
+		t.Fatal("a success must clear the streak")
+	}
+	// Payments were never involved.
+	if len(a.raisedFor(PaymentsIncidentKey)) != 0 || a.resolvedFor(PaymentsIncidentKey) != 0 {
+		t.Fatal("grading must not touch the payments incident")
+	}
+}
+
+func TestProduceGradingService_RejectedKeyRaisesImmediately(t *testing.T) {
+	a := installAlerter(t)
+	unauthorized := &GradingAPIError{StatusCode: 401, Err: errors.New("claude api request req_1: 401 invalid x-api-key")}
+	svc, _ := newTestGradingService(t, &sequenceGrader{errs: []error{unauthorized}})
+
+	enqueueN(svc, 1)
+	raised := a.raisedFor(GradingIncidentKey)
+	if len(raised) != 1 {
+		t.Fatalf("raised = %d, want 1 on the first 401", len(raised))
+	}
+	if !containsAll(raised[0].Title, "401") || !containsAll(raised[0].Summary, "ANTHROPIC_API_KEY") {
+		t.Fatalf("incident = %+v", raised[0])
+	}
+	enqueueN(svc, 2)
+	if len(a.raisedFor(GradingIncidentKey)) != 1 {
+		t.Fatal("a continuing 401 must not re-raise")
+	}
+}
+
+func TestProduceGradingService_VerdictProblemsDoNotCountAsOutage(t *testing.T) {
+	a := installAlerter(t)
+	// A refusal, a cut-off or undecodable JSON all mean the API answered.
+	verdict := errors.New("decode grading response: unexpected end of JSON input")
+	svc, _ := newTestGradingService(t, &sequenceGrader{errs: []error{verdict}})
+
+	enqueueN(svc, GradingErrorStreakLimit+2)
+	if len(a.raised) != 0 {
+		t.Fatalf("raised = %+v, want none for verdict problems", a.raised)
+	}
+	// Nor do they resolve anything when nothing was raised.
+	if len(a.resolved) != 0 {
+		t.Fatalf("resolved = %v, want none", a.resolved)
+	}
+	if svc.apiErrors.length() != 0 {
+		t.Fatal("verdict problems must not build a streak")
+	}
+}
+
+func TestProduceGradingService_SuccessInsideStreakResetsIt(t *testing.T) {
+	a := installAlerter(t)
+	down := &GradingAPIError{Err: errors.New("claude api request: dial tcp: i/o timeout")}
+	grader := &sequenceGrader{errs: []error{down}}
+	svc, _ := newTestGradingService(t, grader)
+
+	enqueueN(svc, GradingErrorStreakLimit-1)
+	// One success, then failures again.
+	grader.mu.Lock()
+	grader.errs = []error{nil, down}
+	grader.calls = 0
+	grader.mu.Unlock()
+	enqueueN(svc, 1)
+	enqueueN(svc, GradingErrorStreakLimit-1)
+	if len(a.raised) != 0 {
+		t.Fatalf("a success between failures must restart the count; raised = %+v", a.raised)
+	}
+	if svc.apiErrors.length() != GradingErrorStreakLimit-1 {
+		t.Fatalf("streak = %d", svc.apiErrors.length())
 	}
 }

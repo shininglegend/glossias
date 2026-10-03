@@ -3,16 +3,17 @@ package models
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"slices"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"glossias/src/pkg/generated/db"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -23,7 +24,22 @@ var (
 	ErrTrialCourse      = errors.New("trial course does not require payment")
 	ErrNotEnrolled      = errors.New("not enrolled in course")
 	ErrAlreadyHasAccess = errors.New("already has access")
+	// ErrUnknownUser: a grant named a user this database has never seen.
+	// Checkout only creates sessions for users that exist here, so this is a
+	// checkout from another environment sharing the Stripe account, not a
+	// write-path failure.
+	ErrUnknownUser = errors.New("user not in this database")
 )
+
+// asUnknownUser maps a foreign-key violation on the user column into
+// ErrUnknownUser, keeping the original error for errors.As.
+func asUnknownUser(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23503" && strings.Contains(pgErr.ConstraintName, "user_id") {
+		return fmt.Errorf("%w: %v", ErrUnknownUser, err)
+	}
+	return err
+}
 
 // PaymentRequiredError is returned for enrolled students who still need to pay.
 type PaymentRequiredError struct {
@@ -42,17 +58,6 @@ func PaywallEnabled() bool {
 		return false
 	}
 }
-
-// paymentsPaused is set when a paid checkout could not be recorded. While it
-// is set, checkout is refused and the paywall is lifted: students who cannot
-// pay must not be locked out.
-var paymentsPaused atomic.Bool
-
-// PaymentsPaused reports whether payments are paused after a failed grant.
-func PaymentsPaused() bool { return paymentsPaused.Load() }
-
-// SetPaymentsPaused pauses or resumes payments.
-func SetPaymentsPaused(paused bool) { paymentsPaused.Store(paused) }
 
 // paywallActive is true when the paywall is configured on and payments are
 // not paused. It is the gate every content check uses.
@@ -315,7 +320,7 @@ func GrantCourseAccess(ctx context.Context, p GrantAccessParams) (*time.Time, er
 		GrantedBy:               textOrNull(p.GrantedBy),
 	})
 	if err != nil {
-		return nil, err
+		return nil, asUnknownUser(err)
 	}
 	if rows == 0 {
 		// The session was already granted by the other path (confirm vs.

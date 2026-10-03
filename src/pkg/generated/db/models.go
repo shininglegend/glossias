@@ -151,6 +151,14 @@ type LineTranslation struct {
 	TranslationText string `json:"translation_text"`
 }
 
+type PaymentsState struct {
+	ID        int16              `json:"id"`
+	Paused    bool               `json:"paused"`
+	Reason    string             `json:"reason"`
+	Detail    string             `json:"detail"`
+	ChangedAt pgtype.Timestamptz `json:"changed_at"`
+}
+
 type ProduceAttemptStart struct {
 	UserID    string           `json:"user_id"`
 	StoryID   int32            `json:"story_id"`

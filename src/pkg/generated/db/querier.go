@@ -192,6 +192,7 @@ type Querier interface {
 	GetLineTranslation(ctx context.Context, arg GetLineTranslationParams) (string, error)
 	// Line translations management queries
 	GetLineTranslations(ctx context.Context, arg GetLineTranslationsParams) ([]LineTranslation, error)
+	GetPaymentsState(ctx context.Context) (GetPaymentsStateRow, error)
 	GetProduceGradingPrompt(ctx context.Context, id int32) (ProduceGradingPrompt, error)
 	// Finds an existing version with exactly this text, so re-saving an earlier
 	// version re-activates it instead of duplicating it.
@@ -418,6 +419,7 @@ type Querier interface {
 	UpdateVocabularyByWord(ctx context.Context, arg UpdateVocabularyByWordParams) error
 	UpdateVocabularyItem(ctx context.Context, arg UpdateVocabularyItemParams) error
 	UpsertLineTranslation(ctx context.Context, arg UpsertLineTranslationParams) error
+	UpsertPaymentsState(ctx context.Context, arg UpsertPaymentsStateParams) error
 	UpsertProduceSegment(ctx context.Context, arg UpsertProduceSegmentParams) (UpsertProduceSegmentRow, error)
 	UpsertRecallSentence(ctx context.Context, arg UpsertRecallSentenceParams) (UpsertRecallSentenceRow, error)
 	UpsertStoryDescription(ctx context.Context, arg UpsertStoryDescriptionParams) error

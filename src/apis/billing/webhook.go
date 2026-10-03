@@ -1,6 +1,7 @@
 package billing
 
 import (
+	"errors"
 	"io"
 	"net/http"
 
@@ -17,18 +18,40 @@ func (h *Handler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to read body", http.StatusBadRequest)
 		return
 	}
-	event, err := h.gateway.ParseWebhook(payload, r.Header.Get("Stripe-Signature"))
+	sig := r.Header.Get("Stripe-Signature")
+	event, err := h.gateway.ParseWebhook(payload, sig)
 	if err != nil {
-		h.log.Warn("stripe webhook rejected", "error", err)
+		if sig == "" {
+			// Not a Stripe delivery (no signature at all): a scanner or a
+			// misrouted request. Refuse it but never let it count toward the
+			// fail-open streak.
+			h.log.Warn("stripe webhook rejected: no Stripe-Signature header", "error", err, "ip", r.RemoteAddr)
+		} else {
+			// Signed but not by our secret: wrong STRIPE_WEBHOOK_SECRET, a
+			// second Dashboard endpoint, or clock skew. Repeated rejections
+			// pause payments (fail-open) and alert.
+			models.RecordWebhookRejected(r.Context(), err.Error())
+		}
 		http.Error(w, "Invalid signature", http.StatusBadRequest)
 		return
 	}
+	models.RecordWebhookVerified(r.Context())
 	switch event.Type {
 	case "checkout.session.completed":
 		if event.UserID == "" || event.CourseID == 0 {
 			// A Dashboard or CLI test event is signed but has no course to grant.
 			// Signature success is enough to allow checkout; it does not write access.
 			h.log.Info("stripe webhook verified; no course metadata to grant", "session", event.SessionID)
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		// Several environments can share one Stripe account, and Stripe
+		// delivers every event to every endpoint. Another environment's
+		// checkout is not ours to grant and says nothing about our health:
+		// acknowledge it so Stripe stops retrying, and never pause.
+		if ours := PublicAppURL(); event.AppURL != "" && event.AppURL != ours {
+			h.log.Info("stripe webhook for another environment ignored",
+				"session", event.SessionID, "event_app_url", event.AppURL, "app_url", ours)
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -41,12 +64,21 @@ func (h *Handler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 			event.AmountCents,
 			event.Source,
 		); err != nil {
-			models.SetPaymentsPaused(true)
-			h.log.Error("failed to grant access from webhook; payments paused and paywall lifted", "error", err, "session", event.SessionID)
+			if errors.Is(err, models.ErrUnknownUser) {
+				// Untagged session from another environment (checkout only
+				// creates sessions for users that exist here). Not a
+				// write-path failure, so do not fail open.
+				h.log.Warn("stripe webhook for a user not in this database ignored; likely another environment's checkout",
+					"session", event.SessionID, "user", event.UserID, "error", err)
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			models.PausePayments(r.Context(), models.PauseReasonGrantFailed,
+				"webhook grant failed for session "+event.SessionID+": "+err.Error())
 			http.Error(w, "Failed to grant access", http.StatusInternalServerError)
 			return
 		}
-		models.SetPaymentsPaused(false)
+		models.ResumePayments(r.Context(), "webhook grant recorded for session "+event.SessionID)
 	case "charge.refunded", "charge.dispute.created":
 		if event.PaymentIntentID == "" {
 			w.WriteHeader(http.StatusOK)

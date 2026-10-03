@@ -1,6 +1,7 @@
 package billing
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,12 +9,14 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"glossias/src/auth"
 	"glossias/src/pkg/models"
 
 	"github.com/gorilla/mux"
+	"github.com/stripe/stripe-go/v86"
 )
 
 type Handler struct {
@@ -23,6 +26,34 @@ type Handler struct {
 
 func NewHandler(logger *slog.Logger, gateway Gateway) *Handler {
 	return &Handler{log: logger, gateway: gateway}
+}
+
+// NoteGatewayStartup records whether the Stripe gateway could be built. With
+// the paywall on and no gateway, students would be locked out with no way to
+// pay, so payments pause (fail-open) and the administrator is alerted. A
+// gateway that builds clears only that kind of pause: the persisted state is
+// loaded before this runs, so a pause from an earlier start is cleared here
+// once the configuration is fixed.
+func NoteGatewayStartup(ctx context.Context, gatewayErr error) {
+	if gatewayErr == nil {
+		models.ResumePaymentsFrom(ctx, models.PauseReasonNotConfigured, "Stripe gateway configured at startup")
+		return
+	}
+	if !models.PaywallEnabled() {
+		return
+	}
+	models.PausePayments(ctx, models.PauseReasonNotConfigured,
+		"PAYWALL_ENABLED is on but Stripe could not be configured: "+gatewayErr.Error())
+}
+
+// PublicAppURL is this environment's PUBLIC_APP_URL (default local Vite).
+// It builds the checkout return URLs and tags each session so the webhook
+// can tell this environment's checkouts from another's.
+func PublicAppURL() string {
+	if v := strings.TrimRight(os.Getenv("PUBLIC_APP_URL"), "/"); v != "" {
+		return v
+	}
+	return "http://localhost:5173"
 }
 
 // checkoutEnabled is false without a gateway or while payments are paused
@@ -47,20 +78,30 @@ type pricingCourse struct {
 }
 
 func (h *Handler) GetPricing(w http.ResponseWriter, r *http.Request) {
-	if h.gateway == nil {
-		http.Error(w, "Payments are not configured", http.StatusServiceUnavailable)
-		return
-	}
 	userID, ok := auth.GetUserIDWithOk(r)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	price, err := h.gateway.GetPrice(r.Context())
-	if err != nil {
-		h.log.Error("failed to retrieve price", "error", err)
-		http.Error(w, "Failed to load pricing", http.StatusBadGateway)
-		return
+	// Without a gateway there is no price to show, but the page must still
+	// load so it can explain that payments are paused (and the paywall is
+	// lifted) instead of erroring.
+	price := &PriceInfo{Currency: "usd"}
+	if h.gateway != nil {
+		p, err := h.gateway.GetPrice(r.Context())
+		if err != nil {
+			h.log.Error("failed to retrieve price", "error", err)
+			h.noteGatewayResult(r, "GetPrice", err)
+			if !models.PaymentsPaused() {
+				http.Error(w, "Failed to load pricing", http.StatusBadGateway)
+				return
+			}
+			// Stripe is down and payments have paused: render the page with
+			// payments disabled so it can say so, rather than erroring.
+		} else {
+			h.noteGatewayResult(r, "GetPrice", nil)
+			price = p
+		}
 	}
 
 	courses, err := models.GetCoursesForUser(r.Context(), userID)
@@ -128,7 +169,7 @@ func (h *Handler) CreateCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.checkoutEnabled() {
-		http.Error(w, "Payments are paused until the webhook is verified", http.StatusServiceUnavailable)
+		http.Error(w, "Payments are temporarily paused; paid content is open in the meantime", http.StatusServiceUnavailable)
 		return
 	}
 	userID, ok := auth.GetUserIDWithOk(r)
@@ -194,32 +235,35 @@ func (h *Handler) CreateCheckout(w http.ResponseWriter, r *http.Request) {
 		customerID, err = h.gateway.CreateCustomer(r.Context(), user.Email, user.Name, userID)
 		if err != nil {
 			h.log.Error("failed to create stripe customer", "error", err)
+			h.noteGatewayResult(r, "CreateCustomer", err)
 			http.Error(w, "Failed to start checkout", http.StatusBadGateway)
 			return
 		}
 		if err := models.SetUserStripeCustomerID(r.Context(), userID, customerID); err != nil {
-			h.log.Error("failed to store stripe customer", "error", err)
-			http.Error(w, "Failed to start checkout", http.StatusInternalServerError)
-			return
+			// Bookkeeping only: the Stripe customer exists and the session
+			// below carries the user id in metadata, so the payment still
+			// grants. Failing here would block a willing payer; a retry would
+			// only create another orphan customer.
+			h.log.Error("failed to store stripe customer; continuing to checkout", "error", err, "customer", customerID)
 		}
 	}
 
-	appURL := os.Getenv("PUBLIC_APP_URL")
-	if appURL == "" {
-		appURL = "http://localhost:5173"
-	}
+	appURL := PublicAppURL()
 	session, err := h.gateway.CreateCheckoutSession(r.Context(), CheckoutParams{
 		CustomerID: customerID,
 		UserID:     userID,
 		CourseID:   req.CourseID,
 		SuccessURL: appURL + "/checkout/success?session_id={CHECKOUT_SESSION_ID}",
 		CancelURL:  fmt.Sprintf("%s/pricing?course=%d", appURL, req.CourseID),
+		AppURL:     appURL,
 	})
 	if err != nil {
 		h.log.Error("failed to create checkout session", "error", err)
+		h.noteGatewayResult(r, "CreateCheckoutSession", err)
 		http.Error(w, "Failed to start checkout", http.StatusBadGateway)
 		return
 	}
+	h.noteGatewayResult(r, "CreateCheckoutSession", nil)
 	writeJSON(w, http.StatusOK, map[string]any{"url": session.URL})
 }
 
@@ -245,9 +289,11 @@ func (h *Handler) ConfirmCheckout(w http.ResponseWriter, r *http.Request) {
 	session, err := h.gateway.RetrieveCheckout(r.Context(), req.SessionID)
 	if err != nil {
 		h.log.Error("failed to retrieve checkout session", "error", err, "session", req.SessionID)
+		h.noteGatewayResult(r, "RetrieveCheckout", err)
 		http.Error(w, "Failed to confirm payment", http.StatusBadGateway)
 		return
 	}
+	h.noteGatewayResult(r, "RetrieveCheckout", nil)
 	if session.UserID == "" || session.UserID != userID || session.CourseID == 0 {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
@@ -265,12 +311,15 @@ func (h *Handler) ConfirmCheckout(w http.ResponseWriter, r *http.Request) {
 		session.AmountCents,
 		session.Source,
 	); err != nil {
-		h.log.Error("failed to grant access from checkout", "error", err, "session", session.SessionID)
+		// The student has paid and we cannot record it: fail open and alert,
+		// exactly as the webhook path does.
+		models.PausePayments(r.Context(), models.PauseReasonGrantFailed,
+			"checkout confirm grant failed for session "+session.SessionID+": "+err.Error())
 		http.Error(w, "Failed to confirm payment", http.StatusInternalServerError)
 		return
 	}
 	// A grant that lands here proves the write path works again.
-	models.SetPaymentsPaused(false)
+	models.ResumePayments(r.Context(), "confirm grant recorded for session "+session.SessionID)
 	exp, err := models.ActiveAccessExpiresAt(r.Context(), session.UserID, session.CourseID)
 	if err != nil {
 		h.log.Error("failed to read entitlement", "error", err, "session", session.SessionID)
@@ -282,6 +331,35 @@ func (h *Handler) ConfirmCheckout(w http.ResponseWriter, r *http.Request) {
 		body["expires_at"] = exp.UTC().Format(time.RFC3339)
 	}
 	writeJSON(w, http.StatusOK, body)
+}
+
+// noteGatewayResult feeds Stripe API outcomes into the fail-open streak.
+// Only outages count: network errors and Stripe 5xx/429. A 4xx (bad session
+// id, invalid price) is our bug or the caller's, not Stripe being down, and
+// must not lift the paywall.
+func (h *Handler) noteGatewayResult(r *http.Request, op string, err error) {
+	if err == nil {
+		models.RecordGatewaySuccess(r.Context(), op)
+		return
+	}
+	if isGatewayOutage(err) {
+		models.RecordGatewayError(r.Context(), op, err)
+	}
+}
+
+// isGatewayOutage reports whether a Stripe call failed because Stripe was
+// unreachable or erroring, as opposed to rejecting the request.
+func isGatewayOutage(err error) bool {
+	if errors.Is(err, context.Canceled) {
+		// The caller went away mid-request; says nothing about Stripe.
+		return false
+	}
+	var se *stripe.Error
+	if errors.As(err, &se) {
+		return se.HTTPStatusCode == 0 || se.HTTPStatusCode >= 500 || se.HTTPStatusCode == http.StatusTooManyRequests
+	}
+	// Not a Stripe API error: a transport failure (DNS, TLS, timeout).
+	return true
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

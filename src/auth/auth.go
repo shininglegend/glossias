@@ -22,11 +22,15 @@ type contextKey string
 
 const UserIDKey contextKey = "userID"
 
+// StripeWebhookPath receives Stripe's signed deliveries. It is authenticated
+// by the webhook signature, so it bypasses Clerk auth and rate limiting.
+const StripeWebhookPath = "/api/webhooks/stripe"
+
 var byPassURLS = []string{
 	"/api/health",
 	"/api/db-health",
 	"/api/time-tracking/record",
-	"/api/webhooks/stripe",
+	StripeWebhookPath,
 }
 
 // Middleware combines CORS and Clerk authentication

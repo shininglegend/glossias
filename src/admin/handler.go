@@ -45,6 +45,8 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/cache/clear", h.clearCache).Methods("POST")
 	r.HandleFunc("/system/grading-prompt", h.gradingPromptHandler).Methods("GET", "PUT")
 	r.HandleFunc("/system/grading-prompt/active", h.activateGradingPromptHandler).Methods("PUT")
+	r.HandleFunc("/system/payments", h.paymentsStatusHandler).Methods("GET")
+	r.HandleFunc("/system/payments/resume", h.resumePaymentsHandler).Methods("POST")
 }
 
 func (h *Handler) adminAuthMiddleware(next http.Handler) http.Handler {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"glossias/src/admin"
+	"glossias/src/alerting"
 	"glossias/src/apis"
 	"glossias/src/auth"
 	"glossias/src/logging"
@@ -113,8 +114,24 @@ func main() {
 	} else {
 		logger.Warn("ANTHROPIC_API_KEY not set; Produce submissions will not be AI-graded")
 	}
+	// Payments fail-open: when payments pause (grant failure, rejected
+	// webhooks, Stripe down) the paywall lifts and the administrator must be
+	// paged. Alerts go to Better Stack directly rather than relying on a log
+	// line being noticed.
+	if alerter, ok := alerting.NewBetterStackFromEnv(logger); ok {
+		models.SetPaymentsAlerter(alerter)
+		logger.Info("payments pause alerting enabled", "destinations", alerter.Destinations())
+	} else {
+		logger.Warn("BETTERSTACK_UPTIME_TOKEN/BETTERSTACK_REQUESTER_EMAIL and BETTERSTACK_WEBHOOK_URL not set; a payments pause will only appear in logs")
+	}
+	// Re-apply a pause persisted before this start so a redeploy cannot hide
+	// a lifted paywall; the alerter is told again.
+	if err := models.LoadPaymentsState(context.Background()); err != nil {
+		logger.Error("could not read persisted payments state; assuming not paused", "error", err)
+	}
+
 	apiHandler := apis.NewHandler(logger, produceGrading)
-	r.HandleFunc("/api/webhooks/stripe", apiHandler.BillingWebhook()).Methods("POST")
+	r.HandleFunc(auth.StripeWebhookPath, apiHandler.BillingWebhook()).Methods("POST")
 
 	// Time tracking API (no auth required)
 	timeTrackingHandler := apis.NewTimeTrackingHandler(logger)

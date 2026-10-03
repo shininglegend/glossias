@@ -16,11 +16,14 @@ import (
 	"glossias/src/pkg/database"
 	"glossias/src/pkg/models"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/stripe/stripe-go/v86"
 )
 
 type mockGateway struct {
 	price       *PriceInfo
+	priceErr    error
 	checkout    *CheckoutResult
 	event       *WebhookEvent
 	parseErr    error
@@ -38,6 +41,9 @@ func (m *mockGateway) CreateCheckoutSession(context.Context, CheckoutParams) (*C
 	return m.checkout, nil
 }
 func (m *mockGateway) GetPrice(context.Context) (*PriceInfo, error) {
+	if m.priceErr != nil {
+		return nil, m.priceErr
+	}
 	if m.price == nil {
 		return &PriceInfo{AmountCents: 1, Currency: "usd", Name: "Access"}, nil
 	}
@@ -225,6 +231,98 @@ func TestHandleWebhook_GrantFailurePausesCheckout(t *testing.T) {
 	}
 }
 
+func fkUserError() error {
+	return &pgconn.PgError{
+		Code:           "23503",
+		Message:        `insert or update on table "access_entitlements" violates foreign key constraint "access_entitlements_user_id_fkey"`,
+		ConstraintName: "access_entitlements_user_id_fkey",
+	}
+}
+
+// A checkout created by another environment that shares the Stripe account
+// is acknowledged and skipped: no grant, no pause.
+func TestHandleWebhook_OtherEnvironmentIgnored(t *testing.T) {
+	resetPauseState(t)
+	t.Setenv("PUBLIC_APP_URL", "https://app.example.com")
+	mockDB := database.NewMockDBTX()
+	mockDB.StubExec("InsertAccessEntitlement", fkUserError())
+	models.SetDB(mockDB)
+	t.Cleanup(func() { models.SetDB(struct{}{}) })
+
+	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{
+		event: &WebhookEvent{
+			Type: "checkout.session.completed", SessionID: "cs_local",
+			UserID: "user_devonly", CourseID: 7, Source: "purchase",
+			AppURL: "http://localhost:5173",
+		},
+	})
+	rr := httptest.NewRecorder()
+	h.HandleWebhook(rr, signedWebhookReq())
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200 so Stripe stops retrying: %s", rr.Code, rr.Body.String())
+	}
+	if n := len(mockDB.Calls("InsertAccessEntitlement")); n != 0 {
+		t.Fatalf("inserts = %d, want 0", n)
+	}
+	if models.PaymentsPaused() {
+		t.Fatal("another environment's checkout must not pause payments")
+	}
+}
+
+// An untagged session (created before tagging) whose user is not in this
+// database is the same situation detected late, at the foreign key.
+func TestHandleWebhook_UnknownUserIgnored(t *testing.T) {
+	resetPauseState(t)
+	t.Setenv("PUBLIC_APP_URL", "https://app.example.com")
+	mockDB := database.NewMockDBTX()
+	mockDB.StubQuery("GetLatestEntitlementExpiryForUserCourse", nil, nil)
+	mockDB.StubExec("InsertAccessEntitlement", fkUserError())
+	models.SetDB(mockDB)
+	t.Cleanup(func() { models.SetDB(struct{}{}) })
+
+	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{
+		event: &WebhookEvent{
+			Type: "checkout.session.completed", SessionID: "cs_untagged",
+			UserID: "user_devonly", CourseID: 7, Source: "purchase",
+		},
+	})
+	rr := httptest.NewRecorder()
+	h.HandleWebhook(rr, signedWebhookReq())
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200: %s", rr.Code, rr.Body.String())
+	}
+	if models.PaymentsPaused() {
+		t.Fatal("an unknown user is not a write-path failure and must not pause payments")
+	}
+}
+
+// Our own tag (or none) still grants.
+func TestHandleWebhook_OwnEnvironmentGrants(t *testing.T) {
+	resetPauseState(t)
+	t.Setenv("PUBLIC_APP_URL", "https://app.example.com/")
+	mockDB := database.NewMockDBTX()
+	mockDB.StubQuery("GetLatestEntitlementExpiryForUserCourse", nil, nil)
+	mockDB.StubExecRows("InsertAccessEntitlement", 1)
+	models.SetDB(mockDB)
+	t.Cleanup(func() { models.SetDB(struct{}{}) })
+
+	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{
+		event: &WebhookEvent{
+			Type: "checkout.session.completed", SessionID: "cs_ours",
+			UserID: "user-1", CourseID: 7, Source: "purchase",
+			AppURL: "https://app.example.com",
+		},
+	})
+	rr := httptest.NewRecorder()
+	h.HandleWebhook(rr, signedWebhookReq())
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rr.Code, rr.Body.String())
+	}
+	if n := len(mockDB.Calls("InsertAccessEntitlement")); n != 1 {
+		t.Fatalf("inserts = %d, want 1", n)
+	}
+}
+
 func TestConfirmCheckout_GrantsPaidSession(t *testing.T) {
 	mockDB := database.NewMockDBTX()
 	mockDB.StubQuery("GetLatestEntitlementExpiryForUserCourse", nil, nil)
@@ -278,5 +376,236 @@ func TestConfirmCheckout_RejectsOtherUser(t *testing.T) {
 	h.ConfirmCheckout(rr, authReq("POST", "/api/checkout/confirm", `{"session_id":"cs_other"}`))
 	if rr.Code != http.StatusForbidden {
 		t.Fatalf("status %d, want 403: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func resetPauseState(t *testing.T) {
+	t.Helper()
+	models.SetPaymentsPaused(false)
+	// Clear any streak left by another test by proving both paths once.
+	models.RecordWebhookVerified(context.Background())
+	models.RecordGatewaySuccess(context.Background(), "test")
+	t.Cleanup(func() {
+		models.SetPaymentsPaused(false)
+		models.RecordWebhookVerified(context.Background())
+		models.RecordGatewaySuccess(context.Background(), "test")
+	})
+}
+
+func signedWebhookReq() *http.Request {
+	r := httptest.NewRequest("POST", "/api/webhooks/stripe", bytes.NewReader([]byte(`{}`)))
+	r.Header.Set("Stripe-Signature", "t=1,v1=deadbeef")
+	return r
+}
+
+func TestHandleWebhook_RejectionsWithoutSignatureNeverPause(t *testing.T) {
+	resetPauseState(t)
+	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{parseErr: errors.New("no signature")})
+	for range models.WebhookRejectStreakLimit + 2 {
+		rr := httptest.NewRecorder()
+		h.HandleWebhook(rr, httptest.NewRequest("POST", "/api/webhooks/stripe", bytes.NewReader([]byte(`{}`))))
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("status %d", rr.Code)
+		}
+	}
+	if models.PaymentsPaused() {
+		t.Fatal("unsigned junk must not lift the paywall")
+	}
+}
+
+func TestHandleWebhook_RepeatedSignatureFailuresPause(t *testing.T) {
+	resetPauseState(t)
+	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{parseErr: errors.New("signature mismatch")})
+	for i := range models.WebhookRejectStreakLimit {
+		rr := httptest.NewRecorder()
+		h.HandleWebhook(rr, signedWebhookReq())
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("status %d", rr.Code)
+		}
+		if paused := models.PaymentsPaused(); paused != (i == models.WebhookRejectStreakLimit-1) {
+			t.Fatalf("after %d rejections paused=%v", i+1, paused)
+		}
+	}
+	if models.PaymentsPauseReason() != models.PauseReasonWebhookRejected {
+		t.Fatalf("reason = %q", models.PaymentsPauseReason())
+	}
+	if h.checkoutEnabled() {
+		t.Fatal("checkout must be refused while paused")
+	}
+
+	// The next verified delivery (even a metadata-less test event) proves the
+	// handshake and resumes payments.
+	h = NewHandler(slog.New(slog.DiscardHandler), &mockGateway{event: &WebhookEvent{Type: "checkout.session.completed"}})
+	rr := httptest.NewRecorder()
+	h.HandleWebhook(rr, signedWebhookReq())
+	if rr.Code != http.StatusOK || models.PaymentsPaused() {
+		t.Fatalf("status %d paused=%v", rr.Code, models.PaymentsPaused())
+	}
+}
+
+func TestConfirmCheckout_GrantFailurePausesPayments(t *testing.T) {
+	resetPauseState(t)
+	mockDB := database.NewMockDBTX()
+	mockDB.StubQuery("GetLatestEntitlementExpiryForUserCourse", nil, nil)
+	mockDB.StubExec("InsertAccessEntitlement", errors.New("connection reset"))
+	models.SetDB(mockDB)
+	t.Cleanup(func() { models.SetDB(struct{}{}) })
+
+	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{
+		retrieved: &CompletedCheckout{
+			SessionID: "cs_paid", UserID: "user-1", CourseID: 7, Paid: true, Source: "purchase",
+		},
+	})
+	rr := httptest.NewRecorder()
+	h.ConfirmCheckout(rr, authReq("POST", "/api/checkout/confirm", `{"session_id":"cs_paid"}`))
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("status %d: %s", rr.Code, rr.Body.String())
+	}
+	if !models.PaymentsPaused() || models.PaymentsPauseReason() != models.PauseReasonGrantFailed {
+		t.Fatalf("paused=%v reason=%q; a paid student we cannot record must fail open", models.PaymentsPaused(), models.PaymentsPauseReason())
+	}
+}
+
+func TestConfirmCheckout_StripeOutagePausesAfterStreak(t *testing.T) {
+	resetPauseState(t)
+	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{retrieveErr: errors.New("dial tcp: i/o timeout")})
+	for i := range models.GatewayErrorStreakLimit {
+		rr := httptest.NewRecorder()
+		h.ConfirmCheckout(rr, authReq("POST", "/api/checkout/confirm", `{"session_id":"cs_x"}`))
+		if rr.Code != http.StatusBadGateway {
+			t.Fatalf("status %d", rr.Code)
+		}
+		if paused := models.PaymentsPaused(); paused != (i == models.GatewayErrorStreakLimit-1) {
+			t.Fatalf("after %d failures paused=%v", i+1, paused)
+		}
+	}
+	if models.PaymentsPauseReason() != models.PauseReasonGatewayDown {
+		t.Fatalf("reason = %q", models.PaymentsPauseReason())
+	}
+}
+
+func TestConfirmCheckout_StripeClientErrorNeverPauses(t *testing.T) {
+	resetPauseState(t)
+	notFound := &stripe.Error{HTTPStatusCode: http.StatusNotFound, Msg: "No such checkout.session"}
+	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{retrieveErr: notFound})
+	for range models.GatewayErrorStreakLimit + 1 {
+		rr := httptest.NewRecorder()
+		h.ConfirmCheckout(rr, authReq("POST", "/api/checkout/confirm", `{"session_id":"cs_bogus"}`))
+		if rr.Code != http.StatusBadGateway {
+			t.Fatalf("status %d", rr.Code)
+		}
+	}
+	if models.PaymentsPaused() {
+		t.Fatal("a bad session id is not a Stripe outage and must not lift the paywall")
+	}
+}
+
+func TestIsGatewayOutage(t *testing.T) {
+	cases := []struct {
+		err  error
+		want bool
+	}{
+		{errors.New("dial tcp: connection refused"), true},
+		{&stripe.Error{HTTPStatusCode: 500}, true},
+		{&stripe.Error{HTTPStatusCode: 503}, true},
+		{&stripe.Error{HTTPStatusCode: 429}, true},
+		{&stripe.Error{HTTPStatusCode: 0}, true},
+		{&stripe.Error{HTTPStatusCode: 400}, false},
+		{&stripe.Error{HTTPStatusCode: 404}, false},
+		{context.Canceled, false},
+	}
+	for _, c := range cases {
+		if got := isGatewayOutage(c.err); got != c.want {
+			t.Errorf("isGatewayOutage(%v) = %v, want %v", c.err, got, c.want)
+		}
+	}
+}
+
+func TestNoteGatewayStartup_NoGatewayWithPaywallFailsOpen(t *testing.T) {
+	resetPauseState(t)
+	t.Setenv("PAYWALL_ENABLED", "true")
+	NoteGatewayStartup(context.Background(), errors.New("webhook self-test: no signatures found"))
+	if !models.PaymentsPaused() || models.PaymentsPauseReason() != models.PauseReasonNotConfigured {
+		t.Fatalf("paused=%v reason=%q; paywall on with no way to pay must fail open",
+			models.PaymentsPaused(), models.PaymentsPauseReason())
+	}
+	// Fixing the configuration and restarting clears that pause.
+	NoteGatewayStartup(context.Background(), nil)
+	if models.PaymentsPaused() {
+		t.Fatal("a working gateway should clear a not-configured pause")
+	}
+}
+
+func TestNoteGatewayStartup_PaywallOffStaysQuiet(t *testing.T) {
+	resetPauseState(t)
+	t.Setenv("PAYWALL_ENABLED", "")
+	NoteGatewayStartup(context.Background(), errors.New("STRIPE_SECRET_KEY and STRIPE_PRICE_ACCESS are required"))
+	if models.PaymentsPaused() {
+		t.Fatal("no paywall means nothing to fail open from; dev setups must not page anyone")
+	}
+}
+
+func TestNoteGatewayStartup_DoesNotClearOtherPauses(t *testing.T) {
+	resetPauseState(t)
+	models.PausePayments(context.Background(), models.PauseReasonGrantFailed, "db down")
+	NoteGatewayStartup(context.Background(), nil)
+	if !models.PaymentsPaused() {
+		t.Fatal("a configured gateway says nothing about a failed grant")
+	}
+}
+
+func TestGetPricing_NoGatewayStillLoadsWithPaymentsDisabled(t *testing.T) {
+	resetPauseState(t)
+	mockDB := database.NewMockDBTX()
+	models.SetDB(mockDB)
+	t.Cleanup(func() { models.SetDB(struct{}{}) })
+
+	h := NewHandler(slog.New(slog.DiscardHandler), nil)
+	rr := httptest.NewRecorder()
+	h.GetPricing(rr, authReq("GET", "/api/pricing", ""))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d: %s; the pricing page must load to explain the pause", rr.Code, rr.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["payments_enabled"] != false {
+		t.Fatalf("payments_enabled = %v, want false", body["payments_enabled"])
+	}
+	if body["currency"] != "usd" {
+		t.Fatalf("currency = %v; an empty currency breaks Intl.NumberFormat on the page", body["currency"])
+	}
+}
+
+func TestGetPricing_StripeDownWhilePausedStillLoads(t *testing.T) {
+	resetPauseState(t)
+	mockDB := database.NewMockDBTX()
+	models.SetDB(mockDB)
+	t.Cleanup(func() { models.SetDB(struct{}{}) })
+	models.PausePayments(context.Background(), models.PauseReasonGatewayDown, "stripe 503s")
+
+	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{priceErr: errors.New("dial tcp: i/o timeout")})
+	rr := httptest.NewRecorder()
+	h.GetPricing(rr, authReq("GET", "/api/pricing", ""))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d: %s; while paused the page must explain, not error", rr.Code, rr.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body["payments_enabled"] != false {
+		t.Fatalf("payments_enabled = %v", body["payments_enabled"])
+	}
+}
+
+func TestGetPricing_StripeDownNotPausedIsStillAnError(t *testing.T) {
+	resetPauseState(t)
+	h := NewHandler(slog.New(slog.DiscardHandler), &mockGateway{priceErr: errors.New("dial tcp: i/o timeout")})
+	rr := httptest.NewRecorder()
+	h.GetPricing(rr, authReq("GET", "/api/pricing", ""))
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status %d; one blip before the streak trips is a real error", rr.Code)
 	}
 }

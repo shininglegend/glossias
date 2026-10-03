@@ -132,3 +132,37 @@ func (h *Handler) writeGradingPromptState(w http.ResponseWriter, r *http.Request
 		Default: models.DefaultGradingSystemPrompt,
 	})
 }
+
+// paymentsStatusHandler reports whether payments are paused (paywall lifted).
+func (h *Handler) paymentsStatusHandler(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireSuperAdmin(w, r, "payments status"); !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, models.GetPaymentsStatus())
+}
+
+// resumePaymentsHandler clears a payments pause without a restart. The
+// operator has fixed the cause (or judged it foreign); if it recurs, the next
+// failure pauses again.
+func (h *Handler) resumePaymentsHandler(w http.ResponseWriter, r *http.Request) {
+	userID, ok := h.requireSuperAdmin(w, r, "payments resume")
+	if !ok {
+		return
+	}
+	before := models.GetPaymentsStatus()
+	if before.Paused {
+		models.ResumePayments(r.Context(), "resumed by super admin "+userID)
+		h.log.Info("payments resumed by super admin", "user_id", userID,
+			"was_paused_for", before.Reason, "detail", before.Detail)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"resumed": before.Paused,
+		"status":  models.GetPaymentsStatus(),
+	})
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}

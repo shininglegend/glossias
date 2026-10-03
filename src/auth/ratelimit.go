@@ -106,6 +106,14 @@ func RateLimitMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
+			// Stripe delivers every subscribed event from a small pool of IPs,
+			// retries on any non-2xx and counts a 429 as a failed delivery.
+			// The webhook authenticates by signature, so per-IP limiting adds
+			// nothing there and would make the handshake look flaky.
+			if r.Method == http.MethodPost && r.URL.Path == StripeWebhookPath {
+				next.ServeHTTP(w, r)
+				return
+			}
 
 			clientIP := ClientIP(r)
 			limiter := getRateLimiter(clientIP, time.Now())

@@ -240,3 +240,35 @@ func TestClientIP(t *testing.T) {
 		t.Errorf("ClientIP = %q, want X-Forwarded-For", got)
 	}
 }
+
+func TestRateLimitExemptsStripeWebhook(t *testing.T) {
+	resetRateLimiters()
+	handler := RateLimitMiddleware(slog.New(slog.DiscardHandler))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	// Far more deliveries than the per-IP burst, all from one Stripe IP.
+	for i := range tokensPerSecond * 3 {
+		req := httptest.NewRequest(http.MethodPost, StripeWebhookPath, nil)
+		req.RemoteAddr = "3.18.12.63:443"
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("delivery %d got %d; Stripe counts a 429 as a failed webhook", i+1, rr.Code)
+		}
+	}
+	// Other POSTs from that IP are still limited.
+	limited := false
+	for range tokensPerSecond * 3 {
+		req := httptest.NewRequest(http.MethodPost, "/api/checkout", nil)
+		req.RemoteAddr = "3.18.12.63:443"
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		if rr.Code == http.StatusTooManyRequests {
+			limited = true
+			break
+		}
+	}
+	if !limited {
+		t.Fatal("non-webhook POSTs should still be rate limited")
+	}
+}

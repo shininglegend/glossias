@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"glossias/src/pkg/database"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // fakeGrader records requests and returns a canned verdict or error.
@@ -105,7 +108,7 @@ func TestProduceGradingService_NilIsSafe(t *testing.T) {
 
 func TestProduceGradingService_QuotaLeavesUngraded(t *testing.T) {
 	grader := &fakeGrader{grade: ProduceGrade{Score: 50}}
-	svc, _ := newTestGradingService(t, grader)
+	svc, mockDB := newTestGradingService(t, grader)
 	svc.quota = newUserQuota(2, 100, time.Hour)
 
 	for i := range 5 {
@@ -117,6 +120,20 @@ func TestProduceGradingService_QuotaLeavesUngraded(t *testing.T) {
 	// user-1 gets its 2 per-minute slots, user-2 is independent.
 	if grader.callCount() != 3 {
 		t.Errorf("grader called %d times, want 3", grader.callCount())
+	}
+	// Every submission is accounted for in the log, refused ones included.
+	calls := mockDB.Calls("INSERT INTO produce_grading_log")
+	if len(calls) != 6 {
+		t.Fatalf("produce_grading_log inserts = %d, want 6", len(calls))
+	}
+	refused := 0
+	for _, c := range calls {
+		if e := c.Args[19].(pgtype.Text); e.Valid && e.String == ErrGradingQuotaExceeded.Error() {
+			refused++
+		}
+	}
+	if refused != 3 {
+		t.Errorf("quota rows = %d, want 3", refused)
 	}
 }
 
@@ -186,18 +203,71 @@ func TestProduceGradingService_LogFailureDoesNotBlockGrade(t *testing.T) {
 	}
 }
 
+// gradingLogRow is the one produce_grading_log insert the mock recorded,
+// decoded to the columns the tests care about.
+type gradingLogRow struct {
+	score    pgtype.Int4
+	errorMsg pgtype.Text
+}
+
+func singleGradingLogRow(t *testing.T, mockDB *database.MockDBTX) gradingLogRow {
+	t.Helper()
+	calls := mockDB.Calls("INSERT INTO produce_grading_log")
+	if len(calls) != 1 {
+		t.Fatalf("produce_grading_log inserts = %d, want 1", len(calls))
+	}
+	// Positional parameters of InsertProduceGradingLog: $18 score, $20 error.
+	args := calls[0].Args
+	if len(args) != 20 {
+		t.Fatalf("insert has %d args, want 20", len(args))
+	}
+	return gradingLogRow{score: args[17].(pgtype.Int4), errorMsg: args[19].(pgtype.Text)}
+}
+
 func TestProduceGradingService_LogsFailedGrades(t *testing.T) {
 	grader := &fakeGrader{err: errors.New("model down")}
 	svc, mockDB := newTestGradingService(t, grader)
-	// A failing log write surfaces nothing to the student either; this just
-	// exercises the error path through LogProduceGrading with Err set.
-	mockDB.StubExec("UPDATE produce_submissions", errors.New("must not be reached"))
+	mockDB.StubExec("UPDATE produce_submissions SET ai_score", errors.New("must not be reached"))
 
 	svc.Enqueue("user-1", testSubmission, testSegment)
 	svc.Close()
 
 	if grader.callCount() != 1 {
 		t.Fatalf("grader called %d times, want 1", grader.callCount())
+	}
+	row := singleGradingLogRow(t, mockDB)
+	if row.score.Valid {
+		t.Errorf("score = %d, want NULL for a failed grade", row.score.Int32)
+	}
+	if !row.errorMsg.Valid || row.errorMsg.String != "model down" {
+		t.Errorf("error = %+v, want the grader's message", row.errorMsg)
+	}
+}
+
+// blockingGrader waits for the job context to expire, as a hung API call
+// does, and reports it the way the real grader would.
+type blockingGrader struct{}
+
+func (blockingGrader) GradeProduce(ctx context.Context, _ ProduceGradeRequest) (ProduceGrade, ProduceGradeTrace, error) {
+	<-ctx.Done()
+	return ProduceGrade{}, fakeTrace, &GradingAPIError{Err: fmt.Errorf("claude api request: %w", ctx.Err())}
+}
+
+func TestProduceGradingService_LogsWhenJobTimesOut(t *testing.T) {
+	// The job context is dead by the time the log is written. That row used
+	// to be lost, which is exactly the failure an operator needs to see.
+	svc, mockDB := newTestGradingService(t, blockingGrader{})
+	svc.timeout = 10 * time.Millisecond
+
+	svc.Enqueue("user-1", testSubmission, testSegment)
+	svc.Close()
+
+	row := singleGradingLogRow(t, mockDB)
+	if !row.errorMsg.Valid || !strings.Contains(row.errorMsg.String, context.DeadlineExceeded.Error()) {
+		t.Errorf("error = %+v, want the deadline error", row.errorMsg)
+	}
+	if n := len(mockDB.Calls("UPDATE produce_submissions")); n != 1 {
+		t.Errorf("graded_at stamps = %d, want 1", n)
 	}
 }
 

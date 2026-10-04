@@ -54,7 +54,14 @@ const (
 	gradingMaxConcurrent   = 4
 	gradingJobTimeout      = 90 * time.Second
 	gradingQuotaIdleExpiry = 48 * time.Hour
+	// gradingStoreTimeout bounds each database write made after the model
+	// call, independent of the job context (which may have expired).
+	gradingStoreTimeout = 5 * time.Second
 )
+
+// ErrGradingQuotaExceeded is recorded in produce_grading_log when a submission
+// was left ungraded because the user was over the per-user grading quota.
+var ErrGradingQuotaExceeded = errors.New("grading quota exceeded for user; submission not sent to the model")
 
 // GradingErrorStreakLimit is how many consecutive grading calls must fail at
 // the API level before an incident is raised. The SDK already retries each
@@ -93,6 +100,11 @@ func (s *ProduceGradingService) Enqueue(userID string, submission ProduceSubmiss
 	if !s.quota.allow(userID, s.now()) {
 		s.log.Warn("Produce grading quota exceeded; leaving submission ungraded",
 			"userID", userID, "submissionID", submission.ID)
+		// No model call, but the log must still account for the submission:
+		// an ungraded attempt with no row is indistinguishable from a lost one.
+		ctx, cancel := context.WithTimeout(context.Background(), gradingStoreTimeout)
+		defer cancel()
+		s.logGrading(ctx, ProduceGradingLogEntry{Submission: submission, Segment: segment, Err: ErrGradingQuotaExceeded})
 		s.markFailed(submission.ID)
 		return
 	}
@@ -113,10 +125,18 @@ func (s *ProduceGradingService) Enqueue(userID string, submission ProduceSubmiss
 }
 
 func (s *ProduceGradingService) markFailed(submissionID int) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), gradingStoreTimeout)
 	defer cancel()
 	if err := MarkProduceGradingFailed(ctx, submissionID); err != nil {
 		s.log.Error("Failed to mark produce grading as failed", "error", err, "submissionID", submissionID)
+	}
+}
+
+// logGrading appends to produce_grading_log, best-effort: a failure to log
+// is reported and never fails the grade.
+func (s *ProduceGradingService) logGrading(ctx context.Context, e ProduceGradingLogEntry) {
+	if err := LogProduceGrading(ctx, e); err != nil {
+		s.log.Error("Failed to write produce grading log", "error", err, "submissionID", e.Submission.ID)
 	}
 }
 
@@ -134,21 +154,26 @@ func (s *ProduceGradingService) Close() {
 func (s *ProduceGradingService) grade(ctx context.Context, submission ProduceSubmission, segment ProduceSegment) error {
 	grade, trace, promptID, err := s.gradeAttempt(ctx, submission, segment)
 
-	if logErr := LogProduceGrading(ctx, ProduceGradingLogEntry{
+	// The job context bounds the model call and is often already expired
+	// here: a call that ran out the clock is the usual failure, and the row
+	// recording it is the one most worth keeping. Writing it on the dead
+	// context silently lost those rows, so the stores get their own deadline.
+	storeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gradingStoreTimeout)
+	defer cancel()
+
+	s.logGrading(storeCtx, ProduceGradingLogEntry{
 		Submission: submission,
 		Segment:    segment,
 		Grade:      grade,
 		Trace:      trace,
 		PromptID:   promptID,
 		Err:        err,
-	}); logErr != nil {
-		s.log.Error("Failed to write produce grading log", "error", logErr, "submissionID", submission.ID)
-	}
+	})
 
 	if err != nil {
 		return err
 	}
-	if err := GradeProduceSubmission(ctx, submission.ID, grade.Score, grade.Feedback); err != nil {
+	if err := GradeProduceSubmission(storeCtx, submission.ID, grade.Score, grade.Feedback); err != nil {
 		return errors.Join(errors.New("store grade"), err)
 	}
 	return nil

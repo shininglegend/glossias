@@ -177,6 +177,12 @@ func (m *MockDBTX) record(sql string, args []any) {
 }
 
 func (m *MockDBTX) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	// A real pool refuses a cancelled or expired context before sending
+	// anything, so a write on a dead context fails here too and is not
+	// recorded as a call: it never reached the database.
+	if err := ctx.Err(); err != nil {
+		return pgconn.CommandTag{}, err
+	}
 	m.record(sql, args)
 	for k, err := range m.execs {
 		if strings.Contains(sql, k) {

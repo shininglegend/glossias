@@ -52,7 +52,7 @@ const (
 	gradingPerMinute       = 10
 	gradingPerDay          = 50
 	gradingMaxConcurrent   = 4
-	gradingJobTimeout      = 30 * time.Second
+	gradingJobTimeout      = 90 * time.Second
 	gradingQuotaIdleExpiry = 48 * time.Hour
 )
 

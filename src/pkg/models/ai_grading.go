@@ -95,9 +95,14 @@ func (e *GradingAPIError) Permanent() bool {
 // small fast model is sufficient and keeps per-grade cost negligible.
 const GradingModel = anthropic.ModelClaudeSonnet5_5
 
+// gradingMaxTokens caps a grading response, thinking included. See the
+// comment at the call site in GradeProduce.
+const gradingMaxTokens = 16000
+
 // gradingRequestTimeout bounds a single grading call. Grading runs off the
-// request path, so this only limits how long a stuck call holds a worker.
-const gradingRequestTimeout = 20 * time.Second
+// request path, so this only limits how long a stuck call holds a worker. It
+// has to leave room for a response that thinks up to gradingMaxTokens.
+const gradingRequestTimeout = 60 * time.Second
 
 // AnthropicGrader grades with the Claude API.
 type AnthropicGrader struct {
@@ -202,12 +207,15 @@ func (g *AnthropicGrader) GradeProduce(ctx context.Context, req ProduceGradeRequ
 	}
 	started := time.Now()
 	// Sonnet 5.x thinks before answering by default, and that thinking counts
-	// against MaxTokens. The verdict itself is tiny, but a tight cap was being
-	// spent entirely on thinking, leaving no text at all. Low effort keeps the
-	// thinking short for a 5–10 word grading task; the cap is a safety net.
+	// against MaxTokens. The verdict itself is tiny, but the cap was being
+	// spent entirely on thinking, leaving no text at all (4096 was still too
+	// tight). Low effort keeps the thinking short for a 5–10 word grading
+	// task; the cap is only a safety net, so it is generous. Spend is bounded
+	// by gradingRequestTimeout, the per-user quota and the API's own rate
+	// limits, not by this number.
 	resp, err := g.client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     g.model,
-		MaxTokens: 4096,
+		MaxTokens: gradingMaxTokens,
 		System: []anthropic.TextBlockParam{{
 			Text:         systemPrompt,
 			CacheControl: anthropic.NewCacheControlEphemeralParam(),

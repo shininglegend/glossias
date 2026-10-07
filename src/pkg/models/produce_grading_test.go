@@ -3,11 +3,15 @@ package models
 import (
 	"context"
 	"errors"
+	"fmt"
 	"glossias/src/pkg/database"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // fakeGrader records requests and returns a canned verdict or error.
@@ -104,7 +108,7 @@ func TestProduceGradingService_NilIsSafe(t *testing.T) {
 
 func TestProduceGradingService_QuotaLeavesUngraded(t *testing.T) {
 	grader := &fakeGrader{grade: ProduceGrade{Score: 50}}
-	svc, _ := newTestGradingService(t, grader)
+	svc, mockDB := newTestGradingService(t, grader)
 	svc.quota = newUserQuota(2, 100, time.Hour)
 
 	for i := range 5 {
@@ -116,6 +120,20 @@ func TestProduceGradingService_QuotaLeavesUngraded(t *testing.T) {
 	// user-1 gets its 2 per-minute slots, user-2 is independent.
 	if grader.callCount() != 3 {
 		t.Errorf("grader called %d times, want 3", grader.callCount())
+	}
+	// Every submission is accounted for in the log, refused ones included.
+	calls := mockDB.Calls("INSERT INTO produce_grading_log")
+	if len(calls) != 6 {
+		t.Fatalf("produce_grading_log inserts = %d, want 6", len(calls))
+	}
+	refused := 0
+	for _, c := range calls {
+		if e := c.Args[19].(pgtype.Text); e.Valid && e.String == ErrGradingQuotaExceeded.Error() {
+			refused++
+		}
+	}
+	if refused != 3 {
+		t.Errorf("quota rows = %d, want 3", refused)
 	}
 }
 
@@ -185,18 +203,71 @@ func TestProduceGradingService_LogFailureDoesNotBlockGrade(t *testing.T) {
 	}
 }
 
+// gradingLogRow is the one produce_grading_log insert the mock recorded,
+// decoded to the columns the tests care about.
+type gradingLogRow struct {
+	score    pgtype.Int4
+	errorMsg pgtype.Text
+}
+
+func singleGradingLogRow(t *testing.T, mockDB *database.MockDBTX) gradingLogRow {
+	t.Helper()
+	calls := mockDB.Calls("INSERT INTO produce_grading_log")
+	if len(calls) != 1 {
+		t.Fatalf("produce_grading_log inserts = %d, want 1", len(calls))
+	}
+	// Positional parameters of InsertProduceGradingLog: $18 score, $20 error.
+	args := calls[0].Args
+	if len(args) != 20 {
+		t.Fatalf("insert has %d args, want 20", len(args))
+	}
+	return gradingLogRow{score: args[17].(pgtype.Int4), errorMsg: args[19].(pgtype.Text)}
+}
+
 func TestProduceGradingService_LogsFailedGrades(t *testing.T) {
 	grader := &fakeGrader{err: errors.New("model down")}
 	svc, mockDB := newTestGradingService(t, grader)
-	// A failing log write surfaces nothing to the student either; this just
-	// exercises the error path through LogProduceGrading with Err set.
-	mockDB.StubExec("UPDATE produce_submissions", errors.New("must not be reached"))
+	mockDB.StubExec("UPDATE produce_submissions SET ai_score", errors.New("must not be reached"))
 
 	svc.Enqueue("user-1", testSubmission, testSegment)
 	svc.Close()
 
 	if grader.callCount() != 1 {
 		t.Fatalf("grader called %d times, want 1", grader.callCount())
+	}
+	row := singleGradingLogRow(t, mockDB)
+	if row.score.Valid {
+		t.Errorf("score = %d, want NULL for a failed grade", row.score.Int32)
+	}
+	if !row.errorMsg.Valid || row.errorMsg.String != "model down" {
+		t.Errorf("error = %+v, want the grader's message", row.errorMsg)
+	}
+}
+
+// blockingGrader waits for the job context to expire, as a hung API call
+// does, and reports it the way the real grader would.
+type blockingGrader struct{}
+
+func (blockingGrader) GradeProduce(ctx context.Context, _ ProduceGradeRequest) (ProduceGrade, ProduceGradeTrace, error) {
+	<-ctx.Done()
+	return ProduceGrade{}, fakeTrace, &GradingAPIError{Err: fmt.Errorf("claude api request: %w", ctx.Err())}
+}
+
+func TestProduceGradingService_LogsWhenJobTimesOut(t *testing.T) {
+	// The job context is dead by the time the log is written. That row used
+	// to be lost, which is exactly the failure an operator needs to see.
+	svc, mockDB := newTestGradingService(t, blockingGrader{})
+	svc.timeout = 10 * time.Millisecond
+
+	svc.Enqueue("user-1", testSubmission, testSegment)
+	svc.Close()
+
+	row := singleGradingLogRow(t, mockDB)
+	if !row.errorMsg.Valid || !strings.Contains(row.errorMsg.String, context.DeadlineExceeded.Error()) {
+		t.Errorf("error = %+v, want the deadline error", row.errorMsg)
+	}
+	if n := len(mockDB.Calls("UPDATE produce_submissions")); n != 1 {
+		t.Errorf("graded_at stamps = %d, want 1", n)
 	}
 }
 
@@ -213,5 +284,137 @@ func TestProduceGradingService_FallsBackToDefaultPrompt(t *testing.T) {
 	}
 	if got := grader.calls[0].SystemPrompt; got != DefaultGradingSystemPrompt {
 		t.Errorf("expected the built-in default prompt, got %q", got)
+	}
+}
+
+// sequenceGrader returns the next error in errs on each call (nil grades
+// succeed), then repeats the last one.
+type sequenceGrader struct {
+	mu    sync.Mutex
+	errs  []error
+	calls int
+}
+
+func (g *sequenceGrader) GradeProduce(_ context.Context, _ ProduceGradeRequest) (ProduceGrade, ProduceGradeTrace, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	i := min(g.calls, len(g.errs)-1)
+	g.calls++
+	if err := g.errs[i]; err != nil {
+		return ProduceGrade{}, fakeTrace, err
+	}
+	return ProduceGrade{Score: 80, Feedback: "Nice."}, fakeTrace, nil
+}
+
+// enqueueN enqueues n non-blank submissions, each from its own user so the
+// per-user quota never interferes, and waits for them to finish.
+func enqueueN(svc *ProduceGradingService, n int) {
+	for i := range n {
+		svc.Enqueue("outage-user-"+string(rune('a'+i)), ProduceSubmission{ID: 1000 + i, StudentText: "x"}, testSegment)
+	}
+	svc.Close()
+}
+
+func TestProduceGradingService_RaisesIncidentAfterStreakAndResolvesOnSuccess(t *testing.T) {
+	a := installAlerter(t)
+	down := &GradingAPIError{StatusCode: 503, Err: errors.New("claude api request: 503 overloaded")}
+	grader := &sequenceGrader{errs: []error{down}}
+	svc, _ := newTestGradingService(t, grader)
+
+	enqueueN(svc, GradingErrorStreakLimit-1)
+	if n := len(a.raisedFor(GradingIncidentKey)); n != 0 {
+		t.Fatalf("raised %d incidents before the limit", n)
+	}
+	enqueueN(svc, 1)
+	raised := a.raisedFor(GradingIncidentKey)
+	if len(raised) != 1 {
+		t.Fatalf("raised = %d, want 1 at the limit", len(raised))
+	}
+	if inc := raised[0]; inc.Key != GradingIncidentKey || !containsAll(inc.Summary, fmt.Sprintf("%d consecutive", GradingErrorStreakLimit), "HTTP 503", "ungraded") || !containsAll(inc.Detail, "503 overloaded") {
+		t.Fatalf("incident = %+v", inc)
+	}
+	// The outage goes on: no second incident, and a blank attempt (no API
+	// call) neither counts nor resolves.
+	enqueueN(svc, 3)
+	svc.Enqueue("blank", ProduceSubmission{ID: 5, StudentText: " "}, testSegment)
+	svc.Close()
+	if len(a.raisedFor(GradingIncidentKey)) != 1 || a.resolvedFor(GradingIncidentKey) != 0 {
+		t.Fatalf("raised=%d resolved=%d during the outage", len(a.raisedFor(GradingIncidentKey)), a.resolvedFor(GradingIncidentKey))
+	}
+
+	// The model answers again: resolve once, and only once.
+	grader.mu.Lock()
+	grader.errs = []error{nil}
+	grader.mu.Unlock()
+	enqueueN(svc, 2)
+	if a.resolvedFor(GradingIncidentKey) != 1 || a.proofs[0] == "" {
+		t.Fatalf("resolved = %d, want exactly 1", a.resolvedFor(GradingIncidentKey))
+	}
+	if svc.apiErrors.length() != 0 {
+		t.Fatal("a success must clear the streak")
+	}
+	// Payments were never involved.
+	if len(a.raisedFor(PaymentsIncidentKey)) != 0 || a.resolvedFor(PaymentsIncidentKey) != 0 {
+		t.Fatal("grading must not touch the payments incident")
+	}
+}
+
+func TestProduceGradingService_RejectedKeyRaisesImmediately(t *testing.T) {
+	a := installAlerter(t)
+	unauthorized := &GradingAPIError{StatusCode: 401, Err: errors.New("claude api request req_1: 401 invalid x-api-key")}
+	svc, _ := newTestGradingService(t, &sequenceGrader{errs: []error{unauthorized}})
+
+	enqueueN(svc, 1)
+	raised := a.raisedFor(GradingIncidentKey)
+	if len(raised) != 1 {
+		t.Fatalf("raised = %d, want 1 on the first 401", len(raised))
+	}
+	if !containsAll(raised[0].Title, "401") || !containsAll(raised[0].Summary, "ANTHROPIC_API_KEY") {
+		t.Fatalf("incident = %+v", raised[0])
+	}
+	enqueueN(svc, 2)
+	if len(a.raisedFor(GradingIncidentKey)) != 1 {
+		t.Fatal("a continuing 401 must not re-raise")
+	}
+}
+
+func TestProduceGradingService_VerdictProblemsDoNotCountAsOutage(t *testing.T) {
+	a := installAlerter(t)
+	// A refusal, a cut-off or undecodable JSON all mean the API answered.
+	verdict := errors.New("decode grading response: unexpected end of JSON input")
+	svc, _ := newTestGradingService(t, &sequenceGrader{errs: []error{verdict}})
+
+	enqueueN(svc, GradingErrorStreakLimit+2)
+	if len(a.raised) != 0 {
+		t.Fatalf("raised = %+v, want none for verdict problems", a.raised)
+	}
+	// Nor do they resolve anything when nothing was raised.
+	if len(a.resolved) != 0 {
+		t.Fatalf("resolved = %v, want none", a.resolved)
+	}
+	if svc.apiErrors.length() != 0 {
+		t.Fatal("verdict problems must not build a streak")
+	}
+}
+
+func TestProduceGradingService_SuccessInsideStreakResetsIt(t *testing.T) {
+	a := installAlerter(t)
+	down := &GradingAPIError{Err: errors.New("claude api request: dial tcp: i/o timeout")}
+	grader := &sequenceGrader{errs: []error{down}}
+	svc, _ := newTestGradingService(t, grader)
+
+	enqueueN(svc, GradingErrorStreakLimit-1)
+	// One success, then failures again.
+	grader.mu.Lock()
+	grader.errs = []error{nil, down}
+	grader.calls = 0
+	grader.mu.Unlock()
+	enqueueN(svc, 1)
+	enqueueN(svc, GradingErrorStreakLimit-1)
+	if len(a.raised) != 0 {
+		t.Fatalf("a success between failures must restart the count; raised = %+v", a.raised)
+	}
+	if svc.apiErrors.length() != GradingErrorStreakLimit-1 {
+		t.Fatalf("streak = %d", svc.apiErrors.length())
 	}
 }

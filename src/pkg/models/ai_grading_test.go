@@ -1,8 +1,14 @@
 package models
 
 import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
 func TestBuildGradingPrompt(t *testing.T) {
@@ -86,4 +92,75 @@ func TestNewAnthropicGraderFromEnv(t *testing.T) {
 	} else if g.model != GradingModel {
 		t.Errorf("model = %q, want %q", g.model, GradingModel)
 	}
+}
+
+// stubClaude answers every request with the given status and body.
+func stubClaude(t *testing.T, status int, body string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("request-id", "req_test")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func testGrader(baseURL string) *AnthropicGrader {
+	return newAnthropicGrader("sk-test", option.WithBaseURL(baseURL), option.WithMaxRetries(0))
+}
+
+func TestAnthropicGrader_ClassifiesAPIFailures(t *testing.T) {
+	req := ProduceGradeRequest{HebrewText: "שלום", ReferenceEnglish: "Hello", StudentText: "Hi"}
+
+	t.Run("error status is a GradingAPIError with the status", func(t *testing.T) {
+		srv := stubClaude(t, http.StatusUnauthorized, `{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}`)
+		_, _, err := testGrader(srv.URL).GradeProduce(context.Background(), req)
+		var apiErr *GradingAPIError
+		if !errors.As(err, &apiErr) {
+			t.Fatalf("err = %v (%T), want *GradingAPIError", err, err)
+		}
+		if apiErr.StatusCode != http.StatusUnauthorized || !apiErr.Permanent() {
+			t.Fatalf("status = %d permanent = %v", apiErr.StatusCode, apiErr.Permanent())
+		}
+		if !strings.Contains(err.Error(), "req_test") {
+			t.Fatalf("error should carry the request id: %v", err)
+		}
+	})
+
+	t.Run("server error is not permanent", func(t *testing.T) {
+		srv := stubClaude(t, http.StatusServiceUnavailable, `{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}`)
+		_, _, err := testGrader(srv.URL).GradeProduce(context.Background(), req)
+		var apiErr *GradingAPIError
+		if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusServiceUnavailable || apiErr.Permanent() {
+			t.Fatalf("err = %v", err)
+		}
+	})
+
+	t.Run("transport failure is a GradingAPIError with status 0", func(t *testing.T) {
+		srv := stubClaude(t, http.StatusOK, `{}`)
+		url := srv.URL
+		srv.Close()
+		_, _, err := testGrader(url).GradeProduce(context.Background(), req)
+		var apiErr *GradingAPIError
+		if !errors.As(err, &apiErr) || apiErr.StatusCode != 0 || apiErr.Permanent() {
+			t.Fatalf("err = %v", err)
+		}
+	})
+
+	t.Run("a refusal is a verdict problem, not an API failure", func(t *testing.T) {
+		srv := stubClaude(t, http.StatusOK, `{"id":"msg_1","type":"message","role":"assistant","model":"m","content":[],"stop_reason":"refusal","stop_sequence":null,"usage":{"input_tokens":1,"output_tokens":1}}`)
+		_, trace, err := testGrader(srv.URL).GradeProduce(context.Background(), req)
+		if err == nil {
+			t.Fatal("a refusal must be an error")
+		}
+		var apiErr *GradingAPIError
+		if errors.As(err, &apiErr) {
+			t.Fatalf("a refusal must not count as an API failure: %v", err)
+		}
+		if trace.StopReason != "refusal" {
+			t.Fatalf("trace = %+v", trace)
+		}
+	})
 }

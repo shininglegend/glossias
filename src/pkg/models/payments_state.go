@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"glossias/src/alerting"
 	"glossias/src/pkg/generated/db"
 )
 
@@ -49,34 +50,25 @@ const (
 	GatewayErrorStreakLimit  = 2
 )
 
-// PaymentsAlerter receives one call per pause/resume transition. Both are
-// called synchronously from the request path, so implementations must return
-// quickly (do their network work in the background) and never panic.
-type PaymentsAlerter interface {
-	PaymentsPaused(ctx context.Context, reason PauseReason, detail string)
-	PaymentsResumed(ctx context.Context, proof string)
-}
+// PaymentsIncidentKey is the alerting.Incident key for the payments pause:
+// one incident is open while payments are paused, whatever the reason.
+const PaymentsIncidentKey = "payments"
 
 type paymentsPauseState struct {
-	mu            sync.Mutex
-	paused        bool
-	reason        PauseReason
-	detail        string
-	since         time.Time
-	webhookReject int
-	gatewayErrors int
-	alerter       PaymentsAlerter
+	mu     sync.Mutex
+	paused bool
+	reason PauseReason
+	detail string
+	since  time.Time
+
+	// The streaks have their own locks; the pause state above is the
+	// authority on whether an incident is open (it is persisted and
+	// reason-aware), so only their counts are used here.
+	webhookReject failureStreak
+	gatewayErrors failureStreak
 }
 
 var payState paymentsPauseState
-
-// SetPaymentsAlerter installs the alerter notified on each transition. nil
-// disables alerting (transitions are still logged and persisted).
-func SetPaymentsAlerter(a PaymentsAlerter) {
-	payState.mu.Lock()
-	defer payState.mu.Unlock()
-	payState.alerter = a
-}
 
 // PaymentsPaused reports whether payments are paused (and the paywall lifted).
 func PaymentsPaused() bool {
@@ -129,6 +121,16 @@ func SetPaymentsPaused(paused bool) {
 	ResumePayments(context.Background(), "cleared by operator")
 }
 
+// paymentsIncident is what the on-call reader sees for a pause.
+func paymentsIncident(reason PauseReason, detail string) alerting.Incident {
+	return alerting.Incident{
+		Key:     PaymentsIncidentKey,
+		Title:   fmt.Sprintf("Payments paused (%s)", reason),
+		Summary: fmt.Sprintf("Payments paused: %s. Paywall lifted and checkout refused until the cause is fixed.", reason),
+		Detail:  detail,
+	}
+}
+
 // PausePayments pauses payments if they are not already paused. The first
 // call for a given outage logs at ERROR, persists the state and alerts; later
 // calls while paused only update the stored detail.
@@ -141,7 +143,6 @@ func PausePayments(ctx context.Context, reason PauseReason, detail string) {
 	if !wasPaused {
 		payState.since = time.Now()
 	}
-	alerter := payState.alerter
 	payState.mu.Unlock()
 
 	if wasPaused {
@@ -151,8 +152,8 @@ func PausePayments(ctx context.Context, reason PauseReason, detail string) {
 	slog.Default().ErrorContext(ctx, "payments paused; paywall lifted and checkout refused",
 		"reason", reason, "detail", detail)
 	persistPaymentsState(ctx, true, reason, detail)
-	if alerter != nil {
-		alerter.PaymentsPaused(ctx, reason, detail)
+	if a := currentAlerter(); a != nil {
+		a.Raise(ctx, paymentsIncident(reason, detail))
 	}
 }
 
@@ -171,9 +172,10 @@ func ResumePaymentsFrom(ctx context.Context, reason PauseReason, proof string) {
 }
 
 func resumePayments(ctx context.Context, proof string, applies func(PauseReason) bool) {
+	payState.webhookReject.reset()
+	payState.gatewayErrors.reset()
+
 	payState.mu.Lock()
-	payState.webhookReject = 0
-	payState.gatewayErrors = 0
 	if !payState.paused || !applies(payState.reason) {
 		payState.mu.Unlock()
 		return
@@ -183,14 +185,13 @@ func resumePayments(ctx context.Context, proof string, applies func(PauseReason)
 	payState.paused = false
 	payState.reason = ""
 	payState.detail = ""
-	alerter := payState.alerter
 	payState.mu.Unlock()
 
 	slog.Default().InfoContext(ctx, "payments resumed; paywall restored",
 		"was_paused_for", reason, "paused_duration", pausedFor.String(), "proof", proof)
 	persistPaymentsState(ctx, false, "", "")
-	if alerter != nil {
-		alerter.PaymentsResumed(ctx, proof)
+	if a := currentAlerter(); a != nil {
+		a.Resolve(ctx, PaymentsIncidentKey, proof)
 	}
 }
 
@@ -199,10 +200,7 @@ func resumePayments(ctx context.Context, proof string, applies func(PauseReason)
 // (the handler checks), so random POSTs do not build a streak. The streak
 // pauses payments at WebhookRejectStreakLimit; a verified webhook resets it.
 func RecordWebhookRejected(ctx context.Context, detail string) {
-	payState.mu.Lock()
-	payState.webhookReject++
-	n := payState.webhookReject
-	payState.mu.Unlock()
+	n := payState.webhookReject.fail()
 	if n < WebhookRejectStreakLimit {
 		slog.Default().WarnContext(ctx, "stripe webhook rejected", "streak", n,
 			"pause_at", WebhookRejectStreakLimit, "detail", detail)
@@ -223,10 +221,7 @@ func RecordWebhookVerified(ctx context.Context) {
 // such as a bad session id). The streak pauses payments at
 // GatewayErrorStreakLimit; any successful Stripe call resets it.
 func RecordGatewayError(ctx context.Context, op string, err error) {
-	payState.mu.Lock()
-	payState.gatewayErrors++
-	n := payState.gatewayErrors
-	payState.mu.Unlock()
+	n := payState.gatewayErrors.fail()
 	if n < GatewayErrorStreakLimit {
 		slog.Default().WarnContext(ctx, "stripe api error", "op", op, "error", err,
 			"streak", n, "pause_at", GatewayErrorStreakLimit)
@@ -261,13 +256,12 @@ func LoadPaymentsState(ctx context.Context) error {
 	payState.reason = PauseReason(row.Reason)
 	payState.detail = row.Detail
 	payState.since = row.ChangedAt.Time
-	alerter := payState.alerter
 	payState.mu.Unlock()
 	slog.Default().ErrorContext(ctx, "payments were paused before this start; paywall stays lifted",
 		"reason", row.Reason, "detail", row.Detail, "since", row.ChangedAt.Time)
-	if alerter != nil {
-		alerter.PaymentsPaused(ctx, PauseReason(row.Reason),
-			fmt.Sprintf("still paused after restart (since %s): %s", row.ChangedAt.Time.UTC().Format(time.RFC3339), row.Detail))
+	if a := currentAlerter(); a != nil {
+		a.Raise(ctx, paymentsIncident(PauseReason(row.Reason),
+			fmt.Sprintf("still paused after restart (since %s): %s", row.ChangedAt.Time.UTC().Format(time.RFC3339), row.Detail)))
 	}
 	return nil
 }
@@ -291,12 +285,12 @@ func persistPaymentsState(ctx context.Context, paused bool, reason PauseReason, 
 
 // resetPaymentsStateForTest clears every counter and the pause. Tests only.
 func resetPaymentsStateForTest() {
+	payState.webhookReject.reset()
+	payState.gatewayErrors.reset()
 	payState.mu.Lock()
 	defer payState.mu.Unlock()
 	payState.paused = false
 	payState.reason = ""
 	payState.detail = ""
 	payState.since = time.Time{}
-	payState.webhookReject = 0
-	payState.gatewayErrors = 0
 }

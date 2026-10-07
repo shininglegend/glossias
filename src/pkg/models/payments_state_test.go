@@ -3,7 +3,6 @@ package models
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
 	"time"
 
@@ -11,36 +10,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
-
-type recordingAlerter struct {
-	mu      sync.Mutex
-	paused  []PauseReason
-	resumed []string
-}
-
-func (a *recordingAlerter) PaymentsPaused(_ context.Context, reason PauseReason, _ string) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.paused = append(a.paused, reason)
-}
-
-func (a *recordingAlerter) PaymentsResumed(_ context.Context, proof string) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.resumed = append(a.resumed, proof)
-}
-
-func installAlerter(t *testing.T) *recordingAlerter {
-	t.Helper()
-	resetPaymentsStateForTest()
-	a := &recordingAlerter{}
-	SetPaymentsAlerter(a)
-	t.Cleanup(func() {
-		SetPaymentsAlerter(nil)
-		resetPaymentsStateForTest()
-	})
-	return a
-}
 
 func TestPausePayments_AlertsOncePerTransition(t *testing.T) {
 	a := installAlerter(t)
@@ -55,8 +24,8 @@ func TestPausePayments_AlertsOncePerTransition(t *testing.T) {
 	if !PaymentsPaused() {
 		t.Fatal("payments should be paused")
 	}
-	if len(a.paused) != 1 {
-		t.Fatalf("alerts = %d, want exactly one for repeated pauses", len(a.paused))
+	if len(a.raised) != 1 {
+		t.Fatalf("alerts = %d, want exactly one for repeated pauses", len(a.raised))
 	}
 	if n := len(mockDB.Calls("UpsertPaymentsState")); n != 1 {
 		t.Fatalf("persist writes = %d, want 1 (only on transition)", n)
@@ -70,8 +39,11 @@ func TestPausePayments_AlertsOncePerTransition(t *testing.T) {
 	if PaymentsPaused() {
 		t.Fatal("payments should resume")
 	}
-	if len(a.resumed) != 1 {
-		t.Fatalf("resume alerts = %d, want 1", len(a.resumed))
+	if len(a.resolved) != 1 || a.resolved[0] != PaymentsIncidentKey || a.proofs[0] != "grant ok" {
+		t.Fatalf("resume alerts = %v/%v, want one resolve of the payments incident", a.resolved, a.proofs)
+	}
+	if inc := a.raised[0]; inc.Key != PaymentsIncidentKey || !containsAll(inc.Title, "grant_failed") || inc.Detail != "first" {
+		t.Fatalf("incident = %+v", inc)
 	}
 	if n := len(mockDB.Calls("UpsertPaymentsState")); n != 2 {
 		t.Fatalf("persist writes = %d, want 2", n)
@@ -101,8 +73,8 @@ func TestResumePaymentsFrom_IsReasonAware(t *testing.T) {
 	if PaymentsPaused() {
 		t.Fatal("a grant should resume payments")
 	}
-	if len(a.paused) != 1 || len(a.resumed) != 1 {
-		t.Fatalf("alerts paused=%d resumed=%d", len(a.paused), len(a.resumed))
+	if len(a.raised) != 1 || len(a.resolved) != 1 {
+		t.Fatalf("alerts paused=%d resumed=%d", len(a.raised), len(a.resolved))
 	}
 }
 
@@ -128,16 +100,16 @@ func TestWebhookRejectStreak_PausesAtLimitAndResetsOnVerify(t *testing.T) {
 	if !PaymentsPaused() || PaymentsPauseReason() != PauseReasonWebhookRejected {
 		t.Fatalf("paused=%v reason=%q, want webhook_rejected", PaymentsPaused(), PaymentsPauseReason())
 	}
-	if len(a.paused) != 1 || a.paused[0] != PauseReasonWebhookRejected {
-		t.Fatalf("alerts = %v", a.paused)
+	if len(a.raised) != 1 || !containsAll(a.raised[0].Title, string(PauseReasonWebhookRejected)) || a.raised[0].Key != PaymentsIncidentKey {
+		t.Fatalf("alerts = %v", a.raised)
 	}
 	// The handshake working again lifts this pause.
 	RecordWebhookVerified(ctx)
 	if PaymentsPaused() {
 		t.Fatal("a verified webhook should resume a webhook-rejected pause")
 	}
-	if len(a.resumed) != 1 {
-		t.Fatalf("resume alerts = %d", len(a.resumed))
+	if len(a.resolved) != 1 {
+		t.Fatalf("resume alerts = %d", len(a.resolved))
 	}
 }
 
@@ -160,8 +132,8 @@ func TestGatewayErrorStreak_PausesAndResumesOnSuccess(t *testing.T) {
 	if PaymentsPaused() {
 		t.Fatal("Stripe answering again should resume a gateway pause")
 	}
-	if len(a.paused) != 1 || len(a.resumed) != 1 {
-		t.Fatalf("alerts paused=%d resumed=%d", len(a.paused), len(a.resumed))
+	if len(a.raised) != 1 || len(a.resolved) != 1 {
+		t.Fatalf("alerts paused=%d resumed=%d", len(a.raised), len(a.resolved))
 	}
 }
 
@@ -182,8 +154,8 @@ func TestLoadPaymentsState_ReappliesPersistedPauseAndRealerts(t *testing.T) {
 	if !PaymentsPaused() || PaymentsPauseReason() != PauseReasonGrantFailed {
 		t.Fatalf("paused=%v reason=%q", PaymentsPaused(), PaymentsPauseReason())
 	}
-	if len(a.paused) != 1 {
-		t.Fatalf("a restart while paused must re-alert; alerts = %d", len(a.paused))
+	if len(a.raised) != 1 || !containsAll(a.raised[0].Detail, "still paused after restart", "insert failed") {
+		t.Fatalf("a restart while paused must re-alert with the persisted detail; alerts = %+v", a.raised)
 	}
 	if n := len(mockDB.Calls("UpsertPaymentsState")); n != 0 {
 		t.Fatalf("loading must not rewrite state; writes = %d", n)
@@ -199,7 +171,7 @@ func TestLoadPaymentsState_NotPausedIsQuiet(t *testing.T) {
 	if err := LoadPaymentsState(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if PaymentsPaused() || len(a.paused) != 0 {
+	if PaymentsPaused() || len(a.raised) != 0 {
 		t.Fatal("an unpaused record must not pause or alert")
 	}
 }

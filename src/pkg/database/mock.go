@@ -124,7 +124,11 @@ type MockDBTX struct {
 	queries  map[string]MockQueryResult
 	execs    map[string]error
 	execRows map[string]int64
-	calls    []MockCall
+
+	// mu guards calls: code under test may run queries from several
+	// goroutines (background grading), and tests read Calls afterwards.
+	mu    sync.Mutex
+	calls []MockCall
 }
 
 // NewMockDBTX creates a new mock DBTX connection with query stubbing capabilities
@@ -155,6 +159,8 @@ func (m *MockDBTX) StubExecRows(querySubstr string, rows int64) {
 // Calls returns every statement whose SQL contains the substring, in order,
 // so tests can assert what was written and with which arguments.
 func (m *MockDBTX) Calls(sqlSubstr string) []MockCall {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	var out []MockCall
 	for _, c := range m.calls {
 		if strings.Contains(c.SQL, sqlSubstr) {
@@ -165,10 +171,18 @@ func (m *MockDBTX) Calls(sqlSubstr string) []MockCall {
 }
 
 func (m *MockDBTX) record(sql string, args []any) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.calls = append(m.calls, MockCall{SQL: sql, Args: args})
 }
 
 func (m *MockDBTX) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	// A real pool refuses a cancelled or expired context before sending
+	// anything, so a write on a dead context fails here too and is not
+	// recorded as a call: it never reached the database.
+	if err := ctx.Err(); err != nil {
+		return pgconn.CommandTag{}, err
+	}
 	m.record(sql, args)
 	for k, err := range m.execs {
 		if strings.Contains(sql, k) {

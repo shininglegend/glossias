@@ -9,8 +9,6 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
-
-	"glossias/src/pkg/models"
 )
 
 type captured struct {
@@ -37,27 +35,45 @@ func (c *captured) handler(status int, respBody string) http.HandlerFunc {
 	}
 }
 
-func TestUptimeAPI_OpensThenResolvesIncident(t *testing.T) {
-	c := &captured{}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// uptimeStub answers /incidents with a fresh id per open and accepts resolves.
+func uptimeStub(c *captured) *httptest.Server {
+	var mu sync.Mutex
+	n := 0
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/incidents" {
-			c.handler(http.StatusCreated, `{"data":{"id":"inc_42","type":"incident"}}`)(w, r)
+			mu.Lock()
+			n++
+			id := "inc_" + string(rune('0'+n))
+			mu.Unlock()
+			c.handler(http.StatusCreated, `{"data":{"id":"`+id+`","type":"incident"}}`)(w, r)
 			return
 		}
-		c.handler(http.StatusOK, `{"data":{"id":"inc_42"}}`)(w, r)
+		c.handler(http.StatusOK, `{"data":{}}`)(w, r)
 	}))
+}
+
+var paymentsIncident = Incident{
+	Key: "payments", Title: "Payments paused (grant_failed)",
+	Summary: "Payments paused: grant_failed. Paywall lifted; checkout refused.", Detail: "insert failed",
+}
+
+func TestUptimeAPI_OpensThenResolvesIncident(t *testing.T) {
+	c := &captured{}
+	srv := uptimeStub(c)
 	defer srv.Close()
 
 	a := &BetterStack{
 		log: slog.New(slog.DiscardHandler), client: srv.Client(),
 		uptimeAPI: srv.URL, token: "tok", requester: "ops@example.com", service: "svc",
 	}
-	a.PaymentsPaused(context.Background(), models.PauseReasonGrantFailed, "insert failed")
+	a.Raise(context.Background(), paymentsIncident)
 	a.Wait()
-	// A second pause while open must not open a second incident.
-	a.PaymentsPaused(context.Background(), models.PauseReasonGrantFailed, "again")
+	// A second raise of the same key while open must not open a second incident.
+	again := paymentsIncident
+	again.Detail = "again"
+	a.Raise(context.Background(), again)
 	a.Wait()
-	a.PaymentsResumed(context.Background(), "grant ok")
+	a.Resolve(context.Background(), "payments", "grant ok")
 	a.Wait()
 
 	if len(c.reqs) != 2 {
@@ -70,22 +86,58 @@ func TestUptimeAPI_OpensThenResolvesIncident(t *testing.T) {
 	if open.Body["requester_email"] != "ops@example.com" || open.Body["call"] != true {
 		t.Fatalf("open body = %v", open.Body)
 	}
-	if c.reqs[1].Path != "/incidents/inc_42/resolve" {
+	if open.Body["name"] != "svc: Payments paused (grant_failed)" || open.Body["summary"] != paymentsIncident.Summary || open.Body["description"] != "insert failed" {
+		t.Fatalf("open body = %v", open.Body)
+	}
+	if c.reqs[1].Path != "/incidents/inc_1/resolve" {
 		t.Fatalf("resolve path = %q", c.reqs[1].Path)
 	}
-	if a.incidentID != "" {
+	if a.openIncidentID("payments") != "" {
 		t.Fatal("incident id should clear after resolve")
 	}
 }
 
-func TestWebhookURL_PostsPauseAndResume(t *testing.T) {
+func TestUptimeAPI_KeysAreIndependent(t *testing.T) {
+	c := &captured{}
+	srv := uptimeStub(c)
+	defer srv.Close()
+
+	a := &BetterStack{
+		log: slog.New(slog.DiscardHandler), client: srv.Client(),
+		uptimeAPI: srv.URL, token: "tok", requester: "ops@example.com", service: "svc",
+	}
+	a.Raise(context.Background(), paymentsIncident)
+	a.Wait()
+	a.Raise(context.Background(), Incident{Key: "ai_grading", Title: "AI grading failing", Summary: "5 calls failed", Detail: "401"})
+	a.Wait()
+	if len(c.reqs) != 2 {
+		t.Fatalf("requests = %d, want two opens for two keys", len(c.reqs))
+	}
+	// Resolving one key leaves the other open.
+	a.Resolve(context.Background(), "ai_grading", "a call succeeded")
+	a.Wait()
+	if len(c.reqs) != 3 || c.reqs[2].Path != "/incidents/inc_2/resolve" {
+		t.Fatalf("requests = %+v", c.reqs)
+	}
+	if a.openIncidentID("payments") != "inc_1" || a.openIncidentID("ai_grading") != "" {
+		t.Fatalf("payments=%q grading=%q", a.openIncidentID("payments"), a.openIncidentID("ai_grading"))
+	}
+	// Resolving a key with nothing open is a logged no-op, not a request.
+	a.Resolve(context.Background(), "ai_grading", "again")
+	a.Wait()
+	if len(c.reqs) != 3 {
+		t.Fatalf("requests = %d, want no request for an idle key", len(c.reqs))
+	}
+}
+
+func TestWebhookURL_PostsRaiseAndResolve(t *testing.T) {
 	c := &captured{}
 	srv := httptest.NewServer(c.handler(http.StatusOK, `ok`))
 	defer srv.Close()
 
 	a := &BetterStack{log: slog.New(slog.DiscardHandler), client: srv.Client(), webhookURL: srv.URL, service: "svc"}
-	a.PaymentsPaused(context.Background(), models.PauseReasonWebhookRejected, "3 bad sigs")
-	a.PaymentsResumed(context.Background(), "verified")
+	a.Raise(context.Background(), Incident{Key: "payments", Title: "Payments paused (webhook_rejected)", Summary: "3 bad sigs"})
+	a.Resolve(context.Background(), "payments", "verified")
 	a.Wait()
 
 	if len(c.reqs) != 2 {
@@ -94,8 +146,11 @@ func TestWebhookURL_PostsPauseAndResume(t *testing.T) {
 	events := map[any]bool{}
 	for _, r := range c.reqs {
 		events[r.Body["event"]] = true
+		if r.Body["key"] != "payments" || r.Body["service"] != "svc" {
+			t.Fatalf("payload = %v", r.Body)
+		}
 	}
-	if !events["payments_paused"] || !events["payments_resumed"] {
+	if !events["incident_raised"] || !events["incident_resolved"] {
 		t.Fatalf("events = %v", events)
 	}
 }
@@ -125,6 +180,6 @@ func TestNewBetterStackFromEnv(t *testing.T) {
 
 func TestUnreachableDestinationDoesNotPanicOrBlock(t *testing.T) {
 	a := &BetterStack{log: slog.New(slog.DiscardHandler), client: &http.Client{}, uptimeAPI: "http://127.0.0.1:1", token: "t", requester: "x@y", webhookURL: "http://127.0.0.1:1"}
-	a.PaymentsPaused(context.Background(), models.PauseReasonGatewayDown, "stripe down")
+	a.Raise(context.Background(), Incident{Key: "payments", Title: "Payments paused (gateway_down)", Detail: "stripe down"})
 	a.Wait() // returns: failures are logged, not propagated
 }

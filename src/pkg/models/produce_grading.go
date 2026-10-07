@@ -3,10 +3,13 @@ package models
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
 	"time"
+
+	"glossias/src/alerting"
 
 	"golang.org/x/time/rate"
 )
@@ -24,6 +27,12 @@ type ProduceGradingService struct {
 	grader ProduceGrader
 	log    *slog.Logger
 	quota  *userQuota
+
+	// apiErrors counts consecutive calls that never reached a verdict. At
+	// GradingErrorStreakLimit (or at once for a rejected key) an incident is
+	// raised through the process-wide alerter; the next answer from the
+	// model resolves it. Verdict problems and quota refusals do not count.
+	apiErrors failureStreak
 
 	// sem bounds concurrent grading calls so a burst of submissions cannot
 	// open an unbounded number of API connections.
@@ -43,9 +52,27 @@ const (
 	gradingPerMinute       = 10
 	gradingPerDay          = 50
 	gradingMaxConcurrent   = 4
-	gradingJobTimeout      = 30 * time.Second
+	gradingJobTimeout      = 90 * time.Second
 	gradingQuotaIdleExpiry = 48 * time.Hour
+	// gradingStoreTimeout bounds each database write made after the model
+	// call, independent of the job context (which may have expired).
+	gradingStoreTimeout = 5 * time.Second
 )
+
+// ErrGradingQuotaExceeded is recorded in produce_grading_log when a submission
+// was left ungraded because the user was over the per-user grading quota.
+var ErrGradingQuotaExceeded = errors.New("grading quota exceeded for user; submission not sent to the model")
+
+// GradingErrorStreakLimit is how many consecutive grading calls must fail at
+// the API level before an incident is raised. The SDK already retries each
+// call twice, so one failure here is already a persistent one; two in a row
+// rules out a single unlucky call. The cohort is small, so a higher limit
+// would mean a long wait for the page. A rejected key (401/403) raises on
+// the first failure: it never clears alone.
+const GradingErrorStreakLimit = 2
+
+// GradingIncidentKey is the alerting.Incident key for a grading outage.
+const GradingIncidentKey = "ai_grading"
 
 // NewProduceGradingService wires a grader into the background pipeline.
 func NewProduceGradingService(grader ProduceGrader, logger *slog.Logger) *ProduceGradingService {
@@ -73,6 +100,11 @@ func (s *ProduceGradingService) Enqueue(userID string, submission ProduceSubmiss
 	if !s.quota.allow(userID, s.now()) {
 		s.log.Warn("Produce grading quota exceeded; leaving submission ungraded",
 			"userID", userID, "submissionID", submission.ID)
+		// No model call, but the log must still account for the submission:
+		// an ungraded attempt with no row is indistinguishable from a lost one.
+		ctx, cancel := context.WithTimeout(context.Background(), gradingStoreTimeout)
+		defer cancel()
+		s.logGrading(ctx, ProduceGradingLogEntry{Submission: submission, Segment: segment, Err: ErrGradingQuotaExceeded})
 		s.markFailed(submission.ID)
 		return
 	}
@@ -93,10 +125,18 @@ func (s *ProduceGradingService) Enqueue(userID string, submission ProduceSubmiss
 }
 
 func (s *ProduceGradingService) markFailed(submissionID int) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), gradingStoreTimeout)
 	defer cancel()
 	if err := MarkProduceGradingFailed(ctx, submissionID); err != nil {
 		s.log.Error("Failed to mark produce grading as failed", "error", err, "submissionID", submissionID)
+	}
+}
+
+// logGrading appends to produce_grading_log, best-effort: a failure to log
+// is reported and never fails the grade.
+func (s *ProduceGradingService) logGrading(ctx context.Context, e ProduceGradingLogEntry) {
+	if err := LogProduceGrading(ctx, e); err != nil {
+		s.log.Error("Failed to write produce grading log", "error", err, "submissionID", e.Submission.ID)
 	}
 }
 
@@ -114,21 +154,26 @@ func (s *ProduceGradingService) Close() {
 func (s *ProduceGradingService) grade(ctx context.Context, submission ProduceSubmission, segment ProduceSegment) error {
 	grade, trace, promptID, err := s.gradeAttempt(ctx, submission, segment)
 
-	if logErr := LogProduceGrading(ctx, ProduceGradingLogEntry{
+	// The job context bounds the model call and is often already expired
+	// here: a call that ran out the clock is the usual failure, and the row
+	// recording it is the one most worth keeping. Writing it on the dead
+	// context silently lost those rows, so the stores get their own deadline.
+	storeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gradingStoreTimeout)
+	defer cancel()
+
+	s.logGrading(storeCtx, ProduceGradingLogEntry{
 		Submission: submission,
 		Segment:    segment,
 		Grade:      grade,
 		Trace:      trace,
 		PromptID:   promptID,
 		Err:        err,
-	}); logErr != nil {
-		s.log.Error("Failed to write produce grading log", "error", logErr, "submissionID", submission.ID)
-	}
+	})
 
 	if err != nil {
 		return err
 	}
-	if err := GradeProduceSubmission(ctx, submission.ID, grade.Score, grade.Feedback); err != nil {
+	if err := GradeProduceSubmission(storeCtx, submission.ID, grade.Score, grade.Feedback); err != nil {
 		return errors.Join(errors.New("store grade"), err)
 	}
 	return nil
@@ -175,7 +220,61 @@ func (s *ProduceGradingService) gradeAttempt(ctx context.Context, submission Pro
 	}
 
 	grade, trace, err := s.grader.GradeProduce(ctx, req)
+	s.noteAPIOutcome(ctx, err)
 	return grade, trace, prompt.ID, err
+}
+
+// noteAPIOutcome feeds one grading call's result to the outage detector. Any
+// outcome other than a GradingAPIError means the model answered, even if the
+// verdict was unusable, and proves the API is up.
+func (s *ProduceGradingService) noteAPIOutcome(ctx context.Context, err error) {
+	var apiErr *GradingAPIError
+	if !errors.As(err, &apiErr) {
+		if s.apiErrors.reset() {
+			s.log.InfoContext(ctx, "AI grading recovered; resolving incident")
+			if a := currentAlerter(); a != nil {
+				a.Resolve(ctx, GradingIncidentKey, "a grading call reached the model")
+			}
+		}
+		return
+	}
+
+	n := s.apiErrors.fail()
+	if n < GradingErrorStreakLimit && !apiErr.Permanent() {
+		s.log.WarnContext(ctx, "Claude API call failed", "streak", n,
+			"raise_at", GradingErrorStreakLimit, "status", apiErr.StatusCode, "error", err)
+		return
+	}
+	if !s.apiErrors.report() {
+		// Already raised for this outage; the per-submission ERROR line in
+		// Enqueue keeps recording each failure.
+		return
+	}
+	inc := gradingIncident(n, apiErr)
+	s.log.ErrorContext(ctx, "AI grading failing; raising incident",
+		"streak", n, "status", apiErr.StatusCode, "permanent", apiErr.Permanent(), "error", err)
+	if a := currentAlerter(); a != nil {
+		a.Raise(ctx, inc)
+	}
+}
+
+// gradingIncident is what the on-call reader sees for a grading outage.
+func gradingIncident(streak int, apiErr *GradingAPIError) alerting.Incident {
+	inc := alerting.Incident{
+		Key:    GradingIncidentKey,
+		Title:  "AI grading failing",
+		Detail: fmt.Sprintf("last error: %v", apiErr),
+	}
+	switch {
+	case apiErr.Permanent():
+		inc.Title = fmt.Sprintf("AI grading key rejected (HTTP %d)", apiErr.StatusCode)
+		inc.Summary = "The Claude API rejected ANTHROPIC_API_KEY; every Produce submission is stored ungraded until the key is fixed."
+	case apiErr.StatusCode != 0:
+		inc.Summary = fmt.Sprintf("%d consecutive Claude API calls failed (last HTTP %d); Produce submissions are being stored ungraded.", streak, apiErr.StatusCode)
+	default:
+		inc.Summary = fmt.Sprintf("%d consecutive Claude API calls failed to complete; Produce submissions are being stored ungraded.", streak)
+	}
+	return inc
 }
 
 // emptyAttemptGrade is stored for blank submissions without an API call.

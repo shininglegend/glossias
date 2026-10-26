@@ -13,6 +13,7 @@ import type { Route } from "./+types/root";
 import stylesheet from "./app.css?url";
 import NavBar from "./components/NavBar";
 import { UserProvider } from "./contexts/UserContext";
+import { languageFontsCss } from "./lib/languageFonts";
 import { pageTitle } from "./lib/pageTitle";
 
 export function meta() {
@@ -53,6 +54,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <link rel="icon" href="/logo.png" />
         <Meta />
         <Links />
+        <style>{languageFontsCss()}</style>
       </head>
       <body className="min-h-screen flex flex-col">
         {children}

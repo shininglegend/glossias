@@ -44,7 +44,10 @@
 
 * {
   box-sizing: border-box;
-  font-family: "Inter, 'Noto Sans', 'Segoe UI', sans-serif";
+  /* --language-fonts comes from app/lib/languageFonts.ts */
+  font-family:
+    var(--language-fonts, "Inter, 'Noto Sans', 'Segoe UI', sans-serif"),
+    "Inter, 'Noto Sans', 'Segoe UI', sans-serif";
 }
 
 body {

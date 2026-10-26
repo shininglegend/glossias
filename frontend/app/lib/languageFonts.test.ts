@@ -11,6 +11,14 @@ describe("languageFontsCss", () => {
     expect(css).toContain("unicode-range: U+0370-03FF, U+1F00-1FFF;");
   });
 
+  it("keeps Hebrew in the default serif it used before", () => {
+    const css = languageFontsCss({ he: LANGUAGE_FONTS.he });
+    expect(css).toContain('local("Times New Roman")');
+    expect(css).toContain('local("Times New Roman Bold")');
+    expect(css).toContain("font-weight: bold;");
+    expect(css).toContain("unicode-range: U+0590-05FF, U+FB1D-FB4F;");
+  });
+
   it("lists every language face in the family variable", () => {
     const css = languageFontsCss({
       xx: { localNames: ["A"], unicodeRange: "U+0041" },

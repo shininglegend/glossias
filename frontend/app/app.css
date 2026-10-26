@@ -225,16 +225,6 @@ header hr {
   transform: translateY(-1px);
 }
 
-.story-text {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  font-size: 2rem;
-  gap: 1rem;
-  font-family: "SBL Hebrew", "Helvetica Neue", Helvetica, sans-serif;
-  color: var(--text);
-}
-
 .audio-button {
   background-color: var(--primary);
   color: white;

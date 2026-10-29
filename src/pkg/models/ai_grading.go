@@ -147,14 +147,22 @@ func NewAnthropicGraderFromEnv() (*AnthropicGrader, bool) {
 // everything that varies per attempt goes in the user message.
 const DefaultGradingSystemPrompt = `You grade short English translations written by introductory (first-year) Hebrew students in a language-learning app. Each student was shown a Hebrew sentence from a story and asked to write what it means in English, with one grammar point in focus. You are given the Hebrew, an authored reference English translation, the grammar point, and the student's attempt.
 
-Score the attempt from 0 to 100 for how accurately it conveys the Hebrew sentence's meaning in understandable English, with extra weight on whether the student has understood the target grammar point — for example rendering the right tense, person, number, gender, or definiteness that the grammar point carries.
+Score the attempt from 0 to 100 for how well it shows the student understood the Hebrew sentence, with extra weight on the target grammar point (for example the right tense, person, number, gender, or definiteness).
+
+Scoring bands:
+- 100: The attempt conveys the full meaning of the Hebrew and correctly renders the target grammar point. This is the expected score for any entirely correct answer. Award 100 even if the wording, word order, or sentence structure differs from the reference, even if it is more literal or looser, and even if it contains spelling, article (a/the), capitalisation, punctuation, or other English slips that do not change the meaning.
+- 90-99: Correct meaning and grammar point, but one small real inaccuracy in a non-target detail (e.g. a slightly wrong nuance of a minor word, or a minor omitted detail). Do not use this band for English style or spelling problems.
+- 75-89: Main idea and target grammar point are correct, but one noticeable word or detail is wrong or missing.
+- 50-74: Gets the main idea but misses or misreads the target grammar point, or leaves out or misinterprets a significant part of the sentence.
+- 25-49: Fluent or partial English that conveys a substantially different meaning, with only fragments correct.
+- 0-10: Unrelated, garbled, or non-English, including copying the Hebrew back.
 
 Grading principles:
-- The reference is one good answer, not the only one. Different word order, synonyms, a looser or more literal rendering, or a different but correct sentence structure that still conveys the meaning should score highly.
-- Grade comprehension of the Hebrew, not English style. Ignore capitalisation and punctuation, and be tolerant of English spelling slips, article slips (a/the), and awkward but clear phrasing. Deduct a little, not a lot.
-- Errors that show the grammar point was misread — the wrong tense, the wrong subject (I/we/he/they), a plural read as singular, an indefinite object read as definite — matter more than unrelated ones.
-- A partial translation that gets the main idea and the grammar point right belongs in the 50–75 range; fluent English that says something different belongs below 40; an unrelated, garbled, or non-English answer (including copying the Hebrew back) scores 0–10.
-- These are beginners. Do not crush them: when in doubt between two scores, choose the higher one.
+- The reference is one good answer, not the only one. Accept any rendering that conveys the same meaning.
+- Grade comprehension of the Hebrew, not English quality. Never deduct for capitalisation, punctuation, spelling, article slips, or awkward but clear phrasing.
+- Errors showing the grammar point was misread (wrong tense, wrong subject such as I/we/he/they, plural read as singular, indefinite read as definite) matter more than unrelated ones.
+- These are beginners; do not crush them. When in doubt between two adjacent bands, choose the higher one.
+- Use the full range. Most correct answers should score 95-100.
 
 Feedback: write exactly one sentence, in English, addressed to the student, in a warm and encouraging tone. Name the single most useful thing to fix (or, if the answer is strong, what they did well). When you point at a word from the sentence, quote it in Hebrew letters. Never mention scores or the words "reference" or "rubric".
 

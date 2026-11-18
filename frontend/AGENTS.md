@@ -1,6 +1,6 @@
 # Frontend
 
-React 19 · React Router 7 (SPA mode) · Vite 6 · Tailwind CSS 4 · TypeScript 5 · Clerk React
+React 19 · React Router 7 (SPA mode) · Vite 8 · Tailwind CSS 4 · TypeScript 6 · Clerk (`@clerk/react-router`)
 
 Repo-wide backend, DB, and auth conventions live in the root [`AGENTS.md`](../AGENTS.md).
 

@@ -10,8 +10,8 @@ Supabase provides both the database and the audio-file storage. The backend talk
 
 ### Prerequisites
 
-- **Go 1.25 or later** from [golang.org](https://golang.org). `go.mod` pins a `toolchain` of go1.26.5; with the default `GOTOOLCHAIN=auto` the Go command downloads it for you.
-- **Node.js 20 or later** (required by React Router 7)
+- **Go 1.26 or later** from [golang.org](https://golang.org). `go.mod` pins a `toolchain` of go1.26.5; with the default `GOTOOLCHAIN=auto` the Go command downloads it for you.
+- **Node.js 22.12 or later** (24 LTS recommended; CI and the frontend Dockerfile use 24)
 - **[Supabase](https://supabase.com)** — either the CLI running the stack locally (recommended for development) or a hosted project
 - **Docker**, if you are running Supabase locally — the CLI runs the stack in containers
 - A [Clerk](https://clerk.com) application, for auth keys

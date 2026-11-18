@@ -175,10 +175,12 @@ func TestCacheDelete(t *testing.T) {
 }
 
 func TestCacheTTL(t *testing.T) {
-	// Create cache with short TTL for testing
+	// Create cache with short TTL for testing. bigcache tracks entry age in
+	// whole seconds and (since v3.2) rejects a LifeWindow under 1s when a
+	// CleanWindow is set, so 1s is the shortest TTL that can be tested.
 	config := DefaultConfig()
-	config.LifeWindow = 50 * time.Millisecond
-	config.CleanWindow = 25 * time.Millisecond
+	config.LifeWindow = time.Second
+	config.CleanWindow = time.Second
 
 	cache, err := New(config)
 	if err != nil {
@@ -201,7 +203,7 @@ func TestCacheTTL(t *testing.T) {
 	}
 
 	// Wait for TTL to expire plus cleanup time
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(2100 * time.Millisecond)
 
 	// Check if value is gone after TTL (may still exist due to timing)
 	_, err = cache.Get(key)

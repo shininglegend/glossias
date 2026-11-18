@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // MockDB implements the DB interface for testing
@@ -266,6 +267,7 @@ func (m *MockPgxRows) CommandTag() pgconn.CommandTag                { return pgc
 func (m *MockPgxRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
 func (m *MockPgxRows) RawValues() [][]byte                          { return nil }
 func (m *MockPgxRows) Conn() *pgx.Conn                              { return nil }
+func (m *MockPgxRows) TypeMap() *pgtype.Map                         { return pgtype.NewMap() }
 
 type MockPgxRow struct {
 	row []any

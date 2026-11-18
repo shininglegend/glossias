@@ -6,7 +6,7 @@ Frontend agent instructions live in [`frontend/AGENTS.md`](frontend/AGENTS.md).
 
 ## Architecture
 
-**Backend:** Go 1.25 · Gorilla Mux · PostgreSQL (Supabase) · SQLC-generated queries · Clerk JWT auth · BigCache
+**Backend:** Go 1.26 · Gorilla Mux · PostgreSQL (Supabase) · SQLC-generated queries · Clerk JWT auth · BigCache
 
 **Three-layer backend pattern:** HTTP handlers → models (business logic) → SQLC generated queries → PostgreSQL
 

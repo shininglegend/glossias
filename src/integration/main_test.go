@@ -3,8 +3,9 @@
 // Package integration measures DB queries per request for every endpoint
 // against a real, seeded Postgres (see src/pkg/testdb). Requests go through
 // the production router (src/server) with a fake auth middleware in place of
-// Clerk, so the counts match what production logs as db_queries, plus the
-// user upsert auth does (production runs it before the counter starts).
+// Clerk, so the counts match what production logs as db_queries on a request
+// that syncs the user (fakeAuth upserts every time; production skips the
+// upsert while a sync is less than 10 minutes old).
 //
 // Run: make test-integration (or go test -tags integration ./src/integration).
 // models keeps its DB, cache and payments state in package globals, so no

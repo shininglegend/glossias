@@ -24,6 +24,14 @@ func assertQueryBudget(t *testing.T, max int, handler http.HandlerFunc, req *htt
 	return testutil.AssertQueryBudget(t, max, handler, req)
 }
 
+// courseAdminRights stubs the user as an admin of courseID, or of no course.
+func courseAdminRights(admin bool, courseID int32) [][]any {
+	if !admin {
+		return nil
+	}
+	return testutil.CourseAdminRightsRows(courseID)
+}
+
 func TestResetStudentProgressHandler(t *testing.T) {
 	h := NewHandler(slog.New(slog.DiscardHandler))
 
@@ -49,9 +57,9 @@ func TestResetStudentProgressHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDB := database.NewMockDBTX()
 			// GetUser is left unstubbed (ErrNoRows => not super admin) so the
-			// course-admin path is exercised: GetCourseIdForStory -> IsUserCourseAdmin.
+			// course-admin path is exercised: GetCourseIdForStory -> GetUserCourseAdminRights.
 			mockDB.StubQuery("GetCourseIdForStory", [][]any{{pgtype.Int4{Int32: 3, Valid: true}}}, nil)
-			mockDB.StubQuery("IsUserCourseAdmin", [][]any{{tt.courseAdmin}}, nil)
+			mockDB.StubQuery("GetUserCourseAdminRights", courseAdminRights(tt.courseAdmin, 3), nil)
 			mockDB.StubQuery("ResetUserStoryAnswers", [][]any{{
 				int64(1), int64(2), int64(0), int64(0), int64(1), int64(3), int64(1), int64(2), int64(2), int64(5), int64(0),
 			}}, nil)
@@ -128,7 +136,7 @@ func TestStoryStudentDrilldownHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDB := database.NewMockDBTX()
 			mockDB.StubQuery("GetCourseIdForStory", [][]any{{pgtype.Int4{Int32: 3, Valid: true}}}, nil)
-			mockDB.StubQuery("IsUserCourseAdmin", [][]any{{tt.courseAdmin}}, nil)
+			mockDB.StubQuery("GetUserCourseAdminRights", courseAdminRights(tt.courseAdmin, 3), nil)
 			if tt.studentFound {
 				mockDB.StubQuery("GetStudentStoryHeader", [][]any{{"student-9", "Student Nine", "nine@example.com", "A Story"}}, nil)
 			}
@@ -206,7 +214,7 @@ func TestStudentAttemptsHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDB := database.NewMockDBTX()
 			mockDB.StubQuery("GetCourseIdForStory", [][]any{{pgtype.Int4{Int32: 3, Valid: true}}}, nil)
-			mockDB.StubQuery("IsUserCourseAdmin", [][]any{{tt.courseAdmin}}, nil)
+			mockDB.StubQuery("GetUserCourseAdminRights", courseAdminRights(tt.courseAdmin, 3), nil)
 			if tt.studentFound {
 				mockDB.StubQuery("GetStudentStoryHeader", [][]any{{"student-9", "Student Nine", "nine@example.com", "A Story"}}, nil)
 			}
@@ -282,7 +290,7 @@ func TestDeleteStudentAttemptHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDB := database.NewMockDBTX()
 			mockDB.StubQuery("GetCourseIdForStory", [][]any{{pgtype.Int4{Int32: 3, Valid: true}}}, nil)
-			mockDB.StubQuery("IsUserCourseAdmin", [][]any{{tt.courseAdmin}}, nil)
+			mockDB.StubQuery("GetUserCourseAdminRights", courseAdminRights(tt.courseAdmin, 3), nil)
 			if tt.exists {
 				mockDB.StubExecRows("AND attempt_number = $3", 1)
 				mockDB.StubQuery("ListUserStoryAttemptsAfter", [][]any{{int64(20), int32(2)}}, nil)

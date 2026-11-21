@@ -103,9 +103,9 @@ func (h *Handler) GetUsersForCourse(w http.ResponseWriter, r *http.Request) {
 	users := make([]UserResponse, len(courseUsers))
 	for i, user := range courseUsers {
 		role := "student"
-		if models.IsUserSuperAdmin(r.Context(), user.UserID) {
+		if user.IsSuperAdmin {
 			role = "super_admin"
-		} else if models.IsUserOnlyCourseAdmin(r.Context(), user.UserID, int32(courseID)) {
+		} else if user.IsCourseAdmin {
 			role = "course_admin"
 		}
 

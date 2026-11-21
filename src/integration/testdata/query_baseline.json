@@ -1,0 +1,610 @@
+{
+  "admin-write/add-course-users/course-admin/cold": {
+    "queries": 7,
+    "status": 200
+  },
+  "admin-write/bulk-translations/course-admin/cold": {
+    "queries": 50,
+    "status": 200
+  },
+  "admin-write/delete-attempt/course-admin/cold": {
+    "queries": 9,
+    "status": 200
+  },
+  "admin-write/grant-access/super-admin/cold": {
+    "queries": 5,
+    "status": 200
+  },
+  "admin-write/link-course/super-admin/cold": {
+    "queries": 7,
+    "status": 200
+  },
+  "admin-write/reset-progress/course-admin/cold": {
+    "queries": 10,
+    "status": 200
+  },
+  "admin-write/save-story/course-admin/cold": {
+    "queries": 12,
+    "status": 500
+  },
+  "admin/annotations-line/course-admin/cold": {
+    "queries": 8,
+    "status": 200
+  },
+  "admin/annotations-line/course-admin/warm": {
+    "queries": 4,
+    "status": 200
+  },
+  "admin/annotations/course-admin/cold": {
+    "queries": 20,
+    "status": 200
+  },
+  "admin/annotations/course-admin/warm": {
+    "queries": 4,
+    "status": 200
+  },
+  "admin/annotations/super-admin/cold": {
+    "queries": 19,
+    "status": 200
+  },
+  "admin/annotations/super-admin/warm": {
+    "queries": 3,
+    "status": 200
+  },
+  "admin/content-readiness/course-admin/cold": {
+    "queries": 15,
+    "status": 200
+  },
+  "admin/content-readiness/course-admin/warm": {
+    "queries": 7,
+    "status": 200
+  },
+  "admin/course-admins/super-admin/cold": {
+    "queries": 4,
+    "status": 200
+  },
+  "admin/course-admins/super-admin/warm": {
+    "queries": 4,
+    "status": 200
+  },
+  "admin/course-sections/course-admin/cold": {
+    "queries": 6,
+    "status": 200
+  },
+  "admin/course-sections/course-admin/warm": {
+    "queries": 6,
+    "status": 200
+  },
+  "admin/course-users/course-admin/cold": {
+    "queries": 44,
+    "status": 200
+  },
+  "admin/course-users/course-admin/warm": {
+    "queries": 44,
+    "status": 200
+  },
+  "admin/course-users/super-admin/cold": {
+    "queries": 42,
+    "status": 200
+  },
+  "admin/course-users/super-admin/warm": {
+    "queries": 42,
+    "status": 200
+  },
+  "admin/course/course-admin/cold": {
+    "queries": 5,
+    "status": 200
+  },
+  "admin/course/course-admin/warm": {
+    "queries": 5,
+    "status": 200
+  },
+  "admin/courses/course-admin/cold": {
+    "queries": 6,
+    "status": 200
+  },
+  "admin/courses/course-admin/warm": {
+    "queries": 6,
+    "status": 200
+  },
+  "admin/courses/super-admin/cold": {
+    "queries": 5,
+    "status": 200
+  },
+  "admin/courses/super-admin/warm": {
+    "queries": 5,
+    "status": 200
+  },
+  "admin/metadata/course-admin/cold": {
+    "queries": 15,
+    "status": 200
+  },
+  "admin/metadata/course-admin/warm": {
+    "queries": 5,
+    "status": 200
+  },
+  "admin/produce/course-admin/cold": {
+    "queries": 10,
+    "status": 200
+  },
+  "admin/produce/course-admin/warm": {
+    "queries": 10,
+    "status": 200
+  },
+  "admin/recall/course-admin/cold": {
+    "queries": 12,
+    "status": 200
+  },
+  "admin/recall/course-admin/warm": {
+    "queries": 12,
+    "status": 200
+  },
+  "admin/story-courses/course-admin/cold": {
+    "queries": 6,
+    "status": 200
+  },
+  "admin/story-courses/course-admin/warm": {
+    "queries": 6,
+    "status": 200
+  },
+  "admin/story/course-admin/cold": {
+    "queries": 14,
+    "status": 200
+  },
+  "admin/story/course-admin/warm": {
+    "queries": 4,
+    "status": 200
+  },
+  "admin/story/student-denied/cold": {
+    "queries": 3,
+    "status": 403
+  },
+  "admin/story/student-denied/warm": {
+    "queries": 3,
+    "status": 403
+  },
+  "admin/story/super-admin/cold": {
+    "queries": 13,
+    "status": 200
+  },
+  "admin/story/super-admin/warm": {
+    "queries": 3,
+    "status": 200
+  },
+  "admin/students/course-admin/cold": {
+    "queries": 12,
+    "status": 200
+  },
+  "admin/students/course-admin/warm": {
+    "queries": 12,
+    "status": 200
+  },
+  "admin/students/student/attempts/course-admin/cold": {
+    "queries": 17,
+    "status": 200
+  },
+  "admin/students/student/attempts/course-admin/warm": {
+    "queries": 17,
+    "status": 200
+  },
+  "admin/students/student/course-admin/cold": {
+    "queries": 12,
+    "status": 200
+  },
+  "admin/students/student/course-admin/warm": {
+    "queries": 12,
+    "status": 200
+  },
+  "admin/system-grading-prompt/super-admin/cold": {
+    "queries": 5,
+    "status": 200
+  },
+  "admin/system-grading-prompt/super-admin/warm": {
+    "queries": 5,
+    "status": 200
+  },
+  "admin/system-payments/super-admin/cold": {
+    "queries": 3,
+    "status": 200
+  },
+  "admin/system-payments/super-admin/warm": {
+    "queries": 3,
+    "status": 200
+  },
+  "admin/target-vocabulary/course-admin/cold": {
+    "queries": 9,
+    "status": 200
+  },
+  "admin/target-vocabulary/course-admin/warm": {
+    "queries": 9,
+    "status": 200
+  },
+  "admin/translations/course-admin/cold": {
+    "queries": 5,
+    "status": 200
+  },
+  "admin/translations/course-admin/warm": {
+    "queries": 5,
+    "status": 200
+  },
+  "list/by-course/paid/cold": {
+    "queries": 3,
+    "status": 200
+  },
+  "list/by-course/paid/warm": {
+    "queries": 3,
+    "status": 200
+  },
+  "list/by-course/trial/cold": {
+    "queries": 3,
+    "status": 200
+  },
+  "list/by-course/trial/warm": {
+    "queries": 3,
+    "status": 200
+  },
+  "list/stories/course-admin/paywall-off/cold": {
+    "queries": 13,
+    "status": 200
+  },
+  "list/stories/course-admin/paywall-off/warm": {
+    "queries": 5,
+    "status": 200
+  },
+  "list/stories/course-admin/paywall-on/cold": {
+    "queries": 20,
+    "status": 200
+  },
+  "list/stories/course-admin/paywall-on/warm": {
+    "queries": 12,
+    "status": 200
+  },
+  "list/stories/expired/paywall-off/cold": {
+    "queries": 5,
+    "status": 200
+  },
+  "list/stories/expired/paywall-off/warm": {
+    "queries": 5,
+    "status": 200
+  },
+  "list/stories/expired/paywall-on/cold": {
+    "queries": 102,
+    "status": 200
+  },
+  "list/stories/expired/paywall-on/warm": {
+    "queries": 102,
+    "status": 200
+  },
+  "list/stories/paid/paywall-off/cold": {
+    "queries": 5,
+    "status": 200
+  },
+  "list/stories/paid/paywall-off/warm": {
+    "queries": 5,
+    "status": 200
+  },
+  "list/stories/paid/paywall-on/cold": {
+    "queries": 82,
+    "status": 200
+  },
+  "list/stories/paid/paywall-on/warm": {
+    "queries": 82,
+    "status": 200
+  },
+  "list/stories/super-admin/paywall-off/cold": {
+    "queries": 12,
+    "status": 200
+  },
+  "list/stories/super-admin/paywall-off/warm": {
+    "queries": 4,
+    "status": 200
+  },
+  "list/stories/super-admin/paywall-on/cold": {
+    "queries": 13,
+    "status": 200
+  },
+  "list/stories/super-admin/paywall-on/warm": {
+    "queries": 5,
+    "status": 200
+  },
+  "list/stories/trial/paywall-off/cold": {
+    "queries": 5,
+    "status": 200
+  },
+  "list/stories/trial/paywall-off/warm": {
+    "queries": 5,
+    "status": 200
+  },
+  "list/stories/trial/paywall-on/cold": {
+    "queries": 12,
+    "status": 200
+  },
+  "list/stories/trial/paywall-on/warm": {
+    "queries": 12,
+    "status": 200
+  },
+  "list/stories/unenrolled/paywall-off/cold": {
+    "queries": 5,
+    "status": 200
+  },
+  "list/stories/unenrolled/paywall-off/warm": {
+    "queries": 5,
+    "status": 200
+  },
+  "list/stories/unenrolled/paywall-on/cold": {
+    "queries": 12,
+    "status": 200
+  },
+  "list/stories/unenrolled/paywall-on/warm": {
+    "queries": 12,
+    "status": 200
+  },
+  "list/stories/unpaid/paywall-off/cold": {
+    "queries": 5,
+    "status": 200
+  },
+  "list/stories/unpaid/paywall-off/warm": {
+    "queries": 5,
+    "status": 200
+  },
+  "list/stories/unpaid/paywall-on/cold": {
+    "queries": 102,
+    "status": 200
+  },
+  "list/stories/unpaid/paywall-on/warm": {
+    "queries": 102,
+    "status": 200
+  },
+  "page/grammar/paid/paywall-off/cold": {
+    "queries": 14,
+    "status": 200
+  },
+  "page/grammar/paid/paywall-off/warm": {
+    "queries": 4,
+    "status": 200
+  },
+  "page/grammar/paid/paywall-on/cold": {
+    "queries": 18,
+    "status": 200
+  },
+  "page/grammar/paid/paywall-on/warm": {
+    "queries": 4,
+    "status": 200
+  },
+  "page/identify/course-admin/cold": {
+    "queries": 16,
+    "status": 200
+  },
+  "page/identify/course-admin/warm": {
+    "queries": 6,
+    "status": 200
+  },
+  "page/identify/paid/paywall-off/cold": {
+    "queries": 16,
+    "status": 200
+  },
+  "page/identify/paid/paywall-off/warm": {
+    "queries": 6,
+    "status": 200
+  },
+  "page/identify/paid/paywall-on/cold": {
+    "queries": 24,
+    "status": 200
+  },
+  "page/identify/paid/paywall-on/warm": {
+    "queries": 10,
+    "status": 200
+  },
+  "page/metadata/paid/paywall-off/cold": {
+    "queries": 11,
+    "status": 200
+  },
+  "page/metadata/paid/paywall-off/warm": {
+    "queries": 1,
+    "status": 200
+  },
+  "page/metadata/paid/paywall-on/cold": {
+    "queries": 15,
+    "status": 200
+  },
+  "page/metadata/paid/paywall-on/warm": {
+    "queries": 1,
+    "status": 200
+  },
+  "page/produce/paid/paywall-off/cold": {
+    "queries": 15,
+    "status": 200
+  },
+  "page/produce/paid/paywall-off/warm": {
+    "queries": 5,
+    "status": 200
+  },
+  "page/produce/paid/paywall-on/cold": {
+    "queries": 19,
+    "status": 200
+  },
+  "page/produce/paid/paywall-on/warm": {
+    "queries": 5,
+    "status": 200
+  },
+  "page/recall/paid/paywall-off/cold": {
+    "queries": 17,
+    "status": 200
+  },
+  "page/recall/paid/paywall-off/warm": {
+    "queries": 7,
+    "status": 200
+  },
+  "page/recall/paid/paywall-on/cold": {
+    "queries": 25,
+    "status": 200
+  },
+  "page/recall/paid/paywall-on/warm": {
+    "queries": 11,
+    "status": 200
+  },
+  "page/scores/paid/paywall-off/cold": {
+    "queries": 15,
+    "status": 200
+  },
+  "page/scores/paid/paywall-off/warm": {
+    "queries": 5,
+    "status": 200
+  },
+  "page/scores/paid/paywall-on/cold": {
+    "queries": 19,
+    "status": 200
+  },
+  "page/scores/paid/paywall-on/warm": {
+    "queries": 5,
+    "status": 200
+  },
+  "page/story-with-audio/paid/paywall-off/cold": {
+    "queries": 11,
+    "status": 200
+  },
+  "page/story-with-audio/paid/paywall-off/warm": {
+    "queries": 1,
+    "status": 200
+  },
+  "page/story-with-audio/paid/paywall-on/cold": {
+    "queries": 15,
+    "status": 200
+  },
+  "page/story-with-audio/paid/paywall-on/warm": {
+    "queries": 1,
+    "status": 200
+  },
+  "page/translate/paid/paywall-off/cold": {
+    "queries": 13,
+    "status": 200
+  },
+  "page/translate/paid/paywall-off/warm": {
+    "queries": 3,
+    "status": 200
+  },
+  "page/translate/paid/paywall-on/cold": {
+    "queries": 17,
+    "status": 200
+  },
+  "page/translate/paid/paywall-on/warm": {
+    "queries": 3,
+    "status": 200
+  },
+  "page/vocab/expired/paywall-on/cold": {
+    "queries": 7,
+    "status": 402
+  },
+  "page/vocab/expired/paywall-on/warm": {
+    "queries": 7,
+    "status": 402
+  },
+  "page/vocab/paid/paywall-off/cold": {
+    "queries": 12,
+    "status": 200
+  },
+  "page/vocab/paid/paywall-off/warm": {
+    "queries": 2,
+    "status": 200
+  },
+  "page/vocab/paid/paywall-on/cold": {
+    "queries": 16,
+    "status": 200
+  },
+  "page/vocab/paid/paywall-on/warm": {
+    "queries": 2,
+    "status": 200
+  },
+  "page/vocab/trial/paywall-on/cold": {
+    "queries": 15,
+    "status": 200
+  },
+  "page/vocab/trial/paywall-on/warm": {
+    "queries": 2,
+    "status": 200
+  },
+  "page/vocab/unenrolled/cold": {
+    "queries": 2,
+    "status": 404
+  },
+  "page/vocab/unenrolled/warm": {
+    "queries": 2,
+    "status": 404
+  },
+  "page/vocab/unpaid/paywall-on/cold": {
+    "queries": 7,
+    "status": 402
+  },
+  "page/vocab/unpaid/paywall-on/warm": {
+    "queries": 7,
+    "status": 402
+  },
+  "user/me/course-admin/cold": {
+    "queries": 4,
+    "status": 200
+  },
+  "user/me/course-admin/warm": {
+    "queries": 4,
+    "status": 200
+  },
+  "user/me/paid/cold": {
+    "queries": 7,
+    "status": 200
+  },
+  "user/me/paid/warm": {
+    "queries": 7,
+    "status": 200
+  },
+  "user/pricing/unpaid/cold": {
+    "queries": 6,
+    "status": 200
+  },
+  "user/pricing/unpaid/warm": {
+    "queries": 6,
+    "status": 200
+  },
+  "write/check-grammar/paid/cold": {
+    "queries": 13,
+    "status": 200
+  },
+  "write/check-identify/paid/cold": {
+    "queries": 14,
+    "status": 200
+  },
+  "write/check-recall-pick/paid/cold": {
+    "queries": 13,
+    "status": 200
+  },
+  "write/check-recall/paid/cold": {
+    "queries": 17,
+    "status": 200
+  },
+  "write/check-vocab/paid/cold": {
+    "queries": 13,
+    "status": 200
+  },
+  "write/next/paid/cold": {
+    "queries": 12,
+    "status": 200
+  },
+  "write/produce-start/paid/cold": {
+    "queries": 13,
+    "status": 200
+  },
+  "write/produce-submit/paid/cold": {
+    "queries": 13,
+    "status": 200
+  },
+  "write/time-tracking-start/paid/cold": {
+    "queries": 1,
+    "status": 200
+  },
+  "write/translate/paid/cold": {
+    "queries": 3,
+    "status": 200
+  },
+  "write/translate/unenrolled/cold": {
+    "queries": 3,
+    "status": 200
+  }
+}

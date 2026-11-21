@@ -12,23 +12,16 @@ import (
 	"glossias/src/auth"
 	"glossias/src/pkg/database"
 	"glossias/src/pkg/models"
+	"glossias/src/pkg/testutil"
 
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// assertQueryBudget mirrors src/apis/handlers/querybudget_test.go: serve req
-// and fail if the handler exceeded max DB calls.
+// assertQueryBudget is testutil.AssertQueryBudget for handler funcs.
 func assertQueryBudget(t *testing.T, max int, handler http.HandlerFunc, req *http.Request) *httptest.ResponseRecorder {
 	t.Helper()
-	ctx, _ := database.WithQueryCounter(req.Context())
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-	handler(rr, req)
-	if got := database.QueryCount(ctx); got > max {
-		t.Errorf("%s %s made %d DB queries, budget %d", req.Method, req.URL.Path, got, max)
-	}
-	return rr
+	return testutil.AssertQueryBudget(t, max, handler, req)
 }
 
 func TestResetStudentProgressHandler(t *testing.T) {

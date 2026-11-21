@@ -2,13 +2,12 @@ package main
 
 import (
 	"context"
-	"glossias/src/admin"
 	"glossias/src/alerting"
-	"glossias/src/apis"
 	"glossias/src/auth"
 	"glossias/src/logging"
 	"glossias/src/pkg/database"
 	"glossias/src/pkg/models"
+	"glossias/src/server"
 	"log"
 	"log/slog"
 	"net/http"
@@ -80,26 +79,6 @@ func main() {
 	}
 	clerk.SetKey(clerk_key)
 
-	// All routing below here.
-	r := mux.NewRouter()
-
-	// Setup middleware if needed
-	r.Use(auth.RateLimitMiddleware(logger))
-	r.Use(auth.Middleware(logger))
-	r.Use(queryCountMiddleware())
-	r.Use(loggingMiddleware(logger))
-
-	// Health check endpoint (no auth required)
-	r.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status": "healthy"}`))
-	}).Methods("GET", "OPTIONS")
-
-	// Database health check endpoint (no auth required, rate-limited to 1 request per 5 minutes)
-	r.HandleFunc("/api/db-health", apis.DBHealthHandler(logger)).Methods("GET", "OPTIONS")
-
-	// API handlers
 	// AI grading of Produce submissions runs in the background and is optional:
 	// without an API key submissions are stored ungraded.
 	// The grader's system prompt is versioned in the database and edited on the
@@ -129,40 +108,28 @@ func main() {
 		logger.Error("could not read persisted payments state; assuming not paused", "error", err)
 	}
 
-	apiHandler := apis.NewHandler(logger, produceGrading)
-	r.HandleFunc(auth.StripeWebhookPath, apiHandler.BillingWebhook()).Methods("POST")
-
-	// Time tracking API (no auth required)
-	timeTrackingHandler := apis.NewTimeTrackingHandler(logger)
-	timeTrackingRouter := r.PathPrefix("/api").Subrouter()
-	timeTrackingRouter.Use(jsonMiddleware())
-	timeTrackingHandler.RegisterRoutes(timeTrackingRouter)
-
-	apiRouter := r.PathPrefix("/api").Subrouter()
-
 	// Clerk: require Authorization: Bearer <token> on every request (unless dev auth bypass)
-	authorizedParty := os.Getenv("AUTHORIZED_PARTY")
-	devUser := os.Getenv("DEV_USER")
-
-	// Skip Clerk middleware if DEV_USER is set
-	if devUser == "" {
+	var apiAuth mux.MiddlewareFunc
+	if os.Getenv("DEV_USER") == "" {
+		authorizedParty := os.Getenv("AUTHORIZED_PARTY")
 		if authorizedParty == "" {
 			logger.Warn("AUTHORIZED_PARTY environment variable not set")
 			// It's not actually needed, but can cause problems if missing.
-			apiRouter.Use(clerkhttp.RequireHeaderAuthorization())
+			apiAuth = clerkhttp.RequireHeaderAuthorization()
 		} else {
-			apiRouter.Use(clerkhttp.RequireHeaderAuthorization(
+			apiAuth = clerkhttp.RequireHeaderAuthorization(
 				clerkhttp.AuthorizedPartyMatches(authorizedParty),
-			))
+			)
 		}
 	}
-	apiRouter.Use(jsonMiddleware())
-	apiHandler.RegisterRoutes(apiRouter)
 
-	// Admin API mounted under /api/admin/*
-	adminHandler := admin.NewHandler(logger)
-	adminApiRouter := apiRouter.PathPrefix("/admin").Subrouter()
-	adminHandler.RegisterRoutes(adminApiRouter)
+	r := server.NewRouter(server.Config{
+		Logger:         logger,
+		ProduceGrading: produceGrading,
+		RateLimit:      auth.RateLimitMiddleware(logger),
+		Auth:           auth.Middleware(logger),
+		APIAuth:        apiAuth,
+	})
 
 	// Select correct port and start the server
 	port := os.Getenv("PORT")
@@ -182,69 +149,5 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil {
 		logger.Error("server error", "error", err)
 		os.Exit(1)
-	}
-}
-
-// dbQueryWarnThreshold is the per-request DB call count above which a request
-// is logged as suspicious. Legitimate pages need a handful of queries; well
-// above that almost always means a model function is being called in a loop
-// (N+1). Fix by adding a batch query (WHERE id = ANY($1)), not by raising this.
-const dbQueryWarnThreshold = 15
-
-// queryCountMiddleware attaches a DB query counter to every request so the
-// models layer can record each call (see database.CountQuery). Must run
-// before loggingMiddleware, which reads the total.
-func queryCountMiddleware() mux.MiddlewareFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx, _ := database.WithQueryCounter(r.Context())
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
-}
-
-func loggingMiddleware(logger *slog.Logger) mux.MiddlewareFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Wrap ResponseWriter to capture status code
-			ww := &responseWriter{ResponseWriter: w, status: 200}
-			next.ServeHTTP(ww, r)
-			if r.URL.Path != "/api/health" {
-				dbQueries := database.QueryCount(r.Context())
-				level, msg := logging.HTTPRequestLog(ww.status)
-				logger.Log(r.Context(), level, msg,
-					"method", r.Method,
-					"path", r.URL.Path,
-					"status", ww.status,
-					"db_queries", dbQueries,
-					"requester", r.RemoteAddr)
-				if dbQueries > dbQueryWarnThreshold {
-					logger.Warn("high DB query count (possible N+1)",
-						"method", r.Method,
-						"path", r.URL.Path,
-						"db_queries", dbQueries,
-						"threshold", dbQueryWarnThreshold)
-				}
-			}
-		})
-	}
-}
-
-type responseWriter struct {
-	http.ResponseWriter
-	status int
-}
-
-func (rw *responseWriter) WriteHeader(code int) {
-	rw.status = code
-	rw.ResponseWriter.WriteHeader(code)
-}
-
-func jsonMiddleware() mux.MiddlewareFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			next.ServeHTTP(w, r)
-		})
 	}
 }

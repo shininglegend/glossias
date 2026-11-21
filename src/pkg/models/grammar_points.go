@@ -20,6 +20,8 @@ func CreateGrammarPoint(ctx context.Context, storyID int, name, description stri
 	if err != nil {
 		return nil, err
 	}
+	// Student grammar pages read grammar points from the cached story.
+	InvalidateStoryMetadata(int(result.StoryID))
 
 	return &GrammarPoint{
 		ID:          int(result.GrammarPointID),
@@ -101,6 +103,7 @@ func UpdateGrammarPoint(ctx context.Context, grammarPointID int, name, descripti
 	if err != nil {
 		return nil, err
 	}
+	InvalidateStoryMetadata(int(result.StoryID))
 
 	return &GrammarPoint{
 		ID:          int(result.GrammarPointID),
@@ -110,13 +113,19 @@ func UpdateGrammarPoint(ctx context.Context, grammarPointID int, name, descripti
 	}, nil
 }
 
-// DeleteGrammarPoint deletes a grammar point
+// DeleteGrammarPoint deletes a grammar point. It is ErrNotFound when the
+// grammar point does not exist.
 func DeleteGrammarPoint(ctx context.Context, grammarPointID int) error {
-	err := queries.DeleteGrammarPoint(ctx, int32(grammarPointID))
-	if err == sql.ErrNoRows || err == pgx.ErrNoRows {
-		return ErrNotFound
+	// The story id is needed to invalidate the cached story.
+	gp, err := GetGrammarPoint(ctx, grammarPointID)
+	if err != nil {
+		return err
 	}
-	return err
+	if err := queries.DeleteGrammarPoint(ctx, int32(grammarPointID)); err != nil {
+		return err
+	}
+	InvalidateStoryMetadata(gp.StoryID)
+	return nil
 }
 
 // GetStoryGrammarPoints returns all grammar points for a story

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"glossias/src/apis/types"
 	"glossias/src/auth"
@@ -42,13 +41,9 @@ func (h *Handler) GetGrammarPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get grammar points for the story
-	grammarPoints, err := models.GetStoryGrammarPoints(r.Context(), id)
-	if err != nil {
-		h.log.Error("Failed to fetch grammar points", "error", err)
-		h.sendError(w, "Failed to fetch grammar points", http.StatusInternalServerError)
-		return
-	}
+	// Grammar points come with the (cached) story; grammar point writes
+	// invalidate it.
+	grammarPoints := story.Metadata.GrammarPoints
 
 	// Find target grammar point
 	var selectedPoint *models.GrammarPoint
@@ -143,7 +138,7 @@ func (h *Handler) GetGrammarPage(w http.ResponseWriter, r *http.Request) {
 
 		// Check if all instances found and get next grammar point
 		if len(foundInstances) >= instancesCount {
-			nextGrammarPointID, _ = findNextGrammarPoint(r.Context(), id, selectedPoint.ID)
+			nextGrammarPointID = findNextGrammarPointFromSlice(grammarPoints, selectedPoint.ID)
 		}
 	}
 
@@ -208,15 +203,6 @@ func findNextGrammarPointFromSlice(grammarPoints []models.GrammarPoint, currentG
 		}
 	}
 	return nil
-}
-
-// findNextGrammarPoint finds the next grammar point ID in sequence (legacy function)
-func findNextGrammarPoint(ctx context.Context, storyID, currentGrammarPointID int) (*int, error) {
-	grammarPoints, err := models.GetStoryGrammarPoints(ctx, storyID)
-	if err != nil {
-		return nil, err
-	}
-	return findNextGrammarPointFromSlice(grammarPoints, currentGrammarPointID), nil
 }
 
 // CheckGrammar handles single grammar selection checking (one click at a time)
@@ -291,15 +277,10 @@ func (h *Handler) CheckGrammar(w http.ResponseWriter, r *http.Request) {
 
 	allComplete := foundCount >= totalInstances
 
-	// Find next grammar point if all complete - optimized to avoid extra DB call
+	// Find next grammar point if all complete, from the cached story
 	var nextGrammarPointID *int
 	if allComplete {
-		grammarPoints, err := models.GetStoryGrammarPoints(ctx, id)
-		if err != nil {
-			h.log.Error("Failed to get grammar points for next lookup", "error", err, "storyID", id)
-		} else {
-			nextGrammarPointID = findNextGrammarPointFromSlice(grammarPoints, req.GrammarPointID)
-		}
+		nextGrammarPointID = findNextGrammarPointFromSlice(story.Metadata.GrammarPoints, req.GrammarPointID)
 	}
 
 	response := types.APIResponse{

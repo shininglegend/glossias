@@ -349,6 +349,10 @@ type Querier interface {
 	LinkStoryToCourse(ctx context.Context, arg LinkStoryToCourseParams) error
 	ListActiveEntitlementsForUser(ctx context.Context, userID string) ([]ListActiveEntitlementsForUserRow, error)
 	ListAllCourseSections(ctx context.Context) ([]CourseSection, error)
+	// One row per existing course in course_ids: its trial flag, whether the user
+	// is enrolled (any status, like IsUserEnrolledInCourse) and whether the user
+	// holds an unexpired entitlement (like ListActiveEntitlementsForUser).
+	ListCourseAccessForUser(ctx context.Context, arg ListCourseAccessForUserParams) ([]ListCourseAccessForUserRow, error)
 	ListCourseIDsForStories(ctx context.Context, storyIds []int32) ([]ListCourseIDsForStoriesRow, error)
 	ListCourseSections(ctx context.Context, parentCourseID int32) ([]ListCourseSectionsRow, error)
 	ListCourses(ctx context.Context) ([]ListCoursesRow, error)

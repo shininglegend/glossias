@@ -106,10 +106,11 @@ func CheckStoryContentAccess(ctx context.Context, userID string, storyID int32) 
 		paywallDebug(ctx, "open, story linked to no course", "story", storyID, "user", userID)
 		return nil
 	}
-	locked, payable, err := storyLockState(ctx, userID, courseIDs)
+	access, err := loadCourseAccess(ctx, userID, courseIDs)
 	if err != nil {
 		return err
 	}
+	locked, payable := lockState(courseIDs, access)
 	if !locked {
 		paywallDebug(ctx, "open, trial or entitled", "story", storyID, "user", userID, "courses", courseIDs)
 		return nil
@@ -149,6 +150,9 @@ func AnnotateStoryLocks(ctx context.Context, userID string, stories []Story) err
 		adminIDs[int(r.CourseID)] = true
 	}
 	lockedCount, adminSkipped, unlinked := 0, 0, 0
+	toLock := make([]int, 0, len(stories))
+	var courseIDs []int
+	seen := map[int]bool{}
 	for i := range stories {
 		ids := stories[i].Metadata.LinkedCourseIDs
 		if len(ids) == 0 {
@@ -159,10 +163,20 @@ func AnnotateStoryLocks(ctx context.Context, userID string, stories []Story) err
 			adminSkipped++
 			continue
 		}
-		locked, payable, err := storyLockState(ctx, userID, ids)
-		if err != nil {
-			return err
+		toLock = append(toLock, i)
+		for _, id := range ids {
+			if !seen[id] {
+				seen[id] = true
+				courseIDs = append(courseIDs, id)
+			}
 		}
+	}
+	access, err := loadCourseAccess(ctx, userID, courseIDs)
+	if err != nil {
+		return err
+	}
+	for _, i := range toLock {
+		locked, payable := lockState(stories[i].Metadata.LinkedCourseIDs, access)
 		if locked {
 			lockedCount++
 		}
@@ -174,54 +188,54 @@ func AnnotateStoryLocks(ctx context.Context, userID string, stories []Story) err
 	return nil
 }
 
-func storyLockState(ctx context.Context, userID string, courseIDs []int) (locked bool, payable []int, err error) {
+// courseAccess is one user's standing in one course, as the paywall sees it.
+type courseAccess struct {
+	trial    bool
+	enrolled bool
+	entitled bool
+}
+
+// loadCourseAccess fetches the user's standing in every given course with one
+// query. Courses that do not exist are absent from the map.
+func loadCourseAccess(ctx context.Context, userID string, courseIDs []int) (map[int]courseAccess, error) {
+	out := make(map[int]courseAccess, len(courseIDs))
 	if len(courseIDs) == 0 {
-		return false, nil, nil
+		return out, nil
 	}
 	ids32 := make([]int32, len(courseIDs))
 	for i, id := range courseIDs {
 		ids32[i] = int32(id)
 	}
-	flags, err := queries.ListCoursesTrialFlags(ctx, ids32)
+	rows, err := queries.ListCourseAccessForUser(ctx, db.ListCourseAccessForUserParams{
+		UserID:    userID,
+		CourseIds: ids32,
+	})
 	if err != nil {
-		return false, nil, err
+		return nil, err
 	}
-	trial := map[int32]bool{}
-	for _, f := range flags {
-		trial[f.CourseID] = f.IsTrial
-		if f.IsTrial {
-			return false, nil, nil
+	for _, r := range rows {
+		out[int(r.CourseID)] = courseAccess{trial: r.IsTrial, enrolled: r.Enrolled, entitled: r.Entitled}
+	}
+	return out, nil
+}
+
+// lockState decides whether a story linked to courseIDs is locked for the user
+// whose access is given. Any trial or entitled course opens it; otherwise it
+// is locked when the user is enrolled in at least one of its (non-trial)
+// courses, and payable lists those courses in courseIDs order. A course
+// missing from access counts as not trial, not entitled and not enrolled.
+func lockState(courseIDs []int, access map[int]courseAccess) (locked bool, payable []int) {
+	for _, id := range courseIDs {
+		if a := access[id]; a.trial || a.entitled {
+			return false, nil
 		}
 	}
-	ents, err := queries.ListActiveEntitlementsForUser(ctx, userID)
-	if err != nil {
-		return false, nil, err
-	}
-	entitled := map[int32]bool{}
-	for _, e := range ents {
-		entitled[e.CourseID] = true
-	}
-	for _, id := range ids32 {
-		if entitled[id] {
-			return false, nil, nil
+	for _, id := range courseIDs {
+		if access[id].enrolled {
+			payable = append(payable, id)
 		}
 	}
-	for _, id := range ids32 {
-		if trial[id] {
-			continue
-		}
-		enrolled, err := queries.IsUserEnrolledInCourse(ctx, db.IsUserEnrolledInCourseParams{
-			UserID:   userID,
-			CourseID: id,
-		})
-		if err != nil {
-			return false, nil, err
-		}
-		if enrolled {
-			payable = append(payable, int(id))
-		}
-	}
-	return len(payable) > 0, payable, nil
+	return len(payable) > 0, payable
 }
 
 // AnnotateUserCourses fills is_trial, has_access, and expires_at.

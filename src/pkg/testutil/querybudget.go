@@ -3,11 +3,14 @@
 package testutil
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"glossias/src/pkg/database"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // ServeCounted serves req through h with a DB query counter on its context and
@@ -18,6 +21,18 @@ func ServeCounted(h http.Handler, req *http.Request) (*httptest.ResponseRecorder
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 	return rr, database.QueryCount(ctx)
+}
+
+// CourseAdminRightsRows builds MockDBTX rows for GetUserCourseAdminRights
+// that make the user an admin of each course in courseIDs. Stub them with
+// mockDB.StubQuery("GetUserCourseAdminRights", rows, nil); no rows means an
+// admin of no course.
+func CourseAdminRightsRows(courseIDs ...int32) [][]any {
+	rows := make([][]any, len(courseIDs))
+	for i, id := range courseIDs {
+		rows[i] = []any{id, pgtype.Timestamp{}, fmt.Sprintf("C-%d", id), fmt.Sprintf("Course %d", id)}
+	}
+	return rows
 }
 
 // AssertQueryBudget serves req through h and fails the test if the request

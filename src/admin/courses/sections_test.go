@@ -12,6 +12,7 @@ import (
 	"glossias/src/auth"
 	"glossias/src/pkg/database"
 	"glossias/src/pkg/models"
+	"glossias/src/pkg/testutil"
 
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -48,7 +49,7 @@ func TestListCourseSectionsHandler(t *testing.T) {
 	mockDB.StubQuery("name: GetUser :one", [][]any{{
 		"admin-1", "a@example.com", "Admin", pgtype.Bool{Bool: false, Valid: true}, pgtype.Timestamp{}, pgtype.Timestamp{},
 	}}, nil)
-	mockDB.StubQuery("IsUserCourseAdmin", [][]any{{true}}, nil)
+	mockDB.StubQuery("GetUserCourseAdminRights", testutil.CourseAdminRightsRows(1), nil)
 	mockDB.StubQuery("ListCourseSections", [][]any{
 		{int32(2), "101-A", "Section A"},
 	}, nil)
@@ -80,7 +81,7 @@ func TestAssignSectionStudents_RequiresAdmin(t *testing.T) {
 	mockDB.StubQuery("name: GetUser :one", [][]any{{
 		"student-1", "s@example.com", "Student", pgtype.Bool{Bool: false, Valid: true}, pgtype.Timestamp{}, pgtype.Timestamp{},
 	}}, nil)
-	mockDB.StubQuery("IsUserCourseAdmin", [][]any{{false}}, nil)
+	mockDB.StubQuery("GetUserCourseAdminRights", nil, nil)
 	models.SetDB(mockDB)
 	t.Cleanup(func() { models.SetDB(struct{}{}) })
 

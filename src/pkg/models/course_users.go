@@ -28,6 +28,8 @@ type CourseUser struct {
 	Status          string     `json:"status,omitempty"`
 	AccessExpiresAt *time.Time `json:"access_expires_at,omitempty"`
 	HasAccess       bool       `json:"has_access"`
+	IsSuperAdmin    bool       `json:"is_super_admin"`
+	IsCourseAdmin   bool       `json:"is_course_admin"` // admin of CourseID
 }
 
 // UserCourse represents a course a user is enrolled in
@@ -173,9 +175,10 @@ func GetCoursesForUserByStatus(ctx context.Context, userID string, status string
 	return courses, nil
 }
 
-// GetUsersForCourse returns all users enrolled in a course
+// GetUsersForCourse returns all users enrolled in a course, with each one's
+// super admin and course admin flags
 func GetUsersForCourse(ctx context.Context, courseID int) ([]CourseUser, error) {
-	results, err := queries.GetUsersForCourse(ctx, int32(courseID))
+	results, err := queries.GetUsersForCourseWithRoles(ctx, int32(courseID))
 	if err != nil {
 		return nil, err
 	}
@@ -183,12 +186,14 @@ func GetUsersForCourse(ctx context.Context, courseID int) ([]CourseUser, error) 
 	users := make([]CourseUser, len(results))
 	for i, result := range results {
 		users[i] = CourseUser{
-			CourseID:   courseID,
-			UserID:     result.UserID,
-			Email:      result.Email,
-			Name:       result.Name,
-			EnrolledAt: result.EnrolledAt.Time,
-			Status:     "active",
+			CourseID:      courseID,
+			UserID:        result.UserID,
+			Email:         result.Email,
+			Name:          result.Name,
+			EnrolledAt:    result.EnrolledAt.Time,
+			Status:        "active",
+			IsSuperAdmin:  result.IsSuperAdmin,
+			IsCourseAdmin: result.IsCourseAdmin,
 		}
 		// Override status if present
 		if result.Status.Valid {

@@ -330,6 +330,9 @@ type Querier interface {
 	GetUserVocabScores(ctx context.Context, arg GetUserVocabScoresParams) ([]GetUserVocabScoresRow, error)
 	GetUsersByEmails(ctx context.Context, dollar_1 []string) ([]GetUsersByEmailsRow, error)
 	GetUsersForCourse(ctx context.Context, courseID int32) ([]GetUsersForCourseRow, error)
+	// The course roster with each user's role in one query, replacing a super
+	// admin and a course admin lookup per user.
+	GetUsersForCourseWithRoles(ctx context.Context, courseID int32) ([]GetUsersForCourseWithRolesRow, error)
 	GetVocabularyItems(ctx context.Context, arg GetVocabularyItemsParams) ([]VocabularyItem, error)
 	GradeProduceSubmission(ctx context.Context, arg GradeProduceSubmissionParams) error
 	// InsertAccessEntitlement: 0 rows means this Stripe session was already granted
@@ -340,6 +343,10 @@ type Querier interface {
 	// output, parsed verdict or error — so grading can be inspected after the fact.
 	InsertProduceGradingLog(ctx context.Context, arg InsertProduceGradingLogParams) error
 	InsertProduceGradingPrompt(ctx context.Context, arg InsertProduceGradingPromptParams) (ProduceGradingPrompt, error)
+	// Creates a placeholder row for a user auth could not load from Clerk, so
+	// rows that reference users still have a parent. Never touches an existing
+	// row: a Clerk outage must not blank a stored email or name.
+	InsertUserIfMissing(ctx context.Context, userID string) error
 	IsUserAdminOfAnyCourse(ctx context.Context, userID string) (bool, error)
 	IsUserAdminOfLinkedStory(ctx context.Context, arg IsUserAdminOfLinkedStoryParams) (bool, error)
 	IsUserCourseAdmin(ctx context.Context, arg IsUserCourseAdminParams) (bool, error)

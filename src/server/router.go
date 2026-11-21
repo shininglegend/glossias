@@ -40,8 +40,10 @@ func NewRouter(cfg Config) *mux.Router {
 	if cfg.RateLimit != nil {
 		r.Use(cfg.RateLimit)
 	}
-	r.Use(cfg.Auth)
+	// The counter (and request memo) wraps auth, so the user sync auth does is
+	// counted in db_queries and its row is reused by later role checks.
 	r.Use(QueryCountMiddleware())
+	r.Use(cfg.Auth)
 	r.Use(loggingMiddleware(logger))
 
 	// Health check endpoint (no auth required)
@@ -85,13 +87,17 @@ func NewRouter(cfg Config) *mux.Router {
 const dbQueryWarnThreshold = 15
 
 // QueryCountMiddleware attaches a DB query counter to every request so the
-// models layer can record each call (see database.CountQuery). Must run
-// before loggingMiddleware, which reads the total. A counter already on the
-// context (a test measuring the whole request) is reused, not shadowed.
+// models layer can record each call (see database.CountQuery), and a request
+// memo (models.WithRequestMemo) so user and course-admin lookups run at most
+// once per request. Must run before auth, whose user sync should be counted
+// and memoised, and before loggingMiddleware, which reads the total. A
+// counter already on the context (a test measuring the whole request) is
+// reused, not shadowed.
 func QueryCountMiddleware() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := database.EnsureQueryCounter(r.Context())
+			ctx = models.WithRequestMemo(ctx)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

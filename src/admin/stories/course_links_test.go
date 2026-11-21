@@ -12,6 +12,7 @@ import (
 	"glossias/src/auth"
 	"glossias/src/pkg/database"
 	"glossias/src/pkg/models"
+	"glossias/src/pkg/testutil"
 
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -24,7 +25,7 @@ func TestLinkStoryCourse(t *testing.T) {
 	mockDB.StubQuery("name: GetUser :one", [][]any{{
 		"admin-1", "a@example.com", "Admin", pgtype.Bool{Bool: false, Valid: true}, pgtype.Timestamp{}, pgtype.Timestamp{},
 	}}, nil)
-	mockDB.StubQuery("IsUserCourseAdmin", [][]any{{true}}, nil)
+	mockDB.StubQuery("GetUserCourseAdminRights", testutil.CourseAdminRightsRows(3, 5), nil)
 	mockDB.StubQuery("IsUserAdminOfLinkedStory", [][]any{{true}}, nil)
 	mockDB.StubQuery("name: GetCourse :one", [][]any{{
 		int32(5), "LATN-102", "Latin 102", pgtype.Text{}, false, pgtype.Timestamp{}, pgtype.Timestamp{},
@@ -53,7 +54,7 @@ func TestUnlinkStoryCourse_RejectsOwner(t *testing.T) {
 	mockDB.StubQuery("name: GetUser :one", [][]any{{
 		"admin-1", "a@example.com", "Admin", pgtype.Bool{Bool: false, Valid: true}, pgtype.Timestamp{}, pgtype.Timestamp{},
 	}}, nil)
-	mockDB.StubQuery("IsUserCourseAdmin", [][]any{{true}}, nil)
+	mockDB.StubQuery("GetUserCourseAdminRights", testutil.CourseAdminRightsRows(3, 5), nil)
 	mockDB.StubQuery("GetCourseIdForStory", [][]any{{pgtype.Int4{Int32: 3, Valid: true}}}, nil)
 	models.SetDB(mockDB)
 	t.Cleanup(func() { models.SetDB(struct{}{}) })
@@ -78,7 +79,7 @@ func TestUnlinkStoryCourse_NonOwner(t *testing.T) {
 	mockDB.StubQuery("name: GetUser :one", [][]any{{
 		"admin-1", "a@example.com", "Admin", pgtype.Bool{Bool: false, Valid: true}, pgtype.Timestamp{}, pgtype.Timestamp{},
 	}}, nil)
-	mockDB.StubQuery("IsUserCourseAdmin", [][]any{{true}}, nil)
+	mockDB.StubQuery("GetUserCourseAdminRights", testutil.CourseAdminRightsRows(3, 5), nil)
 	mockDB.StubQuery("GetCourseIdForStory", [][]any{{pgtype.Int4{Int32: 3, Valid: true}}}, nil)
 	models.SetDB(mockDB)
 	t.Cleanup(func() { models.SetDB(struct{}{}) })
@@ -150,7 +151,7 @@ func TestStoryStudentsHandler_LinkedCourseRoster(t *testing.T) {
 	mockDB.StubQuery("name: GetUser :one", [][]any{{
 		"admin-1", "a@example.com", "Admin", pgtype.Bool{Bool: false, Valid: true}, pgtype.Timestamp{}, pgtype.Timestamp{},
 	}}, nil)
-	mockDB.StubQuery("IsUserCourseAdmin", [][]any{{true}}, nil)
+	mockDB.StubQuery("GetUserCourseAdminRights", testutil.CourseAdminRightsRows(3, 5), nil)
 	mockDB.StubQuery("StoryLinkedToCourse", [][]any{{true}}, nil)
 	mockDB.StubQuery("GetStoryPhaseTotals", [][]any{{int32(0), int32(0), int32(0), int32(0), int32(0)}}, nil)
 	mockDB.StubQuery("GetStoryStudentPerformance", nil, nil)
@@ -173,7 +174,7 @@ func TestStoryStudentsHandler_InvalidSection(t *testing.T) {
 	mockDB.StubQuery("name: GetUser :one", [][]any{{
 		"admin-1", "a@example.com", "Admin", pgtype.Bool{Bool: false, Valid: true}, pgtype.Timestamp{}, pgtype.Timestamp{},
 	}}, nil)
-	mockDB.StubQuery("IsUserCourseAdmin", [][]any{{true}}, nil)
+	mockDB.StubQuery("GetUserCourseAdminRights", testutil.CourseAdminRightsRows(3, 5), nil)
 	mockDB.StubQuery("StoryLinkedToCourse", [][]any{{true}}, nil)
 	models.SetDB(mockDB)
 	t.Cleanup(func() { models.SetDB(struct{}{}) })

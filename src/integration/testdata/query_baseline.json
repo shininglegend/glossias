@@ -252,11 +252,11 @@
     "status": 200
   },
   "list/stories/course-admin/paywall-on/cold": {
-    "queries": 20,
+    "queries": 16,
     "status": 200
   },
   "list/stories/course-admin/paywall-on/warm": {
-    "queries": 12,
+    "queries": 8,
     "status": 200
   },
   "list/stories/expired/paywall-off/cold": {
@@ -268,11 +268,11 @@
     "status": 200
   },
   "list/stories/expired/paywall-on/cold": {
-    "queries": 102,
+    "queries": 8,
     "status": 200
   },
   "list/stories/expired/paywall-on/warm": {
-    "queries": 102,
+    "queries": 8,
     "status": 200
   },
   "list/stories/paid/paywall-off/cold": {
@@ -284,11 +284,11 @@
     "status": 200
   },
   "list/stories/paid/paywall-on/cold": {
-    "queries": 82,
+    "queries": 8,
     "status": 200
   },
   "list/stories/paid/paywall-on/warm": {
-    "queries": 82,
+    "queries": 8,
     "status": 200
   },
   "list/stories/super-admin/paywall-off/cold": {
@@ -316,11 +316,11 @@
     "status": 200
   },
   "list/stories/trial/paywall-on/cold": {
-    "queries": 12,
+    "queries": 8,
     "status": 200
   },
   "list/stories/trial/paywall-on/warm": {
-    "queries": 12,
+    "queries": 8,
     "status": 200
   },
   "list/stories/unenrolled/paywall-off/cold": {
@@ -332,11 +332,11 @@
     "status": 200
   },
   "list/stories/unenrolled/paywall-on/cold": {
-    "queries": 12,
+    "queries": 8,
     "status": 200
   },
   "list/stories/unenrolled/paywall-on/warm": {
-    "queries": 12,
+    "queries": 8,
     "status": 200
   },
   "list/stories/unpaid/paywall-off/cold": {
@@ -348,11 +348,11 @@
     "status": 200
   },
   "list/stories/unpaid/paywall-on/cold": {
-    "queries": 102,
+    "queries": 8,
     "status": 200
   },
   "list/stories/unpaid/paywall-on/warm": {
-    "queries": 102,
+    "queries": 8,
     "status": 200
   },
   "page/grammar/paid/paywall-off/cold": {
@@ -364,7 +364,7 @@
     "status": 200
   },
   "page/grammar/paid/paywall-on/cold": {
-    "queries": 18,
+    "queries": 17,
     "status": 200
   },
   "page/grammar/paid/paywall-on/warm": {
@@ -388,11 +388,11 @@
     "status": 200
   },
   "page/identify/paid/paywall-on/cold": {
-    "queries": 24,
+    "queries": 22,
     "status": 200
   },
   "page/identify/paid/paywall-on/warm": {
-    "queries": 10,
+    "queries": 9,
     "status": 200
   },
   "page/metadata/paid/paywall-off/cold": {
@@ -404,7 +404,7 @@
     "status": 200
   },
   "page/metadata/paid/paywall-on/cold": {
-    "queries": 15,
+    "queries": 14,
     "status": 200
   },
   "page/metadata/paid/paywall-on/warm": {
@@ -420,7 +420,7 @@
     "status": 200
   },
   "page/produce/paid/paywall-on/cold": {
-    "queries": 19,
+    "queries": 18,
     "status": 200
   },
   "page/produce/paid/paywall-on/warm": {
@@ -436,11 +436,11 @@
     "status": 200
   },
   "page/recall/paid/paywall-on/cold": {
-    "queries": 25,
+    "queries": 23,
     "status": 200
   },
   "page/recall/paid/paywall-on/warm": {
-    "queries": 11,
+    "queries": 10,
     "status": 200
   },
   "page/scores/paid/paywall-off/cold": {
@@ -452,7 +452,7 @@
     "status": 200
   },
   "page/scores/paid/paywall-on/cold": {
-    "queries": 19,
+    "queries": 18,
     "status": 200
   },
   "page/scores/paid/paywall-on/warm": {
@@ -468,7 +468,7 @@
     "status": 200
   },
   "page/story-with-audio/paid/paywall-on/cold": {
-    "queries": 15,
+    "queries": 14,
     "status": 200
   },
   "page/story-with-audio/paid/paywall-on/warm": {
@@ -484,7 +484,7 @@
     "status": 200
   },
   "page/translate/paid/paywall-on/cold": {
-    "queries": 17,
+    "queries": 16,
     "status": 200
   },
   "page/translate/paid/paywall-on/warm": {
@@ -492,11 +492,11 @@
     "status": 200
   },
   "page/vocab/expired/paywall-on/cold": {
-    "queries": 7,
+    "queries": 5,
     "status": 402
   },
   "page/vocab/expired/paywall-on/warm": {
-    "queries": 7,
+    "queries": 5,
     "status": 402
   },
   "page/vocab/paid/paywall-off/cold": {
@@ -508,7 +508,7 @@
     "status": 200
   },
   "page/vocab/paid/paywall-on/cold": {
-    "queries": 16,
+    "queries": 15,
     "status": 200
   },
   "page/vocab/paid/paywall-on/warm": {
@@ -532,11 +532,11 @@
     "status": 404
   },
   "page/vocab/unpaid/paywall-on/cold": {
-    "queries": 7,
+    "queries": 5,
     "status": 402
   },
   "page/vocab/unpaid/paywall-on/warm": {
-    "queries": 7,
+    "queries": 5,
     "status": 402
   },
   "user/me/course-admin/cold": {

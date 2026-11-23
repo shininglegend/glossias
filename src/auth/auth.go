@@ -26,6 +26,10 @@ const UserIDKey contextKey = "userID"
 // by the webhook signature, so it bypasses Clerk auth and rate limiting.
 const StripeWebhookPath = "/api/webhooks/stripe"
 
+// jwtLeeway is the clock skew allowed when checking a session token's expiry
+// and not-before times.
+const jwtLeeway = 60 * time.Second
+
 // fetchClerkUser loads a user's profile from Clerk. A variable so tests can
 // stub Clerk.
 var fetchClerkUser = user.Get
@@ -57,7 +61,9 @@ func Middleware(logger *slog.Logger) mux.MiddlewareFunc {
 			if strings.HasPrefix(r.URL.Path, "/api/") && !slices.Contains(byPassURLS, r.URL.Path) {
 				userID, err := extractAndValidateUser(r, logger)
 				if err != nil {
-					logger.Error("auth failed", "error", err, "path", r.URL.Path)
+					// WARN, not ERROR: anyone can trigger this, and it must not
+					// page or flood the error log.
+					logger.Warn("auth failed", "error", err, "path", r.URL.Path)
 					http.Error(w, "Unauthorized", http.StatusUnauthorized)
 					return
 				}
@@ -90,7 +96,7 @@ func extractAndValidateUser(r *http.Request, logger *slog.Logger) (string, error
 			// Sync dev user data with database
 			email, name := clerkProfile(clerkUser)
 			if _, err := models.UpsertUser(ctx, devUser, email, name); err != nil {
-				logger.Error("failed to sync dev user to database", "error", err, "dev_user", devUser, "email", email)
+				logger.Error("failed to sync dev user to database", "error", err, "user_id", devUser)
 			} else {
 				models.MarkUserSynced(devUser)
 			}
@@ -111,10 +117,12 @@ func extractAndValidateUser(r *http.Request, logger *slog.Logger) (string, error
 		return "", &clerk.APIErrorResponse{HTTPStatusCode: 401}
 	}
 
-	// Verify JWT token with clock tolerance
+	// Verify the JWT. Clerk session tokens live about 60 seconds, so the clock
+	// tolerance stays small: every second of leeway extends how long a leaked
+	// token is accepted after it expires.
 	claims, err := clerkjwt.Verify(r.Context(), &clerkjwt.VerifyParams{
 		Token:  token,
-		Leeway: time.Minute * 5, // Allow 5 minutes clock skew
+		Leeway: jwtLeeway,
 	})
 	if err != nil {
 		return "", err
@@ -156,7 +164,8 @@ func syncUser(ctx context.Context, userID string, logger *slog.Logger) {
 	if _, err := models.UpsertUser(ctx, userID, email, name); err != nil {
 		// Don't fail the request if database sync fails, but make it loud: a
 		// unique-email conflict here means the same address is on two users rows.
-		logger.Error("failed to sync user to database", "error", err, "user_id", userID, "email", email, "name", name)
+		// Logs the user id only: emails and names stay out of the logs.
+		logger.Error("failed to sync user to database", "error", err, "user_id", userID)
 		return
 	}
 	models.MarkUserSynced(userID)

@@ -48,11 +48,7 @@ type StartTimeTrackingResponse struct {
 func (h *TimeTrackingHandler) startTimeTracking(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID(r)
 	if userID == "" {
-		clientIP := r.Header.Get("X-Forwarded-For")
-		if clientIP == "" {
-			clientIP = r.RemoteAddr
-		}
-		h.logger.Warn("time tracking start without user", "ip", clientIP)
+		h.logger.Warn("time tracking start without user", "ip", auth.ClientIP(r))
 		userID = "anonymous"
 	}
 
@@ -65,11 +61,6 @@ func (h *TimeTrackingHandler) startTimeTracking(w http.ResponseWriter, r *http.R
 	if req.Route == "" {
 		http.Error(w, "route is required", http.StatusBadRequest)
 		return
-	}
-
-	clientIP := r.Header.Get("X-Forwarded-For")
-	if clientIP == "" {
-		clientIP = r.RemoteAddr
 	}
 
 	trackingID, err := models.MakeTimeTrackingSession(r.Context(), userID, req.Route, req.StoryID)

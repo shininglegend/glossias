@@ -151,9 +151,41 @@ func TestSyncUserUpsertFailureNotMarked(t *testing.T) {
 	models.SetDB(mockDB)
 	t.Cleanup(func() { models.SetDB(struct{}{}) })
 
-	syncUser(context.Background(), id, slog.New(slog.DiscardHandler))
+	var logs strings.Builder
+	syncUser(context.Background(), id, slog.New(slog.NewTextHandler(&logs, nil)))
 
 	if models.UserRecentlySynced(id) {
 		t.Error("failed upsert marked the user as synced")
+	}
+	out := logs.String()
+	if !strings.Contains(out, "user_id="+id) {
+		t.Errorf("sync failure log lacks the user id: %s", out)
+	}
+	for _, pii := range []string{"ada@example.com", "Ada", "Lovelace"} {
+		if strings.Contains(out, pii) {
+			t.Errorf("sync failure log contains %q: %s", pii, out)
+		}
+	}
+}
+
+func TestAuthFailureLogsWarn(t *testing.T) {
+	t.Setenv("DEV_USER", "")
+	var logs strings.Builder
+	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	h := Middleware(logger)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("handler ran for an unauthenticated request")
+	}))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/stories", nil))
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("status %d, want 401", rr.Code)
+	}
+	out := logs.String()
+	if !strings.Contains(out, "level=WARN") || !strings.Contains(out, "auth failed") {
+		t.Errorf("want a WARN auth failed record, got: %s", out)
+	}
+	if strings.Contains(out, "level=ERROR") {
+		t.Errorf("auth failure logged at ERROR: %s", out)
 	}
 }

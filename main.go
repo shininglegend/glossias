@@ -49,6 +49,16 @@ func main() {
 		}
 	}
 
+	// DEV_USER disables authentication; refuse to start with it anywhere but
+	// a developer's machine.
+	if err := auth.CheckDevBypass(os.Getenv("DEV_USER"), os.Getenv("PUBLIC_APP_URL")); err != nil {
+		logger.Error("refusing to start", "error", err)
+		os.Exit(1)
+	}
+	if os.Getenv("DEV_USER") != "" {
+		logger.Warn("DEV_USER is set: authentication is bypassed for requests with the dev_auth header (local development only)")
+	}
+
 	// Initialize database with automatic reconnection support
 	// USE_POOL=true uses pgxpool, USE_POOL=false uses database/sql, no DATABASE_URL uses mock
 	dbPath := "" // Not used for PostgreSQL

@@ -60,7 +60,7 @@ Backend (`.env`):
 - `CLERK_SECRET_KEY`, `AUTHORIZED_PARTY`
 - `DATABASE_URL`
 - `STORAGE_URL`, `STORAGE_API_KEY`
-- `DEV_USER` — when set, bypasses Clerk auth (dev only)
+- `DEV_USER` — when set, bypasses Clerk auth (dev only). The server refuses to start with it unless `PUBLIC_APP_URL` is set to a localhost URL (`auth.CheckDevBypass`).
 - `ANTHROPIC_API_KEY` — enables AI grading of Produce submissions (background, fail-open). Unset → submissions are stored ungraded and a warning is logged at startup. `GradingErrorStreakLimit` consecutive grading calls that fail at the API level (unreachable, timeout, error status) raise an incident through the alerter; a rejected key (401/403) raises on the first failure; the next answer from the model resolves it. Refusals, cut-offs, unparseable verdicts and quota refusals do not count.
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ACCESS` — Stripe checkout. Unset → checkout disabled; a warning is logged at startup.
 - `PUBLIC_APP_URL` — Checkout success/cancel base URL (defaults to `http://localhost:5173`).
@@ -114,7 +114,7 @@ Never edit files under `src/pkg/generated/db/` by hand.
 
 ## Auth
 
-Clerk is used for both frontend (ClerkProvider in `frontend/app/root.tsx`) and backend (JWT middleware in `src/auth/`). Role-based access: `super_admin`, `course_admin`, `student`. The `DEV_USER` env var bypasses auth entirely — never set it in production.
+Clerk is used for both frontend (ClerkProvider in `frontend/app/root.tsx`) and backend (JWT middleware in `src/auth/`). Role-based access: `super_admin`, `course_admin`, `student`. The `DEV_USER` env var bypasses auth entirely — never set it in production (startup fails unless `PUBLIC_APP_URL` is a localhost URL). Rate limiting keys on the client IP from DigitalOcean App Platform's `DO-Connecting-IP` header, falling back to the TCP peer; `X-Forwarded-For` is client-controlled and never trusted (`auth.ClientIP`).
 If you want to cURL a request, include `'dev_auth: 12345678'` as a header to be authenticated as admin.
 
 ## Routing Conventions

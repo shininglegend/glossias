@@ -68,7 +68,8 @@ STORAGE_API_KEY="..."      # audio uploads fail without this
 
 CLERK_SECRET_KEY=sk_test_...
 AUTHORIZED_PARTY=http://localhost:5173
-# DEV_USER=some-user-id    # bypasses Clerk auth entirely — local development only, never in production
+PUBLIC_APP_URL=http://localhost:5173
+# DEV_USER=some-user-id    # bypasses Clerk auth entirely — local development only; the server refuses to start with it unless PUBLIC_APP_URL is a localhost URL
 ```
 
 And a `frontend/.env`:

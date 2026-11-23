@@ -240,14 +240,15 @@ func (h *Handler) bulkUpdateTranslations(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Update each translation
+	// One statement for every line: all succeed or none do.
+	updates := make([]models.LineTranslationText, 0, len(req.Translations))
 	for _, translation := range req.Translations {
-		err = models.UpsertLineTranslation(r.Context(), storyID, translation.LineNumber, req.LanguageCode, translation.Translation)
-		if err != nil {
-			h.log.Error("Failed to upsert line translation", "error", err, "storyID", storyID, "lineNumber", translation.LineNumber)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
+		updates = append(updates, models.LineTranslationText{LineNumber: translation.LineNumber, Text: translation.Translation})
+	}
+	if err := models.UpsertLineTranslations(r.Context(), storyID, req.LanguageCode, updates); err != nil {
+		h.log.Error("Failed to upsert line translations", "error", err, "storyID", storyID, "count", len(updates))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
 	}
 
 	w.WriteHeader(http.StatusOK)

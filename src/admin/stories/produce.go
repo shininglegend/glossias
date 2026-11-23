@@ -187,29 +187,19 @@ func (h *Handler) saveProduceSegment(w http.ResponseWriter, r *http.Request, sto
 func (h *Handler) deleteProduceSegment(w http.ResponseWriter, r *http.Request, storyID, order int) {
 	ctx := r.Context()
 
-	segments, err := models.GetStoryProduceSegments(ctx, storyID)
+	// produce_submissions.segment_id cascades, so this discards any student
+	// attempts at the segment along with it.
+	deleted, err := models.DeleteProduceSegmentByOrder(ctx, storyID, order)
 	if err != nil {
-		h.log.Error("Failed to fetch produce segments", "error", err, "storyID", storyID)
-		writeJSONError(w, "Internal server error", http.StatusInternalServerError)
+		h.log.Error("Failed to delete produce segment", "error", err, "storyID", storyID, "order", order)
+		writeJSONError(w, "Failed to delete segment", http.StatusInternalServerError)
 		return
 	}
-
-	for _, segment := range segments {
-		if segment.SegmentOrder != order {
-			continue
-		}
-		// produce_submissions.segment_id cascades, so this discards any student
-		// attempts at the segment along with it.
-		if err := models.DeleteProduceSegment(ctx, storyID, segment.ID); err != nil {
-			h.log.Error("Failed to delete produce segment", "error", err, "segmentID", segment.ID)
-			writeJSONError(w, "Failed to delete segment", http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
+	if !deleted {
+		writeJSONError(w, "No segment at position "+strconv.Itoa(order), http.StatusNotFound)
 		return
 	}
-
-	writeJSONError(w, "No segment at position "+strconv.Itoa(order), http.StatusNotFound)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) produceExplanationHandler(w http.ResponseWriter, r *http.Request) {

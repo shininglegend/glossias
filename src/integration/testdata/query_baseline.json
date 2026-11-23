@@ -4,7 +4,7 @@
     "status": 200
   },
   "admin-write/bulk-translations/course-admin/cold": {
-    "queries": 49,
+    "queries": 4,
     "status": 200
   },
   "admin-write/delete-attempt/course-admin/cold": {

@@ -7,6 +7,7 @@ import (
 
 	"glossias/src/pkg/generated/db"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -14,6 +15,20 @@ var (
 	ErrInvalidStoryID    = errors.New("invalid story ID")
 	ErrInvalidLineNumber = errors.New("invalid line number")
 )
+
+// touchStoryRevision bumps the story's last_revision in one statement. A
+// missing story is pgx.ErrNoRows, as the GetStory + UpdateStory pair it
+// replaces returned.
+func touchStoryRevision(ctx context.Context, storyID int) error {
+	n, err := queries.TouchStoryRevision(ctx, int32(storyID))
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
 
 // EditStoryText updates only the text content of story lines
 func EditStoryText(ctx context.Context, storyID int, lines []StoryLine) error {
@@ -23,38 +38,22 @@ func EditStoryText(ctx context.Context, storyID int, lines []StoryLine) error {
 			return err
 		}
 
-		// Insert updated lines using SQLC
-		for _, line := range lines {
-			err := queries.UpsertStoryLine(txCtx, db.UpsertStoryLineParams{
-				StoryID:    int32(storyID),
-				LineNumber: int32(line.LineNumber),
-				Text:       line.Text,
-			})
-			if err != nil {
+		// Insert updated lines in one COPY
+		if len(lines) > 0 {
+			rows := make([]db.BulkCreateStoryLinesParams, 0, len(lines))
+			for _, line := range lines {
+				rows = append(rows, db.BulkCreateStoryLinesParams{
+					StoryID:    int32(storyID),
+					LineNumber: int32(line.LineNumber),
+					Text:       line.Text,
+				})
+			}
+			if _, err := queries.BulkCreateStoryLines(txCtx, rows); err != nil {
 				return err
 			}
 		}
 
-		// Fetch existing story metadata
-		existingStory, err := queries.GetStory(txCtx, int32(storyID))
-		if err != nil {
-			return err
-		}
-		// Update last revision timestamp using SQLC, preserving existing metadata
-		err = queries.UpdateStory(txCtx, db.UpdateStoryParams{
-			StoryID:    int32(storyID),
-			WeekNumber: existingStory.WeekNumber,
-			DayLetter:  existingStory.DayLetter,
-			VideoUrl:   existingStory.VideoUrl,
-			AuthorID:   existingStory.AuthorID,
-			AuthorName: existingStory.AuthorName,
-			CourseID:   existingStory.CourseID,
-		})
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return touchStoryRevision(txCtx, storyID)
 	})
 
 	// Invalidate cache after successful edit
@@ -96,15 +95,8 @@ func EditStoryMetadata(ctx context.Context, storyID int, metadata StoryMetadata)
 		if err := queries.DeleteStoryTitles(txCtx, int32(storyID)); err != nil {
 			return err
 		}
-		for lang, title := range metadata.Title {
-			err := queries.UpsertStoryTitle(txCtx, db.UpsertStoryTitleParams{
-				StoryID:      int32(storyID),
-				LanguageCode: lang,
-				Title:        title,
-			})
-			if err != nil {
-				return err
-			}
+		if err := upsertStoryTitles(txCtx, storyID, metadata.Title); err != nil {
+			return err
 		}
 
 		// Update description using SQLC
@@ -127,9 +119,17 @@ func EditStoryMetadata(ctx context.Context, storyID int, metadata StoryMetadata)
 		if err := ClearStoryGrammarPoints(txCtx, storyID); err != nil {
 			return err
 		}
-		for _, gp := range metadata.GrammarPoints {
-			// Create grammar point for this story
-			if _, err := CreateGrammarPoint(txCtx, storyID, gp.Name, gp.Description); err != nil {
+		if len(metadata.GrammarPoints) > 0 {
+			p := db.InsertGrammarPointsParams{
+				StoryID:      int32(storyID),
+				Names:        make([]string, 0, len(metadata.GrammarPoints)),
+				Descriptions: make([]string, 0, len(metadata.GrammarPoints)),
+			}
+			for _, gp := range metadata.GrammarPoints {
+				p.Names = append(p.Names, gp.Name)
+				p.Descriptions = append(p.Descriptions, gp.Description)
+			}
+			if err := queries.InsertGrammarPoints(txCtx, p); err != nil {
 				return err
 			}
 		}
@@ -160,48 +160,16 @@ func AddLineAnnotations(ctx context.Context, storyID int, lineNumber int, line S
 			return ErrInvalidLineNumber
 		}
 
-		// Insert vocabulary items
-		for _, v := range line.Vocabulary {
-			if err := dedupVocabularyInsert(txCtx, storyID, lineNumber, v); err != nil {
-				return err
-			}
-		}
-
-		// Insert grammar items
-		for _, g := range line.Grammar {
-			if err := dedupGrammarInsert(txCtx, storyID, lineNumber, g); err != nil {
-				return err
-			}
-		}
-
-		// Insert footnotes and their references
-		// Insert footnotes
-		for _, f := range line.Footnotes {
-			if err := dedupFootnoteInsert(txCtx, storyID, lineNumber, f); err != nil {
-				return err
-			}
-		}
-
-		// Update last revision timestamp - get existing values first
-		story, err := queries.GetStory(txCtx, int32(storyID))
-		if err != nil {
+		// Vocabulary, grammar and footnotes (with references): dedup checks
+		// and inserts, a constant number of statements. Audio is not part of
+		// line annotations.
+		batch := newAnnotationBatch(storyID)
+		batch.addAnnotations(lineNumber, line)
+		if err := batch.write(txCtx); err != nil {
 			return err
 		}
 
-		err = queries.UpdateStory(txCtx, db.UpdateStoryParams{
-			StoryID:    story.StoryID,
-			WeekNumber: story.WeekNumber,
-			DayLetter:  story.DayLetter,
-			VideoUrl:   story.VideoUrl,
-			AuthorID:   story.AuthorID,
-			AuthorName: story.AuthorName,
-			CourseID:   story.CourseID,
-		})
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return touchStoryRevision(txCtx, storyID)
 	})
 
 	// Invalidate cache after successful edit
@@ -433,13 +401,12 @@ func UpdateFootnoteAnnotation(ctx context.Context, storyID int, footnoteID int, 
 			return err
 		}
 
-		// Insert new references using SQLC
-		for _, ref := range footnote.References {
-			err := queries.CreateFootnoteReference(txCtx, db.CreateFootnoteReferenceParams{
-				FootnoteID: int32(footnoteID),
-				Reference:  ref,
-			})
-			if err != nil {
+		// Insert new references in one statement
+		if len(footnote.References) > 0 {
+			if err := queries.InsertFootnoteReferences(txCtx, db.InsertFootnoteReferencesParams{
+				FootnoteID:     int32(footnoteID),
+				ReferenceTexts: footnote.References,
+			}); err != nil {
 				return err
 			}
 		}

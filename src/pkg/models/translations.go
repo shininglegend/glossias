@@ -53,6 +53,43 @@ func UpsertLineTranslation(ctx context.Context, storyID, lineNumber int, languag
 	return err
 }
 
+// LineTranslationText is one line's translation in a bulk update.
+type LineTranslationText struct {
+	LineNumber int
+	Text       string
+}
+
+// UpsertLineTranslations writes one language's translations for many lines in
+// a single statement, so the update is all-or-nothing: an unknown line fails
+// the whole batch. If a line appears more than once, the last entry wins (as
+// it did when each entry was its own upsert).
+func UpsertLineTranslations(ctx context.Context, storyID int, languageCode string, translations []LineTranslationText) error {
+	if queries == nil {
+		return errors.New("database not initialized")
+	}
+	if len(translations) == 0 {
+		return nil
+	}
+
+	// ON CONFLICT DO UPDATE refuses to touch a row twice, so collapse repeats
+	// first: keep each line's first position and its last text.
+	pos := make(map[int]int, len(translations))
+	p := db.UpsertLineTranslationsParams{
+		StoryID:      int32(storyID),
+		LanguageCode: languageCode,
+	}
+	for _, t := range translations {
+		if i, ok := pos[t.LineNumber]; ok {
+			p.TranslationTexts[i] = t.Text
+			continue
+		}
+		pos[t.LineNumber] = len(p.LineNumbers)
+		p.LineNumbers = append(p.LineNumbers, int32(t.LineNumber))
+		p.TranslationTexts = append(p.TranslationTexts, t.Text)
+	}
+	return queries.UpsertLineTranslations(ctx, p)
+}
+
 // GetAllTranslationsForStory retrieves all translations for a story
 func GetAllTranslationsForStory(ctx context.Context, storyID int) ([]LineTranslation, error) {
 	if queries == nil {

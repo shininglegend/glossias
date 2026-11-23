@@ -285,7 +285,7 @@ func TestDeleteStudentAttemptHandler(t *testing.T) {
 			mockDB.StubQuery("IsUserCourseAdmin", [][]any{{tt.courseAdmin}}, nil)
 			if tt.exists {
 				mockDB.StubExecRows("AND attempt_number = $3", 1)
-				mockDB.StubQuery("ListUserStoryAttemptsAfter", [][]any{{int64(20), int32(2)}}, nil)
+				mockDB.StubExecRows("OffsetStoryAttemptsAfter", 1)
 			}
 			models.SetDB(mockDB)
 			defer models.SetDB(struct{}{})
@@ -298,15 +298,16 @@ func TestDeleteStudentAttemptHandler(t *testing.T) {
 			if rr.Code != tt.expectedStatus {
 				t.Fatalf("status = %d, want %d; body: %s", rr.Code, tt.expectedStatus, rr.Body.String())
 			}
-			shifts := mockDB.Calls("UPDATE story_attempts SET attempt_number")
+			shifts := mockDB.Calls("StoryAttemptsAfter")
 			if tt.expectedStatus != http.StatusOK {
 				if len(shifts) != 0 {
 					t.Errorf("renumbered on a failed delete: %+v", shifts)
 				}
 				return
 			}
-			if len(shifts) != 1 || shifts[0].Args[1] != int32(1) {
-				t.Errorf("renumber calls = %+v, want attempt 2 -> 1", shifts)
+			// Offset then settle, both keyed on the deleted attempt 1.
+			if len(shifts) != 2 || shifts[0].Args[2] != int32(1) || shifts[1].Args[0] != int32(1) {
+				t.Errorf("renumber calls = %+v, want offset + settle after attempt 1", shifts)
 			}
 			// Never the whole-story reset path.
 			if n := len(mockDB.Calls("ResetUserStoryAnswers")); n != 0 {

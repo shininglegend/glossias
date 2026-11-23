@@ -52,17 +52,17 @@ GetAllStoryAudioFiles(storyID int) ([]AudioFile, error)
 DeleteLineAudioFiles(storyID, lineNumber int) error
 
 Save Operations (SQLC-based):
-SaveNewStory(*Story) error // Uses CreateStory, UpsertStoryTitle, UpsertStoryDescription, UpsertStoryLine
-SaveStoryData(storyID int, story *Story) error // Uses UpdateStory and component upserts
+SaveNewStory(*Story) error // Uses CreateStory, UpsertStoryTitles, UpsertStoryDescription, then the set-based line/annotation writes (BulkCreate* copyfrom, FindExisting* dedup, InsertFootnotesWithRefs)
+SaveStoryData(storyID int, story *Story) error // Uses UpdateStory and the same set-based component writes
 
 Edit Operations (SQLC-based):
-EditStoryText(storyID int, lines []StoryLine) error // Uses DeleteAllStoryLines, UpsertStoryLine
-EditStoryMetadata(storyID int, metadata StoryMetadata) error // Uses UpdateStory, DeleteStoryTitles/Descriptions, Upserts
-AddLineAnnotations(storyID, lineNumber int, line StoryLine) error // Uses dedup insert functions
+EditStoryText(storyID int, lines []StoryLine) error // Uses DeleteAllStoryLines, BulkCreateStoryLines, TouchStoryRevision
+EditStoryMetadata(storyID int, metadata StoryMetadata) error // Uses UpdateStory, DeleteStoryTitles/Descriptions, UpsertStoryTitles, InsertGrammarPoints
+AddLineAnnotations(storyID, lineNumber int, line StoryLine) error // Uses the batched dedup + insert path (one query per annotation type)
 UpdateVocabularyAnnotation(storyID, lineNumber int, position [2]int, vocab VocabularyItem) error // Uses UpdateVocabularyByPosition
 UpdateVocabularyByWord(storyID, lineNumber int, word string, newLexicalForm string) error // Uses UpdateVocabularyByWord
 UpdateGrammarAnnotation(storyID, lineNumber int, position [2]int, grammar GrammarItem) error // Uses UpdateGrammarByPosition
-UpdateFootnoteAnnotation(storyID, footnoteID int, footnote Footnote) error // Uses UpdateFootnote, DeleteFootnoteReferences, CreateFootnoteReference
+UpdateFootnoteAnnotation(storyID, footnoteID int, footnote Footnote) error // Uses UpdateFootnote, DeleteFootnoteReferences, InsertFootnoteReferences
 ClearStoryAnnotations(storyID int) error // Uses StoryExists and raw SQL for complex deletes
 ClearLineAnnotations(storyID, lineNumber int) error // Uses raw SQL for complex deletes
 
@@ -72,8 +72,6 @@ Delete(storyID int) error // Uses StoryExists, DeleteStory, and component delete
 
 Score Operations:
 SaveVocabScore(ctx context.Context, userID string, storyID int, lineNumber int, correct bool, incorrectAnswer string) error
-SaveGrammarScore(ctx context.Context, userID string, storyID int, lineNumber int, correct bool, selectedLine int, selectedPositions []int) error
-SaveGrammarScoresForPoint(ctx context.Context, userID string, storyID int, grammarPointID int, lineScores map[int]bool, incorrectAnswers map[int]struct{SelectedLine int; SelectedPositions []int}) error // Multi-line grammar point scoring
 SaveSingleGrammarSelection(ctx, userID, storyID, grammarPointID, lineNumber, position int, correct bool) error // Save single grammar selection
 CountFoundGrammarInstances(ctx, userID, storyID, grammarPointID int) (int, error) // Count correct instances found by user
 GetUserGrammarScoresByGrammarPoint(ctx context.Context, userID string, storyID int, grammarPointID int) ([]db.GetUserGrammarScoresByGrammarPointRow, error) // Get user's correct answers for specific grammar point

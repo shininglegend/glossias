@@ -85,13 +85,10 @@ func TestListUserStoryAttemptSummariesArchivedThenLive(t *testing.T) {
 	}
 }
 
-func TestDeleteArchivedAttemptRenumbersAscending(t *testing.T) {
+func TestDeleteArchivedAttemptOffsetsThenSettles(t *testing.T) {
 	mockDB := database.NewMockDBTX()
 	mockDB.StubExecRows("DELETE FROM story_attempts WHERE user_id = $1 AND story_id = $2 AND attempt_number = $3", 1)
-	mockDB.StubQuery("ListUserStoryAttemptsAfter", [][]any{
-		{int64(30), int32(3)},
-		{int64(40), int32(4)},
-	}, nil)
+	mockDB.StubExecRows("OffsetStoryAttemptsAfter", 2)
 	SetDB(mockDB)
 	t.Cleanup(func() { SetDB(struct{}{}) })
 
@@ -102,13 +99,27 @@ func TestDeleteArchivedAttemptRenumbersAscending(t *testing.T) {
 	if len(del) != 1 || del[0].Args[2] != int32(2) {
 		t.Fatalf("delete calls = %+v", del)
 	}
-	shifts := mockDB.Calls("UPDATE story_attempts SET attempt_number")
-	if len(shifts) != 2 {
-		t.Fatalf("renumber calls = %+v, want 2", shifts)
+	offset := mockDB.Calls("OffsetStoryAttemptsAfter")
+	settle := mockDB.Calls("SettleStoryAttemptsAfter")
+	if len(offset) != 1 || len(settle) != 1 {
+		t.Fatalf("offset/settle calls = %d/%d, want 1/1", len(offset), len(settle))
 	}
-	// Ascending: 3 -> 2 first (2 was just freed), then 4 -> 3.
-	if shifts[0].Args[0] != int64(30) || shifts[0].Args[1] != int32(2) || shifts[1].Args[0] != int64(40) || shifts[1].Args[1] != int32(3) {
-		t.Errorf("renumber args = %+v", shifts)
+	if offset[0].Args[2] != int32(2) || settle[0].Args[0] != int32(2) {
+		t.Errorf("renumber args: offset %+v settle %+v, want deleted number 2", offset[0].Args, settle[0].Args)
+	}
+}
+
+func TestDeleteArchivedAttemptLastSkipsSettle(t *testing.T) {
+	mockDB := database.NewMockDBTX()
+	mockDB.StubExecRows("DELETE FROM story_attempts WHERE user_id = $1 AND story_id = $2 AND attempt_number = $3", 1)
+	SetDB(mockDB)
+	t.Cleanup(func() { SetDB(struct{}{}) })
+
+	if err := DeleteArchivedAttempt(context.Background(), "u1", 2, 3); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(mockDB.Calls("SettleStoryAttemptsAfter")); n != 0 {
+		t.Errorf("settled with nothing above the deleted attempt (%d calls)", n)
 	}
 }
 
@@ -121,7 +132,7 @@ func TestDeleteArchivedAttemptMissingIsNotFound(t *testing.T) {
 	if !errors.Is(err, ErrAttemptNotFound) {
 		t.Fatalf("err = %v, want ErrAttemptNotFound", err)
 	}
-	if n := len(mockDB.Calls("ListUserStoryAttemptsAfter")); n != 0 {
-		t.Errorf("renumber ran after a no-op delete (%d list calls)", n)
+	if n := len(mockDB.Calls("StoryAttemptsAfter")); n != 0 {
+		t.Errorf("renumber ran after a no-op delete (%d calls)", n)
 	}
 }

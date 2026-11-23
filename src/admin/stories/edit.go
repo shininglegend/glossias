@@ -3,6 +3,7 @@ package stories
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"glossias/src/auth"
 	"glossias/src/pkg/models"
@@ -94,6 +95,14 @@ func (h *Handler) handleUpdateStory(w http.ResponseWriter, r *http.Request, stor
 
 	// Update story in database
 	if err := models.SaveStoryData(r.Context(), storyID, &story); err != nil {
+		switch {
+		case errors.Is(err, models.ErrStoryHasLines):
+			http.Error(w, models.ErrStoryHasLines.Error(), http.StatusConflict)
+			return
+		case errors.Is(err, models.ErrNotFound):
+			http.Error(w, "Story not found", http.StatusNotFound)
+			return
+		}
 		h.log.Error("Failed to update story", "error", err, "storyID", storyID)
 		http.Error(w, "Failed to update story", http.StatusInternalServerError)
 		return

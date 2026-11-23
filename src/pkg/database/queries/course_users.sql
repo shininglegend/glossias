@@ -21,7 +21,6 @@ UPDATE course_users
 SET status = $3
 WHERE course_id = $1 AND user_id = ANY($2::text[]);
 
-
 -- name: DeleteAllUsersFromCourse :exec
 DELETE FROM course_users
 WHERE course_id = $1;
@@ -39,13 +38,6 @@ FROM courses c
 JOIN course_users cu ON c.course_id = cu.course_id
 WHERE cu.user_id = $1 AND cu.status = $2
 ORDER BY c.course_number;
-
--- name: GetUsersForCourse :many
-SELECT u.user_id, u.email, u.name, cu.enrolled_at, cu.status
-FROM users u
-JOIN course_users cu ON u.user_id = cu.user_id
-WHERE cu.course_id = $1
-ORDER BY u.name;
 
 -- name: CanUserAccessCourse :one
 SELECT EXISTS(

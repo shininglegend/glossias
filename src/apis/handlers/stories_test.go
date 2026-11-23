@@ -135,7 +135,7 @@ func TestGetStories(t *testing.T) {
 		mockDB.StubQuery("name: GetUser :one", [][]any{{
 			"user-1", "u@example.com", "User", pgtype.Bool{Bool: false, Valid: true}, pgtype.Timestamp{}, pgtype.Timestamp{},
 		}}, nil)
-		mockDB.StubQuery("IsUserAdminOfAnyCourse", [][]any{{false}}, nil)
+		mockDB.StubQuery("GetUserCourseAdminRights", nil, nil)
 		mockDB.StubQuery("GetUserStoriesPageCompletion", [][]any{
 			{int32(1), int32(4), int32(0), false, int32(5), int32(0), int32(2), int32(0), int32(0)},
 			{int32(2), int32(4), int32(2), false, int32(5), int32(0), int32(2), int32(0), int32(0)},
@@ -172,6 +172,53 @@ func TestGetStories(t *testing.T) {
 					story.ID, story.Status, story.NextPage, story.NextPageName,
 					want[i].status, want[i].page, want[i].name)
 			}
+		}
+	})
+
+	t.Run("paywall locks are batched", func(t *testing.T) {
+		t.Setenv("PAYWALL_ENABLED", "true")
+		models.SetPaymentsPaused(false)
+		linked := [][]any{
+			{int32(1), int32(1), "A", "Story 1", pgtype.Int4{}, []int32{3}},
+			{int32(2), int32(1), "B", "Story 2", pgtype.Int4{}, []int32{3, 4}},
+			{int32(3), int32(2), "A", "Story 3", pgtype.Int4{}, []int32{5}},
+		}
+		mockDB := database.NewMockDBTX()
+		mockDB.StubQuery("GetAllStoriesForUser", linked, nil)
+		mockDB.StubQuery("name: GetUser :one", [][]any{{
+			"user-1", "u@example.com", "User", pgtype.Bool{Bool: false, Valid: true}, pgtype.Timestamp{}, pgtype.Timestamp{},
+		}}, nil)
+		// course_id, is_trial, enrolled, entitled: 3 unpaid, 4 paid, 5 trial.
+		mockDB.StubQuery("ListCourseAccessForUser", [][]any{
+			{int32(3), false, true, false},
+			{int32(4), false, true, true},
+			{int32(5), true, false, false},
+		}, nil)
+		models.SetDB(mockDB)
+		t.Cleanup(func() { models.SetDB(struct{}{}) })
+
+		req := httptest.NewRequest("GET", "/api/stories", nil)
+		req = req.WithContext(context.WithValue(req.Context(), auth.UserIDKey, "user-1"))
+
+		// The 4 queries above + super-admin GetUser + admin rights + one access query.
+		rr := assertQueryBudget(t, 7, h.GetStories, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status %d", rr.Code)
+		}
+		stories := decodeStories(t, rr)
+		if len(stories) != 3 {
+			t.Fatalf("got %d stories, want 3", len(stories))
+		}
+		if !stories[0].Locked || len(stories[0].PayableCourseIDs) != 1 || stories[0].PayableCourseIDs[0] != 3 {
+			t.Errorf("story 1 locked=%v payable=%v, want locked [3]", stories[0].Locked, stories[0].PayableCourseIDs)
+		}
+		for _, s := range stories[1:] {
+			if s.Locked || len(s.PayableCourseIDs) != 0 {
+				t.Errorf("story %d locked=%v payable=%v, want open", s.ID, s.Locked, s.PayableCourseIDs)
+			}
+		}
+		if n := len(mockDB.Calls("ListCourseAccessForUser")); n != 1 {
+			t.Errorf("access queries = %d, want 1", n)
 		}
 	})
 
@@ -246,9 +293,8 @@ func TestGetStoryMetadata_PaymentRequired(t *testing.T) {
 	mockDB.StubQuery("CanUserAccessStory", [][]any{{true}}, nil)
 	mockDB.StubQuery("IsUserAdminOfLinkedStory", [][]any{{false}}, nil)
 	mockDB.StubQuery("ListStoryCourseIDs", [][]any{{int32(3)}}, nil)
-	mockDB.StubQuery("ListCoursesTrialFlags", [][]any{{int32(3), false}}, nil)
-	mockDB.StubQuery("ListActiveEntitlementsForUser", nil, nil)
-	mockDB.StubQuery("IsUserEnrolledInCourse", [][]any{{true}}, nil)
+	// course_id, is_trial, enrolled, entitled
+	mockDB.StubQuery("ListCourseAccessForUser", [][]any{{int32(3), false, true, false}}, nil)
 	models.SetDB(mockDB)
 	t.Cleanup(func() { models.SetDB(struct{}{}) })
 
@@ -257,7 +303,8 @@ func TestGetStoryMetadata_PaymentRequired(t *testing.T) {
 	req = mux.SetURLVars(req, map[string]string{"id": "10"})
 	req = req.WithContext(context.WithValue(req.Context(), auth.UserIDKey, "user-1"))
 
-	rr := assertQueryBudget(t, 6, h.GetStoryMetadata, req)
+	// Visibility + linked-admin check + linked courses + one batched access query.
+	rr := assertQueryBudget(t, 4, h.GetStoryMetadata, req)
 	if rr.Code != http.StatusPaymentRequired {
 		t.Fatalf("status %d, want 402: %s", rr.Code, rr.Body.String())
 	}

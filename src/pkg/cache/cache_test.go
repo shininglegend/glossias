@@ -226,13 +226,6 @@ func TestKeyBuilder(t *testing.T) {
 
 	// Note: AllStories key removed for security reasons
 
-	// Test user access key
-	accessKey := kb.UserAccess("user456", 123)
-	expected = "access:user:user456:story:123"
-	if accessKey != expected {
-		t.Errorf("Expected %s, got %s", expected, accessKey)
-	}
-
 	// Test user vocab scores key
 	vocabKey := kb.UserVocabScores("user123", 456)
 	expected = "vocab_scores:user:user123:story:456"

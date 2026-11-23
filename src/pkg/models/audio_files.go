@@ -46,7 +46,7 @@ func CreateAudioFile(ctx context.Context, storyID, lineNumber int, filePath, fil
 		FileBucket: result.FileBucket,
 		Label:      result.Label,
 	}
-	InvalidateStoryContentReadiness(saved.StoryID)
+	InvalidateStoryMetadata(saved.StoryID)
 	return saved, nil
 }
 
@@ -157,6 +157,7 @@ func UpdateAudioFile(ctx context.Context, audioFileID int, storyID int, filePath
 	if err != nil {
 		return nil, err
 	}
+	InvalidateStoryMetadata(storyID)
 
 	return &AudioFile{
 		ID:         int(result.AudioFileID),
@@ -206,7 +207,7 @@ func DeleteAudioFile(ctx context.Context, audioFileID int) error {
 	if err != nil {
 		return err
 	}
-	InvalidateStoryContentReadiness(audioFile.StoryID)
+	InvalidateStoryMetadata(audioFile.StoryID)
 	return nil
 }
 
@@ -229,7 +230,7 @@ func DeleteLineAudioFiles(ctx context.Context, storyID, lineNumber int) error {
 	}); err != nil {
 		return err
 	}
-	InvalidateStoryContentReadiness(storyID)
+	InvalidateStoryMetadata(storyID)
 	return nil
 }
 
@@ -249,7 +250,7 @@ func DeleteStoryAudioFiles(ctx context.Context, storyID int) error {
 	if err := queries.DeleteStoryAudioFiles(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true}); err != nil {
 		return err
 	}
-	InvalidateStoryContentReadiness(storyID)
+	InvalidateStoryMetadata(storyID)
 	return nil
 }
 
@@ -273,7 +274,7 @@ func DeleteStoryAudioFilesByLabel(ctx context.Context, storyID int, label string
 	}); err != nil {
 		return err
 	}
-	InvalidateStoryContentReadiness(storyID)
+	InvalidateStoryMetadata(storyID)
 	return nil
 }
 
@@ -311,7 +312,7 @@ func GetSignedAudioURL(ctx context.Context, audioFileID int, userID string, expi
 		return "", err
 	}
 
-	if err := CheckStoryContentAccess(ctx, userID, int32(audioFile.StoryID)); err != nil {
+	if err := checkStoryContentAccessCached(ctx, userID, audioFile.StoryID); err != nil {
 		return "", err
 	}
 
@@ -337,7 +338,7 @@ func GetSignedAudioURLsForStory(ctx context.Context, storyID int, userID string,
 		return nil, errors.New("storage client not initialized")
 	}
 
-	if err := CheckStoryContentAccess(ctx, userID, int32(storyID)); err != nil {
+	if err := checkStoryContentAccessCached(ctx, userID, storyID); err != nil {
 		return nil, err
 	}
 
@@ -379,7 +380,7 @@ func GetSignedAudioURLsForLine(ctx context.Context, storyID, lineNumber int, use
 		return nil, errors.New("storage client not initialized")
 	}
 
-	if err := CheckStoryContentAccess(ctx, userID, int32(storyID)); err != nil {
+	if err := checkStoryContentAccessCached(ctx, userID, storyID); err != nil {
 		return nil, err
 	}
 

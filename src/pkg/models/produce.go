@@ -180,16 +180,24 @@ func UpsertProduceSegment(ctx context.Context, segment ProduceSegment) (*Produce
 	return saved, nil
 }
 
-// DeleteProduceSegment removes a single segment.
-func DeleteProduceSegment(ctx context.Context, storyID, id int) error {
+// DeleteProduceSegmentByOrder removes the story's segment at the given order
+// slot in one statement and reports whether there was one.
+func DeleteProduceSegmentByOrder(ctx context.Context, storyID, order int) (bool, error) {
 	if queries == nil {
-		return errors.New("database not initialized")
+		return false, errors.New("database not initialized")
 	}
-	if err := queries.DeleteProduceSegment(ctx, int32(id)); err != nil {
-		return err
+	n, err := queries.DeleteProduceSegmentByOrder(ctx, db.DeleteProduceSegmentByOrderParams{
+		StoryID:      int32(storyID),
+		SegmentOrder: int32(order),
+	})
+	if err != nil {
+		return false, err
+	}
+	if n == 0 {
+		return false, nil
 	}
 	InvalidateStoryContentReadiness(storyID)
-	return nil
+	return true, nil
 }
 
 // DeleteStoryProduceSegments removes every segment for a story.

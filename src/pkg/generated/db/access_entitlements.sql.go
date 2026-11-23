@@ -216,37 +216,6 @@ func (q *Queries) ListActiveEntitlementsForUser(ctx context.Context, userID stri
 	return items, nil
 }
 
-const listCoursesTrialFlags = `-- name: ListCoursesTrialFlags :many
-SELECT course_id, is_trial
-FROM courses
-WHERE course_id = ANY($1::int[])
-`
-
-type ListCoursesTrialFlagsRow struct {
-	CourseID int32 `json:"course_id"`
-	IsTrial  bool  `json:"is_trial"`
-}
-
-func (q *Queries) ListCoursesTrialFlags(ctx context.Context, courseIds []int32) ([]ListCoursesTrialFlagsRow, error) {
-	rows, err := q.db.Query(ctx, listCoursesTrialFlags, courseIds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListCoursesTrialFlagsRow{}
-	for rows.Next() {
-		var i ListCoursesTrialFlagsRow
-		if err := rows.Scan(&i.CourseID, &i.IsTrial); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listLatestEntitlementsForCourseUsers = `-- name: ListLatestEntitlementsForCourseUsers :many
 SELECT DISTINCT ON (user_id) user_id, expires_at
 FROM access_entitlements

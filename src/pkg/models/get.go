@@ -4,9 +4,11 @@ package models
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"glossias/src/pkg/database"
+	"strconv"
+	"time"
+
 	"glossias/src/pkg/generated/db"
 
 	"github.com/jackc/pgx/v5"
@@ -15,61 +17,43 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// checkUserAccessWithCache checks if a user has access to a story with caching
-func checkUserAccessWithCache(userID string, storyID int, checkFunc func() (bool, error)) (bool, error) {
+// accessCacheTTL is how long a cached "allowed" stands. BigCache keeps the
+// entry for its whole life window (hours), so the age is checked here; the
+// access epoch (BumpAccessEpoch) cuts it short on known revocations.
+const accessCacheTTL = 5 * time.Minute
+
+// checkStoryContentAccessCached is CheckStoryContentAccess with positive
+// results cached per user and story. Denials (ErrNotFound, and
+// *PaymentRequiredError) and other errors are never cached, so a new
+// enrollment, link or payment opens the story at once.
+func checkStoryContentAccessCached(ctx context.Context, userID string, storyID int) error {
 	if cacheInstance == nil || keyBuilder == nil {
-		// Fallback to direct check if cache not available
-		return checkFunc()
+		return CheckStoryContentAccess(ctx, userID, int32(storyID))
 	}
-
-	cacheKey := keyBuilder.UserAccess(userID, storyID)
-
-	// Try to get from cache first
-	if data, err := cacheInstance.Get(cacheKey); err == nil {
-		// Cache hit - return cached access result
-		return string(data) == "true", nil
+	key := keyBuilder.StoryAccess(userID, storyID)
+	if data, err := cacheInstance.Get(key); err == nil {
+		if at, perr := strconv.ParseInt(string(data), 10, 64); perr == nil &&
+			time.Since(time.Unix(at, 0)) < accessCacheTTL {
+			return nil
+		}
 	}
-
-	// Cache miss - check access and cache only positives. A cached deny
-	// would 404 after a new course link until the BigCache life window.
-	hasAccess, err := checkFunc()
-	if err != nil {
-		return false, err
+	if err := CheckStoryContentAccess(ctx, userID, int32(storyID)); err != nil {
+		return err
 	}
-	if hasAccess {
-		_ = cacheInstance.Set(cacheKey, []byte("true"))
-	}
+	_ = cacheInstance.Set(key, []byte(strconv.FormatInt(time.Now().Unix(), 10)))
+	return nil
+}
 
-	return hasAccess, nil
+// CheckStoryContentAccessCached is the cached access check for handlers that
+// write on a story without loading it (ErrNotFound → 404,
+// *PaymentRequiredError → 402).
+func CheckStoryContentAccessCached(ctx context.Context, userID string, storyID int) error {
+	return checkStoryContentAccessCached(ctx, userID, storyID)
 }
 
 func GetStoryData(ctx context.Context, id int, userID string) (*Story, error) {
-	// Check user access first (with caching)
-	if cacheInstance != nil && keyBuilder != nil {
-		hasAccess, err := checkUserAccessWithCache(userID, id, func() (bool, error) {
-			err := CheckStoryContentAccess(ctx, userID, int32(id))
-			if err == nil {
-				return true, nil
-			}
-			var pay *PaymentRequiredError
-			if errors.As(err, &pay) {
-				return false, err
-			}
-			if errors.Is(err, ErrNotFound) {
-				return false, nil
-			}
-			return false, err
-		})
-		if err != nil {
-			return nil, err
-		}
-		if !hasAccess {
-			return nil, ErrNotFound
-		}
-	} else {
-		if err := CheckStoryContentAccess(ctx, userID, int32(id)); err != nil {
-			return nil, err
-		}
+	if err := checkStoryContentAccessCached(ctx, userID, id); err != nil {
+		return nil, err
 	}
 
 	// Try cache for story data (no user ID in key)
@@ -93,8 +77,8 @@ func GetStoryData(ctx context.Context, id int, userID string) (*Story, error) {
 func getStoryDataFromDB(ctx context.Context, id int, userID string) (*Story, error) {
 	story := NewStory()
 
-	// Get main story data
-	dbStory, err := queries.GetStory(ctx, int32(id))
+	// Main story data and its description in one query
+	dbStory, err := queries.GetStoryWithDescription(ctx, int32(id))
 	if err != nil {
 		if err == sql.ErrNoRows || err == pgx.ErrNoRows {
 			return nil, ErrNotFound
@@ -118,6 +102,10 @@ func getStoryDataFromDB(ctx context.Context, id int, userID string) (*Story, err
 		courseID := int(dbStory.CourseID.Int32)
 		story.Metadata.CourseID = &courseID
 	}
+	if dbStory.LanguageCode.Valid && dbStory.DescriptionText.Valid {
+		story.Metadata.Language = dbStory.LanguageCode.String
+		story.Metadata.Description.Text = dbStory.DescriptionText.String
+	}
 
 	// Get titles
 	titles, err := queries.GetStoryTitles(ctx, int32(id))
@@ -126,15 +114,6 @@ func getStoryDataFromDB(ctx context.Context, id int, userID string) (*Story, err
 	}
 	for _, title := range titles {
 		story.Metadata.Title[title.LanguageCode] = title.Title
-	}
-
-	// Get description
-	storyWithDesc, err := queries.GetStoryWithDescription(ctx, int32(id))
-	if err == nil {
-		if storyWithDesc.LanguageCode.Valid && storyWithDesc.DescriptionText.Valid {
-			story.Metadata.Language = storyWithDesc.LanguageCode.String
-			story.Metadata.Description.Text = storyWithDesc.DescriptionText.String
-		}
 	}
 
 	// Get grammar points
@@ -154,23 +133,12 @@ func getStoryDataFromDB(ctx context.Context, id int, userID string) (*Story, err
 	return story, nil
 }
 
-func convertReferences(ref any) []string {
-	if ref == nil {
-		return nil
+// footnoteRefs is never nil, so a footnote without references reads as [].
+func footnoteRefs(refs []string) []string {
+	if refs == nil {
+		return []string{}
 	}
-	switch v := ref.(type) {
-	case []string:
-		return v
-	case []any:
-		res := make([]string, len(v))
-		for i, x := range v {
-			if s, ok := x.(string); ok {
-				res[i] = s
-			}
-		}
-		return res
-	}
-	return nil
+	return refs
 }
 
 func getStoryLines(ctx context.Context, storyID int) ([]StoryLine, error) {
@@ -231,7 +199,7 @@ func getStoryLines(ctx context.Context, storyID int) ([]StoryLine, error) {
 
 	// Map for Footnotes grouped by line number
 	footnoteMap := make(map[int][]Footnote)
-	footnoteRows, err := queries.GetStoryFootnotesWithReferences(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+	footnoteRows, err := queries.GetStoryFootnotesWithRefs(ctx, int32(storyID))
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +208,7 @@ func getStoryLines(ctx context.Context, storyID int) ([]StoryLine, error) {
 		footnoteMap[lineNum] = append(footnoteMap[lineNum], Footnote{
 			ID:         int(f.ID),
 			Text:       f.FootnoteText,
-			References: convertReferences(f.References),
+			References: footnoteRefs(f.Refs),
 		})
 	}
 
@@ -364,22 +332,18 @@ func getLineAnnotationsFromDB(ctx context.Context, storyID int, lineNumber int) 
 	}
 
 	// Get footnotes for this line
-	footnotes, err := queries.GetFootnotes(ctx, db.GetFootnotesParams{
-		StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
-		LineNumber: pgtype.Int4{Int32: int32(lineNumber), Valid: true},
+	footnotes, err := queries.GetLineFootnotesWithRefs(ctx, db.GetLineFootnotesWithRefsParams{
+		StoryID:    int32(storyID),
+		LineNumber: int32(lineNumber),
 	})
 	if err != nil {
 		return nil, err
 	}
 	for _, fn := range footnotes {
-		refs, err := queries.GetFootnoteReferences(ctx, fn.ID)
-		if err != nil {
-			return nil, err
-		}
 		line.Footnotes = append(line.Footnotes, Footnote{
 			ID:         int(fn.ID),
 			Text:       fn.FootnoteText,
-			References: refs,
+			References: footnoteRefs(fn.Refs),
 		})
 	}
 
@@ -469,7 +433,7 @@ func getStoryAnnotationsFromDB(ctx context.Context, storyID int) (map[int]*Story
 	}
 
 	// Get all footnotes
-	footnotes, err := queries.GetAllFootnotesForStory(ctx, pgtype.Int4{Int32: int32(storyID), Valid: true})
+	footnotes, err := queries.GetStoryFootnotesWithRefs(ctx, int32(storyID))
 	if err != nil {
 		return nil, err
 	}
@@ -484,14 +448,10 @@ func getStoryAnnotationsFromDB(ctx context.Context, storyID int) (map[int]*Story
 				Footnotes:  []Footnote{},
 			}
 		}
-		refs, err := queries.GetFootnoteReferences(ctx, fn.ID)
-		if err != nil {
-			return nil, err
-		}
 		lines[lineNumber].Footnotes = append(lines[lineNumber].Footnotes, Footnote{
 			ID:         int(fn.ID),
 			Text:       fn.FootnoteText,
-			References: refs,
+			References: footnoteRefs(fn.Refs),
 		})
 	}
 

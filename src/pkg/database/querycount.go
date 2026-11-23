@@ -25,6 +25,18 @@ func WithQueryCounter(ctx context.Context) (context.Context, *atomic.Int32) {
 	return context.WithValue(ctx, queryCountKey{}, c), c
 }
 
+// EnsureQueryCounter returns ctx unchanged when it already carries a counter,
+// otherwise a context with a fresh one. Middleware uses it so a caller that
+// measures a whole request (integration tests) sees every query instead of
+// having its counter shadowed by an inner one.
+func EnsureQueryCounter(ctx context.Context) context.Context {
+	if _, ok := ctx.Value(queryCountKey{}).(*atomic.Int32); ok {
+		return ctx
+	}
+	ctx, _ = WithQueryCounter(ctx)
+	return ctx
+}
+
 // CountQuery records one DB call against the counter on ctx, if any.
 func CountQuery(ctx context.Context) {
 	if c, ok := ctx.Value(queryCountKey{}).(*atomic.Int32); ok {

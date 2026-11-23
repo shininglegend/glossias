@@ -240,7 +240,7 @@ func GetSignedImageURL(ctx context.Context, imageID int, userID string, expiresI
 		return "", err
 	}
 
-	if err := CheckStoryContentAccess(ctx, userID, int32(img.StoryID)); err != nil {
+	if err := checkStoryContentAccessCached(ctx, userID, img.StoryID); err != nil {
 		return "", err
 	}
 
@@ -266,7 +266,7 @@ func GetSignedImageURLsForStory(ctx context.Context, storyID int, userID string,
 		return nil, errors.New("storage client not initialized")
 	}
 
-	if err := CheckStoryContentAccess(ctx, userID, int32(storyID)); err != nil {
+	if err := checkStoryContentAccessCached(ctx, userID, storyID); err != nil {
 		return nil, err
 	}
 

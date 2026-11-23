@@ -62,12 +62,9 @@ export default function EditStory() {
           <StoryJSONEditor
             value={story}
             onSubmit={async (s) => {
-              try {
-                await adminApi.updateStory(Number(id), s);
-                navigate("/admin");
-              } catch (error) {
-                console.error("Failed to update story:", error);
-              }
+              // Errors propagate to the editor, which shows them.
+              await adminApi.updateStory(Number(id), s);
+              navigate("/admin");
             }}
           />
         </Section>

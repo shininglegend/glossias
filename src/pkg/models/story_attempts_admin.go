@@ -111,8 +111,11 @@ func plural(n int) string {
 // DeleteArchivedAttempt removes one archived attempt (snapshot cascades) and
 // closes the gap so attempt numbers stay contiguous — the live attempt is
 // always archived count + 1 and attempt 1 stays the official score. Rows
-// above the deleted number are shifted down one at a time in ascending
-// order inside the same transaction, which never trips the unique key.
+// above the deleted number are renumbered set-wise in the same transaction:
+// first offset above the current maximum, then settled to number, number+1,
+// ... in their original order, so the non-deferrable unique key never sees
+// two rows with one number (see OffsetStoryAttemptsAfter in bulk_writes.sql).
+// Constant queries: delete, offset, and settle only when something moved.
 func DeleteArchivedAttempt(ctx context.Context, userID string, storyID int32, number int) error {
 	if queries == nil {
 		return errors.New("database not initialized")
@@ -129,22 +132,18 @@ func DeleteArchivedAttempt(ctx context.Context, userID string, storyID int32, nu
 		if n == 0 {
 			return ErrAttemptNotFound
 		}
-		later, err := queries.ListUserStoryAttemptsAfter(txCtx, db.ListUserStoryAttemptsAfterParams{
+		moved, err := queries.OffsetStoryAttemptsAfter(txCtx, db.OffsetStoryAttemptsAfterParams{
 			UserID:        userID,
 			StoryID:       storyID,
-			AttemptNumber: int32(number),
+			DeletedNumber: int32(number),
 		})
-		if err != nil {
+		if err != nil || moved == 0 {
 			return err
 		}
-		for _, row := range later {
-			if err := queries.SetStoryAttemptNumber(txCtx, db.SetStoryAttemptNumberParams{
-				AttemptID:     row.AttemptID,
-				AttemptNumber: row.AttemptNumber - 1,
-			}); err != nil {
-				return err
-			}
-		}
-		return nil
+		return queries.SettleStoryAttemptsAfter(txCtx, db.SettleStoryAttemptsAfterParams{
+			UserID:        userID,
+			StoryID:       storyID,
+			DeletedNumber: int32(number),
+		})
 	})
 }

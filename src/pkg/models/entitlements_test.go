@@ -3,14 +3,13 @@ package models
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"glossias/src/pkg/database"
 
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func TestPaywallEnabled(t *testing.T) {
@@ -55,7 +54,7 @@ func TestPaywallLiftedWhilePaymentsPaused(t *testing.T) {
 	if err := CheckStoryContentAccess(context.Background(), "user-1", 10); err != nil {
 		t.Fatalf("paused payments should open paid content: %v", err)
 	}
-	if n := len(mockDB.Calls("ListActiveEntitlementsForUser")); n != 0 {
+	if n := len(mockDB.Calls("ListCourseAccessForUser")); n != 0 {
 		t.Fatalf("entitlement queries = %d, want 0", n)
 	}
 
@@ -73,7 +72,13 @@ func TestPaywallLiftedWhilePaymentsPaused(t *testing.T) {
 	}
 }
 
-func stubStoryAccess(mock *database.MockDBTX, canAccess, admin bool, courseIDs []int32, trialFlags [][]any) {
+// accessRow is one ListCourseAccessForUser row:
+// course_id, is_trial, enrolled, entitled.
+func accessRow(courseID int32, trial, enrolled, entitled bool) []any {
+	return []any{courseID, trial, enrolled, entitled}
+}
+
+func stubStoryAccess(mock *database.MockDBTX, canAccess, admin bool, courseIDs []int32, access [][]any) {
 	mock.StubQuery("CanUserAccessStory", [][]any{{canAccess}}, nil)
 	mock.StubQuery("IsUserAdminOfLinkedStory", [][]any{{admin}}, nil)
 	rows := make([][]any, len(courseIDs))
@@ -81,15 +86,91 @@ func stubStoryAccess(mock *database.MockDBTX, canAccess, admin bool, courseIDs [
 		rows[i] = []any{id}
 	}
 	mock.StubQuery("ListStoryCourseIDs", rows, nil)
-	if trialFlags != nil {
-		mock.StubQuery("ListCoursesTrialFlags", trialFlags, nil)
+	if access != nil {
+		mock.StubQuery("ListCourseAccessForUser", access, nil)
+	}
+}
+
+func TestLockState(t *testing.T) {
+	access := map[int]courseAccess{
+		1: {trial: true},
+		2: {enrolled: true, entitled: true},
+		3: {enrolled: true},
+		4: {},
+		5: {enrolled: true},
+		6: {trial: true, enrolled: true},
+	}
+	tests := []struct {
+		name    string
+		ids     []int
+		locked  bool
+		payable []int
+	}{
+		{"no courses", nil, false, nil},
+		{"trial course opens", []int{3, 1}, false, nil},
+		{"entitled course opens", []int{3, 2}, false, nil},
+		{"enrolled unpaid locks", []int{3}, true, []int{3}},
+		{"payable keeps input order", []int{5, 4, 3}, true, []int{5, 3}},
+		{"not enrolled anywhere stays unlocked", []int{4}, false, nil},
+		{"unknown course counts as nothing", []int{99, 3}, true, []int{3}},
+		{"enrolled trial still opens", []int{6, 3}, false, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			locked, payable := lockState(tt.ids, access)
+			if locked != tt.locked || !slices.Equal(payable, tt.payable) {
+				t.Fatalf("lockState(%v) = %v, %v; want %v, %v", tt.ids, locked, payable, tt.locked, tt.payable)
+			}
+		})
+	}
+}
+
+func TestAnnotateStoryLocks_OneAccessQuery(t *testing.T) {
+	t.Setenv("PAYWALL_ENABLED", "true")
+	SetPaymentsPaused(false)
+	mockDB := database.NewMockDBTX()
+	// Course 7 is administered by the user; 3 is enrolled unpaid; 4 entitled.
+	mockDB.StubQuery("GetUserCourseAdminRights", [][]any{{int32(7), nil, "C7", "Course 7"}}, nil)
+	mockDB.StubQuery("ListCourseAccessForUser", [][]any{
+		accessRow(3, false, true, false),
+		accessRow(4, false, true, true),
+	}, nil)
+	SetDB(mockDB)
+	t.Cleanup(func() { SetDB(struct{}{}) })
+
+	stories := []Story{
+		{Metadata: StoryMetadata{LinkedCourseIDs: []int{3}}},
+		{Metadata: StoryMetadata{LinkedCourseIDs: []int{3, 4}}},
+		{Metadata: StoryMetadata{LinkedCourseIDs: []int{7, 3}}},
+		{Metadata: StoryMetadata{}},
+		{Metadata: StoryMetadata{LinkedCourseIDs: []int{4, 3}}},
+	}
+	if err := AnnotateStoryLocks(context.Background(), "user-1", stories); err != nil {
+		t.Fatal(err)
+	}
+	want := []bool{true, false, false, false, false}
+	for i, s := range stories {
+		if s.Metadata.Locked != want[i] {
+			t.Errorf("story %d locked = %v, want %v", i, s.Metadata.Locked, want[i])
+		}
+	}
+	if !slices.Equal(stories[0].Metadata.PayableCourseIDs, []int{3}) {
+		t.Errorf("story 0 payable = %v, want [3]", stories[0].Metadata.PayableCourseIDs)
+	}
+	calls := mockDB.Calls("ListCourseAccessForUser")
+	if len(calls) != 1 {
+		t.Fatalf("access queries = %d, want 1", len(calls))
+	}
+	// Admin-linked stories are skipped, so course 7 is never asked about.
+	if ids, _ := calls[0].Args[1].([]int32); !slices.Equal(ids, []int32{3, 4}) {
+		t.Fatalf("course ids = %v, want [3 4]", calls[0].Args[1])
 	}
 }
 
 func TestCheckStoryContentAccess_TrialWithoutEnrollment(t *testing.T) {
 	t.Setenv("PAYWALL_ENABLED", "true")
 	mockDB := database.NewMockDBTX()
-	stubStoryAccess(mockDB, true, false, []int32{2}, [][]any{{int32(2), true}})
+	stubStoryAccess(mockDB, true, false, []int32{2}, [][]any{accessRow(2, true, false, false)})
 	SetDB(mockDB)
 	t.Cleanup(func() { SetDB(struct{}{}) })
 
@@ -101,9 +182,7 @@ func TestCheckStoryContentAccess_TrialWithoutEnrollment(t *testing.T) {
 func TestCheckStoryContentAccess_EnrolledUnpaid(t *testing.T) {
 	t.Setenv("PAYWALL_ENABLED", "true")
 	mockDB := database.NewMockDBTX()
-	stubStoryAccess(mockDB, true, false, []int32{3}, [][]any{{int32(3), false}})
-	mockDB.StubQuery("ListActiveEntitlementsForUser", nil, nil)
-	mockDB.StubQuery("IsUserEnrolledInCourse", [][]any{{true}}, nil)
+	stubStoryAccess(mockDB, true, false, []int32{3}, [][]any{accessRow(3, false, true, false)})
 	SetDB(mockDB)
 	t.Cleanup(func() { SetDB(struct{}{}) })
 
@@ -121,12 +200,9 @@ func TestCheckStoryContentAccess_PaidCourseUnlocksSharedStory(t *testing.T) {
 	t.Setenv("PAYWALL_ENABLED", "true")
 	mockDB := database.NewMockDBTX()
 	stubStoryAccess(mockDB, true, false, []int32{1, 2}, [][]any{
-		{int32(1), false},
-		{int32(2), false},
+		accessRow(1, false, false, true),
+		accessRow(2, false, true, false),
 	})
-	mockDB.StubQuery("ListActiveEntitlementsForUser", [][]any{
-		{int32(1), pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true}},
-	}, nil)
 	SetDB(mockDB)
 	t.Cleanup(func() { SetDB(struct{}{}) })
 
@@ -174,7 +250,7 @@ func TestCheckStoryContentAccess_NotEnrolled(t *testing.T) {
 func TestCheckStoryContentAccess_PaywallOff(t *testing.T) {
 	t.Setenv("PAYWALL_ENABLED", "")
 	mockDB := database.NewMockDBTX()
-	stubStoryAccess(mockDB, true, false, []int32{3}, [][]any{{int32(3), false}})
+	stubStoryAccess(mockDB, true, false, []int32{3}, [][]any{accessRow(3, false, true, false)})
 	SetDB(mockDB)
 	t.Cleanup(func() { SetDB(struct{}{}) })
 
@@ -213,9 +289,7 @@ func TestGetStoryData_PaymentRequiredWithCache(t *testing.T) {
 		keyBuilder = nil
 	})
 	mockDB := database.NewMockDBTX()
-	stubStoryAccess(mockDB, true, false, []int32{3}, [][]any{{int32(3), false}})
-	mockDB.StubQuery("ListActiveEntitlementsForUser", nil, nil)
-	mockDB.StubQuery("IsUserEnrolledInCourse", [][]any{{true}}, nil)
+	stubStoryAccess(mockDB, true, false, []int32{3}, [][]any{accessRow(3, false, true, false)})
 	SetDB(mockDB)
 	t.Cleanup(func() { SetDB(struct{}{}) })
 

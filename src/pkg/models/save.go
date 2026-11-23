@@ -3,9 +3,12 @@ package models
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"glossias/src/pkg/generated/db"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	_ "github.com/lib/pq"
 )
@@ -88,22 +91,18 @@ func SaveStoryData(ctx context.Context, storyID int, story *Story) error {
 	return err
 }
 
+// saveStoryComponents writes titles, description, lines and every line's
+// annotations and audio with a fixed number of statements, whatever the
+// story's size. ctx must be the transaction context.
 func saveStoryComponents(ctx context.Context, story *Story) error {
-	// Save titles using SQLC
-	for lang, title := range story.Metadata.Title {
-		if err := queries.UpsertStoryTitle(ctx, db.UpsertStoryTitleParams{
-			StoryID:      int32(story.Metadata.StoryID),
-			LanguageCode: lang,
-			Title:        title,
-		}); err != nil {
-			return err
-		}
+	storyID := story.Metadata.StoryID
+	if err := upsertStoryTitles(ctx, storyID, story.Metadata.Title); err != nil {
+		return err
 	}
 
-	// Save description using SQLC
 	if story.Metadata.Description.Text != "" || story.Metadata.Language != "" {
 		if err := queries.UpsertStoryDescription(ctx, db.UpsertStoryDescriptionParams{
-			StoryID:         int32(story.Metadata.StoryID),
+			StoryID:         int32(storyID),
 			LanguageCode:    story.Metadata.Language,
 			DescriptionText: story.Metadata.Description.Text,
 		}); err != nil {
@@ -111,63 +110,50 @@ func saveStoryComponents(ctx context.Context, story *Story) error {
 		}
 	}
 
-	return saveLines(ctx, story.Metadata.StoryID, story.Content.Lines)
+	return saveLines(ctx, storyID, story.Content.Lines)
 }
 
-func saveLines(ctx context.Context, storyID int, lines []StoryLine) error {
-	for _, line := range lines {
-		if err := saveLine(ctx, storyID, &line); err != nil {
-			return err
-		}
+// upsertStoryTitles writes every language's title in one statement.
+func upsertStoryTitles(ctx context.Context, storyID int, titles map[string]string) error {
+	if len(titles) == 0 {
+		return nil
 	}
-	return nil
+	p := db.UpsertStoryTitlesParams{
+		StoryID:       int32(storyID),
+		LanguageCodes: make([]string, 0, len(titles)),
+		Titles:        make([]string, 0, len(titles)),
+	}
+	for lang, title := range titles {
+		p.LanguageCodes = append(p.LanguageCodes, lang)
+		p.Titles = append(p.Titles, title)
+	}
+	return queries.UpsertStoryTitles(ctx, p)
 }
 
-func saveLine(ctx context.Context, storyID int, line *StoryLine) error {
-	// Save line using SQLC
-	err := queries.UpsertStoryLine(ctx, db.UpsertStoryLineParams{
-		StoryID:    int32(storyID),
-		LineNumber: int32(line.LineNumber),
-		Text:       line.Text,
-	})
-	if err != nil {
+// saveLines inserts the lines, then their annotations and audio. A line that
+// already exists fails on story_lines_pkey and is reported as
+// ErrStoryHasLines.
+func saveLines(ctx context.Context, storyID int, lines []StoryLine) error {
+	if len(lines) == 0 {
+		return nil
+	}
+	rows := make([]db.BulkCreateStoryLinesParams, 0, len(lines))
+	batch := newAnnotationBatch(storyID)
+	for _, line := range lines {
+		rows = append(rows, db.BulkCreateStoryLinesParams{
+			StoryID:    int32(storyID),
+			LineNumber: int32(line.LineNumber),
+			Text:       line.Text,
+		})
+		batch.addAnnotations(line.LineNumber, line)
+		batch.addAudio(line.LineNumber, line.AudioFiles)
+	}
+	if _, err := queries.BulkCreateStoryLines(ctx, rows); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "story_lines_pkey" {
+			return fmt.Errorf("%w: %v", ErrStoryHasLines, err)
+		}
 		return err
 	}
-
-	// Save vocabulary
-	for _, v := range line.Vocabulary {
-		if err := dedupVocabularyInsert(ctx, storyID, line.LineNumber, v); err != nil {
-			return err
-		}
-	}
-
-	// Save grammar items
-	for _, g := range line.Grammar {
-		if err := dedupGrammarInsert(ctx, storyID, line.LineNumber, g); err != nil {
-			return err
-		}
-	}
-
-	// Save footnotes
-	for _, f := range line.Footnotes {
-		if err := dedupFootnoteInsert(ctx, storyID, line.LineNumber, f); err != nil {
-			return err
-		}
-	}
-
-	// Save audio files
-	for _, a := range line.AudioFiles {
-		_, err := queries.CreateAudioFile(ctx, db.CreateAudioFileParams{
-			StoryID:    pgtype.Int4{Int32: int32(storyID), Valid: true},
-			LineNumber: pgtype.Int4{Int32: int32(line.LineNumber), Valid: true},
-			FilePath:   a.FilePath,
-			FileBucket: a.FileBucket,
-			Label:      a.Label,
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return batch.write(ctx)
 }

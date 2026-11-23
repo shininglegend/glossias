@@ -11,98 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createFootnote = `-- name: CreateFootnote :one
-INSERT INTO footnotes (story_id, line_number, footnote_text)
-VALUES ($1, $2, $3)
-RETURNING id
-`
-
-type CreateFootnoteParams struct {
-	StoryID      pgtype.Int4 `json:"story_id"`
-	LineNumber   pgtype.Int4 `json:"line_number"`
-	FootnoteText string      `json:"footnote_text"`
-}
-
-func (q *Queries) CreateFootnote(ctx context.Context, arg CreateFootnoteParams) (int32, error) {
-	row := q.db.QueryRow(ctx, createFootnote, arg.StoryID, arg.LineNumber, arg.FootnoteText)
-	var id int32
-	err := row.Scan(&id)
-	return id, err
-}
-
-const createFootnoteReference = `-- name: CreateFootnoteReference :exec
-INSERT INTO footnote_references (footnote_id, reference)
-VALUES ($1, $2)
-`
-
-type CreateFootnoteReferenceParams struct {
-	FootnoteID int32  `json:"footnote_id"`
-	Reference  string `json:"reference"`
-}
-
-func (q *Queries) CreateFootnoteReference(ctx context.Context, arg CreateFootnoteReferenceParams) error {
-	_, err := q.db.Exec(ctx, createFootnoteReference, arg.FootnoteID, arg.Reference)
-	return err
-}
-
-const createGrammarItem = `-- name: CreateGrammarItem :one
-INSERT INTO grammar_items (story_id, line_number, grammar_point_id, text, position_start, position_end)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id
-`
-
-type CreateGrammarItemParams struct {
-	StoryID        pgtype.Int4 `json:"story_id"`
-	LineNumber     pgtype.Int4 `json:"line_number"`
-	GrammarPointID pgtype.Int4 `json:"grammar_point_id"`
-	Text           string      `json:"text"`
-	PositionStart  int32       `json:"position_start"`
-	PositionEnd    int32       `json:"position_end"`
-}
-
-func (q *Queries) CreateGrammarItem(ctx context.Context, arg CreateGrammarItemParams) (int32, error) {
-	row := q.db.QueryRow(ctx, createGrammarItem,
-		arg.StoryID,
-		arg.LineNumber,
-		arg.GrammarPointID,
-		arg.Text,
-		arg.PositionStart,
-		arg.PositionEnd,
-	)
-	var id int32
-	err := row.Scan(&id)
-	return id, err
-}
-
-const createVocabularyItem = `-- name: CreateVocabularyItem :one
-INSERT INTO vocabulary_items (story_id, line_number, word, lexical_form, position_start, position_end)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id
-`
-
-type CreateVocabularyItemParams struct {
-	StoryID       pgtype.Int4 `json:"story_id"`
-	LineNumber    pgtype.Int4 `json:"line_number"`
-	Word          string      `json:"word"`
-	LexicalForm   string      `json:"lexical_form"`
-	PositionStart int32       `json:"position_start"`
-	PositionEnd   int32       `json:"position_end"`
-}
-
-func (q *Queries) CreateVocabularyItem(ctx context.Context, arg CreateVocabularyItemParams) (int32, error) {
-	row := q.db.QueryRow(ctx, createVocabularyItem,
-		arg.StoryID,
-		arg.LineNumber,
-		arg.Word,
-		arg.LexicalForm,
-		arg.PositionStart,
-		arg.PositionEnd,
-	)
-	var id int32
-	err := row.Scan(&id)
-	return id, err
-}
-
 const deleteFootnote = `-- name: DeleteFootnote :exec
 DELETE FROM footnotes WHERE id = $1
 `
@@ -220,39 +128,6 @@ func (q *Queries) GetAllAnnotationsForStory(ctx context.Context, storyID pgtype.
 	return items, nil
 }
 
-const getAllFootnotesForStory = `-- name: GetAllFootnotesForStory :many
-SELECT f.line_number, f.id, f.footnote_text
-FROM footnotes f
-WHERE f.story_id = $1
-ORDER BY f.line_number, f.id
-`
-
-type GetAllFootnotesForStoryRow struct {
-	LineNumber   pgtype.Int4 `json:"line_number"`
-	ID           int32       `json:"id"`
-	FootnoteText string      `json:"footnote_text"`
-}
-
-func (q *Queries) GetAllFootnotesForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllFootnotesForStoryRow, error) {
-	rows, err := q.db.Query(ctx, getAllFootnotesForStory, storyID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GetAllFootnotesForStoryRow{}
-	for rows.Next() {
-		var i GetAllFootnotesForStoryRow
-		if err := rows.Scan(&i.LineNumber, &i.ID, &i.FootnoteText); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getAllGrammarForStory = `-- name: GetAllGrammarForStory :many
 SELECT line_number, grammar_point_id, text, position_start, position_end
 FROM grammar_items
@@ -335,68 +210,6 @@ func (q *Queries) GetAllVocabularyForStory(ctx context.Context, storyID pgtype.I
 	return items, nil
 }
 
-const getFootnoteReferences = `-- name: GetFootnoteReferences :many
-SELECT reference
-FROM footnote_references
-WHERE footnote_id = $1
-`
-
-func (q *Queries) GetFootnoteReferences(ctx context.Context, footnoteID int32) ([]string, error) {
-	rows, err := q.db.Query(ctx, getFootnoteReferences, footnoteID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []string{}
-	for rows.Next() {
-		var reference string
-		if err := rows.Scan(&reference); err != nil {
-			return nil, err
-		}
-		items = append(items, reference)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getFootnotes = `-- name: GetFootnotes :many
-SELECT f.id, f.story_id, f.line_number, f.footnote_text
-FROM footnotes f
-WHERE f.story_id = $1 AND f.line_number = $2
-`
-
-type GetFootnotesParams struct {
-	StoryID    pgtype.Int4 `json:"story_id"`
-	LineNumber pgtype.Int4 `json:"line_number"`
-}
-
-func (q *Queries) GetFootnotes(ctx context.Context, arg GetFootnotesParams) ([]Footnote, error) {
-	rows, err := q.db.Query(ctx, getFootnotes, arg.StoryID, arg.LineNumber)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Footnote{}
-	for rows.Next() {
-		var i Footnote
-		if err := rows.Scan(
-			&i.ID,
-			&i.StoryID,
-			&i.LineNumber,
-			&i.FootnoteText,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getGrammarItems = `-- name: GetGrammarItems :many
 SELECT id, story_id, line_number, grammar_point_id, text, position_start, position_end
 FROM grammar_items
@@ -426,47 +239,6 @@ func (q *Queries) GetGrammarItems(ctx context.Context, arg GetGrammarItemsParams
 			&i.Text,
 			&i.PositionStart,
 			&i.PositionEnd,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getStoryFootnotesWithReferences = `-- name: GetStoryFootnotesWithReferences :many
-SELECT f.id, f.line_number, f.footnote_text, array_agg(fr.reference ORDER BY fr.reference) as references
-FROM footnotes f
-LEFT JOIN footnote_references fr ON f.id = fr.footnote_id
-WHERE f.story_id = $1
-GROUP BY f.id, f.line_number, f.footnote_text
-ORDER BY f.line_number, f.id
-`
-
-type GetStoryFootnotesWithReferencesRow struct {
-	ID           int32       `json:"id"`
-	LineNumber   pgtype.Int4 `json:"line_number"`
-	FootnoteText string      `json:"footnote_text"`
-	References   interface{} `json:"references"`
-}
-
-func (q *Queries) GetStoryFootnotesWithReferences(ctx context.Context, storyID pgtype.Int4) ([]GetStoryFootnotesWithReferencesRow, error) {
-	rows, err := q.db.Query(ctx, getStoryFootnotesWithReferences, storyID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GetStoryFootnotesWithReferencesRow{}
-	for rows.Next() {
-		var i GetStoryFootnotesWithReferencesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.LineNumber,
-			&i.FootnoteText,
-			&i.References,
 		); err != nil {
 			return nil, err
 		}

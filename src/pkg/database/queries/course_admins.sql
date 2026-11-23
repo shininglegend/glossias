@@ -22,15 +22,3 @@ FROM course_admins ca
 JOIN courses c ON ca.course_id = c.course_id
 WHERE ca.user_id = $1
 ORDER BY c.course_number;
-
--- name: IsUserCourseAdmin :one
-SELECT EXISTS(
-    SELECT 1 FROM course_admins
-    WHERE course_id = $1 AND user_id = $2
-) as is_admin;
-
--- name: IsUserAdminOfAnyCourse :one
-SELECT EXISTS(
-    SELECT 1 FROM course_admins
-    WHERE user_id = $1
-) as is_admin;

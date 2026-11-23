@@ -107,6 +107,9 @@ func ListAllCourses(ctx context.Context) ([]Course, error) {
 
 // UpdateCourse updates an existing course
 func UpdateCourse(ctx context.Context, courseID int32, courseNumber, name, description string, isTrial bool) (*Course, error) {
+	defer forgetAllCourseAdminRights(ctx) // rights carry the course number and name
+	// Turning a trial off takes access away from unenrolled trial users.
+	defer BumpAccessEpoch()
 	result, err := queries.UpdateCourse(ctx, db.UpdateCourseParams{
 		CourseID:     courseID,
 		CourseNumber: courseNumber,
@@ -126,6 +129,8 @@ func UpdateCourse(ctx context.Context, courseID int32, courseNumber, name, descr
 
 // DeleteCourse deletes a course
 func DeleteCourse(ctx context.Context, courseID int32) error {
+	defer forgetAllCourseAdminRights(ctx) // course_admins rows cascade
+	defer BumpAccessEpoch()
 	err := queries.DeleteCourse(ctx, courseID)
 	if err == sql.ErrNoRows || err == pgx.ErrNoRows {
 		return ErrNotFound
@@ -160,6 +165,7 @@ func AddCourseAdmin(ctx context.Context, courseID int32, userID string) (*Course
 		CourseID: courseID,
 		UserID:   userID,
 	})
+	forgetCourseAdminRights(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -181,6 +187,8 @@ func AddCourseAdmin(ctx context.Context, courseID int32, userID string) (*Course
 
 // RemoveCourseAdmin removes a user as admin from a course
 func RemoveCourseAdmin(ctx context.Context, courseID int32, userID string) error {
+	defer forgetCourseAdminRights(ctx, userID)
+	defer BumpAccessEpoch()
 	return queries.RemoveCourseAdmin(ctx, db.RemoveCourseAdminParams{
 		CourseID: courseID,
 		UserID:   userID,
@@ -189,8 +197,8 @@ func RemoveCourseAdmin(ctx context.Context, courseID int32, userID string) error
 
 // IsUserSuperAdmin checks if a user is a super admin
 func IsUserSuperAdmin(ctx context.Context, userID string) bool {
-	user, err := queries.GetUser(ctx, userID)
-	return err == nil && user.IsSuperAdmin.Bool
+	user, err := GetUser(ctx, userID)
+	return err == nil && user.IsSuperAdmin
 }
 
 // GetAdminCoursesForUser returns all courses a user is admin of

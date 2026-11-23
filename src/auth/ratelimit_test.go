@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -235,9 +236,49 @@ func TestClientIP(t *testing.T) {
 	if got := ClientIP(req); got != "192.168.1.5" {
 		t.Errorf("ClientIP = %q, want RemoteAddr host", got)
 	}
+	// A client-supplied X-Forwarded-For must not choose the rate-limit key.
 	req.Header.Set("X-Forwarded-For", "203.0.113.7")
-	if got := ClientIP(req); got != "203.0.113.7" {
-		t.Errorf("ClientIP = %q, want X-Forwarded-For", got)
+	if got := ClientIP(req); got != "192.168.1.5" {
+		t.Errorf("ClientIP = %q, want RemoteAddr host (X-Forwarded-For ignored)", got)
+	}
+	req.Header.Set("DO-Connecting-IP", "198.51.100.9")
+	if got := ClientIP(req); got != "198.51.100.9" {
+		t.Errorf("ClientIP = %q, want DO-Connecting-IP", got)
+	}
+	req.Header.Set("DO-Connecting-IP", "2001:db8::1")
+	if got := ClientIP(req); got != "2001:db8::1" {
+		t.Errorf("ClientIP = %q, want IPv6 DO-Connecting-IP", got)
+	}
+	// Garbage in the header falls back to the TCP peer.
+	req.Header.Set("DO-Connecting-IP", "not-an-ip, 1.2.3.4")
+	if got := ClientIP(req); got != "192.168.1.5" {
+		t.Errorf("ClientIP = %q, want RemoteAddr host for an invalid header", got)
+	}
+}
+
+// TestRateLimitIgnoresForwardedFor checks that a client rotating
+// X-Forwarded-For still exhausts its one limiter.
+func TestRateLimitIgnoresForwardedFor(t *testing.T) {
+	resetRateLimiters()
+	handler := RateLimitMiddleware(slog.New(slog.DiscardHandler))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	limited := false
+	for i := range tokensPerSecond * 3 {
+		req := httptest.NewRequest("GET", "/api/stories", nil)
+		req.RemoteAddr = "192.0.2.10:4000"
+		req.Header.Set("X-Forwarded-For", fmt.Sprintf("10.9.%d.%d", i/256, i%256))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		if rr.Code == http.StatusTooManyRequests {
+			limited = true
+		}
+	}
+	if !limited {
+		t.Error("rotating X-Forwarded-For avoided the rate limit")
+	}
+	if n := rateLimiterCount(); n != 1 {
+		t.Errorf("%d limiters tracked, want 1", n)
 	}
 }
 

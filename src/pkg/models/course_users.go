@@ -28,6 +28,8 @@ type CourseUser struct {
 	Status          string     `json:"status,omitempty"`
 	AccessExpiresAt *time.Time `json:"access_expires_at,omitempty"`
 	HasAccess       bool       `json:"has_access"`
+	IsSuperAdmin    bool       `json:"is_super_admin"`
+	IsCourseAdmin   bool       `json:"is_course_admin"` // admin of CourseID
 }
 
 // UserCourse represents a course a user is enrolled in
@@ -59,7 +61,7 @@ func AddUserToCourseByEmailWithStatus(ctx context.Context, email string, courseI
 		return err
 	}
 
-	if slices.Contains([]string{"active", "past", "future"}, status) {
+	if status != "" && !slices.Contains([]string{"active", "past", "future"}, status) {
 		return ErrInvalidStatus
 	}
 
@@ -77,6 +79,7 @@ func AddUserToCourseByEmailWithStatus(ctx context.Context, email string, courseI
 
 // RemoveUserFromCourse removes a user from a course
 func RemoveUserFromCourse(ctx context.Context, courseID int, userID string) error {
+	defer BumpAccessEpoch()
 	return queries.RemoveUserFromCourse(ctx, db.RemoveUserFromCourseParams{
 		CourseID: int32(courseID),
 		UserID:   userID,
@@ -85,6 +88,7 @@ func RemoveUserFromCourse(ctx context.Context, courseID int, userID string) erro
 
 // UpdateCourseUserStatus updates the status of a user's enrollment in a course
 func UpdateCourseUserStatus(ctx context.Context, courseID int, userID string, status string) error {
+	defer BumpAccessEpoch()
 	return queries.UpdateCourseUserStatus(ctx, db.UpdateCourseUserStatusParams{
 		CourseID: int32(courseID),
 		UserID:   userID,
@@ -96,6 +100,7 @@ func BulkUpdateUserStatusInCourse(ctx context.Context, courseID int, userIDs []s
 	if status != "active" && status != "past" && status != "future" {
 		return ErrInvalidStatus
 	}
+	defer BumpAccessEpoch()
 	return queries.BulkUpdateCourseUserStatus(ctx, db.BulkUpdateCourseUserStatusParams{
 		CourseID: int32(courseID),
 		Status:   pgtype.Text{String: status, Valid: true},
@@ -105,6 +110,7 @@ func BulkUpdateUserStatusInCourse(ctx context.Context, courseID int, userIDs []s
 
 // DeleteAllUsersFromCourse removes all users from a course
 func DeleteAllUsersFromCourse(ctx context.Context, courseID int) error {
+	defer BumpAccessEpoch()
 	return queries.DeleteAllUsersFromCourse(ctx, int32(courseID))
 }
 
@@ -173,9 +179,10 @@ func GetCoursesForUserByStatus(ctx context.Context, userID string, status string
 	return courses, nil
 }
 
-// GetUsersForCourse returns all users enrolled in a course
+// GetUsersForCourse returns all users enrolled in a course, with each one's
+// super admin and course admin flags
 func GetUsersForCourse(ctx context.Context, courseID int) ([]CourseUser, error) {
-	results, err := queries.GetUsersForCourse(ctx, int32(courseID))
+	results, err := queries.GetUsersForCourseWithRoles(ctx, int32(courseID))
 	if err != nil {
 		return nil, err
 	}
@@ -183,12 +190,14 @@ func GetUsersForCourse(ctx context.Context, courseID int) ([]CourseUser, error) 
 	users := make([]CourseUser, len(results))
 	for i, result := range results {
 		users[i] = CourseUser{
-			CourseID:   courseID,
-			UserID:     result.UserID,
-			Email:      result.Email,
-			Name:       result.Name,
-			EnrolledAt: result.EnrolledAt.Time,
-			Status:     "active",
+			CourseID:      courseID,
+			UserID:        result.UserID,
+			Email:         result.Email,
+			Name:          result.Name,
+			EnrolledAt:    result.EnrolledAt.Time,
+			Status:        "active",
+			IsSuperAdmin:  result.IsSuperAdmin,
+			IsCourseAdmin: result.IsCourseAdmin,
 		}
 		// Override status if present
 		if result.Status.Valid {

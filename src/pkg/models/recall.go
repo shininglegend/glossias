@@ -274,28 +274,20 @@ func SaveRecallAttempt(ctx context.Context, userID string, storyID int, orderedS
 	}
 
 	results := make([]bool, len(orderedSentenceIDs))
+	ids := make([]int32, len(orderedSentenceIDs))
 	for i, id := range orderedSentenceIDs {
-		position := i + 1
-		correct := correctOrder[id] == position
-		results[i] = correct
+		results[i] = correctOrder[id] == i+1
+		ids[i] = int32(id)
+	}
 
-		if correct {
-			err = queries.SaveRecallCorrectAnswer(ctx, db.SaveRecallCorrectAnswerParams{
-				UserID:           userID,
-				StoryID:          int32(storyID),
-				RecallSentenceID: int32(id),
-			})
-		} else {
-			err = queries.SaveRecallIncorrectAnswer(ctx, db.SaveRecallIncorrectAnswerParams{
-				UserID:           userID,
-				StoryID:          int32(storyID),
-				RecallSentenceID: int32(id),
-				SelectedPosition: int32(position),
-			})
-		}
-		if err != nil {
-			return nil, err
-		}
+	// One statement writes the correct and incorrect rows together.
+	if err := queries.SaveRecallAnswers(ctx, db.SaveRecallAnswersParams{
+		UserID:      userID,
+		StoryID:     int32(storyID),
+		SentenceIds: ids,
+		Correct:     results,
+	}); err != nil {
+		return nil, err
 	}
 
 	return results, nil

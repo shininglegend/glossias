@@ -9,12 +9,6 @@ SELECT title
 FROM story_titles
 WHERE story_id = $1 AND language_code = $2;
 
--- name: UpsertStoryTitle :exec
-INSERT INTO story_titles (story_id, language_code, title)
-VALUES ($1, $2, $3)
-ON CONFLICT (story_id, language_code)
-DO UPDATE SET title = EXCLUDED.title;
-
 -- name: DeleteStoryTitles :exec
 DELETE FROM story_titles WHERE story_id = $1;
 
@@ -54,10 +48,6 @@ WHERE story_id = $1 AND line_number = $2;
 -- name: GetLineText :one
 SELECT text FROM story_lines
 WHERE story_id = $1 AND line_number = $2;
-
--- name: UpsertStoryLine :exec
-INSERT INTO story_lines (story_id, line_number, text)
-VALUES ($1, $2, $3);
 
 -- name: DeleteStoryLine :exec
 DELETE FROM story_lines WHERE story_id = $1 AND line_number = $2;

@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -85,17 +86,24 @@ func resetRateLimiters() {
 	rateLimiterLastSweep = time.Time{}
 }
 
-// ClientIP extracts the caller's IP from X-Forwarded-For or RemoteAddr,
-// without the port.
+// clientIPHeader carries the client's address on DigitalOcean App Platform,
+// set by its ingress (which every request passes through). X-Forwarded-For
+// is not used: a client can put any address in it, which would give each
+// request a fresh rate limiter, and App Platform puts its own ingress address
+// there.
+const clientIPHeader = "DO-Connecting-IP"
+
+// ClientIP returns the caller's IP without the port: the App Platform
+// client-IP header when present (production), otherwise the TCP peer
+// (local development, tests).
 func ClientIP(r *http.Request) string {
-	clientIP := r.Header.Get("X-Forwarded-For")
-	if clientIP == "" {
-		clientIP = r.RemoteAddr
+	if ip := net.ParseIP(strings.TrimSpace(r.Header.Get(clientIPHeader))); ip != nil {
+		return ip.String()
 	}
-	if host, _, err := net.SplitHostPort(clientIP); err == nil {
-		clientIP = host
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
 	}
-	return clientIP
+	return r.RemoteAddr
 }
 
 // RateLimitMiddleware returns a middleware that rate limits requests by IP

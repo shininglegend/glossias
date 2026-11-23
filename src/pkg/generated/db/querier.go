@@ -39,9 +39,6 @@ type Querier interface {
 	CanUserAccessStory(ctx context.Context, arg CanUserAccessStoryParams) (bool, error)
 	// Vocabulary-related queries
 	CheckAllVocabCompleteForLineForUser(ctx context.Context, arg CheckAllVocabCompleteForLineForUserParams) (bool, error)
-	CheckFootnoteExists(ctx context.Context, arg CheckFootnoteExistsParams) (int32, error)
-	CheckGrammarExists(ctx context.Context, arg CheckGrammarExistsParams) (bool, error)
-	CheckVocabularyExists(ctx context.Context, arg CheckVocabularyExistsParams) (bool, error)
 	ClearStoryGrammarPoints(ctx context.Context, storyID int32) error
 	CloseAnonymousTimeEntry(ctx context.Context, arg CloseAnonymousTimeEntryParams) error
 	CloseTimeEntry(ctx context.Context, arg CloseTimeEntryParams) error
@@ -62,9 +59,6 @@ type Querier interface {
 	CreateCompleteTimeEntry(ctx context.Context, arg CreateCompleteTimeEntryParams) (UserTimeTracking, error)
 	// Course management queries
 	CreateCourse(ctx context.Context, arg CreateCourseParams) (CreateCourseRow, error)
-	CreateFootnote(ctx context.Context, arg CreateFootnoteParams) (int32, error)
-	CreateFootnoteReference(ctx context.Context, arg CreateFootnoteReferenceParams) error
-	CreateGrammarItem(ctx context.Context, arg CreateGrammarItemParams) (int32, error)
 	// Grammar points management queries
 	CreateGrammarPoint(ctx context.Context, arg CreateGrammarPointParams) (GrammarPoint, error)
 	CreateProduceSubmission(ctx context.Context, arg CreateProduceSubmissionParams) (ProduceSubmission, error)
@@ -80,7 +74,6 @@ type Querier interface {
 	CreateTranslationRequest(ctx context.Context, arg CreateTranslationRequestParams) (CreateTranslationRequestRow, error)
 	// User management queries
 	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
-	CreateVocabularyItem(ctx context.Context, arg CreateVocabularyItemParams) (int32, error)
 	DeleteAllGrammarForStory(ctx context.Context, storyID pgtype.Int4) error
 	DeleteAllLineAnnotations(ctx context.Context, arg DeleteAllLineAnnotationsParams) error
 	DeleteAllStoryAnnotations(ctx context.Context, storyID pgtype.Int4) error
@@ -103,7 +96,7 @@ type Querier interface {
 	DeleteLineTranslations(ctx context.Context, arg DeleteLineTranslationsParams) error
 	DeleteLineVocabulary(ctx context.Context, arg DeleteLineVocabularyParams) error
 	DeleteOldAnonymousEntries(ctx context.Context, createdAt pgtype.Timestamp) error
-	DeleteProduceSegment(ctx context.Context, id int32) error
+	DeleteProduceSegmentByOrder(ctx context.Context, arg DeleteProduceSegmentByOrderParams) (int64, error)
 	DeleteRecallSentence(ctx context.Context, id int32) error
 	DeleteStory(ctx context.Context, storyID int32) error
 	DeleteStoryAudioFiles(ctx context.Context, storyID pgtype.Int4) error
@@ -147,6 +140,22 @@ type Querier interface {
 	DeleteVocabularyItems(ctx context.Context, arg DeleteVocabularyItemsParams) error
 	DetachCourseSection(ctx context.Context, arg DetachCourseSectionParams) error
 	ExpireEntitlementsByPaymentIntent(ctx context.Context, stripePaymentIntentID pgtype.Text) (int64, error)
+	// FindExistingFootnotes: footnotes match on line and text only.
+	FindExistingFootnotes(ctx context.Context, arg FindExistingFootnotesParams) ([]int32, error)
+	// FindExistingGrammar: as above for grammar items (grammar_point_id is not
+	// part of the match, as before).
+	FindExistingGrammar(ctx context.Context, arg FindExistingGrammarParams) ([]int32, error)
+	// Set-based admin writes: each query replaces a per-row loop in models (save,
+	// edit, translations, attempt renumbering). Payloads arrive as parallel,
+	// equal-length arrays, unnested side by side in one SELECT list (set-returning
+	// functions there advance in lockstep); generate_subscripts alongside gives
+	// each element its 1-based payload position (ord), so results and child rows
+	// can be tied back to it. sqlc only knows single-argument unnest, hence this
+	// form rather than unnest(a, b) WITH ORDINALITY.
+	// FindExistingVocabulary returns the 0-based payload indexes of vocabulary
+	// items that already exist on the story, matching the same columns as the old
+	// per-item CheckVocabularyExists.
+	FindExistingVocabulary(ctx context.Context, arg FindExistingVocabularyParams) ([]int32, error)
 	FindRecentSimilarTimeEntry(ctx context.Context, arg FindRecentSimilarTimeEntryParams) (FindRecentSimilarTimeEntryRow, error)
 	GetActiveAnonymousTimeEntry(ctx context.Context, arg GetActiveAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
 	GetActiveEntitlementForUserCourse(ctx context.Context, arg GetActiveEntitlementForUserCourseParams) (AccessEntitlement, error)
@@ -156,7 +165,6 @@ type Querier interface {
 	GetActiveTimeEntry(ctx context.Context, arg GetActiveTimeEntryParams) (UserTimeTracking, error)
 	GetAdminCoursesForUser(ctx context.Context, userID string) ([]GetAdminCoursesForUserRow, error)
 	GetAllAnnotationsForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllAnnotationsForStoryRow, error)
-	GetAllFootnotesForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllFootnotesForStoryRow, error)
 	GetAllGrammarForStory(ctx context.Context, storyID pgtype.Int4) ([]GetAllGrammarForStoryRow, error)
 	GetAllStories(ctx context.Context) ([]Story, error)
 	GetAllStoriesBasic(ctx context.Context, languageCode string) ([]GetAllStoriesBasicRow, error)
@@ -180,14 +188,14 @@ type Querier interface {
 	GetCourseStoriesWithTitles(ctx context.Context, arg GetCourseStoriesWithTitlesParams) ([]GetCourseStoriesWithTitlesRow, error)
 	GetCoursesForUser(ctx context.Context, userID string) ([]GetCoursesForUserRow, error)
 	GetCoursesForUserByStatus(ctx context.Context, arg GetCoursesForUserByStatusParams) ([]GetCoursesForUserByStatusRow, error)
-	GetFootnoteReferences(ctx context.Context, footnoteID int32) ([]string, error)
-	GetFootnotes(ctx context.Context, arg GetFootnotesParams) ([]Footnote, error)
 	GetGrammarItems(ctx context.Context, arg GetGrammarItemsParams) ([]GrammarItem, error)
 	GetGrammarPoint(ctx context.Context, grammarPointID int32) (GrammarPoint, error)
 	GetGrammarPointByName(ctx context.Context, arg GetGrammarPointByNameParams) (GrammarPoint, error)
 	GetIncompleteVocabForUser(ctx context.Context, arg GetIncompleteVocabForUserParams) ([]GetIncompleteVocabForUserRow, error)
 	GetLatestEntitlementExpiryForUserCourse(ctx context.Context, arg GetLatestEntitlementExpiryForUserCourseParams) (pgtype.Timestamptz, error)
 	GetLineAudioFiles(ctx context.Context, arg GetLineAudioFilesParams) ([]LineAudioFile, error)
+	// GetLineFootnotesWithRefs is GetStoryFootnotesWithRefs for one line.
+	GetLineFootnotesWithRefs(ctx context.Context, arg GetLineFootnotesWithRefsParams) ([]GetLineFootnotesWithRefsRow, error)
 	GetLineText(ctx context.Context, arg GetLineTextParams) (string, error)
 	GetLineTranslation(ctx context.Context, arg GetLineTranslationParams) (string, error)
 	// Line translations management queries
@@ -219,7 +227,9 @@ type Querier interface {
 	GetStoryAudioFilesByLabel(ctx context.Context, arg GetStoryAudioFilesByLabelParams) ([]LineAudioFile, error)
 	// Story descriptions
 	GetStoryDescription(ctx context.Context, arg GetStoryDescriptionParams) (string, error)
-	GetStoryFootnotesWithReferences(ctx context.Context, storyID pgtype.Int4) ([]GetStoryFootnotesWithReferencesRow, error)
+	// GetStoryFootnotesWithRefs returns every footnote of a story with its
+	// references sorted; a footnote without references gets an empty array.
+	GetStoryFootnotesWithRefs(ctx context.Context, storyID int32) ([]GetStoryFootnotesWithRefsRow, error)
 	GetStoryGrammarPoints(ctx context.Context, storyID int32) ([]GetStoryGrammarPointsRow, error)
 	GetStoryGrammarScores(ctx context.Context, storyID int32) ([]GetStoryGrammarScoresRow, error)
 	GetStoryImage(ctx context.Context, imageID int32) (StoryImage, error)
@@ -329,31 +339,50 @@ type Querier interface {
 	GetUserTranslationStatusForStory(ctx context.Context, arg GetUserTranslationStatusForStoryParams) (GetUserTranslationStatusForStoryRow, error)
 	GetUserVocabScores(ctx context.Context, arg GetUserVocabScoresParams) ([]GetUserVocabScoresRow, error)
 	GetUsersByEmails(ctx context.Context, dollar_1 []string) ([]GetUsersByEmailsRow, error)
-	GetUsersForCourse(ctx context.Context, courseID int32) ([]GetUsersForCourseRow, error)
+	// The course roster with each user's role in one query, replacing a super
+	// admin and a course admin lookup per user.
+	GetUsersForCourseWithRoles(ctx context.Context, courseID int32) ([]GetUsersForCourseWithRolesRow, error)
 	GetVocabularyItems(ctx context.Context, arg GetVocabularyItemsParams) ([]VocabularyItem, error)
 	GradeProduceSubmission(ctx context.Context, arg GradeProduceSubmissionParams) error
 	// InsertAccessEntitlement: 0 rows means this Stripe session was already granted
 	// (the return-URL confirm and the webhook race each other). Comp grants carry a
 	// NULL session id and never conflict.
 	InsertAccessEntitlement(ctx context.Context, arg InsertAccessEntitlementParams) (int64, error)
+	// InsertFootnoteReferences attaches references to one existing footnote.
+	InsertFootnoteReferences(ctx context.Context, arg InsertFootnoteReferencesParams) error
+	// InsertFootnotesWithRefs inserts a batch of footnotes and their references
+	// in one statement. Ids are drawn from the footnotes sequence up front (the
+	// MATERIALIZED CTE evaluates nextval exactly once per footnote, in payload
+	// order), so references join to their footnote by payload position
+	// (ref_footnote_ords holds the 1-based footnote position of each reference),
+	// never by text: two footnotes with the same text stay distinct.
+	InsertFootnotesWithRefs(ctx context.Context, arg InsertFootnotesWithRefsParams) error
+	// InsertGrammarPoints inserts in payload order, so serial ids ascend with it.
+	// An empty description is stored as NULL, as CreateGrammarPoint does.
+	InsertGrammarPoints(ctx context.Context, arg InsertGrammarPointsParams) error
 	// InsertProduceGradingLog records one grading run — prompts, raw model
 	// output, parsed verdict or error — so grading can be inspected after the fact.
 	InsertProduceGradingLog(ctx context.Context, arg InsertProduceGradingLogParams) error
 	InsertProduceGradingPrompt(ctx context.Context, arg InsertProduceGradingPromptParams) (ProduceGradingPrompt, error)
-	IsUserAdminOfAnyCourse(ctx context.Context, userID string) (bool, error)
+	// Creates a placeholder row for a user auth could not load from Clerk, so
+	// rows that reference users still have a parent. Never touches an existing
+	// row: a Clerk outage must not blank a stored email or name.
+	InsertUserIfMissing(ctx context.Context, userID string) error
 	IsUserAdminOfLinkedStory(ctx context.Context, arg IsUserAdminOfLinkedStoryParams) (bool, error)
-	IsUserCourseAdmin(ctx context.Context, arg IsUserCourseAdminParams) (bool, error)
 	IsUserEnrolledInCourse(ctx context.Context, arg IsUserEnrolledInCourseParams) (bool, error)
 	LineExists(ctx context.Context, arg LineExistsParams) (bool, error)
 	// Story-to-course membership (symlink). stories.course_id remains the owner.
 	LinkStoryToCourse(ctx context.Context, arg LinkStoryToCourseParams) error
 	ListActiveEntitlementsForUser(ctx context.Context, userID string) ([]ListActiveEntitlementsForUserRow, error)
 	ListAllCourseSections(ctx context.Context) ([]CourseSection, error)
+	// One row per existing course in course_ids: its trial flag, whether the user
+	// is enrolled (any status, like IsUserEnrolledInCourse) and whether the user
+	// holds an unexpired entitlement (like ListActiveEntitlementsForUser).
+	ListCourseAccessForUser(ctx context.Context, arg ListCourseAccessForUserParams) ([]ListCourseAccessForUserRow, error)
 	ListCourseIDsForStories(ctx context.Context, storyIds []int32) ([]ListCourseIDsForStoriesRow, error)
 	ListCourseSections(ctx context.Context, parentCourseID int32) ([]ListCourseSectionsRow, error)
 	ListCourses(ctx context.Context) ([]ListCoursesRow, error)
 	ListCoursesForStory(ctx context.Context, storyID int32) ([]ListCoursesForStoryRow, error)
-	ListCoursesTrialFlags(ctx context.Context, courseIds []int32) ([]ListCoursesTrialFlagsRow, error)
 	ListGrammarPoints(ctx context.Context) ([]GrammarPoint, error)
 	ListLatestEntitlementsForCourseUsers(ctx context.Context, arg ListLatestEntitlementsForCourseUsersParams) ([]ListLatestEntitlementsForCourseUsersRow, error)
 	ListProduceGradingPrompts(ctx context.Context) ([]ProduceGradingPrompt, error)
@@ -362,17 +391,25 @@ type Querier interface {
 	ListUserIDsForCourses(ctx context.Context, courseIds []int32) ([]string, error)
 	ListUserSectionsForParent(ctx context.Context, parentCourseID int32) ([]ListUserSectionsForParentRow, error)
 	ListUserStoryAttemptSnapshots(ctx context.Context, arg ListUserStoryAttemptSnapshotsParams) ([]ListUserStoryAttemptSnapshotsRow, error)
-	// Renumbering after a delete happens one row at a time in ascending order
-	// (see models.DeleteArchivedAttempt): the unique (user, story, number) key is
-	// not deferrable, so a single "SET attempt_number = attempt_number - 1" could
-	// collide mid-statement depending on row order.
-	ListUserStoryAttemptsAfter(ctx context.Context, arg ListUserStoryAttemptsAfterParams) ([]ListUserStoryAttemptsAfterRow, error)
 	ListUserStoryCompletedAttempts(ctx context.Context, arg ListUserStoryCompletedAttemptsParams) ([]ListUserStoryCompletedAttemptsRow, error)
 	ListUsers(ctx context.Context) ([]ListUsersRow, error)
 	// MarkProduceGradingFailed stamps graded_at with no score so the student page
 	// can tell "grading failed" from "still waiting".
 	MarkProduceGradingFailed(ctx context.Context, id int32) error
 	MarkTranslationRequestComplete(ctx context.Context, arg MarkTranslationRequestCompleteParams) error
+	// MergeTranslationRequestLines records revealed translation lines (1-based)
+	// in one statement: it creates the user's request for the story or merges
+	// the lines into it (sorted, no duplicates), and marks it complete when
+	// complete is set. Completion is never cleared.
+	MergeTranslationRequestLines(ctx context.Context, arg MergeTranslationRequestLinesParams) error
+	// Attempt renumbering after deleting attempt N, in two set-based steps that
+	// never trip the non-deferrable UNIQUE (user_id, story_id, attempt_number) or
+	// CHECK (attempt_number >= 1):
+	//   1. offset: every attempt above N moves up by the current maximum M, so
+	//      the moved rows land above M, clear of every existing number;
+	//   2. settle: the moved rows take N, N+1, ... in their original order, all
+	//      below the still-offset values.
+	OffsetStoryAttemptsAfter(ctx context.Context, arg OffsetStoryAttemptsAfterParams) (int64, error)
 	RemoveCourseAdmin(ctx context.Context, arg RemoveCourseAdminParams) error
 	RemoveUserFromCourse(ctx context.Context, arg RemoveUserFromCourseParams) error
 	RemoveUsersFromSiblingSections(ctx context.Context, arg RemoveUsersFromSiblingSectionsParams) error
@@ -385,19 +422,25 @@ type Querier interface {
 	// Identify phase answer-log queries
 	SaveIdentifyCorrectAnswer(ctx context.Context, arg SaveIdentifyCorrectAnswerParams) error
 	SaveIdentifyIncorrectAnswer(ctx context.Context, arg SaveIdentifyIncorrectAnswerParams) error
+	// SaveRecallAnswers logs one recall ordering attempt in one statement:
+	// sentence_ids[i] was placed at position i (1-based); correct[i] picks the
+	// table. Rows land in submitted order within each table.
+	SaveRecallAnswers(ctx context.Context, arg SaveRecallAnswersParams) error
 	SaveRecallCorrectAnswer(ctx context.Context, arg SaveRecallCorrectAnswerParams) error
 	SaveRecallIncorrectAnswer(ctx context.Context, arg SaveRecallIncorrectAnswerParams) error
 	SaveVocabIncorrectAnswer(ctx context.Context, arg SaveVocabIncorrectAnswerParams) error
 	SaveVocabScore(ctx context.Context, arg SaveVocabScoreParams) error
 	SetActiveProduceGradingPrompt(ctx context.Context, arg SetActiveProduceGradingPromptParams) error
-	SetStoryAttemptNumber(ctx context.Context, arg SetStoryAttemptNumberParams) error
 	SetUserStripeCustomerID(ctx context.Context, arg SetUserStripeCustomerIDParams) error
+	SettleStoryAttemptsAfter(ctx context.Context, arg SettleStoryAttemptsAfterParams) error
 	// StartProduceAttempt records when the student began a segment. A second call
 	// for the same segment is a no-op update so the original start is returned:
 	// the countdown cannot be reset by reloading.
 	StartProduceAttempt(ctx context.Context, arg StartProduceAttemptParams) (StartProduceAttemptRow, error)
 	StoryExists(ctx context.Context, storyID int32) (bool, error)
 	StoryLinkedToCourse(ctx context.Context, arg StoryLinkedToCourseParams) (bool, error)
+	// TouchStoryRevision bumps last_revision; zero rows means no such story.
+	TouchStoryRevision(ctx context.Context, storyID int32) (int64, error)
 	TranslationRequestCompleted(ctx context.Context, arg TranslationRequestCompletedParams) (bool, error)
 	UnlinkStoryFromCourse(ctx context.Context, arg UnlinkStoryFromCourseParams) error
 	UpdateAnonymousTimeEntry(ctx context.Context, arg UpdateAnonymousTimeEntryParams) (AnonymousTimeTracking, error)
@@ -419,13 +462,16 @@ type Querier interface {
 	UpdateVocabularyByWord(ctx context.Context, arg UpdateVocabularyByWordParams) error
 	UpdateVocabularyItem(ctx context.Context, arg UpdateVocabularyItemParams) error
 	UpsertLineTranslation(ctx context.Context, arg UpsertLineTranslationParams) error
+	// UpsertLineTranslations writes one language's translations for many lines.
+	// The caller must pass each line at most once: ON CONFLICT DO UPDATE cannot
+	// touch the same row twice in one statement.
+	UpsertLineTranslations(ctx context.Context, arg UpsertLineTranslationsParams) error
 	UpsertPaymentsState(ctx context.Context, arg UpsertPaymentsStateParams) error
 	UpsertProduceSegment(ctx context.Context, arg UpsertProduceSegmentParams) (UpsertProduceSegmentRow, error)
 	UpsertRecallSentence(ctx context.Context, arg UpsertRecallSentenceParams) (UpsertRecallSentenceRow, error)
 	UpsertStoryDescription(ctx context.Context, arg UpsertStoryDescriptionParams) error
-	UpsertStoryLine(ctx context.Context, arg UpsertStoryLineParams) error
 	UpsertStoryProduceExplanation(ctx context.Context, arg UpsertStoryProduceExplanationParams) (UpsertStoryProduceExplanationRow, error)
-	UpsertStoryTitle(ctx context.Context, arg UpsertStoryTitleParams) error
+	UpsertStoryTitles(ctx context.Context, arg UpsertStoryTitlesParams) error
 	UpsertTimeEntry(ctx context.Context, arg UpsertTimeEntryParams) (UserTimeTracking, error)
 	UpsertUser(ctx context.Context, arg UpsertUserParams) (UpsertUserRow, error)
 }

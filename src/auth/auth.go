@@ -26,6 +26,14 @@ const UserIDKey contextKey = "userID"
 // by the webhook signature, so it bypasses Clerk auth and rate limiting.
 const StripeWebhookPath = "/api/webhooks/stripe"
 
+// jwtLeeway is the clock skew allowed when checking a session token's expiry
+// and not-before times.
+const jwtLeeway = 60 * time.Second
+
+// fetchClerkUser loads a user's profile from Clerk. A variable so tests can
+// stub Clerk.
+var fetchClerkUser = user.Get
+
 var byPassURLS = []string{
 	"/api/health",
 	"/api/db-health",
@@ -53,7 +61,9 @@ func Middleware(logger *slog.Logger) mux.MiddlewareFunc {
 			if strings.HasPrefix(r.URL.Path, "/api/") && !slices.Contains(byPassURLS, r.URL.Path) {
 				userID, err := extractAndValidateUser(r, logger)
 				if err != nil {
-					logger.Error("auth failed", "error", err, "path", r.URL.Path)
+					// WARN, not ERROR: anyone can trigger this, and it must not
+					// page or flood the error log.
+					logger.Warn("auth failed", "error", err, "path", r.URL.Path)
 					http.Error(w, "Unauthorized", http.StatusUnauthorized)
 					return
 				}
@@ -75,18 +85,21 @@ func extractAndValidateUser(r *http.Request, logger *slog.Logger) (string, error
 	devUser := os.Getenv("DEV_USER")
 	devAuth := r.Header.Get("dev_auth")
 	if devUser != "" && devAuth == "12345678" {
-		// Load the dev user from Clerk to maintain consistency
-		clerkUser, err := user.Get(ctx, devUser)
-		if err != nil {
-			logger.Warn("failed to fetch dev user from Clerk", "error", err, "dev_user", devUser)
-			return devUser, nil
-		}
+		if !models.UserRecentlySynced(devUser) {
+			// Load the dev user from Clerk to maintain consistency
+			clerkUser, err := fetchClerkUser(ctx, devUser)
+			if err != nil {
+				logger.Warn("failed to fetch dev user from Clerk", "error", err, "dev_user", devUser)
+				return devUser, nil
+			}
 
-		// Sync dev user data with database
-		email, name := clerkProfile(clerkUser)
-		_, err = models.UpsertUser(ctx, devUser, email, name)
-		if err != nil {
-			logger.Error("failed to sync dev user to database", "error", err, "dev_user", devUser, "email", email)
+			// Sync dev user data with database
+			email, name := clerkProfile(clerkUser)
+			if _, err := models.UpsertUser(ctx, devUser, email, name); err != nil {
+				logger.Error("failed to sync dev user to database", "error", err, "user_id", devUser)
+			} else {
+				models.MarkUserSynced(devUser)
+			}
 		}
 
 		logger.Debug("dev auth bypass used", "dev_user", devUser)
@@ -104,10 +117,12 @@ func extractAndValidateUser(r *http.Request, logger *slog.Logger) (string, error
 		return "", &clerk.APIErrorResponse{HTTPStatusCode: 401}
 	}
 
-	// Verify JWT token with clock tolerance
+	// Verify the JWT. Clerk session tokens live about 60 seconds, so the clock
+	// tolerance stays small: every second of leeway extends how long a leaked
+	// token is accepted after it expires.
 	claims, err := clerkjwt.Verify(r.Context(), &clerkjwt.VerifyParams{
 		Token:  token,
-		Leeway: time.Minute * 5, // Allow 5 minutes clock skew
+		Leeway: jwtLeeway,
 	})
 	if err != nil {
 		return "", err
@@ -119,28 +134,41 @@ func extractAndValidateUser(r *http.Request, logger *slog.Logger) (string, error
 		return "", &clerk.APIErrorResponse{HTTPStatusCode: 401}
 	}
 
+	syncUser(ctx, userID, logger)
+	return userID, nil
+}
+
+// syncUser copies the user's Clerk profile into the users table. A sync done
+// on this instance within the last few minutes (models.UserRecentlySynced) is
+// trusted, so most requests make no Clerk call and no write. The sync is
+// recorded only when both the Clerk fetch and the upsert succeeded.
+func syncUser(ctx context.Context, userID string, logger *slog.Logger) {
+	if models.UserRecentlySynced(userID) {
+		return
+	}
+
 	// Fetch full user details from Clerk to sync with database
-	clerkUser, err := user.Get(ctx, userID)
+	clerkUser, err := fetchClerkUser(ctx, userID)
 	if err != nil {
 		logger.Warn("failed to fetch user details from Clerk", "error", err, "user_id", userID)
-		// Fallback to basic user sync without email/name
-		_, syncErr := models.UpsertUser(ctx, userID, "", "")
-		if syncErr != nil {
+		// Make sure a row exists for a first-time user, but never overwrite a
+		// stored email and name with the empty values we have here.
+		if syncErr := models.EnsureUserExists(ctx, userID); syncErr != nil {
 			logger.Warn("failed basic user sync to database", "error", syncErr, "user_id", userID)
 		}
-		return userID, nil
+		return
 	}
 
 	// Sync user data with database
 	email, name := clerkProfile(clerkUser)
-	_, err = models.UpsertUser(ctx, userID, email, name)
-	if err != nil {
+	if _, err := models.UpsertUser(ctx, userID, email, name); err != nil {
 		// Don't fail the request if database sync fails, but make it loud: a
 		// unique-email conflict here means the same address is on two users rows.
-		logger.Error("failed to sync user to database", "error", err, "user_id", userID, "email", email, "name", name)
+		// Logs the user id only: emails and names stay out of the logs.
+		logger.Error("failed to sync user to database", "error", err, "user_id", userID)
+		return
 	}
-
-	return userID, nil
+	models.MarkUserSynced(userID)
 }
 
 // clerkProfile extracts the email and display name to store for a Clerk user.

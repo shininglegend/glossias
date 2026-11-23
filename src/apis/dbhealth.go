@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
-	"net"
 	"net/http"
 	"sync"
 	"time"
 
+	"glossias/src/auth"
 	"glossias/src/pkg/models"
 )
 
@@ -44,15 +44,7 @@ func canMakeDBHealthRequest(ip string) bool {
 // DBHealthHandler checks database connectivity
 func DBHealthHandler(logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		clientIP := r.Header.Get("X-Forwarded-For")
-		if clientIP == "" {
-			clientIP = r.RemoteAddr
-		}
-
-		// Remove port if present
-		if host, _, err := net.SplitHostPort(clientIP); err == nil {
-			clientIP = host
-		}
+		clientIP := auth.ClientIP(r)
 
 		// Check rate limit
 		if !canMakeDBHealthRequest(clientIP) {

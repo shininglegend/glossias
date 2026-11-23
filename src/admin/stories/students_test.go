@@ -12,23 +12,24 @@ import (
 	"glossias/src/auth"
 	"glossias/src/pkg/database"
 	"glossias/src/pkg/models"
+	"glossias/src/pkg/testutil"
 
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// assertQueryBudget mirrors src/apis/handlers/querybudget_test.go: serve req
-// and fail if the handler exceeded max DB calls.
+// assertQueryBudget is testutil.AssertQueryBudget for handler funcs.
 func assertQueryBudget(t *testing.T, max int, handler http.HandlerFunc, req *http.Request) *httptest.ResponseRecorder {
 	t.Helper()
-	ctx, _ := database.WithQueryCounter(req.Context())
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-	handler(rr, req)
-	if got := database.QueryCount(ctx); got > max {
-		t.Errorf("%s %s made %d DB queries, budget %d", req.Method, req.URL.Path, got, max)
+	return testutil.AssertQueryBudget(t, max, handler, req)
+}
+
+// courseAdminRights stubs the user as an admin of courseID, or of no course.
+func courseAdminRights(admin bool, courseID int32) [][]any {
+	if !admin {
+		return nil
 	}
-	return rr
+	return testutil.CourseAdminRightsRows(courseID)
 }
 
 func TestResetStudentProgressHandler(t *testing.T) {
@@ -56,9 +57,9 @@ func TestResetStudentProgressHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDB := database.NewMockDBTX()
 			// GetUser is left unstubbed (ErrNoRows => not super admin) so the
-			// course-admin path is exercised: GetCourseIdForStory -> IsUserCourseAdmin.
+			// course-admin path is exercised: GetCourseIdForStory -> GetUserCourseAdminRights.
 			mockDB.StubQuery("GetCourseIdForStory", [][]any{{pgtype.Int4{Int32: 3, Valid: true}}}, nil)
-			mockDB.StubQuery("IsUserCourseAdmin", [][]any{{tt.courseAdmin}}, nil)
+			mockDB.StubQuery("GetUserCourseAdminRights", courseAdminRights(tt.courseAdmin, 3), nil)
 			mockDB.StubQuery("ResetUserStoryAnswers", [][]any{{
 				int64(1), int64(2), int64(0), int64(0), int64(1), int64(3), int64(1), int64(2), int64(2), int64(5), int64(0),
 			}}, nil)
@@ -135,7 +136,7 @@ func TestStoryStudentDrilldownHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDB := database.NewMockDBTX()
 			mockDB.StubQuery("GetCourseIdForStory", [][]any{{pgtype.Int4{Int32: 3, Valid: true}}}, nil)
-			mockDB.StubQuery("IsUserCourseAdmin", [][]any{{tt.courseAdmin}}, nil)
+			mockDB.StubQuery("GetUserCourseAdminRights", courseAdminRights(tt.courseAdmin, 3), nil)
 			if tt.studentFound {
 				mockDB.StubQuery("GetStudentStoryHeader", [][]any{{"student-9", "Student Nine", "nine@example.com", "A Story"}}, nil)
 			}
@@ -213,7 +214,7 @@ func TestStudentAttemptsHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDB := database.NewMockDBTX()
 			mockDB.StubQuery("GetCourseIdForStory", [][]any{{pgtype.Int4{Int32: 3, Valid: true}}}, nil)
-			mockDB.StubQuery("IsUserCourseAdmin", [][]any{{tt.courseAdmin}}, nil)
+			mockDB.StubQuery("GetUserCourseAdminRights", courseAdminRights(tt.courseAdmin, 3), nil)
 			if tt.studentFound {
 				mockDB.StubQuery("GetStudentStoryHeader", [][]any{{"student-9", "Student Nine", "nine@example.com", "A Story"}}, nil)
 			}
@@ -289,10 +290,10 @@ func TestDeleteStudentAttemptHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDB := database.NewMockDBTX()
 			mockDB.StubQuery("GetCourseIdForStory", [][]any{{pgtype.Int4{Int32: 3, Valid: true}}}, nil)
-			mockDB.StubQuery("IsUserCourseAdmin", [][]any{{tt.courseAdmin}}, nil)
+			mockDB.StubQuery("GetUserCourseAdminRights", courseAdminRights(tt.courseAdmin, 3), nil)
 			if tt.exists {
 				mockDB.StubExecRows("AND attempt_number = $3", 1)
-				mockDB.StubQuery("ListUserStoryAttemptsAfter", [][]any{{int64(20), int32(2)}}, nil)
+				mockDB.StubExecRows("OffsetStoryAttemptsAfter", 1)
 			}
 			models.SetDB(mockDB)
 			defer models.SetDB(struct{}{})
@@ -305,15 +306,16 @@ func TestDeleteStudentAttemptHandler(t *testing.T) {
 			if rr.Code != tt.expectedStatus {
 				t.Fatalf("status = %d, want %d; body: %s", rr.Code, tt.expectedStatus, rr.Body.String())
 			}
-			shifts := mockDB.Calls("UPDATE story_attempts SET attempt_number")
+			shifts := mockDB.Calls("StoryAttemptsAfter")
 			if tt.expectedStatus != http.StatusOK {
 				if len(shifts) != 0 {
 					t.Errorf("renumbered on a failed delete: %+v", shifts)
 				}
 				return
 			}
-			if len(shifts) != 1 || shifts[0].Args[1] != int32(1) {
-				t.Errorf("renumber calls = %+v, want attempt 2 -> 1", shifts)
+			// Offset then settle, both keyed on the deleted attempt 1.
+			if len(shifts) != 2 || shifts[0].Args[2] != int32(1) || shifts[1].Args[0] != int32(1) {
+				t.Errorf("renumber calls = %+v, want offset + settle after attempt 1", shifts)
 			}
 			// Never the whole-story reset path.
 			if n := len(mockDB.Calls("ResetUserStoryAnswers")); n != 0 {

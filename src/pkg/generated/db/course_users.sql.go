@@ -189,48 +189,6 @@ func (q *Queries) GetCoursesForUserByStatus(ctx context.Context, arg GetCoursesF
 	return items, nil
 }
 
-const getUsersForCourse = `-- name: GetUsersForCourse :many
-SELECT u.user_id, u.email, u.name, cu.enrolled_at, cu.status
-FROM users u
-JOIN course_users cu ON u.user_id = cu.user_id
-WHERE cu.course_id = $1
-ORDER BY u.name
-`
-
-type GetUsersForCourseRow struct {
-	UserID     string           `json:"user_id"`
-	Email      string           `json:"email"`
-	Name       string           `json:"name"`
-	EnrolledAt pgtype.Timestamp `json:"enrolled_at"`
-	Status     pgtype.Text      `json:"status"`
-}
-
-func (q *Queries) GetUsersForCourse(ctx context.Context, courseID int32) ([]GetUsersForCourseRow, error) {
-	rows, err := q.db.Query(ctx, getUsersForCourse, courseID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GetUsersForCourseRow{}
-	for rows.Next() {
-		var i GetUsersForCourseRow
-		if err := rows.Scan(
-			&i.UserID,
-			&i.Email,
-			&i.Name,
-			&i.EnrolledAt,
-			&i.Status,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const removeUserFromCourse = `-- name: RemoveUserFromCourse :exec
 DELETE FROM course_users
 WHERE course_id = $1 AND user_id = $2

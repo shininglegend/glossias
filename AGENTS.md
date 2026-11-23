@@ -32,7 +32,9 @@ go build ./...
 
 Run the checks for whichever side was touched before considering a task done. Do not skip steps. Frontend checks: `frontend/AGENTS.md`.
 
-**DB query budgets:** every request logs `db_queries=N` and warns above 15 (`dbQueryWarnThreshold` in `main.go`). Handler tests should wrap the success case in `assertQueryBudget(t, max, handler, req)` (`src/apis/handlers/querybudget_test.go`). If a budget has to rise, the fix is almost always a batch SQLC query (`WHERE id = ANY($1::int[])`) rather than a bigger number.
+**DB query budgets:** every request logs `db_queries=N` and warns above 15 (`dbQueryWarnThreshold` in `src/server/router.go`). Handler tests should wrap the success case in `assertQueryBudget(t, max, handler, req)` (`testutil.AssertQueryBudget`, `src/pkg/testutil/querybudget.go`). If a budget has to rise, the fix is almost always a batch SQLC query (`WHERE id = ANY($1::int[])`) rather than a bigger number.
+
+**Integration tests (real Postgres):** `make test-integration` runs `src/integration` and `src/pkg/testdb` under the `integration` build tag; plain `go test ./...` does not compile them. They need Docker running (they skip without it, unless `TESTDB_REQUIRE=1`, which CI sets so a missing Docker fails the `integration` job in `.github/workflows/go.yml`): `src/pkg/testdb` starts one `postgres:17` container through testcontainers-go, applies the goose migrations, loads the deterministic dataset from `src/pkg/testdb/seed` (40 stories, students in every paywall state) and clones it per test that writes. `src/integration` sends every endpoint through the production router (`src/server.NewRouter`) as each kind of user, paywall on and off, cache cold and warm, and compares each request's DB query count and status with `src/integration/testdata/query_baseline.json`: a count above the baseline fails. After lowering counts, `make query-baseline` and commit the file; `make query-report` prints the table and the change. Set `INTEGRATION_LOG=1` to see server logs. To check that a refactor leaves responses unchanged, run `TestQueryBudgets` with `RESPONSE_DUMP_DIR=<empty dir>` on both commits and diff the two directories (one file per request: status, then body; recall pages shuffle their sentences and the storage stub's port changes per run). `TESTDB_URL` can point at a throwaway Postgres instead of a container; never at the `.env` `DATABASE_URL`. On colima or OrbStack, set `DOCKER_HOST` (and `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock`) if testcontainers cannot find the socket.
 
 ### Backend (Go)
 
@@ -42,6 +44,8 @@ go vet ./...
 go test ./...
 go build ./...
 ```
+
+When a change touches queries, models or handlers, also run `go vet -tags integration ./...` and `make test-integration` (Docker must be running).
 
 Optionally, run `go test -v ./src/pkg/models/...` for verbose package tests
 
@@ -56,7 +60,7 @@ Backend (`.env`):
 - `CLERK_SECRET_KEY`, `AUTHORIZED_PARTY`
 - `DATABASE_URL`
 - `STORAGE_URL`, `STORAGE_API_KEY`
-- `DEV_USER` — when set, bypasses Clerk auth (dev only)
+- `DEV_USER` — when set, bypasses Clerk auth (dev only). The server refuses to start with it unless `PUBLIC_APP_URL` is set to a localhost URL (`auth.CheckDevBypass`).
 - `ANTHROPIC_API_KEY` — enables AI grading of Produce submissions (background, fail-open). Unset → submissions are stored ungraded and a warning is logged at startup. `GradingErrorStreakLimit` consecutive grading calls that fail at the API level (unreachable, timeout, error status) raise an incident through the alerter; a rejected key (401/403) raises on the first failure; the next answer from the model resolves it. Refusals, cut-offs, unparseable verdicts and quota refusals do not count.
 - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ACCESS` — Stripe checkout. Unset → checkout disabled; a warning is logged at startup.
 - `PUBLIC_APP_URL` — Checkout success/cancel base URL (defaults to `http://localhost:5173`).
@@ -110,7 +114,7 @@ Never edit files under `src/pkg/generated/db/` by hand.
 
 ## Auth
 
-Clerk is used for both frontend (ClerkProvider in `frontend/app/root.tsx`) and backend (JWT middleware in `src/auth/`). Role-based access: `super_admin`, `course_admin`, `student`. The `DEV_USER` env var bypasses auth entirely — never set it in production.
+Clerk is used for both frontend (ClerkProvider in `frontend/app/root.tsx`) and backend (JWT middleware in `src/auth/`). Role-based access: `super_admin`, `course_admin`, `student`. The `DEV_USER` env var bypasses auth entirely — never set it in production (startup fails unless `PUBLIC_APP_URL` is a localhost URL). Rate limiting keys on the client IP from DigitalOcean App Platform's `DO-Connecting-IP` header, falling back to the TCP peer; `X-Forwarded-For` is client-controlled and never trusted (`auth.ClientIP`).
 If you want to cURL a request, include `'dev_auth: 12345678'` as a header to be authenticated as admin.
 
 ## Routing Conventions
@@ -121,6 +125,6 @@ If you want to cURL a request, include `'dev_auth: 12345678'` as a header to be 
 
 ## Known Issues
 
-- Global `queries` variable shared across requests creates a race condition in transactions — should be scoped per-request.
+- Inside `withTransaction` callbacks always pass `txCtx` to queries: a query given the outer `ctx` silently runs outside the transaction (`ContextTxRouter` picks the transaction from the context).
+- `SetDB` mutates a package global, so tests that swap databases must not run in parallel.
 - Rate limiter uses an unbounded map (memory leak under load).
-- N+1 query pattern in story loading (no batching). The per-request `db_queries` log field / WARN exposes which endpoints are affected.

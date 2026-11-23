@@ -188,6 +188,8 @@ type Querier interface {
 	GetIncompleteVocabForUser(ctx context.Context, arg GetIncompleteVocabForUserParams) ([]GetIncompleteVocabForUserRow, error)
 	GetLatestEntitlementExpiryForUserCourse(ctx context.Context, arg GetLatestEntitlementExpiryForUserCourseParams) (pgtype.Timestamptz, error)
 	GetLineAudioFiles(ctx context.Context, arg GetLineAudioFilesParams) ([]LineAudioFile, error)
+	// GetLineFootnotesWithRefs is GetStoryFootnotesWithRefs for one line.
+	GetLineFootnotesWithRefs(ctx context.Context, arg GetLineFootnotesWithRefsParams) ([]GetLineFootnotesWithRefsRow, error)
 	GetLineText(ctx context.Context, arg GetLineTextParams) (string, error)
 	GetLineTranslation(ctx context.Context, arg GetLineTranslationParams) (string, error)
 	// Line translations management queries
@@ -220,6 +222,9 @@ type Querier interface {
 	// Story descriptions
 	GetStoryDescription(ctx context.Context, arg GetStoryDescriptionParams) (string, error)
 	GetStoryFootnotesWithReferences(ctx context.Context, storyID pgtype.Int4) ([]GetStoryFootnotesWithReferencesRow, error)
+	// GetStoryFootnotesWithRefs returns every footnote of a story with its
+	// references sorted; a footnote without references gets an empty array.
+	GetStoryFootnotesWithRefs(ctx context.Context, storyID int32) ([]GetStoryFootnotesWithRefsRow, error)
 	GetStoryGrammarPoints(ctx context.Context, storyID int32) ([]GetStoryGrammarPointsRow, error)
 	GetStoryGrammarScores(ctx context.Context, storyID int32) ([]GetStoryGrammarScoresRow, error)
 	GetStoryImage(ctx context.Context, imageID int32) (StoryImage, error)
@@ -384,6 +389,11 @@ type Querier interface {
 	// can tell "grading failed" from "still waiting".
 	MarkProduceGradingFailed(ctx context.Context, id int32) error
 	MarkTranslationRequestComplete(ctx context.Context, arg MarkTranslationRequestCompleteParams) error
+	// MergeTranslationRequestLines records revealed translation lines (1-based)
+	// in one statement: it creates the user's request for the story or merges
+	// the lines into it (sorted, no duplicates), and marks it complete when
+	// complete is set. Completion is never cleared.
+	MergeTranslationRequestLines(ctx context.Context, arg MergeTranslationRequestLinesParams) error
 	RemoveCourseAdmin(ctx context.Context, arg RemoveCourseAdminParams) error
 	RemoveUserFromCourse(ctx context.Context, arg RemoveUserFromCourseParams) error
 	RemoveUsersFromSiblingSections(ctx context.Context, arg RemoveUsersFromSiblingSectionsParams) error
@@ -396,6 +406,10 @@ type Querier interface {
 	// Identify phase answer-log queries
 	SaveIdentifyCorrectAnswer(ctx context.Context, arg SaveIdentifyCorrectAnswerParams) error
 	SaveIdentifyIncorrectAnswer(ctx context.Context, arg SaveIdentifyIncorrectAnswerParams) error
+	// SaveRecallAnswers logs one recall ordering attempt in one statement:
+	// sentence_ids[i] was placed at position i (1-based); correct[i] picks the
+	// table. Rows land in submitted order within each table.
+	SaveRecallAnswers(ctx context.Context, arg SaveRecallAnswersParams) error
 	SaveRecallCorrectAnswer(ctx context.Context, arg SaveRecallCorrectAnswerParams) error
 	SaveRecallIncorrectAnswer(ctx context.Context, arg SaveRecallIncorrectAnswerParams) error
 	SaveVocabIncorrectAnswer(ctx context.Context, arg SaveVocabIncorrectAnswerParams) error

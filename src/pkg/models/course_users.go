@@ -79,6 +79,7 @@ func AddUserToCourseByEmailWithStatus(ctx context.Context, email string, courseI
 
 // RemoveUserFromCourse removes a user from a course
 func RemoveUserFromCourse(ctx context.Context, courseID int, userID string) error {
+	defer BumpAccessEpoch()
 	return queries.RemoveUserFromCourse(ctx, db.RemoveUserFromCourseParams{
 		CourseID: int32(courseID),
 		UserID:   userID,
@@ -87,6 +88,7 @@ func RemoveUserFromCourse(ctx context.Context, courseID int, userID string) erro
 
 // UpdateCourseUserStatus updates the status of a user's enrollment in a course
 func UpdateCourseUserStatus(ctx context.Context, courseID int, userID string, status string) error {
+	defer BumpAccessEpoch()
 	return queries.UpdateCourseUserStatus(ctx, db.UpdateCourseUserStatusParams{
 		CourseID: int32(courseID),
 		UserID:   userID,
@@ -98,6 +100,7 @@ func BulkUpdateUserStatusInCourse(ctx context.Context, courseID int, userIDs []s
 	if status != "active" && status != "past" && status != "future" {
 		return ErrInvalidStatus
 	}
+	defer BumpAccessEpoch()
 	return queries.BulkUpdateCourseUserStatus(ctx, db.BulkUpdateCourseUserStatusParams{
 		CourseID: int32(courseID),
 		Status:   pgtype.Text{String: status, Valid: true},
@@ -107,6 +110,7 @@ func BulkUpdateUserStatusInCourse(ctx context.Context, courseID int, userIDs []s
 
 // DeleteAllUsersFromCourse removes all users from a course
 func DeleteAllUsersFromCourse(ctx context.Context, courseID int) error {
+	defer BumpAccessEpoch()
 	return queries.DeleteAllUsersFromCourse(ctx, int32(courseID))
 }
 

@@ -26,6 +26,7 @@ import (
 	"glossias/src/auth"
 	"glossias/src/pkg/models"
 	"glossias/src/pkg/testdb"
+	"glossias/src/pkg/testdb/seed"
 	"glossias/src/server"
 )
 
@@ -37,6 +38,14 @@ var router http.Handler
 // seedUsers maps a seeded user id to its email and name, filled from the
 // dataset before any request is served.
 var seedUsers = map[string][2]string{}
+
+// fillSeedUsers lets fakeAuth accept every user in ds. Call it before serving
+// requests as seeded users.
+func fillSeedUsers(ds *seed.Dataset) {
+	for _, r := range ds.Table("users").Rows {
+		seedUsers[r[0].(string)] = [2]string{r[1].(string), r[2].(string)}
+	}
+}
 
 func TestMain(m *testing.M) {
 	// Keep the run independent of the developer's .env and of external services.

@@ -70,6 +70,7 @@ func UnlinkStoryCourse(ctx context.Context, storyID, courseID int32) error {
 	if owner.Valid && owner.Int32 == courseID {
 		return ErrUnlinkOwner
 	}
+	defer BumpAccessEpoch()
 	return queries.UnlinkStoryFromCourse(ctx, db.UnlinkStoryFromCourseParams{
 		CourseID: courseID,
 		StoryID:  storyID,

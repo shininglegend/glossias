@@ -360,6 +360,7 @@ func GrantFromCheckoutSession(ctx context.Context, userID string, courseID int32
 }
 
 func ExpireEntitlementsForPaymentIntent(ctx context.Context, paymentIntentID string) error {
+	defer BumpAccessEpoch()
 	_, err := queries.ExpireEntitlementsByPaymentIntent(ctx, textOrNull(paymentIntentID))
 	return err
 }

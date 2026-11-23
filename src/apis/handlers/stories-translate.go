@@ -7,7 +7,6 @@ import (
 	"glossias/src/auth"
 	"glossias/src/pkg/models"
 	"net/http"
-	"slices"
 	"strconv"
 
 	"github.com/gorilla/mux"
@@ -102,19 +101,20 @@ func (h *Handler) getTranslationRequest(w http.ResponseWriter, r *http.Request, 
 func (h *Handler) saveTranslationRequest(w http.ResponseWriter, r *http.Request, userID string, storyID int) {
 	ctx := r.Context()
 
-	// Get the previous request, if any
-	prevTranslationRequest, err := models.GetTranslationRequest(ctx, userID, storyID)
-	if err != nil && err != models.ErrNotFound {
-		h.log.Error("Failed to save translation request", "error", err)
+	// Only a student who may open the story may record progress on it.
+	err := models.CheckStoryContentAccessCached(ctx, userID, storyID)
+	if h.writeStoryErr(w, err, "Story not found") {
+		return
+	}
+	if err != nil {
+		h.log.Error("Failed to check story access", "error", err)
 		h.sendError(w, "Failed to save translation request", http.StatusInternalServerError)
 		return
 	}
 
 	// Parse line numbers from query parameters for new request
-	lineNumbersStr := r.URL.Query().Get("lines")
 	lineNumbers := []int{}
-	err = json.Unmarshal([]byte(lineNumbersStr), &lineNumbers)
-	if err != nil {
+	if err := json.Unmarshal([]byte(r.URL.Query().Get("lines")), &lineNumbers); err != nil {
 		h.sendError(w, "Invalid line numbers format", http.StatusBadRequest)
 		return
 	}
@@ -123,50 +123,13 @@ func (h *Handler) saveTranslationRequest(w http.ResponseWriter, r *http.Request,
 		lineNumbers[i] += 1
 	}
 
-	// Combine the two requests if present
-	if prevTranslationRequest == nil {
-		// Create translation request to show this has been done
-		_, err = models.CreateTranslationRequest(ctx, userID, storyID, lineNumbers)
-		if err != nil {
-			h.log.Error("Failed to create translation request", "error", err)
-			h.sendError(w, "Failed to create translation request", http.StatusInternalServerError)
-			return
-		}
-	} else {
-		// Update the previous req in the db
-		prevLineNumbers := prevTranslationRequest.RequestedLines
-
-		// Combine and deduplicate line numbers using a map
-		lineSet := make(map[int]bool)
-		for _, line := range prevLineNumbers {
-			lineSet[int(line)] = true
-		}
-		for _, line := range lineNumbers {
-			lineSet[line] = true
-		}
-
-		// Convert to sorted slice
-		combinedLines := make([]int32, 0, len(lineSet))
-		for line := range lineSet {
-			combinedLines = append(combinedLines, int32(line))
-		}
-		slices.Sort(combinedLines)
-
-		// Save in DB
-		err := models.UpdateTranslationRequest(ctx, userID, storyID, combinedLines)
-		if err != nil {
-			h.log.Error("Failed to update translation request", "error", err)
-			h.sendError(w, "Failed to update translation request", http.StatusInternalServerError)
-			return
-		}
-	}
-
-	if r.URL.Query().Get("complete") == "true" {
-		if err := models.MarkTranslationRequestComplete(ctx, userID, storyID); err != nil {
-			h.log.Error("Failed to mark translation request complete", "error", err)
-			h.sendError(w, "Failed to mark translation request complete", http.StatusInternalServerError)
-			return
-		}
+	// Create the request or merge the lines into it (sorted, deduplicated),
+	// and mark it complete on the final call, in one statement.
+	complete := r.URL.Query().Get("complete") == "true"
+	if err := models.SaveTranslationProgress(ctx, userID, storyID, lineNumbers, complete); err != nil {
+		h.log.Error("Failed to save translation request", "error", err)
+		h.sendError(w, "Failed to save translation request", http.StatusInternalServerError)
+		return
 	}
 	w.WriteHeader(http.StatusOK)
 }

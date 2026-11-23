@@ -2,6 +2,8 @@ package models
 
 import (
 	"fmt"
+
+	"glossias/src/pkg/cache"
 )
 
 // InvalidateStoryCache removes cached data for a specific story
@@ -27,7 +29,7 @@ func InvalidateStoryCache(storyID int, userID string) {
 	_ = cacheInstance.Delete(vocabCountKey)
 
 	// Invalidate user access cache
-	accessKey := keyBuilder.UserAccess(userID, storyID)
+	accessKey := keyBuilder.StoryAccess(userID, storyID)
 	_ = cacheInstance.Delete(accessKey)
 
 	// Annotations feed the lexical-form counts the readiness report checks
@@ -58,10 +60,23 @@ func InvalidateStoryMetadata(storyID int) {
 	vocabCountKey := keyBuilder.StoryVocabCount(storyID)
 	_ = cacheInstance.Delete(vocabCountKey)
 
+	// Per-line annotation entries (line_annotations:{id}:{line}) hold the same
+	// audio, vocabulary, grammar and footnotes.
+	cacheInstance.DeletePrefix(fmt.Sprintf("line_annotations:%d:", storyID))
+
 	// Annotations feed the lexical-form counts the readiness report checks
 	InvalidateStoryContentReadiness(storyID)
 
 	fmt.Printf("Invalidated metadata cache for story %d\n", storyID)
+}
+
+// BumpAccessEpoch forgets every cached story-access decision. Call it after
+// any write that can take access away (unlinking a story, removing or
+// deactivating an enrollment, expiring an entitlement, resuming payments,
+// removing a course admin, turning a trial course off or deleting a course).
+// Writes that only grant access need not call it: denials are never cached.
+func BumpAccessEpoch() {
+	cache.BumpAccessEpoch()
 }
 
 // InvalidateStoryContentReadiness drops the cached phase readiness report for a

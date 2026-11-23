@@ -40,14 +40,7 @@ type Measurement struct {
 // QUERY_REPORT_MD=path also writes it as Markdown.
 func TestQueryBudgets(t *testing.T) {
 	fx := testdb.Shared(t)
-	for _, tbl := range fx.Data.Tables {
-		if tbl.Name != "users" {
-			continue
-		}
-		for _, r := range tbl.Rows {
-			seedUsers[r[0].(string)] = [2]string{r[1].(string), r[2].(string)}
-		}
-	}
+	fillSeedUsers(fx.Data)
 	f := newFixtures(t, fx.Data)
 
 	baseline := map[string]Measurement{}

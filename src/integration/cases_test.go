@@ -196,7 +196,7 @@ func (f *fixtures) cases() []Case {
 			Body: map[string]any{"sentence_id": f.recallIDs[0], "position": 1}},
 		// Line indexes go in ?lines=[...] (0-based).
 		Case{Name: "write/translate/paid", Method: "PUT", Path: s + "/translate?lines=%5B3%5D", As: f.paid, Mutates: true, Want: 200},
-		Case{Name: "write/translate/unenrolled", Method: "PUT", Path: s + "/translate?lines=%5B3%5D", As: f.unenrolled, Mutates: true},
+		Case{Name: "write/translate/unenrolled", Method: "PUT", Path: s + "/translate?lines=%5B3%5D", As: f.unenrolled, Mutates: true, Want: http.StatusNotFound},
 		Case{Name: "write/next/paid", Method: "POST", Path: s + "/next", As: f.paid, Mutates: true,
 			Body: map[string]any{"currentPage": "vocab"}},
 		Case{Name: "write/produce-start/paid", Method: "POST", Path: s + "/produce/start", As: f.paid, Mutates: true,

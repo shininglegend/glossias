@@ -14,20 +14,12 @@ import (
 
 	"glossias/src/pkg/models"
 	"glossias/src/pkg/testdb"
-	"glossias/src/pkg/testdb/seed"
 	"glossias/src/pkg/testutil"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-// fillSeedUsers lets fakeAuth accept every seeded user.
-func fillSeedUsers(ds *seed.Dataset) {
-	for _, r := range ds.Table("users").Rows {
-		seedUsers[r[0].(string)] = [2]string{r[1].(string), r[2].(string)}
-	}
-}
 
 // sqlRecorder passes every statement to the pool and keeps its text, so a
 // test can count calls of one named SQLC query. It has no Begin, so only

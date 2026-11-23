@@ -25,8 +25,8 @@ func stubScoreDB(t *testing.T, completion, summary []any) *database.MockDBTX {
 	t.Helper()
 	mockDB := database.NewMockDBTX()
 	mockDB.StubQuery("CanUserAccessStory", [][]any{{true}}, nil)
-	mockDB.StubQuery("name: GetStory :one", [][]any{{
-		int32(2), int32(1), "A", pgtype.Text{}, pgtype.Timestamp{}, "author", "Author", pgtype.Int4{},
+	mockDB.StubQuery("name: GetStoryWithDescription :one", [][]any{{
+		int32(2), int32(1), "A", pgtype.Text{}, pgtype.Timestamp{}, "author", "Author", pgtype.Int4{}, pgtype.Text{}, pgtype.Text{},
 	}}, nil)
 	mockDB.StubQuery("GetUserStoryPageCompletion", [][]any{completion}, nil)
 	mockDB.StubQuery("GetUserStoryScoreSummary", [][]any{summary}, nil)

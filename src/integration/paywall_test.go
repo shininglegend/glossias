@@ -17,13 +17,6 @@ import (
 	"glossias/src/pkg/testutil"
 )
 
-// loadSeedUsers fills seedUsers so fakeAuth accepts the dataset's users.
-func loadSeedUsers(ds *seed.Dataset) {
-	for _, r := range ds.Table("users").Rows {
-		seedUsers[r[0].(string)] = [2]string{r[1].(string), r[2].(string)}
-	}
-}
-
 // paywallOn turns the paywall on for t and checks that payments are not
 // paused (a pause lifts the paywall and the test would measure nothing).
 func paywallOn(t *testing.T) {
@@ -101,7 +94,7 @@ func expectedLocks(ds *seed.Dataset, user string, now time.Time) map[int][]int {
 // student kind with the paywall on against what the seed implies.
 func TestStoryListLocks(t *testing.T) {
 	fx := testdb.Shared(t)
-	loadSeedUsers(fx.Data)
+	fillSeedUsers(fx.Data)
 	paywallOn(t)
 	now := time.Now()
 
@@ -154,7 +147,7 @@ func TestStoryListLocks(t *testing.T) {
 // queries while listing many more locked stories.
 func TestStoryListPaywallConstantQueries(t *testing.T) {
 	fx := testdb.Fresh(t)
-	loadSeedUsers(fx.Data)
+	fillSeedUsers(fx.Data)
 	paywallOn(t)
 
 	unpaid := fx.Data.Students[seed.KindUnpaid][0]

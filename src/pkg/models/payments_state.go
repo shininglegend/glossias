@@ -186,6 +186,8 @@ func resumePayments(ctx context.Context, proof string, applies func(PauseReason)
 	payState.reason = ""
 	payState.detail = ""
 	payState.mu.Unlock()
+	// The paywall is back: access granted while it was lifted must be re-checked.
+	BumpAccessEpoch()
 
 	slog.Default().InfoContext(ctx, "payments resumed; paywall restored",
 		"was_paused_for", reason, "paused_duration", pausedFor.String(), "proof", proof)

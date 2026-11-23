@@ -45,15 +45,3 @@ DELETE FROM story_attempts WHERE user_id = $1 AND story_id = $2;
 
 -- name: DeleteUserStoryAttemptByNumber :execrows
 DELETE FROM story_attempts WHERE user_id = $1 AND story_id = $2 AND attempt_number = $3;
-
--- Renumbering after a delete happens one row at a time in ascending order
--- (see models.DeleteArchivedAttempt): the unique (user, story, number) key is
--- not deferrable, so a single "SET attempt_number = attempt_number - 1" could
--- collide mid-statement depending on row order.
--- name: ListUserStoryAttemptsAfter :many
-SELECT attempt_id, attempt_number FROM story_attempts
-WHERE user_id = $1 AND story_id = $2 AND attempt_number > $3
-ORDER BY attempt_number;
-
--- name: SetStoryAttemptNumber :exec
-UPDATE story_attempts SET attempt_number = $2 WHERE attempt_id = $1;

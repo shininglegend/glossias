@@ -234,11 +234,6 @@ func NewKeyBuilder() *KeyBuilder {
 	return &KeyBuilder{}
 }
 
-// UserAccess builds a cache key for user access permissions
-func (kb *KeyBuilder) UserAccess(userID string, storyID int) string {
-	return fmt.Sprintf("access:user:%s:story:%d", userID, storyID)
-}
-
 // StoryData builds a cache key for story data (no user ID)
 func (kb *KeyBuilder) StoryData(storyID int) string {
 	return fmt.Sprintf("story:%d", storyID)

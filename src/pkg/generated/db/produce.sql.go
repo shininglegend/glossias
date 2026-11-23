@@ -59,16 +59,6 @@ func (q *Queries) CreateProduceSubmission(ctx context.Context, arg CreateProduce
 	return i, err
 }
 
-const deleteProduceSegment = `-- name: DeleteProduceSegment :exec
-DELETE FROM produce_segments
-WHERE id = $1
-`
-
-func (q *Queries) DeleteProduceSegment(ctx context.Context, id int32) error {
-	_, err := q.db.Exec(ctx, deleteProduceSegment, id)
-	return err
-}
-
 const deleteStoryProduceExplanation = `-- name: DeleteStoryProduceExplanation :exec
 DELETE FROM story_produce_explanations
 WHERE story_id = $1

@@ -188,7 +188,6 @@ func TestGetStories(t *testing.T) {
 		mockDB.StubQuery("name: GetUser :one", [][]any{{
 			"user-1", "u@example.com", "User", pgtype.Bool{Bool: false, Valid: true}, pgtype.Timestamp{}, pgtype.Timestamp{},
 		}}, nil)
-		mockDB.StubQuery("IsUserAdminOfAnyCourse", [][]any{{false}}, nil)
 		// course_id, is_trial, enrolled, entitled: 3 unpaid, 4 paid, 5 trial.
 		mockDB.StubQuery("ListCourseAccessForUser", [][]any{
 			{int32(3), false, true, false},

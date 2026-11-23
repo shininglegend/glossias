@@ -84,9 +84,11 @@ User Operations (SQLC-based):
 UpsertUser(userID, email, name string) (*User, error) // Uses UpsertUser
 GetUser(userID string) (*User, error) // Uses GetUser
 CanUserAccessCourse(userID string, courseID int32) bool // Whether a user is a course member
-IsUserAdmin(userID string) bool // Uses GetUser and IsUserAdminOfAnyCourse
-IsUserCourseAdmin(userID string, courseID int32) bool // Uses IsUserCourseAdmin
-GetUserCourseAdminRights(userID string) ([]CourseAdminRight, error) // Uses GetUserCourseAdminRights
+IsUserSuperAdmin(userID string) bool // Uses GetUser (memoised per request)
+IsUserAnyAdmin(userID string) bool // Super admin, or any row from GetUserCourseAdminRights
+IsUserOnlyCourseAdmin(userID string, courseID int32) bool // From GetUserCourseAdminRights; no super-admin override
+IsUserCourseOrSuperAdmin(userID string, courseID int32) bool // Either of the above
+GetUserCourseAdminRights(userID string) ([]CourseAdminRight, error) // Uses GetUserCourseAdminRights (memoised per request)
 
 Course User Operations (SQLC-based):
 AddUserToCourseByEmail(email string, courseID int) error // Uses GetUserByEmail, AddUserToCourse (defaults to 'active' status)
@@ -97,7 +99,7 @@ BulkUpdateUserStatusInCourse(courseID int, userIDs []string, status string) erro
 DeleteAllUsersFromCourse(courseID int) error // Uses DeleteAllUsersFromCourse
 GetCoursesForUser(userID string) ([]UserCourse, error) // Uses GetCoursesForUser (includes status field)
 GetCoursesForUserByStatus(userID string, status string) ([]UserCourse, error) // Gets courses filtered by status
-GetUsersForCourse(courseID int) ([]CourseUser, error) // Uses GetUsersForCourse
+GetUsersForCourse(courseID int) ([]CourseUser, error) // Uses GetUsersForCourseWithRoles (one query, roles included)
 GetStoryStudentPerformance(ctx context.Context, storyID int32, courseIDs []int32, status string) ([]CourseStudentPerformance, error) // Gets performance data for students in the given courses, filtered by enrollment status
 GetStoryStudentPerformanceForCourse(ctx context.Context, storyID, courseID int32, status, section string) ([]CourseStudentPerformance, error) // Parent roster plus optional section=all|unassigned|<id> filter
 

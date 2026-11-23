@@ -34,10 +34,6 @@ SET hebrew_text = EXCLUDED.hebrew_text,
     line_end = EXCLUDED.line_end
 RETURNING id, story_id, segment_order, hebrew_text, reference_english, grammar_point_id, line_start, line_end;
 
--- name: DeleteProduceSegment :exec
-DELETE FROM produce_segments
-WHERE id = $1;
-
 -- name: DeleteStoryProduceSegments :exec
 DELETE FROM produce_segments
 WHERE story_id = $1;

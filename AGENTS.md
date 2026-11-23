@@ -128,4 +128,3 @@ If you want to cURL a request, include `'dev_auth: 12345678'` as a header to be 
 - Inside `withTransaction` callbacks always pass `txCtx` to queries: a query given the outer `ctx` silently runs outside the transaction (`ContextTxRouter` picks the transaction from the context).
 - `SetDB` mutates a package global, so tests that swap databases must not run in parallel.
 - Rate limiter uses an unbounded map (memory leak under load).
-- N+1 query pattern in story loading (no batching). The per-request `db_queries` log field / WARN exposes which endpoints are affected.

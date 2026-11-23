@@ -52,11 +52,6 @@ UPDATE users
 SET stripe_customer_id = $2, updated_at = CURRENT_TIMESTAMP
 WHERE user_id = $1;
 
--- name: ListCoursesTrialFlags :many
-SELECT course_id, is_trial
-FROM courses
-WHERE course_id = ANY(sqlc.arg(course_ids)::int[]);
-
 -- name: CountStoriesForCourses :many
 SELECT course_id, COUNT(*)::int AS story_count
 FROM course_stories

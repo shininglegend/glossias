@@ -159,47 +159,6 @@ func (q *Queries) ListUserStoryAttemptSnapshots(ctx context.Context, arg ListUse
 	return items, nil
 }
 
-const listUserStoryAttemptsAfter = `-- name: ListUserStoryAttemptsAfter :many
-SELECT attempt_id, attempt_number FROM story_attempts
-WHERE user_id = $1 AND story_id = $2 AND attempt_number > $3
-ORDER BY attempt_number
-`
-
-type ListUserStoryAttemptsAfterParams struct {
-	UserID        string `json:"user_id"`
-	StoryID       int32  `json:"story_id"`
-	AttemptNumber int32  `json:"attempt_number"`
-}
-
-type ListUserStoryAttemptsAfterRow struct {
-	AttemptID     int64 `json:"attempt_id"`
-	AttemptNumber int32 `json:"attempt_number"`
-}
-
-// Renumbering after a delete happens one row at a time in ascending order
-// (see models.DeleteArchivedAttempt): the unique (user, story, number) key is
-// not deferrable, so a single "SET attempt_number = attempt_number - 1" could
-// collide mid-statement depending on row order.
-func (q *Queries) ListUserStoryAttemptsAfter(ctx context.Context, arg ListUserStoryAttemptsAfterParams) ([]ListUserStoryAttemptsAfterRow, error) {
-	rows, err := q.db.Query(ctx, listUserStoryAttemptsAfter, arg.UserID, arg.StoryID, arg.AttemptNumber)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListUserStoryAttemptsAfterRow{}
-	for rows.Next() {
-		var i ListUserStoryAttemptsAfterRow
-		if err := rows.Scan(&i.AttemptID, &i.AttemptNumber); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listUserStoryCompletedAttempts = `-- name: ListUserStoryCompletedAttempts :many
 SELECT sa.attempt_number, sa.completed_at
 FROM story_attempts sa
@@ -236,18 +195,4 @@ func (q *Queries) ListUserStoryCompletedAttempts(ctx context.Context, arg ListUs
 		return nil, err
 	}
 	return items, nil
-}
-
-const setStoryAttemptNumber = `-- name: SetStoryAttemptNumber :exec
-UPDATE story_attempts SET attempt_number = $2 WHERE attempt_id = $1
-`
-
-type SetStoryAttemptNumberParams struct {
-	AttemptID     int64 `json:"attempt_id"`
-	AttemptNumber int32 `json:"attempt_number"`
-}
-
-func (q *Queries) SetStoryAttemptNumber(ctx context.Context, arg SetStoryAttemptNumberParams) error {
-	_, err := q.db.Exec(ctx, setStoryAttemptNumber, arg.AttemptID, arg.AttemptNumber)
-	return err
 }

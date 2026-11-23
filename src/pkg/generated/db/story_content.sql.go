@@ -221,37 +221,3 @@ func (q *Queries) UpsertStoryDescription(ctx context.Context, arg UpsertStoryDes
 	_, err := q.db.Exec(ctx, upsertStoryDescription, arg.StoryID, arg.LanguageCode, arg.DescriptionText)
 	return err
 }
-
-const upsertStoryLine = `-- name: UpsertStoryLine :exec
-INSERT INTO story_lines (story_id, line_number, text)
-VALUES ($1, $2, $3)
-`
-
-type UpsertStoryLineParams struct {
-	StoryID    int32  `json:"story_id"`
-	LineNumber int32  `json:"line_number"`
-	Text       string `json:"text"`
-}
-
-func (q *Queries) UpsertStoryLine(ctx context.Context, arg UpsertStoryLineParams) error {
-	_, err := q.db.Exec(ctx, upsertStoryLine, arg.StoryID, arg.LineNumber, arg.Text)
-	return err
-}
-
-const upsertStoryTitle = `-- name: UpsertStoryTitle :exec
-INSERT INTO story_titles (story_id, language_code, title)
-VALUES ($1, $2, $3)
-ON CONFLICT (story_id, language_code)
-DO UPDATE SET title = EXCLUDED.title
-`
-
-type UpsertStoryTitleParams struct {
-	StoryID      int32  `json:"story_id"`
-	LanguageCode string `json:"language_code"`
-	Title        string `json:"title"`
-}
-
-func (q *Queries) UpsertStoryTitle(ctx context.Context, arg UpsertStoryTitleParams) error {
-	_, err := q.db.Exec(ctx, upsertStoryTitle, arg.StoryID, arg.LanguageCode, arg.Title)
-	return err
-}

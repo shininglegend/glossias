@@ -113,39 +113,6 @@ func (q *Queries) GetUserCourseAdminRights(ctx context.Context, userID string) (
 	return items, nil
 }
 
-const isUserAdminOfAnyCourse = `-- name: IsUserAdminOfAnyCourse :one
-SELECT EXISTS(
-    SELECT 1 FROM course_admins
-    WHERE user_id = $1
-) as is_admin
-`
-
-func (q *Queries) IsUserAdminOfAnyCourse(ctx context.Context, userID string) (bool, error) {
-	row := q.db.QueryRow(ctx, isUserAdminOfAnyCourse, userID)
-	var is_admin bool
-	err := row.Scan(&is_admin)
-	return is_admin, err
-}
-
-const isUserCourseAdmin = `-- name: IsUserCourseAdmin :one
-SELECT EXISTS(
-    SELECT 1 FROM course_admins
-    WHERE course_id = $1 AND user_id = $2
-) as is_admin
-`
-
-type IsUserCourseAdminParams struct {
-	CourseID int32  `json:"course_id"`
-	UserID   string `json:"user_id"`
-}
-
-func (q *Queries) IsUserCourseAdmin(ctx context.Context, arg IsUserCourseAdminParams) (bool, error) {
-	row := q.db.QueryRow(ctx, isUserCourseAdmin, arg.CourseID, arg.UserID)
-	var is_admin bool
-	err := row.Scan(&is_admin)
-	return is_admin, err
-}
-
 const removeCourseAdmin = `-- name: RemoveCourseAdmin :exec
 DELETE FROM course_admins
 WHERE course_id = $1 AND user_id = $2

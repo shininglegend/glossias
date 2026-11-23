@@ -4,11 +4,6 @@ FROM vocabulary_items
 WHERE story_id = $1 AND line_number = $2
 ORDER BY position_start;
 
--- name: CreateVocabularyItem :one
-INSERT INTO vocabulary_items (story_id, line_number, word, lexical_form, position_start, position_end)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id;
-
 -- name: UpdateVocabularyItem :exec
 UPDATE vocabulary_items
 SET word = $2, lexical_form = $3, position_start = $4, position_end = $5
@@ -42,11 +37,6 @@ FROM grammar_items
 WHERE story_id = $1 AND line_number = $2
 ORDER BY position_start;
 
--- name: CreateGrammarItem :one
-INSERT INTO grammar_items (story_id, line_number, grammar_point_id, text, position_start, position_end)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id;
-
 -- name: UpdateGrammarByPosition :exec
 UPDATE grammar_items
 SET grammar_point_id = $5, text = $6, position_start = $7, position_end = $8
@@ -64,16 +54,6 @@ FROM grammar_items
 WHERE story_id = $1
 ORDER BY line_number, position_start;
 
--- name: GetFootnotes :many
-SELECT f.id, f.story_id, f.line_number, f.footnote_text
-FROM footnotes f
-WHERE f.story_id = $1 AND f.line_number = $2;
-
--- name: CreateFootnote :one
-INSERT INTO footnotes (story_id, line_number, footnote_text)
-VALUES ($1, $2, $3)
-RETURNING id;
-
 -- name: UpdateFootnote :exec
 UPDATE footnotes
 SET footnote_text = $3
@@ -82,31 +62,8 @@ WHERE id = $1 AND story_id = $2;
 -- name: DeleteFootnote :exec
 DELETE FROM footnotes WHERE id = $1;
 
--- name: GetAllFootnotesForStory :many
-SELECT f.line_number, f.id, f.footnote_text
-FROM footnotes f
-WHERE f.story_id = $1
-ORDER BY f.line_number, f.id;
-
--- name: GetFootnoteReferences :many
-SELECT reference
-FROM footnote_references
-WHERE footnote_id = $1;
-
--- name: CreateFootnoteReference :exec
-INSERT INTO footnote_references (footnote_id, reference)
-VALUES ($1, $2);
-
 -- name: DeleteFootnoteReferences :exec
 DELETE FROM footnote_references WHERE footnote_id = $1;
-
--- name: GetStoryFootnotesWithReferences :many
-SELECT f.id, f.line_number, f.footnote_text, array_agg(fr.reference ORDER BY fr.reference) as references
-FROM footnotes f
-LEFT JOIN footnote_references fr ON f.id = fr.footnote_id
-WHERE f.story_id = $1
-GROUP BY f.id, f.line_number, f.footnote_text
-ORDER BY f.line_number, f.id;
 
 -- name: GetAllAnnotationsForStory :many
 SELECT 'vocabulary' as type, v.line_number, v.word as text, v.lexical_form as extra, v.position_start, v.position_end, 0 as footnote_id

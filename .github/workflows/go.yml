@@ -50,3 +50,27 @@ jobs:
 
       - name: Stop server
         run: pkill -f "main.go"
+
+  # Real-Postgres integration suite: every endpoint through the production
+  # router, with query counts and statuses checked against
+  # src/integration/testdata/query_baseline.json. testcontainers starts
+  # postgres:17-alpine on the runner's Docker.
+  integration:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Vet integration-tagged code
+        run: go vet -tags integration ./...
+
+      - name: Run integration tests
+        env:
+          # Fail instead of skipping if Docker is unavailable.
+          TESTDB_REQUIRE: "1"
+        run: make test-integration

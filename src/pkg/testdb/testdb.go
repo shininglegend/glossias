@@ -7,7 +7,8 @@
 // TEMPLATE), so withTransaction opens real transactions exactly as in
 // production and nothing leaks between tests.
 //
-// Build with -tags integration. Without Docker the tests skip. TESTDB_URL
+// Build with -tags integration. Without Docker the tests skip, unless
+// TESTDB_REQUIRE is set (CI), when they fail. TESTDB_URL
 // points the harness at an existing server instead of a container; it must be
 // a throwaway server where the user may CREATE DATABASE, never the .env
 // DATABASE_URL.
@@ -122,7 +123,9 @@ func Terminate() {
 
 func start(t *testing.T) {
 	t.Helper()
-	if os.Getenv("TESTDB_URL") == "" {
+	// TESTDB_REQUIRE=1 (CI) turns a missing Docker into a failure instead of
+	// a skip, so the suite cannot pass without having run.
+	if os.Getenv("TESTDB_URL") == "" && os.Getenv("TESTDB_REQUIRE") == "" {
 		testcontainers.SkipIfProviderIsNotHealthy(t)
 	}
 	once.Do(func() { startErr = setup() })

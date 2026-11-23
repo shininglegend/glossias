@@ -61,7 +61,7 @@ func AddUserToCourseByEmailWithStatus(ctx context.Context, email string, courseI
 		return err
 	}
 
-	if slices.Contains([]string{"active", "past", "future"}, status) {
+	if status != "" && !slices.Contains([]string{"active", "past", "future"}, status) {
 		return ErrInvalidStatus
 	}
 

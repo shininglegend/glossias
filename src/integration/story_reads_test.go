@@ -32,6 +32,18 @@ func singleCourseStory(t *testing.T, ds *seed.Dataset) seed.Story {
 
 func paidStudent(ds *seed.Dataset) string { return ds.Students[seed.KindPaid][0] }
 
+// seedEmail returns the seeded email of user.
+func seedEmail(t *testing.T, ds *seed.Dataset, user string) string {
+	t.Helper()
+	for _, r := range ds.Table("users").Rows {
+		if r[0].(string) == user {
+			return r[1].(string)
+		}
+	}
+	t.Fatalf("user %s is not in the seed", user)
+	return ""
+}
+
 func findLine(lines []models.StoryLine, n int) *models.StoryLine {
 	for i := range lines {
 		if lines[i].LineNumber == n {
@@ -204,8 +216,7 @@ func TestAccessRevocation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// Plain SQL: AddUserToCourseByEmail rejects every valid status today.
-		if _, err := fx.Pool.Exec(ctx, "INSERT INTO course_users (course_id, user_id, status) VALUES ($1, $2, 'active')", c.CourseID, user); err != nil {
+		if err := models.AddUserToCourseByEmail(ctx, seedEmail(t, fx.Data, user), int(c.CourseID)); err != nil {
 			t.Fatal(err)
 		}
 		if err := models.LinkStoryCourse(ctx, int32(s.ID), c.CourseID); err != nil {

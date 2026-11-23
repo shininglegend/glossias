@@ -125,6 +125,7 @@ func serve(t *testing.T, c Case) Measurement {
 		req.Header.Set(testUserHeader, c.As)
 	}
 	rr, n := testutil.ServeCounted(router, req)
+	dumpResponse(t, rr.Code, rr.Body.Bytes())
 	switch {
 	case c.KnownBug != "":
 		if rr.Code >= 500 {
@@ -136,6 +137,26 @@ func serve(t *testing.T, c Case) Measurement {
 		t.Errorf("%s %s as %s: status %d: %s", c.Method, c.Path, c.As, rr.Code, truncate(rr.Body.String()))
 	}
 	return Measurement{Queries: n, Status: rr.Code}
+}
+
+// dumpSeq numbers the responses served within one subtest (cold, then the
+// warming and warm requests).
+var dumpSeq = map[string]int{}
+
+// dumpResponse writes the status and body of each served response to
+// RESPONSE_DUMP_DIR when set, one file per subtest and request, so the
+// responses of two commits can be diffed after a refactor.
+func dumpResponse(t *testing.T, status int, body []byte) {
+	dir := os.Getenv("RESPONSE_DUMP_DIR")
+	if dir == "" {
+		return
+	}
+	dumpSeq[t.Name()]++
+	name := strings.NewReplacer("/", "__", " ", "_").Replace(t.Name())
+	path := fmt.Sprintf("%s/%s.%d", dir, name, dumpSeq[t.Name()])
+	if err := os.WriteFile(path, fmt.Appendf(nil, "%d\n%s", status, body), 0o644); err != nil {
+		t.Errorf("dump response: %v", err)
+	}
 }
 
 func truncate(s string) string {

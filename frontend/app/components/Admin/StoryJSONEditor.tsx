@@ -5,7 +5,9 @@ import Button from "~/components/ui/Button";
 
 type Props = {
   value: Story;
-  onSubmit: (story: Story) => void;
+  // A rejected promise is shown under the editor (e.g. the 409 the server
+  // returns for a story that already has lines).
+  onSubmit: (story: Story) => void | Promise<void>;
 };
 
 export default function StoryJSONEditor({ value, onSubmit }: Props) {
@@ -14,14 +16,20 @@ export default function StoryJSONEditor({ value, onSubmit }: Props) {
   );
   const [error, setError] = React.useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    let parsed: Story;
     try {
-      const parsed = JSON.parse(text) as Story;
-      setError(null);
-      onSubmit(parsed);
+      parsed = JSON.parse(text) as Story;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Invalid JSON");
+      return;
+    }
+    setError(null);
+    try {
+      await onSubmit(parsed);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save story");
     }
   };
 

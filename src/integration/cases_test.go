@@ -30,9 +30,6 @@ type Case struct {
 	Mutates bool
 	// Want is the expected status; 0 accepts anything below 500.
 	Want int
-	// KnownBug documents a known server error; the case is still measured
-	// and its status recorded, but a 5xx does not fail it.
-	KnownBug string
 }
 
 // fixtures are the seeded rows the cases are built around.
@@ -241,9 +238,9 @@ func (f *fixtures) cases() []Case {
 
 	// Admin writes.
 	add(
-		Case{Name: "admin-write/save-story/course-admin", Method: "PUT", Path: adm, As: f.admin, Mutates: true,
-			KnownBug: "SaveStoryData inserts story_lines without deleting or upserting, so any story with lines fails on story_lines_pkey",
-			Prepare:  func(t *testing.T) any { return getJSON(t, adm, f.admin, "story") }},
+		// A full-story save cannot replace existing lines: 409 (see TestSaveStoryConflict).
+		Case{Name: "admin-write/save-story/course-admin", Method: "PUT", Path: adm, As: f.admin, Mutates: true, Want: http.StatusConflict,
+			Prepare: func(t *testing.T) any { return getJSON(t, adm, f.admin, "story") }},
 		Case{Name: "admin-write/bulk-translations/course-admin", Method: "PUT", Path: adm + "/translations", As: f.admin, Mutates: true,
 			Body: map[string]any{"languageCode": "es", "translations": lineTranslations(f.story.Lines)}},
 		Case{Name: "admin-write/link-course/super-admin", Method: "POST", Path: adm + "/courses", As: f.super, Mutates: true,

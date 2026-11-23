@@ -3,9 +3,12 @@ package models
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"glossias/src/pkg/generated/db"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	_ "github.com/lib/pq"
 )
@@ -127,8 +130,9 @@ func upsertStoryTitles(ctx context.Context, storyID int, titles map[string]strin
 	return queries.UpsertStoryTitles(ctx, p)
 }
 
-// saveLines inserts the lines (plain inserts: a line that already exists
-// fails on story_lines_pkey, as before), then their annotations and audio.
+// saveLines inserts the lines, then their annotations and audio. A line that
+// already exists fails on story_lines_pkey and is reported as
+// ErrStoryHasLines.
 func saveLines(ctx context.Context, storyID int, lines []StoryLine) error {
 	if len(lines) == 0 {
 		return nil
@@ -145,6 +149,10 @@ func saveLines(ctx context.Context, storyID int, lines []StoryLine) error {
 		batch.addAudio(line.LineNumber, line.AudioFiles)
 	}
 	if _, err := queries.BulkCreateStoryLines(ctx, rows); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "story_lines_pkey" {
+			return fmt.Errorf("%w: %v", ErrStoryHasLines, err)
+		}
 		return err
 	}
 	return batch.write(ctx)

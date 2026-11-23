@@ -30,6 +30,10 @@ var (
 	ErrMissingAuthorID      = errors.New("missing author ID")
 	ErrMissingGrammarPoints = errors.New("at least one grammar point is required")
 	ErrNotFound             = errors.New("story not found")
+	// ErrStoryHasLines: a full-story save only inserts lines, so it cannot
+	// replace the lines of a story that already has some. Overwriting would
+	// cascade-delete students' answers, translations and audio on those lines.
+	ErrStoryHasLines = errors.New("story already has lines; edit them with the line, annotation and translation editors")
 )
 
 // Locked / PayableCourseIDs are list-only paywall fields, filled by AnnotateStoryLocks.

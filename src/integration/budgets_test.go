@@ -127,10 +127,6 @@ func serve(t *testing.T, c Case) Measurement {
 	rr, n := testutil.ServeCounted(router, req)
 	dumpResponse(t, rr.Code, rr.Body.Bytes())
 	switch {
-	case c.KnownBug != "":
-		if rr.Code >= 500 {
-			t.Logf("known bug (status %d): %s", rr.Code, c.KnownBug)
-		}
 	case c.Want != 0 && rr.Code != c.Want:
 		t.Errorf("%s %s as %s: status %d, want %d: %s", c.Method, c.Path, c.As, rr.Code, c.Want, truncate(rr.Body.String()))
 	case c.Want == 0 && rr.Code >= 500:
